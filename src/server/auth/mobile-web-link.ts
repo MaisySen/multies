@@ -11,7 +11,8 @@
 import type { Hono, Context } from "hono";
 import { and, eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
-import { requireAuth } from "./guards";
+import { requireAuth, sessionCookieKey } from "./guards";
+import { authHeaders } from "../lib/host-cookie";
 import { authFor } from "./options";
 import { rateLimit } from "../lib/rate-limit";
 import { randomBytes, sha256Hex, newId } from "../lib/crypto";
@@ -122,27 +123,36 @@ export function installMobileWebLink(app: Hono<AppEnv>) {
     return c.json({ code, expires_in: WEB_LINK_TTL_SECONDS, url });
   });
 
-  app.get("/auth/mobile/web", async (c, next) => {
+  app.get("/auth/mobile/web", async (c) => {
     if (!c.var.deps.config.mobileWebLink) return notFound(c);
-    handoffHeaders(c);
-    return next();
-  }, ipLimiter, async (c) => {
     handoffHeaders(c);
     const deps = c.var.deps;
     const { db } = deps;
     const target = safeNext(c.req.query("next"));
-    const refuse = (reason: string) => {
-      deps.log?.warn("auth.mobile_web_refused", { reason });
-      const res = c.redirect("/login", 302);
+    const go = (to: string) => {
+      const res = c.redirect(to, 302);
       res.headers.set("Referrer-Policy", "no-referrer");
       res.headers.set("Cache-Control", "no-store");
       return res;
     };
+    const refuse = (reason: string, to = "/login") => {
+      deps.log?.warn("auth.mobile_web_refused", { reason });
+      return go(to);
+    };
     const code = c.req.query("code");
+    // PRIV1b (P33): a malformed code is refused before any database write (the limiter's row included).
     if (!isWellFormedCode(code)) return refuse("malformed");
-    // Burn first: one atomic delete; a second attempt (or a racing one) finds nothing.
+    // Burn first, even when the limiter then says no: one atomic delete; a second attempt (or a racing one) finds
+    // nothing, so a 429 never leaves a live code in the browser's history. PRIV1b (P33)
     const row = await db.delete(verifications).where(eq(verifications.identifier, await webLinkIdentifier(code)))
       .returning({ value: verifications.value, expiresAt: verifications.expiresAt }).get();
+    // PRIV1b (P20): the app's in app browser opens the link itself (Sec-Fetch-Site: none). A link followed from
+    // another site is a login CSRF attempt (someone else's code signing this browser in as them): refused.
+    const site = c.req.header("sec-fetch-site");
+    if (site !== undefined && site !== "none") return refuse("cross_site");
+    let limited = true;
+    await ipLimiter(c, async () => { limited = false; });
+    if (limited) return refuse("rate_limited", "/login?error=rate_limited");
     if (!row) return refuse("unknown");
     if (new Date(row.expiresAt).getTime() <= Date.now()) return refuse("expired");
     let bound: Bound;
@@ -152,6 +162,11 @@ export function installMobileWebLink(app: Hono<AppEnv>) {
     if (!user || user.banned) return refuse("user");
     const member = await db.select({ id: members.id }).from(members).where(and(eq(members.userId, bound.u), eq(members.organizationId, bound.o))).get();
     if (!member) return refuse("member");
+    // PRIV1b (P20): never swap a browser already signed in as someone else to this code's person: keep that session.
+    if (sessionCookieKey(c.req.raw.headers)) {
+      const current = await authFor(deps).api.getSession({ headers: authHeaders(c.req.raw.headers, deps.config.mode === "production") }).catch(() => null);
+      if (current && current.user.id !== bound.u) return refuse("other_user", "/app");
+    }
     let headers: Headers;
     let sessionId: string;
     try {
@@ -170,9 +185,6 @@ export function installMobileWebLink(app: Hono<AppEnv>) {
     for (const sc of headers.getSetCookie()) c.header("Set-Cookie", sc, { append: true });
     markWorkspace(c, bound.o);
     deps.log?.info("auth.mobile_web_signed_in", { user: bound.u, org: bound.o });
-    const res = c.redirect(target, 302);
-    res.headers.set("Referrer-Policy", "no-referrer");
-    res.headers.set("Cache-Control", "no-store");
-    return res;
+    return go(target);
   });
 }

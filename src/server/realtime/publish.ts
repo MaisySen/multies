@@ -6,7 +6,7 @@
  */
 import { eq } from "drizzle-orm";
 import type { Deps } from "../context";
-import { chatMembers } from "../db/schema";
+import { chatMembers, members } from "../db/schema";
 import type { ChatAudience, ChatLiveEvent } from "./hub";
 
 /** The parts of a channel row that decide its audience. */
@@ -33,5 +33,23 @@ export async function publishChat(deps: Deps, c: ChannelAudienceRow, event: Chat
     await Promise.race([bus.publish(c.orgId, audience, event), timeout]).finally(() => clearTimeout(timer));
   } catch (err) {
     deps.reportError?.(err, { where: "chat.live.publish", event: event.t });
+  }
+}
+
+/**
+ * PRIV1b (P65): closes every live socket of one person, in the given workspaces or (none given) every workspace they
+ * belong to. Used when they leave or are removed and when their sessions end; a socket was only checked when it
+ * opened. Their other tabs reconnect through the session check. Never throws.
+ */
+export async function closeUserSockets(deps: Deps, userId: string, orgIds?: string[]) {
+  const bus = deps.chatLive;
+  if (!bus?.kick) return;
+  try {
+    const ids = orgIds ?? (await deps.db.select({ o: members.organizationId }).from(members).where(eq(members.userId, userId))).map((r) => r.o);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>((resolve) => { timer = setTimeout(resolve, PUBLISH_TIMEOUT_MS); });
+    await Promise.race([Promise.all(ids.map((o) => bus.kick!(o, userId))), timeout]).finally(() => clearTimeout(timer));
+  } catch (err) {
+    deps.reportError?.(err, { where: "chat.live.kick" });
   }
 }

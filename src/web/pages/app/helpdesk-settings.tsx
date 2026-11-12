@@ -7,7 +7,7 @@ import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
-import { useMailboxes, useTeam } from "@/web/lib/queries";
+import { useOpenableMailboxes, useTeam } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea, TimeInput } from "@/web/components/ui/input";
@@ -71,7 +71,7 @@ function SaveBar({ dirty, busy, onSave, ro }: { dirty: boolean; busy: boolean; o
 }
 
 function General({ s, ro }: { s: HelpdeskSettings; ro: boolean }) {
-  const boxes = useMailboxes();
+  const boxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [ids, setIds] = useState(s.mailboxIds);
   const [chats, setChats] = useState(s.chats);
   const save = useSave();
@@ -262,7 +262,7 @@ function MacroDialog({ initial, onClose, people, snippets }: { initial: MacroOut
 }
 
 function WebsiteChat({ d, ro }: { d: HelpdeskSettingsOut; ro: boolean }) {
-  const boxes = useMailboxes();
+  const boxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [w, setW] = useState<WidgetSettings>(d.settings.widget);
   const [domains, setDomains] = useState(d.settings.widget.domains.join("\n"));
   const save = useSave();

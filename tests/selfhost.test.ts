@@ -6,6 +6,7 @@ import path from "node:path";
 import { generateKeyPairSync } from "node:crypto";
 import nodemailer, { type Transporter } from "nodemailer";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { handleHook, parseKeys, rawFromHook, signDelivery, type HookRequest } from "../scripts/selfhost/mail-bridge";
 import { sign as workerSign } from "../email-worker/src/index";
 import { backup, cleanD1Dump, importDump, restore, summary } from "../scripts/selfhost/db-tool";
@@ -36,7 +37,7 @@ describe("self-host mail bridge", () => {
     ctx = await makeTestApp();
     c = new Client(ctx.app);
     await c.signup();
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain(ctx, c, "acme.io");
     inboxId = (await c.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Acme Hello" })).body.mailbox.id;
     appFetch = ((url: string, init: RequestInit) => ctx.app.request(new URL(url).pathname, { ...init, headers: { ...(init.headers as Record<string, string>), host: "localhost" } })) as unknown as typeof fetch;
   });

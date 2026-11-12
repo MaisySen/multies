@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
-import { useConfig, useMailboxes } from "@/web/lib/queries";
+import { useConfig, useOpenableMailboxes } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -113,7 +113,7 @@ function NewDocument() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [draft, setDraft] = useState<SignRequestInfo | null>(null);
   const [pages, setPages] = useState<SignPage[] | null>(null);
   const [error, setError] = useState<string | null>(null);

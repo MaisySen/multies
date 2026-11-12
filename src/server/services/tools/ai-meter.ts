@@ -14,9 +14,10 @@
  */
 import { sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { isPlanId, type PlanId } from "@/shared/plans";
+import { type PlanId } from "@/shared/plans";
 import { providerFor } from "../ai/keys";
 import { dayOf } from "./usage";
+import { effectivePlanId } from "../plans";
 import { aiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 
 /**
@@ -120,9 +121,8 @@ export function groupTexts(texts: string[]): number[][] {
 }
 
 export async function planOf(deps: Deps, orgId: string): Promise<PlanId> {
-  const r = await deps.db.all<{ plan: string }>(sql`select plan from organizations where id = ${orgId}`);
-  const p = r[0]?.plan;
-  return isPlanId(p) ? p : "starter";
+  const r = await deps.db.all<{ plan: string; comp: number | null }>(sql`select plan, comp_plan as comp from organizations where id = ${orgId}`);
+  return effectivePlanId({ plan: r[0]?.plan, compPlan: r[0]?.comp }); // PRIV1b (P19)
 }
 
 /**
@@ -303,15 +303,15 @@ export interface AiUsage {
 /** Today's AI use for the workspace, in one read. */
 export async function aiUsage(deps: Deps, orgId: string): Promise<AiUsage> {
   const day = dayOf(deps.now());
-  const rows = await deps.db.all<{ plan: string; ou: number | null; oc: number | null; gu: number | null; k: number }>(sql`
-    select o.plan as plan,
+  const rows = await deps.db.all<{ plan: string; comp: number | null; ou: number | null; oc: number | null; gu: number | null; k: number }>(sql`
+    select o.plan as plan, o.comp_plan as comp,
       (select units from ai_usage_daily where day = ${day} and org_id = o.id) as ou,
       (select calls from ai_usage_daily where day = ${day} and org_id = o.id) as oc,
       (select units from ai_usage_daily where day = ${day} and org_id = ${GLOBAL_ROW}) as gu,
       (select count(*) from ai_keys where org_id = o.id) as k
     from organizations o where o.id = ${orgId}`);
   const r = rows[0];
-  const plan = isPlanId(r?.plan) ? r.plan : "starter";
+  const plan = effectivePlanId(r ? { plan: r.plan, compPlan: r.comp } : null); // PRIV1b (P19)
   const units = Number(r?.ou ?? 0), cap = AI_DAILY_UNITS[plan];
   return {
     day, plan, ownKey: Number(r?.k ?? 0) > 0, units, cap, calls: Number(r?.oc ?? 0),

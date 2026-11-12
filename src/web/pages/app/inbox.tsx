@@ -10,7 +10,9 @@ import { useReopenedDrafts } from "@/web/lib/undo-send";
 import { replyDraftFor } from "./inbox-reply";
 import { forgetOpenReply, openReplyDraft } from "@/web/lib/draft-autosave"; // R67 (MB-244)
 import { api } from "@/web/lib/api";
-import { useMailboxes } from "@/web/lib/queries";
+import { qk, useMailboxes } from "@/web/lib/queries";
+import type { MailboxOverview } from "@/web/lib/types";
+import { canReplyIn } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66)
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { mailDate, fullDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -73,7 +75,10 @@ export function TeamInboxPage() {
   // R56 (MB-242): reply to the customer right here, in the same composer as Mail (undo send, saved replies, draft autosave).
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
   useReopenedDrafts<ComposeDraft>((d) => setCompose(d));
-  const sendable = mailboxes.data ?? [];
+  // PRIV1b (P23, P66): From and Reply follow the mailboxes this person can open and their level there (the mail
+  // overview, shared with Mail), not every mailbox in the workspace.
+  const overview = useQuery({ queryKey: qk.overview, queryFn: async () => (await api.get<{ mailboxes: MailboxOverview[] }>("/mail/overview")).mailboxes });
+  const sendable = overview.data ?? [];
   const openConv = (id: string) => setParams({ conv: id }, { replace: false });
   const mail = filter === "all" || filter === "email" ? threads.data?.data ?? [] : [];
   const chatRows = chatOn && filter !== "email" ? (chats.data ?? []).filter((c) => filter === "all" || c.provider === filter) : [];
@@ -131,7 +136,7 @@ export function TeamInboxPage() {
         <div className={cn("min-w-0 lg:sticky lg:top-6 lg:self-start", !anySelected && "hidden lg:block")}>
           {selectedTicket && hdOn ? <WebChatView ticketId={selectedTicket} onBack={() => open(null)} />
             : selectedConv && chatOn ? <div className="space-y-3">{hdOn && <TicketPanel kind="chat" refId={selectedConv} />}<ChatView id={selectedConv} onBack={() => open(null)} /></div>
-            : selected ? <ThreadView helpdesk={hdOn} id={selected} onBack={() => open(null)} canReply={(mailboxId) => sendable.some((m) => m.id === mailboxId)} own={sendable.map((m) => m.address)} onReply={setCompose} />
+            : selected ? <ThreadView helpdesk={hdOn} id={selected} onBack={() => open(null)} canReply={(mailboxId) => canReplyIn(sendable.find((m) => m.id === mailboxId))} own={sendable.map((m) => m.address)} onReply={setCompose} />
             : <Card><EmptyState icon={<IconInbox />} title={ticketsMode ? "Pick a ticket" : chatOn ? "Pick a thread or a chat" : "Pick a thread"} body={ticketsMode ? "See the conversation, its owner and reply times, and answer from here." : chatOn ? "See every message, who wrote it, and reply from here." : "See every message, who wrote it, and what an agent wants to send next."} /></Card>}
         </div>
       </div>
@@ -168,7 +173,7 @@ function ThreadView({ id, onBack, canReply, own, onReply, helpdesk }: { id: stri
         <ThreadAssignControls threadId={t.id} />
       </div>
       {helpdesk && <TicketPanel kind="mail" refId={t.id} onReplyText={canReply(t.mailboxId) && t.messages.length ? (text) => onReply({ ...replyDraftFor(t, own, false), text }) : undefined} />}
-      <ThreadCollab threadId={t.id} />
+      <ThreadCollab threadId={t.id} mailboxId={t.mailboxId} />
       {t.messages.length > 0 && <MakeTask messageId={t.messages[t.messages.length - 1].id} threadId={t.id} />}
       {t.messages.map((m) => (
         <Card key={m.id} className={cn("p-4", m.sentBy.type === "agent" && "border-brand/40")}>
@@ -202,7 +207,7 @@ function ThreadView({ id, onBack, canReply, own, onReply, helpdesk }: { id: stri
           <span className="text-xs text-subtle max-sm:w-full">Goes to the customer. Team notes below stay inside your team.</span>
         </div>
       )}
-      <ThreadNotes threadId={t.id} />
+      <ThreadNotes threadId={t.id} mailboxId={t.mailboxId} />
     </div>
   );
 }

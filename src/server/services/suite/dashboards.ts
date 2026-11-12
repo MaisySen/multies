@@ -457,7 +457,9 @@ async function replyTimes(c: Ctx, w: Widget) {
 async function mailVolume(c: Ctx, w: Widget) {
   const days = 14;
   const from = midnight(c.now, c.tz, -(days - 1));
-  const boxes = w.source.mailboxId ? [w.source.mailboxId] : await readableMailboxes(c.deps, c.actor);
+  // PRIV1b (P22): the viewer's readable mailboxes at render; a widget's saved mailbox the viewer lost shows nothing.
+  const readable = await readableMailboxes(c.deps, c.actor);
+  const boxes = w.source.mailboxId ? readable.filter((m) => m === w.source.mailboxId) : readable;
   const keys = Array.from({ length: days }, (_, i) => dayKey(midnight(c.now, c.tz, -(days - 1) + i), c.tz));
   if (!boxes.length) return { days: keys.map((day) => ({ day, received: 0, sent: 0 })), received: 0, sent: 0 };
   const off = zoneOffset(c.now, c.tz);

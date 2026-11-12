@@ -24,6 +24,8 @@ export const MAX_SOCKETS = 500;
 export const CLOSE_EXPIRED = 4001;
 /** Close code for a full hub (poll instead; try again later). */
 export const CLOSE_FULL = 4013;
+/** PRIV1b (P65): close code for a socket whose person left the workspace or had their sessions ended (reconnect runs the session check). */
+export const CLOSE_REVOKED = 4003;
 
 /**
  * R33: the first frame on every socket. The browser holds its outgoing sends until it arrives
@@ -76,6 +78,15 @@ export function deliver(conns: Iterable<HubConn>, audience: ChatAudience, event:
 /** What the chat services call after a write. Failures are swallowed by publishChat. */
 export interface ChatLiveBus {
   publish(orgId: string, audience: ChatAudience, event: ChatLiveEvent): Promise<void>;
+  /** PRIV1b (P65): closes every socket of one person in this workspace's hub. */
+  kick?(orgId: string, userId: string): Promise<void>;
+}
+
+/** PRIV1b (P65): closes the sockets of one person. Returns how many. */
+export function kickUser(conns: Iterable<HubConn>, userId: string) {
+  let n = 0;
+  for (const c of conns) if (c.userId === userId) { try { c.close(CLOSE_REVOKED, "revoked"); n++; } catch { /* gone */ } }
+  return n;
 }
 
 /** The same hub in this process (Node entry and tests): one set of sockets per workspace. */
@@ -108,5 +119,13 @@ export class MemoryChatHub implements ChatLiveBus {
     this.seqs.set(orgId, (this.seqs.get(orgId) ?? 0) + 1);
     const set = this.hubs.get(orgId);
     if (set) deliver([...set], audience, event, this.now());
+  }
+
+  async kick(orgId: string, userId: string) {
+    const set = this.hubs.get(orgId);
+    if (!set) return;
+    const mine = [...set].filter((c) => c.userId === userId);
+    for (const c of mine) this.leave(orgId, c); // PRIV1b (P65): off the list at once, before the close event arrives
+    kickUser(mine, userId);
   }
 }

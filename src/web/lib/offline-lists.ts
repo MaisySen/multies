@@ -203,6 +203,36 @@ export function withOfflineCopy<T>(list: string, fetcher: () => Promise<T>): () 
   };
 }
 
+/**
+ * PRIV1b (WC4): forget the stored copies whose list name starts with `prefix` (a mailbox that answered 404: the share
+ * was taken back, so its last list must not come back offline). This person and workspace only. Never throws.
+ */
+export async function dropCopies(prefix: string, s: OfflineScope | null = scope ?? scopeOf(readMeCache()), st: OfflineStore | null = getStore()): Promise<void> {
+  return dropWhere((list) => list.startsWith(prefix), s, st);
+}
+
+/**
+ * PRIV1b (WP1): a fresh mail overview lists every mailbox this person can open; a stored mail list copy of any other
+ * mailbox (a share that ended while they were elsewhere) is forgotten. List names are mail:<id>:<folder>:<split>.
+ */
+export async function dropMailCopiesNotIn(ids: Iterable<string>, s: OfflineScope | null = scope ?? scopeOf(readMeCache()), st: OfflineStore | null = getStore()): Promise<void> {
+  const keep = new Set(ids);
+  return dropWhere((list) => { const m = /^mail:([^:]*):/.exec(list); return !!m && !keep.has(m[1]); }, s, st);
+}
+
+/** The removal both share: the on-screen "last copy" marks and this person and workspace's stored copies. */
+async function dropWhere(test: (list: string) => boolean, s: OfflineScope | null, st: OfflineStore | null): Promise<void> {
+  let changed = false;
+  for (const k of [...shown.keys()]) if (test(k)) changed = shown.delete(k) || changed;
+  if (changed) emit();
+  if (!s || !st) return;
+  try {
+    const head = copyKey(s, "");
+    const drop = (await st.all()).filter((c) => c.key.startsWith(head) && test(c.key.slice(head.length))).map((c) => c.key);
+    await Promise.all(drop.map((k) => st.delete(k)));
+  } catch { /* blocked */ }
+}
+
 /** Sign out: forget every stored list on this device. Never throws. */
 export async function wipeOfflineLists(st: OfflineStore | null = getStore()): Promise<void> {
   scope = null;

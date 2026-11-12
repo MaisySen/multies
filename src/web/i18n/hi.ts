@@ -1002,4 +1002,6 @@ export const hi: Bundle = {
   "priv1a.device_api": "API से",
   "priv1a.shared_with_you": "आपसे शेयर किए गए",
   "priv1a.leave": "छोड़ें",
+  "priv1a.private": "निजी",
+  "priv1a.marks_read": "जिसके साथ आपने शेयर किया है वह कोई संदेश खोले, तो वह आपके लिए भी पढ़ा हुआ दिखता है।",
 };

@@ -14,6 +14,7 @@ import { ADDONS, PLANS } from "@/shared/plans";
 // R53 (cold start): templates load on the first billing mail sent, not at isolate startup.
 const tpl = () => import("../../emails");
 import { audit } from "../audit";
+import { effectivePlanId } from "../plans";
 import { emailBrand, sendSystemEmail } from "../system-mail";
 
 type Org = typeof organizations.$inferSelect;
@@ -97,8 +98,10 @@ export async function onInvoicePaid(deps: Deps, org: Org, inv: InvoiceLike) {
 /** Maintenance step: tells billing contacts once when a grace period ends. */
 export async function enforceGracePeriods(deps: Deps) {
   const now = deps.now();
+  // PRIV1b (W3): a comp workspace is never paused (sendingPausedForPayment), so it is never told it is, even with an
+  // old pastDueSince from before the flag.
   const due = await deps.db.select().from(organizations)
-    .where(and(isNotNull(organizations.pastDueSince), isNotNull(organizations.graceEndsAt), lte(organizations.graceEndsAt, now)));
+    .where(and(isNotNull(organizations.pastDueSince), isNotNull(organizations.graceEndsAt), lte(organizations.graceEndsAt, now), eq(organizations.compPlan, false)));
   let notified = 0;
   for (const org of due) {
     const already = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
@@ -133,7 +136,7 @@ export async function maybeUsageAlert(deps: Deps, org: Org, used: number, limit:
   const sent = (org.usageAlerts ?? "").split(",").filter((k) => k.startsWith(day));
   if (sent.includes(key)) return null;
   await deps.db.update(organizations).set({ usageAlerts: [...sent, key].join(",") }).where(eq(organizations.id, org.id));
-  const plan = PLANS[org.plan];
+  const plan = PLANS[effectivePlanId(org)]; // PRIV1b (P19)
   const boost = ADDONS.send_boost;
   for (const to of await billingContacts(deps, org.id)) {
     await sendSystemEmail(deps, {

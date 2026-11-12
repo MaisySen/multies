@@ -5,7 +5,7 @@
 import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { Webhook } from "standardwebhooks";
 import type { Deps } from "../../context";
-import { members, users, webhookDeliveries, webhookEndpoints } from "../../db/schema";
+import { mailboxes, members, users, webhookDeliveries, webhookEndpoints } from "../../db/schema";
 import { sendSystemEmail } from "../system-mail";
 import { decryptSecret, encryptSecret, newId, randomBytes, sha256Hex, toB64 } from "../../lib/crypto";
 import { isPublicHost } from "../../lib/ssrf";
@@ -299,6 +299,19 @@ export async function emitEventMany(deps: Deps, orgId: string, type: WebhookEven
   }
 }
 
+/** PRIV1b (P1): events whose payload carries a mailbox's mail (text, codes, links, recipients, subject). */
+// PRIV1b (P1): bounce and complaint events carry the sender, recipient and subject too.
+const PRIVATE_MAIL_EVENTS: ReadonlySet<string> = new Set(["message.received", "message.sent", "approval.requested", "message.bounced", "message.complained"]);
+/** PRIV1b (P1): the event's mailbox (by id, else by its `from` address for approvals) is someone's personal mailbox. */
+async function personalMailbox(deps: Deps, orgId: string, data: Record<string, unknown>) {
+  const id = typeof data.mailboxId === "string" ? data.mailboxId : null;
+  const address = !id && typeof data.from === "string" ? data.from.toLowerCase() : null;
+  if (!id && !address) return false;
+  const r = await deps.db.select({ personal: mailboxes.personal }).from(mailboxes)
+    .where(and(eq(mailboxes.orgId, orgId), id ? eq(mailboxes.id, id) : eq(mailboxes.address, address!))).get();
+  return !!r?.personal;
+}
+
 export async function emitEvent(deps: Deps, orgId: string, type: WebhookEvent | readonly WebhookEvent[], data: Record<string, unknown>, targets?: WebhookTargets) {
   const types: readonly WebhookEvent[] = typeof type === "string" ? [type] : type;
   try {
@@ -306,6 +319,11 @@ export async function emitEvent(deps: Deps, orgId: string, type: WebhookEvent | 
       .map((e) => { const ev = JSON.parse(e.events) as string[]; return { e, want: types.filter((t) => ev.includes("*") || ev.includes(t)) }; })
       .filter((x) => x.want.length > 0);
     if (!endpoints.length) return [];
+    // PRIV1b (P1): mail from or to a personal mailbox never goes to workspace webhooks or integrations (endpoints record
+    // no creator, so none can be shown to open it). One indexed read, only when an endpoint takes a mail event.
+    if (endpoints.some((x) => x.want.some((t) => PRIVATE_MAIL_EVENTS.has(t))) && await personalMailbox(deps, orgId, data)) {
+      for (const x of endpoints) x.want = x.want.filter((t) => !PRIVATE_MAIL_EVENTS.has(t));
+    }
     const ids: string[] = [];
     for (const { e, want } of endpoints) {
       for (const t of want) {

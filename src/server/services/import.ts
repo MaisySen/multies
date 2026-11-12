@@ -16,6 +16,7 @@ import { getPlan } from "./plans";
 import { parseMime } from "./mail/mime";
 import { storeMessage } from "./mail/store";
 import { mirrorInbound } from "./mailserver";
+import { assertMailboxAccess } from "./team";
 import type { Folder } from "@/shared/mail";
 
 export const IMPORT_PROVIDERS = {
@@ -40,6 +41,8 @@ export async function createImport(deps: Deps, auth: AuthContext, input: { mailb
   assertEnabled(deps);
   const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
   if (!mb) throw notFound("Mailbox");
+  // PRIV1b (P12): an import writes mail into the mailbox, so a personal one needs Send as (its owner); 404 when closed.
+  await assertMailboxAccess(deps.db, auth, mb.id, "send");
   const p = IMPORT_PROVIDERS[input.provider];
   const host = (input.provider === "imap" ? input.sourceHost : p.host)?.trim().toLowerCase();
   if (!host || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host)) throw new HttpError(422, "validation_failed", "Enter the IMAP server name, for example imap.example.com.");

@@ -21,6 +21,7 @@ import { isPublicHost } from "../../lib/ssrf";
 import { audit } from "../audit";
 import { ensurePlatformDomain } from "../free-address";
 import { getPlan } from "../plans";
+import { canOpen, isPersonalOwner, personalInfo, scopeFor } from "../mail-access-priv1a";
 import { CONNECT_PRESETS, presetForEmail, serversFor, type ConnectionView, type ConnectPresetId, type ServerSettings } from "@/shared/mail-connect";
 import { imapflowConnector, type ImapAuth } from "./imap";
 import { nodeSocketOpenerLazy } from "./default-socket";
@@ -119,28 +120,57 @@ export function present(c: Connection, mb: { address: string; displayName: strin
   };
 }
 
-/** Who may manage a connection: the person who connected it, or a workspace owner or admin. */
-function assertCanManage(auth: AuthContext, c: Connection) {
-  if (c.createdByUserId === auth.userId || auth.role === "owner" || auth.role === "admin") return;
-  throw forbidden("Only the person who connected this mailbox, or a workspace admin, can change it.");
+/**
+ * Who may manage a connection: the person who connected it, or a workspace owner or admin.
+ * PRIV1b (P5, P62): on a personal mailbox the mailbox's owner decides, not whoever connected it: only the owner (nobody
+ * on an orphan, P9) changes the sign in or the servers ("change"); admins can still remove it.
+ */
+async function assertCanManage(deps: Deps, auth: AuthContext, c: Connection, what: "change" | "remove") {
+  const own = await isPersonalOwner(deps.db, auth, c.mailboxId);
+  if (own === undefined) {
+    if (c.createdByUserId === auth.userId || auth.role === "owner" || auth.role === "admin") return;
+    throw forbidden("Only the person who connected this mailbox, or a workspace admin, can change it.");
+  }
+  if (own || (what === "remove" && (auth.role === "owner" || auth.role === "admin"))) return;
+  throw forbidden(what === "remove" ? "Only the person this mailbox belongs to, or a workspace admin, can remove it." : "Only the person this mailbox belongs to can change its sign in.");
+}
+
+/**
+ * PRIV1b (P14, P46): one check for every /:id route. "read" (folders) needs the mailbox open; "run" (sync, older mail,
+ * folder choice) needs the owner or a reply share on a personal mailbox, and the connector or an admin on a team one.
+ * 404 when the person can't open the mailbox at all.
+ */
+export async function connectionFor(deps: Deps, auth: AuthContext, id: string, need: "read" | "run") {
+  const c = await getConnection(deps, auth, id);
+  const personal = need === "run" && (await personalInfo(deps.db, auth.orgId, c.mailboxId)) !== null;
+  if (personal && await canOpen(deps.db, auth, c.mailboxId, "reply")) return c;
+  if (!await canOpen(deps.db, auth, c.mailboxId, "read")) throw notFound("Connected mailbox");
+  if (personal) throw forbidden("This mailbox was shared with you to read only. Ask its owner.");
+  if (need === "run" && c.createdByUserId !== auth.userId && auth.role !== "owner" && auth.role !== "admin") throw forbidden("Only the person who connected this mailbox, or a workspace admin, can change it.");
+  return c;
 }
 
 /** Tests, then saves the connection and its mailbox. The first sync runs right after. */
 export async function createConnection(deps: Deps, auth: AuthContext, input: ConnectInput, extra: { secret?: string; authKind?: "password" | "oauth" } = {}) {
   assertEnabled(deps);
   const s = resolveSettings(deps, { ...input, password: input.password || extra.secret || "" });
-  const taken = await deps.db.select({ id: mailboxes.id, orgId: mailboxes.orgId }).from(mailboxes).where(eq(mailboxes.address, s.email)).get();
-  if (taken) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
+  const taken = await deps.db.select({ id: mailboxes.id, orgId: mailboxes.orgId, domainId: mailboxes.domainId, personal: mailboxes.personal, ownerUserId: mailboxes.ownerUserId }).from(mailboxes).where(eq(mailboxes.address, s.email)).get();
+  // PRIV1b (P58): a copy kept for a legal hold after its connection was removed goes back to whoever it belongs to (the
+  // personal owner; an admin or key for a team one) when they connect the address again, held or not.
+  const kept = taken && taken.orgId === auth.orgId && (taken.personal ? !!auth.userId && taken.ownerUserId === auth.userId : !auth.userId || auth.role === "owner" || auth.role === "admin")
+    && !(await connectionForMailbox(deps, taken.id)) && (await ensurePlatformDomain(deps, CONNECTED_DOMAIN)).id === taken.domainId ? taken.id : null;
+  if (taken && !kept) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
   const secret = extra.secret ?? input.password;
   const authKind = extra.authKind ?? "password";
   if (authKind === "password") await testSettings(deps, s, { secret });
   const plan = await getPlan(deps.db, auth.orgId);
   const domain = await ensurePlatformDomain(deps, CONNECTED_DOMAIN);
-  const mailboxId = newId("mbx");
+  const mailboxId = kept ?? newId("mbx");
   const id = newId("mcn");
   const [local] = s.email.split("@");
   // PRIV1a: a connected inbox is personal, private to the person who connected it (a workspace key with no person: a team mailbox).
-  await deps.db.insert(mailboxes).values({ id: mailboxId, orgId: auth.orgId, domainId: domain.id, localPart: local, address: s.email, displayName: s.displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null });
+  if (kept) await deps.db.update(mailboxes).set({ status: "active", displayName: s.displayName }).where(eq(mailboxes.id, kept));
+  else await deps.db.insert(mailboxes).values({ id: mailboxId, orgId: auth.orgId, domainId: domain.id, localPart: local, address: s.email, displayName: s.displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null });
   await deps.db.insert(mailConnections).values({
     id, orgId: auth.orgId, mailboxId, provider: s.preset, email: s.email, username: s.username,
     imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
@@ -153,11 +183,27 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
   return present(row, { address: s.email, displayName: s.displayName });
 }
 
+/**
+ * PRIV1b (P14): members get the connections whose mailbox they can open; admins also get the others, reduced to what
+ * the admin screens need (no hosts, errors or sync detail). `openable` tells them apart.
+ */
 export async function listConnections(deps: Deps, auth: AuthContext) {
-  const rows = await deps.db.select({ c: mailConnections, address: mailboxes.address, displayName: mailboxes.displayName }).from(mailConnections)
-    .innerJoin(mailboxes, eq(mailboxes.id, mailConnections.mailboxId))
-    .where(eq(mailConnections.orgId, auth.orgId)).orderBy(desc(mailConnections.createdAt));
-  return rows.map((r) => present(r.c, r));
+  const [rows, scope] = await Promise.all([
+    deps.db.select({ c: mailConnections, address: mailboxes.address, displayName: mailboxes.displayName }).from(mailConnections)
+      .innerJoin(mailboxes, eq(mailboxes.id, mailConnections.mailboxId))
+      .where(eq(mailConnections.orgId, auth.orgId)).orderBy(desc(mailConnections.createdAt)),
+    scopeFor(deps.db, auth),
+  ]);
+  const open = scope ? new Set(scope) : null;
+  const admin = auth.role === "owner" || auth.role === "admin";
+  type Reduced = Pick<ConnectionView, "id" | "mailboxId" | "email" | "status"> & { openable: false };
+  return rows.flatMap<(ConnectionView & { openable: true }) | Reduced>((r) => !open || open.has(r.c.mailboxId) ? [{ ...present(r.c, r), openable: true as const }]
+    : admin ? [{ id: r.c.id, mailboxId: r.c.mailboxId, email: r.address, status: r.c.status, openable: false as const }] : []);
+}
+
+/** PRIV1b (P14, P46): only the connections this person can open, full rows. */
+export async function openableConnections(deps: Deps, auth: AuthContext) {
+  return (await listConnections(deps, auth)).filter((x): x is ConnectionView & { openable: true } => x.openable);
 }
 
 export async function getConnection(deps: Deps, auth: AuthContext, id: string) {
@@ -170,7 +216,7 @@ export async function getConnection(deps: Deps, auth: AuthContext, id: string) {
 export async function reconnect(deps: Deps, auth: AuthContext, id: string, input: { password: string; username?: string; imap?: Partial<ServerSettings>; smtp?: Partial<ServerSettings> }) {
   assertEnabled(deps);
   const c = await getConnection(deps, auth, id);
-  assertCanManage(auth, c);
+  await assertCanManage(deps, auth, c, "change");
   // R41: the demo's sample connected mailbox has no provider to check, so Reconnect puts it back to its healthy sample
   // state (one small row update, essential to the demo; nothing is fetched and no password is stored).
   if ((await import("../demo")).isSampleConnection(c)) {
@@ -200,12 +246,19 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
  */
 export async function removeConnection(deps: Deps, auth: AuthContext, id: string) {
   const c = await getConnection(deps, auth, id);
-  assertCanManage(auth, c);
-  await assertMailboxNotHeld(deps, auth.orgId, c.mailboxId); // R111: a mailbox on legal hold keeps its copy
+  await assertCanManage(deps, auth, c, "remove");
+  // R111: a mailbox on legal hold keeps its copy. PRIV1b (P58): but the hold no longer stops the disconnect: the stored
+  // password and the sync go now, the mailbox and its held mail stay until the hold is lifted.
+  const held = await assertMailboxNotHeld(deps, auth.orgId, c.mailboxId).then(() => false, (err) => {
+    if (err instanceof HttpError && err.code === "legal_hold") return true;
+    throw err;
+  });
   await deps.db.delete(mailConnections).where(eq(mailConnections.id, c.id));
-  await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
-  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.disconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email } });
-  return { ok: true as const };
+  if (!held) await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
+  // PRIV1b (P58): the kept copy can't send (no connection to send through); connecting the address again reattaches it.
+  else await deps.db.update(mailboxes).set({ status: "suspended" }).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.disconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email, ...(held ? { keptForLegalHold: true } : {}) } });
+  return { ok: true as const, ...(held ? { keptForLegalHold: true as const } : {}) };
 }
 
 export async function connectionForMailbox(deps: Deps, mailboxId: string) {

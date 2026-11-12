@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import type { AppEnv } from "../context";
 import { requireAdmin, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
-import { parseMime } from "../services/mail/mime";
+import { parseMime, untrustedAuthResults } from "../services/mail/mime";
 import { deliverInbound } from "../services/mail/delivery";
-import { createInboundKey, deleteInboundKey, listInboundKeys, verifyInboundSignature } from "../services/mail/inbound-keys";
+import { createInboundKey, deleteInboundKey, isPlatformInboundKey, listInboundKeys, verifyInboundSignature } from "../services/mail/inbound-keys";
 
 /**
  * POST /api/inbound/cloudflare is called by the Cloudflare Email Worker in
@@ -40,6 +40,9 @@ export function inboundWebhookRoutes() {
     } catch {
       return c.json({ action: "reject", code: 550, reason: "Unparseable message." }, 422);
     }
+    // PRIV1b (P38): a workspace's key can sign any bytes, so its Authentication-Results headers prove nothing. Only
+    // the platform's own worker (mail from Cloudflare) or our own authenticator can say pass.
+    if (!isPlatformInboundKey(deps, verified.orgId)) email.authResults = untrustedAuthResults(email.authResults);
     if (deps.authenticate) {
       try {
         const verdict = await deps.authenticate(body, { sender: from });

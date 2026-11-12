@@ -16,6 +16,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { organizations, usageCounters } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
+import { effectivePlanId } from "../plans";
 
 export const MEETING_MINUTES_METRIC = "meeting_participant_minutes";
 export const FREE_MEETING_MINUTES = 1000;
@@ -69,8 +70,8 @@ export async function meetingMinutes(deps: Deps, orgId: string, fresh = false): 
   const hit = cache.get(orgId);
   const now = deps.now().getTime();
   if (!fresh && hit && now - hit.at < CACHE_MS) return hit.value;
-  const org = await deps.db.select({ plan: organizations.plan, override: organizations.meetingMinutesCap }).from(organizations).where(eq(organizations.id, orgId)).get();
-  const cap = capFor(org?.plan ?? "starter", org?.override);
+  const org = await deps.db.select({ plan: organizations.plan, compPlan: organizations.compPlan, override: organizations.meetingMinutesCap }).from(organizations).where(eq(organizations.id, orgId)).get();
+  const cap = capFor(effectivePlanId(org), org?.override); // PRIV1b (P19): a comp workspace gets Business minutes
   const row = await deps.db.select({ count: usageCounters.count }).from(usageCounters)
     .where(and(eq(usageCounters.orgId, orgId), eq(usageCounters.period, minutesPeriod(deps.now())), eq(usageCounters.metric, MEETING_MINUTES_METRIC))).get();
   const value = { cap, used: row?.count ?? 0 };

@@ -30,6 +30,12 @@ export async function deleteInboundKey(deps: Deps, orgId: string, id: string) {
   await deps.db.delete(inboundKeys).where(eq(inboundKeys.id, id));
 }
 
+/** PRIV1b (P38): keys held by the deployment itself (the platform workspace that owns the free-address domain, and
+ * the operator workspace), used by our own Email Worker behind Cloudflare. Any other key is a workspace's own. */
+export function isPlatformInboundKey(deps: Deps, orgId: string): boolean {
+  return orgId === "org_platform" || (!!deps.config.operatorInbox.orgId && orgId === deps.config.operatorInbox.orgId);
+}
+
 export type VerifyResult = { ok: true; orgId: string; keyId: string } | { ok: false; reason: string };
 
 /** Verifies a signed delivery from the Email Worker. */

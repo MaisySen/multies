@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
-import { useMailboxes } from "@/web/lib/queries";
+import { useOpenableMailboxes } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, Meter, Skeleton } from "@/web/components/ui/misc";
@@ -64,7 +64,7 @@ export function DocumentsMerge({ bare = false }: { bare?: boolean }) {
   const qc = useQueryClient();
   const info = useQuery({ queryKey: ["tools-merge"], queryFn: () => api.get<MergeInfo>("/tools/merge") });
   const tpls = useQuery({ queryKey: ["tools-templates"], queryFn: () => api.get<{ templates: TemplateDef[]; workspaceName: string; logo: string | null; today: string }>("/tools/templates") });
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [templateId, setTemplateId] = useState("builtin-invoice");
   const [table, setTable] = useState<Table | null>(null);
   const [map, setMap] = useState<Record<string, string>>({});

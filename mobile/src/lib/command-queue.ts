@@ -20,13 +20,20 @@ export type Command =
   | { id: string; at: number; kind: "task.delete"; taskId: string }
   | { id: string; at: number; kind: "mail.action"; messageId: string; action: MailAction };
 export type NewCommand = Command extends infer C ? (C extends Command ? Omit<C, "id" | "at"> : never) : never;
+/** PRIV1b (P53): the workspace a command was made in ("" for none), recorded when it is queued. */
+export type QueuedCommand = Command & { ws?: string };
+/** The current workspace id ("" for none), or null while it is not known yet. */
+export type WorkspaceOf = () => string | null;
 
 /** Runs one command; a create answers with the real id. */
 export type Executor = (c: Command) => Promise<{ realId?: string } | void>;
 
 export const QUEUE_KEY = "queue:v1";
+/** PRIV1b (P53): the last workspace seen, for changes made offline before the app learns it (cleared with the queue). */
+export const QUEUE_WS_KEY = "queue:ws";
 export const OFFLINE_SYNC_TEXT = "Your changes will sync when you are back online.";
 export const NOT_OFFLINE_TEXT = "Not available offline. Reconnect to do this.";
+export const OTHER_WORKSPACE_TEXT = "This change was made in another workspace.";
 
 /** "1 change waiting", "3 changes waiting". */
 export function waitingLabel(n: number): string { return `${n} ${n === 1 ? "change" : "changes"} waiting`; }
@@ -56,16 +63,21 @@ export class CommandQueue {
   private items: Command[] = [];
   private loaded = false;
   private flushing: Promise<FlushResult> | null = null;
+  /** PRIV1b (MH1): set while a workspace switch runs; `gen` moves on hold and clear so a running flush stops. */
+  private held = false;
+  private gen = 0;
   private listeners = new Set<() => void>();
   /** temp id to real id, kept so screens can follow a row whose id changed. */
   readonly ids = new Map<string, string>();
 
-  constructor(private store: KV, private exec: Executor) {}
+  constructor(private store: KV, private exec: Executor, private workspace?: WorkspaceOf) {}
 
   async load(): Promise<Command[]> {
     if (!this.loaded) {
       this.loaded = true;
       try { this.items = JSON.parse((await this.store.get(QUEUE_KEY)) ?? "[]") as Command[]; } catch { this.items = []; }
+      const ws = this.workspace?.();
+      if (ws != null) await this.store.set(QUEUE_WS_KEY, ws).catch(() => {});
       this.emit();
     }
     return this.items;
@@ -78,7 +90,8 @@ export class CommandQueue {
 
   async enqueue(c: NewCommand, now = Date.now()): Promise<Command> {
     await this.load();
-    const cmd = { ...c, id: tempId(now).replace("tmp_", "cmd_"), at: now } as Command;
+    const ws = this.workspace ? this.workspace() ?? (await this.store.get(QUEUE_WS_KEY).catch(() => null)) : null;
+    const cmd = { ...c, id: tempId(now).replace("tmp_", "cmd_"), at: now, ...(ws != null ? { ws } : {}) } as Command;
     this.items = [...this.items, cmd];
     await this.save();
     this.emit();
@@ -94,11 +107,17 @@ export class CommandQueue {
   private async run(): Promise<FlushResult> {
     await this.load();
     const out: FlushResult = { sent: 0, rejected: [], stopped: false, ids: {} };
+    const gen = this.gen;
     while (this.items.length) {
+      // PRIV1b (P53, MH1): a change made in one workspace never lands in another. Each command checks its own workspace
+      // against the current one when it is sent; a hold or clear (workspace switch) stops the flush; wait while unknown.
+      const ws = this.workspace ? this.workspace() : undefined;
+      if (this.held || gen !== this.gen || ws === null) { out.stopped = true; break; }
       const c = this.items[0];
       try {
+        if (ws !== undefined && (c as QueuedCommand).ws !== ws) throw new ApiError(409, "other_workspace", OTHER_WORKSPACE_TEXT);
         const r = await this.exec(c);
-        this.items = this.items.slice(1);
+        if (this.items[0] === c) this.items = this.items.slice(1); // a clear while it was sent leaves nothing to drop
         out.sent++;
         if (c.kind === "task.create" && r && r.realId) {
           this.ids.set(c.tempId, r.realId);
@@ -107,7 +126,7 @@ export class CommandQueue {
         }
       } catch (err) {
         if (!isRejection(err)) { out.stopped = true; break; }
-        this.items = this.items.slice(1);
+        if (this.items[0] === c) this.items = this.items.slice(1);
         out.rejected.push({ command: c, error: err as ApiError });
         if (c.kind === "task.create") {
           const dropped = this.items.filter((x) => dependsOn(x, c.tempId));
@@ -123,7 +142,12 @@ export class CommandQueue {
     return out;
   }
 
-  async clear() { this.items = []; this.ids.clear(); await this.store.remove(QUEUE_KEY).catch(() => {}); this.emit(); }
+  async clear() { this.gen++; this.items = []; this.ids.clear(); await this.store.remove(QUEUE_KEY).catch(() => {}); this.emit(); }
+
+  /** PRIV1b (MH1): stops sending before a workspace switch: a running flush stops before its next command, and this waits for the one in flight. */
+  async hold(): Promise<void> { this.held = true; this.gen++; await this.flushing?.catch(() => {}); }
+  /** Sends again (the switch failed, so the workspace did not change). */
+  release() { this.held = false; }
 }
 
 /** The executor for the live API: each command is the same REST call the screen would make. */

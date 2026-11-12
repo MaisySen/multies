@@ -9,7 +9,7 @@
  * auto reply per sender per rule a day, no forward of the workspace's own mail (loops), and at most RULE_SENDS_PER_DAY a day.
  * Every run counts against the plan's monthly automation runs, like workspace automations.
  */
-import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { attachments, mailboxes, mailRuleRuns, mailRules, mailThreadLabels, members, messages, users } from "../../db/schema";
 import { badRequest, HttpError, notFound } from "../../lib/errors";
@@ -20,6 +20,7 @@ import {
   type MailRule, type MailRuleActionT, type MailRuleConditionT, type MailRuleInputT, type MailRuleRun, type RuleActionKind, type RuleMessage,
 } from "@/shared/mail-rules-r85";
 import { isRobotSender } from "@/shared/mail-splits";
+import { assertOpen, canOpen, personalInfo, personalOwnerState, personalOwnership, whoCanOpen, type Need } from "../mail-access-priv1a";
 
 export interface RuleActor { orgId: string; userId: string; role?: AuthContext["role"]; agentId?: string | null; scope?: string; email?: string; name?: string }
 const DAY = 86_400_000;
@@ -44,25 +45,57 @@ function present(r: Row): MailRule {
   };
 }
 
-export async function listRules(deps: Deps, a: RuleActor): Promise<MailRule[]> {
-  const userId = person(a);
-  const rows = await deps.db.select().from(mailRules).where(and(eq(mailRules.orgId, a.orgId), eq(mailRules.userId, userId))).orderBy(asc(mailRules.position), asc(mailRules.createdAt));
-  return rows.map(present);
+/** PRIV1b (P43): the level each action needs on a personal mailbox (a task is never made from one). */
+const ACTION_NEED: Record<RuleActionKind, Need> = { notify: "read", move_to_tab: "read", create_task: "read", label: "reply", mark_read: "reply", archive: "reply", star: "reply", forward: "send", auto_reply: "send" };
+const NEED_ORDER: Need[] = ["read", "reply", "send"];
+function ruleNeed(actions: MailRuleActionT[], quiet = false): Need {
+  let i = 0;
+  for (const x of actions) if (!(quiet && SENDING_ACTIONS.includes(x.kind))) i = Math.max(i, NEED_ORDER.indexOf(ACTION_NEED[x.kind] ?? "send"));
+  return NEED_ORDER[i];
 }
 
-async function own(deps: Deps, a: RuleActor, id: string) {
+/** PRIV1b (P43): personal mailboxes this person owns (the workspace owner: those whose owner is unknown or left). One read. */
+async function ownedPersonal(deps: Deps, a: RuleActor): Promise<string[]> {
+  const rows = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
+    .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
+    .where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.personal, true)));
+  // PRIV1b (integration M3): the shared predicate; an orphan's rules are listed to the workspace owner so she can stop them (own, tidy).
+  return rows.filter((r) => { const o = personalOwnership(r, a.userId); return o === "owner" || (o === "orphan" && a.role === "owner"); }).map((r) => r.id);
+}
+
+/** The person's rules, plus (PRIV1b, P43) every rule anyone made on a personal mailbox they own, with its maker's name. */
+export async function listRules(deps: Deps, a: RuleActor): Promise<(MailRule & { createdBy?: { userId: string; name: string } })[]> {
   const userId = person(a);
-  const r = await deps.db.select().from(mailRules).where(and(eq(mailRules.id, id), eq(mailRules.orgId, a.orgId), eq(mailRules.userId, userId))).get();
+  const owned = await ownedPersonal(deps, a);
+  const rows = await deps.db.select({ r: mailRules, name: users.name, email: users.email }).from(mailRules).leftJoin(users, eq(users.id, mailRules.userId))
+    .where(and(eq(mailRules.orgId, a.orgId), owned.length ? or(eq(mailRules.userId, userId), inIds(mailRules.mailboxId, owned)) : eq(mailRules.userId, userId)))
+    .orderBy(asc(mailRules.position), asc(mailRules.createdAt));
+  return rows.map(({ r, name, email }) => (r.userId === userId ? present(r) : { ...present(r), createdBy: { userId: r.userId, name: name || email || "Someone" } }));
+}
+
+/** The caller's own rule; with `ownerToo` (PRIV1b, P43) also any rule on a personal mailbox the caller owns, and
+ * (integration M3) with `tidy` a rule on an orphan for the workspace owner, the same rows listRules shows her. */
+async function own(deps: Deps, a: RuleActor, id: string, ownerToo = false, tidy = false) {
+  const userId = person(a);
+  const r = await deps.db.select().from(mailRules).where(and(eq(mailRules.id, id), eq(mailRules.orgId, a.orgId))).get();
   if (!r) throw notFound("Rule");
-  return r;
+  if (r.userId === userId) return r;
+  if (ownerToo) {
+    const o = await personalOwnerState(deps.db, { userId, orgId: a.orgId, role: a.role }, r.mailboxId);
+    if (o === "owner" || (tidy && o === "orphan" && a.role === "owner")) return r;
+  }
+  throw notFound("Rule");
 }
 
-export async function getRule(deps: Deps, a: RuleActor, id: string) { return present(await own(deps, a, id)); }
+export async function getRule(deps: Deps, a: RuleActor, id: string) { return present(await own(deps, a, id, true, true)); }
 
 /** Checks the mailbox is in the person's scope and every action points at something real they can use. */
 async function check(deps: Deps, a: RuleActor, scope: string[] | null, input: { mailboxId: string; actions: MailRuleActionT[] }) {
   const mb = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, a.orgId))).get();
   if (!mb || (scope && !scope.includes(mb.id))) throw notFound("Mailbox");
+  // PRIV1b (P43): a rule's actions need the level they act at (label: reply, forward: send as); 403 share_level.
+  const need = ruleNeed(input.actions);
+  if (need !== "read") await assertOpen(deps.db, { userId: a.userId, orgId: a.orgId, role: a.role }, mb.id, need);
   const kinds = input.actions.map((x) => x.kind);
   if (new Set(kinds.filter((k) => k !== "label" && k !== "forward")).size !== kinds.filter((k) => k !== "label" && k !== "forward").length) {
     throw badRequest("Each action can be used once in a rule (labels and forwards can repeat).");
@@ -102,7 +135,15 @@ export async function createRule(deps: Deps, a: RuleActor, scope: string[] | nul
 
 export async function updateRule(deps: Deps, a: RuleActor, scope: string[] | null, id: string, patch: Partial<MailRuleInputT>) {
   writable(a);
-  const r = present(await own(deps, a, id));
+  const row = await own(deps, a, id, true, true);
+  // PRIV1b (integration M2): the mailbox's owner may turn someone else's rule on or off (an orphan's: off only), not rewrite it.
+  if (row.userId !== person(a)) {
+    const mine = (await personalOwnerState(deps.db, { userId: a.userId, orgId: a.orgId, role: a.role }, row.mailboxId)) === "owner";
+    if (Object.keys(patch).some((k) => k !== "enabled" && (patch as Record<string, unknown>)[k] !== undefined) || (!mine && patch.enabled !== false)) {
+      throw new HttpError(403, "not_your_rule", mine ? "You can only turn this rule on or off. Its maker can change it." : "You can only turn this rule off.");
+    }
+  }
+  const r = present(row);
   const next = { mailboxId: patch.mailboxId ?? r.mailboxId, actions: patch.actions ?? r.actions };
   if (patch.mailboxId !== undefined || patch.actions !== undefined) await check(deps, a, scope, next);
   await deps.db.update(mailRules).set({
@@ -119,14 +160,14 @@ export async function updateRule(deps: Deps, a: RuleActor, scope: string[] | nul
 
 export async function deleteRule(deps: Deps, a: RuleActor, id: string) {
   writable(a);
-  await own(deps, a, id);
+  await own(deps, a, id, true, true);
   await deps.db.delete(mailRuleRuns).where(eq(mailRuleRuns.ruleId, id));
   await deps.db.delete(mailRules).where(eq(mailRules.id, id));
   return { deleted: true };
 }
 
 export async function listRuns(deps: Deps, a: RuleActor, id: string, limit = 50): Promise<MailRuleRun[]> {
-  await own(deps, a, id);
+  await own(deps, a, id, true, true);
   const rows = await deps.db.select().from(mailRuleRuns).where(eq(mailRuleRuns.ruleId, id)).orderBy(desc(mailRuleRuns.createdAt), desc(mailRuleRuns.id)).limit(Math.min(limit, 100));
   return rows.map((r) => ({ id: r.id, messageId: r.messageId, from: r.fromAddress, subject: r.subject, status: r.status, steps: parse(r.steps, []), createdAt: r.createdAt.toISOString() }));
 }
@@ -159,7 +200,7 @@ export async function testRule(deps: Deps, a: RuleActor, scope: string[] | null,
 
 // ---------------------------------------------------------------- running
 
-interface Ctx { deps: Deps; rule: Row; owner: { userId: string; email: string; name: string; role: AuthContext["role"] }; msg: typeof messages.$inferSelect; quiet?: boolean }
+interface Ctx { deps: Deps; rule: Row; owner: { userId: string; email: string; name: string; role: AuthContext["role"] }; msg: typeof messages.$inferSelect; quiet?: boolean; personal?: boolean }
 type Step = { action: RuleActionKind; ok: boolean; detail?: string; skipped?: true };
 
 async function ownAddresses(deps: Deps, orgId: string) {
@@ -193,6 +234,8 @@ async function runAction(c: Ctx, act: MailRuleActionT, guard: { own: Set<string>
       return step(true);
     }
     case "create_task": {
+      // PRIV1b (P43): a project task is readable by the project, so mail from a personal mailbox never becomes one.
+      if (c.personal) return { action: act.kind, ok: true, skipped: true, detail: "Skipped: tasks aren't made from a personal mailbox." };
       const { createTaskFromThread } = await import("../suite/tasks");
       const t = await createTaskFromThread(deps, { ...suite, system: false }, {
         messageId: msg.id, projectId: act.projectId, priority: act.priority,
@@ -247,15 +290,29 @@ async function ownerOf(deps: Deps, rule: Row) {
   return row ? { userId: rule.userId, email: row.email, name: row.name ?? row.email, role: row.role as AuthContext["role"] } : null;
 }
 
+/**
+ * PRIV1b (P43): on a personal mailbox a rule runs only while its maker can open it at the level its actions need
+ * (a read share notifies only). Team mailboxes pass here (runMailRules checks who can open them). A few indexed reads.
+ */
+export async function ruleGate(deps: Deps, rule: Row, owner: { userId: string; role: AuthContext["role"] }, quiet = false): Promise<{ personal: boolean; ok: boolean }> {
+  if (!(await personalInfo(deps.db, rule.orgId, rule.mailboxId))) return { personal: false, ok: true };
+  const need = ruleNeed(parse<MailRuleActionT[]>(rule.actions, []), quiet);
+  return { personal: true, ok: await canOpen(deps.db, { userId: owner.userId, orgId: rule.orgId, role: owner.role }, rule.mailboxId, need) };
+}
+
 /** Runs one rule's actions on one message, logs the run and updates the rule's counters. */
-export async function runRuleOn(deps: Deps, rule: Row, msg: typeof messages.$inferSelect, opts: { quiet?: boolean; own?: Set<string> } = {}): Promise<MailRuleRun["status"]> {
-  const owner = await ownerOf(deps, rule);
+export async function runRuleOn(deps: Deps, rule: Row, msg: typeof messages.$inferSelect, opts: { quiet?: boolean; own?: Set<string>; gate?: { personal: boolean; ok: boolean }; owner?: Awaited<ReturnType<typeof ownerOf>> } = {}): Promise<MailRuleRun["status"]> {
+  const owner = opts.owner !== undefined ? opts.owner : await ownerOf(deps, rule);
   const actions = parse<MailRuleActionT[]>(rule.actions, []);
   const steps: Step[] = [];
   let status: MailRuleRun["status"];
+  const gate = owner ? opts.gate ?? await ruleGate(deps, rule, owner, opts.quiet) : null;
   if (!owner) {
     status = "skipped";
     steps.push({ action: actions[0]?.kind ?? "notify", ok: false, detail: "The rule's owner left the workspace." });
+  } else if (gate && !gate.ok) {
+    status = "skipped";
+    steps.push({ action: actions[0]?.kind ?? "notify", ok: false, detail: "The rule's owner can't use this mailbox at the level its actions need." });
   } else {
     const { takeRun } = await import("../suite/automations");
     if (!(await takeRun(deps, rule.orgId))) {
@@ -266,7 +323,7 @@ export async function runRuleOn(deps: Deps, rule: Row, msg: typeof messages.$inf
       const guard = { own: opts.own ?? (sending ? await ownAddresses(deps, rule.orgId) : new Set<string>()), sends: sending && !opts.quiet ? await sendsToday(deps, rule.id) : undefined };
       for (const act of actions) {
         try {
-          steps.push(await runAction({ deps, rule, owner, msg, quiet: opts.quiet }, act, guard));
+          steps.push(await runAction({ deps, rule, owner, msg, quiet: opts.quiet, personal: gate?.personal }, act, guard));
         } catch (err) {
           steps.push({ action: act.kind, ok: false, detail: (err instanceof Error ? err.message : "Failed").slice(0, 200) });
         }
@@ -292,14 +349,28 @@ export async function runMailRules(deps: Deps, m: { orgId: string; mailboxId: st
   if (!rules.length) return 0;
   const msg = await deps.db.select().from(messages).where(and(eq(messages.id, m.messageId), eq(messages.orgId, m.orgId))).get();
   if (!msg || msg.folder !== "inbox") return 0;
-  const { usersWhoCanOpen } = await import("../team");
-  const allowed = new Set(await usersWhoCanOpen(deps.db, m.orgId, m.mailboxId));
+  // PRIV1b (SP2): personalInfo once a message, shared with whoCanOpen; makers and levels are cached as values, never
+  // as promises (a promise started and not awaited could reject unhandled).
+  const info = await personalInfo(deps.db, m.orgId, m.mailboxId);
+  const allowed = new Set(await whoCanOpen(deps.db, m.orgId, m.mailboxId, info));
   const rm = toRuleMessage(msg);
   let runs = 0;
+  const makers = new Map<string, Awaited<ReturnType<typeof ownerOf>>>();
+  const levels = new Map<string, boolean>();
   for (const r of rules) {
     if (r.orgId !== m.orgId || !allowed.has(r.userId)) continue;
     if (!ruleMatches({ match: r.match, conditions: parse(r.conditions, []) }, rm)) continue;
-    await runRuleOn(deps, r, msg);
+    if (!makers.has(r.userId)) makers.set(r.userId, await ownerOf(deps, r));
+    const owner = makers.get(r.userId) ?? null;
+    let gate: { personal: boolean; ok: boolean } | undefined;
+    if (owner && !info) gate = { personal: false, ok: true };
+    else if (owner) {
+      const need = ruleNeed(parse<MailRuleActionT[]>(r.actions, []));
+      const key = `${r.userId}:${need}`;
+      if (!levels.has(key)) levels.set(key, await canOpen(deps.db, { userId: owner.userId, orgId: r.orgId, role: owner.role }, r.mailboxId, need));
+      gate = { personal: true, ok: levels.get(key)! };
+    }
+    await runRuleOn(deps, r, msg, { gate, owner });
     runs++;
   }
   return runs;
@@ -308,15 +379,19 @@ export async function runMailRules(deps: Deps, m: { orgId: string; mailboxId: st
 /** "Run on recent mail": applies a rule's quiet actions (never replies or forwards) to matching recent mail. */
 export async function runOnRecent(deps: Deps, a: RuleActor, scope: string[] | null, id: string) {
   writable(a);
-  const rule = await own(deps, a, id);
+  // PRIV1b (integration M2): the mailbox's owner may run a rule made on her mailbox; it still acts at its maker's level.
+  const rule = await own(deps, a, id, true);
   if (scope && !scope.includes(rule.mailboxId)) throw notFound("Mailbox");
   const mine = await ownAddresses(deps, a.orgId);
   const conds = { match: rule.match, conditions: parse<MailRuleConditionT[]>(rule.conditions, []) };
   const recent = (await recentInbox(deps, a.orgId, rule.mailboxId)).filter((m) => ruleMatches(conds, toRuleMessage(m))).slice(0, RECENT_RUN_MAX);
   if (!recent.length) return { ran: 0, matched: 0 };
   const rows = await deps.db.select().from(messages).where(inIds(messages.id, recent.map((r) => r.id)));
+  // PRIV1b (P43): the level check once for the whole batch, not once a message.
+  const maker = await ownerOf(deps, rule);
+  const gate = maker ? await ruleGate(deps, rule, maker, true) : undefined;
   let ran = 0;
-  for (const msg of rows) { await runRuleOn(deps, rule, msg, { quiet: true, own: mine }); ran++; }
+  for (const msg of rows) { await runRuleOn(deps, rule, msg, { quiet: true, own: mine, gate }); ran++; }
   return { ran, matched: recent.length };
 }
 
@@ -330,19 +405,23 @@ export async function listLabels(deps: Deps, orgId: string, scope: string[] | nu
   return rows.map((r) => ({ label: r.label, threads: Number(r.n) }));
 }
 
-/** Labels for a page of threads (the mail list). One read; nothing when the page is empty. */
-export async function labelsFor(deps: Deps, orgId: string, threadIds: string[]): Promise<Map<string, string[]>> {
+/**
+ * Labels for a page of threads (the mail list). One read; nothing when the page is empty.
+ * PRIV1b (P15): a label sits on one mailbox's copy of a thread; only labels on mailboxes in `scope` show.
+ */
+export async function labelsFor(deps: Deps, orgId: string, threadIds: string[], scope: string[] | null): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   const ids = [...new Set(threadIds)].filter(Boolean);
   if (!ids.length) return out;
   const rows = await deps.db.select({ threadId: mailThreadLabels.threadId, label: mailThreadLabels.label }).from(mailThreadLabels)
-    .where(and(eq(mailThreadLabels.orgId, orgId), inIds(mailThreadLabels.threadId, ids)));
+    .where(and(eq(mailThreadLabels.orgId, orgId), inIds(mailThreadLabels.threadId, ids), scope ? inIds(mailThreadLabels.mailboxId, scope) : undefined));
   for (const r of rows) out.set(r.threadId, [...(out.get(r.threadId) ?? []), r.label].sort());
   return out;
 }
 
 export function labelCond(orgId: string, label: string) {
-  return sql`${messages.threadId} in (select l.thread_id from mail_thread_labels l where l.org_id = ${orgId} and l.label = ${label})`;
+  // PRIV1b (P15): a label matches only the copy of the thread in the mailbox it was put on.
+  return sql`${messages.threadId} in (select l.thread_id from mail_thread_labels l where l.org_id = ${orgId} and l.label = ${label} and l.mailbox_id = ${messages.mailboxId})`;
 }
 
 async function threadMailbox(deps: Deps, orgId: string, threadId: string, scope: string[] | null) {
@@ -358,12 +437,13 @@ export async function addLabel(deps: Deps, a: RuleActor, scope: string[] | null,
   if (!clean || /^tab:/i.test(clean)) throw badRequest("Pick another label name.");
   const mailboxId = await threadMailbox(deps, a.orgId, threadId, scope);
   await deps.db.insert(mailThreadLabels).values({ orgId: a.orgId, threadId, label: clean, mailboxId, createdAt: deps.now() }).onConflictDoNothing();
-  return { labels: (await labelsFor(deps, a.orgId, [threadId])).get(threadId) ?? [] };
+  return { labels: (await labelsFor(deps, a.orgId, [threadId], scope)).get(threadId) ?? [] };
 }
 
 export async function removeLabel(deps: Deps, a: RuleActor, scope: string[] | null, threadId: string, label: string) {
   writable(a);
   await threadMailbox(deps, a.orgId, threadId, scope);
-  await deps.db.delete(mailThreadLabels).where(and(eq(mailThreadLabels.orgId, a.orgId), eq(mailThreadLabels.threadId, threadId), eq(mailThreadLabels.label, label)));
-  return { labels: (await labelsFor(deps, a.orgId, [threadId])).get(threadId) ?? [] };
+  // PRIV1b (P15): only a label on a copy in the caller's scope; another mailbox's label stays.
+  await deps.db.delete(mailThreadLabels).where(and(eq(mailThreadLabels.orgId, a.orgId), eq(mailThreadLabels.threadId, threadId), eq(mailThreadLabels.label, label), scope ? inIds(mailThreadLabels.mailboxId, scope) : undefined));
+  return { labels: (await labelsFor(deps, a.orgId, [threadId], scope)).get(threadId) ?? [] };
 }

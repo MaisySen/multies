@@ -47,7 +47,8 @@ export function normaliseHookSecret(raw: string): string {
 export async function createAuthHook(deps: Deps, a: AuthContext & { agentId?: string | null }, input: AuthHookInput, opts: { id?: string; retry?: boolean } = {}) {
   assertManager(a);
   const from = input.from.trim().toLowerCase();
-  const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.address, from))).get();
+  // PRIV1b (W1): team mailboxes only. A personal mailbox belongs to its owner; an admin key can't send sign-up mail as them.
+  const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.address, from), eq(mailboxes.personal, false))).get();
   if (!mb) throw bad(`${from} isn't a mailbox in this workspace. Create it first (no-reply@ works well).`);
   if (opts.id && opts.retry) {
     // R55 (MB-239): a retry under the same Idempotency-Key whose first attempt saved the hook gets that hook back. One read, only on a retry.
@@ -108,7 +109,8 @@ export async function updateAuthHook(deps: Deps, a: AuthContext & { agentId?: st
   let mb = await deps.db.select().from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get();
   if (input.from !== undefined) {
     const from = input.from.trim().toLowerCase();
-    const next = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.address, from))).get();
+    // PRIV1b (W1): as on create, a hook can't move to a personal mailbox.
+    const next = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.address, from), eq(mailboxes.personal, false))).get();
     if (!next) throw bad(`${from} isn't a mailbox in this workspace. Create it first (no-reply@ works well).`);
     if (next.id !== h.mailboxId) set.mailboxId = next.id;
     mb = next;
@@ -188,6 +190,8 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
   if (!h) return fail(404, "No such hook.");
   // R27: switched off on the Sign-up emails settings page.
   if (h.h.enabled === false) return fail(503, "Auth emails are turned off for this workspace in Multies settings.");
+  // PRIV1b (W1): a hook saved before the team-mailbox rule may still point at a personal mailbox; it never sends as one.
+  if (h.mb.personal) return fail(503, "This hook's mailbox is a personal mailbox. Pick a team mailbox in Multies settings.");
   let payload: SupabasePayload;
   try {
     const secret = await decryptSecret(deps.config.appSecret, h.h.secretEnc);

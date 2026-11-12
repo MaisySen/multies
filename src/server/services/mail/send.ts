@@ -1,10 +1,12 @@
 import { assertNotPaymentPaused, maybeUsageAlert } from "../billing/dunning";
 import { emitEvent } from "../developer/webhooks";
 import { suppressedAmong } from "../deliverability/suppressions";
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
 import type { AuthContext, Deps } from "../../context";
 import { domains, mailboxes, mailSchedules, messages } from "../../db/schema";
-import { assertOpen } from "../mail-access-priv1a";
+import { assertOpen, canOpen } from "../mail-access-priv1a";
+import type { DB } from "../../db";
 import { decide, externalSentToday, guardConfig, newSenderCap, nextUtcMidnight, providerSentToday, sendingOff, SENDING_OFF_MESSAGE } from "./send-guard-r34";
 import { newId } from "../../lib/crypto";
 import { badRequest, HttpError, notFound, planLimit } from "../../lib/errors";
@@ -54,7 +56,8 @@ export interface SendExtras {
 async function queueUntilTomorrow(deps: Deps, auth: AuthContext, input: SendMessageInput, reason: string, recipients: string[]): Promise<SendResult> {
   const dueAt = nextUtcMidnight(deps.now());
   const id = newId("msch");
-  if (input.draftId) await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, input.mailboxId), eq(messages.folder, "drafts")));
+  // PRIV1b (P11): as a sent draft, only the sender's own draft (or one nobody owns) leaves Drafts.
+  if (input.draftId) await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, input.mailboxId), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, auth.userId))));
   // Essential write: the held message itself (one row), so nothing is lost.
   await deps.db.insert(mailSchedules).values({
     id, orgId: auth.orgId, mailboxId: input.mailboxId, userId: auth.userId || null, kind: "send", dueAt, createdAt: deps.now(),
@@ -63,14 +66,54 @@ async function queueUntilTomorrow(deps: Deps, auth: AuthContext, input: SendMess
   return { messageId: "", internal: [], external: recipients.map((address) => ({ address, status: "queued" as const, detail: reason })), queued: { id, dueAt: dueAt.toISOString(), reason } };
 }
 
+/**
+ * PRIV1b (P10): what a send needs on a personal mailbox. Send as (and the owner) may write to anyone. Below that, a
+ * reply share only answers: inReplyToId must be a message (not a draft) in this mailbox, and every recipient must
+ * already be in that thread. Used by Send, drafts and Send later, before anything is written. Team mailboxes pass.
+ * PRIV1b (SL1): below Send as a Reply-To must be the mailbox's own address or someone already in the thread, so a
+ * reply share can't steer the thread's answers to an outside address.
+ */
+export async function assertSendLevel(db: DB, who: Pick<AuthContext, "userId" | "orgId" | "role">, mb: { id: string; personal: boolean | null; address?: string }, input: { inReplyToId?: string | null; to?: string[]; cc?: string[]; bcc?: string[]; replyTo?: string | null }) {
+  if (!mb.personal) return;
+  if (!input.inReplyToId) return assertOpen(db, who, mb.id, "send");
+  if (await canOpen(db, who, mb.id, "send")) return;
+  await assertOpen(db, who, mb.id, "reply");
+  const refuse = () => new HttpError(403, "share_level", "This mailbox was shared with you to reply only, so you can only answer the people in the thread. Ask its owner.");
+  const parent = await db.select({ threadId: messages.threadId, folder: messages.folder }).from(messages)
+    .where(and(eq(messages.id, input.inReplyToId), eq(messages.mailboxId, mb.id), eq(messages.orgId, who.orgId))).get();
+  if (!parent || parent.folder === "drafts") throw refuse();
+  const norm = (a: string) => a.trim().toLowerCase();
+  const own = mb.address ? norm(mb.address) : "";
+  const want = [...new Set([...(input.to ?? []), ...(input.cc ?? []), ...(input.bcc ?? []), ...(input.replyTo ? [input.replyTo] : [])].map(norm).filter((a) => a && a !== own))];
+  if (!want.length) return;
+  // PRIV1b (SL4): ask the database which of these addresses appear anywhere in the thread (one statement over the
+  // thread index, one bound list), instead of reading a capped, unordered page of the thread and missing older people.
+  const inThread = sql`mailbox_id = ${mb.id} and thread_id = ${parent.threadId} and folder <> 'drafts'`;
+  // PRIV1b (SP1): only a JSON array (or one object) is walked, and only object items are read by key (a string item is
+  // the address itself), so a stored list of plain strings can't raise "malformed JSON" and fail every send.
+  const addrs = (col: string) => { const c = sql.raw(`m.${col}`); return sql`select lower(case j.type when 'object' then json_extract(j.value, '$.address') when 'text' then j.value end) as a
+    from messages m, json_each(case when not json_valid(${c}) then '[]' when json_type(${c}) = 'array' then ${c} when json_type(${c}) = 'object' then json_array(json(${c})) else '[]' end) j where ${inThread}`; };
+  const found = await db.all<{ a: string }>(sql`select distinct a from (
+    select lower(from_address) as a from messages where ${inThread}
+    union all select lower(reply_to) as a from messages where ${inThread} and reply_to is not null
+    union all ${addrs("to_json")} union all ${addrs("cc_json")} union all ${addrs("bcc_json")}
+  ) where ${inIds(sql`a`, want)}`);
+  const seen = new Set(found.map((r) => r.a));
+  if (want.some((a) => !seen.has(a))) throw refuse();
+}
+
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */
+/** PRIV1b (P58): the refusal for a connected mailbox whose connection is gone (kept for a legal hold). */
+const connectionRemoved = (address: string) => new HttpError(409, "connection_removed", `${address} is no longer connected, so it can't send. Connect it again in Settings, Connections, Mail accounts.`);
+
 export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMessageInput, extra: SendExtras = {}): Promise<SendResult> {
   const { db } = deps;
   const mb = await db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
   if (!mb) throw notFound("Mailbox");
   // PRIV1a (MB-366): a personal mailbox sends only for its owner and the people it was shared with (a reply needs
   // Read and reply, new mail needs Send as). Every send path (app, phone, REST, MCP, schedules) comes through here.
-  if (mb.personal) await assertOpen(db, auth, mb.id, input.inReplyToId ? "reply" : "send");
+  // PRIV1b (P10): a reply share answers the thread's own people only (assertSendLevel).
+  await assertSendLevel(db, auth, mb, input);
   if (mb.status !== "active") throw badRequest("This mailbox is suspended.");
   // MB-61: a send that names no Reply-To uses the mailbox's default one, when it has one.
   const replyTo = input.replyTo || mb.replyTo || undefined;
@@ -79,12 +122,16 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   assertNotPaymentPaused(org, deps.now());
   if (org.suspendedAt) throw new HttpError(403, "workspace_suspended", `This workspace is suspended, so it can't send mail. ${org.suspendedReason ?? ""} Contact support to review it.`.trim());
   // A connected mailbox (an address at another provider) sends through that provider's own SMTP.
-  const { connectionForMailbox } = await import("../connect");
+  const { connectionForMailbox, CONNECTED_DOMAIN } = await import("../connect");
   const conn = await connectionForMailbox(deps, mb.id);
+  // PRIV1b (P58): a connected mailbox kept after its connection was removed (legal hold) has no way to send as that
+  // address; the platform's own outbound must never send as someone else's Gmail.
+  if (!conn && domain.name === CONNECTED_DOMAIN) throw connectionRemoved(mb.address);
   if (conn?.status === "auth_failed") {
     throw new HttpError(409, "connection_auth_failed", `${mb.address} stopped accepting its password. Reconnect it in Settings, Connections, Mail accounts, then send again.`);
   }
-  if (!conn && domain.status !== "verified" && !org.isDemo) {
+  // PRIV1b (P40): no demo exemption. A sandbox's sample domain is stored verified; any other domain must prove itself.
+  if (!conn && domain.status !== "verified") {
     throw new HttpError(409, "domain_unverified", `Verify ${domain.name} before sending from it, so your mail isn't rejected as spoofed.`);
   }
 
@@ -190,6 +237,9 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   // Mail from a connected address always goes through its provider, so the Sent copy lives there too.
   for (const r of recipients) ((!conn && (await isHosted(db, r))) ? internal : external).push(r);
 
+  // PRIV1b (P40): internal mail shows pass only for a sender domain proved in DNS. The domain_unverified throw
+  // above already stops unverified senders here, so the "none" branch is a backstop in case that check moves.
+  const senderAuth = domain.status === "verified" ? { spf: "pass" as const, dkim: "pass" as const, dmarc: "pass" as const } : { spf: "none" as const, dkim: "none" as const, dmarc: "none" as const };
   for (const rcpt of internal) {
     const r = await deliverInbound(deps, {
       envelopeFrom: mb.address,
@@ -198,7 +248,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       via: "internal",
       email: {
         messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, replyTo, subject: input.subject,
-        text: input.text, html: input.html, date: now, attachments: atts, authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
+        text: input.text, html: input.html, date: now, attachments: atts, authResults: senderAuth, headers: {},
       },
     });
     await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: rcpt, subject: input.subject, status: r.accepted ? "delivered" : "failed", provider: "internal", detail: r.reason });

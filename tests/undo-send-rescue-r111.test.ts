@@ -12,6 +12,8 @@ const store = new Map<string, string>();
 } as Storage;
 
 const mod = await import("@/web/lib/undo-send");
+// PRIV1b (P52): rescue copies belong to the signed in person, so this run signs one in (the saved account copy).
+(await import("@/web/lib/me-cache")).writeMeCache({ user: { id: "usr_r111" }, organization: { id: "org_r111" } } as never);
 const { keepaliveExit, KEEPALIVE_MAX_BYTES, rescueAdd, rescueRemove, rescueDecision, recoverHeldSends, HELD_RESCUE_KEY, RESCUE_GRACE_MS, RESCUE_PENDING_MAX_MS } = mod;
 
 /** R111 extra 1: the web side of undo send surviving a closed tab. */

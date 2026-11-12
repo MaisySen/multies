@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { clearMeCache, isSignedOut, meRetry, meRetryDelay, readMeCache, writeMeCache } from "./me-cache";
-import type { Alias, Dashboard, Domain, Mailbox, Me, OrgInfo, PublicConfig, TeamInfo, Workspace } from "./types";
+import type { Alias, Dashboard, Domain, Mailbox, MailboxOverview, Me, OrgInfo, PublicConfig, TeamInfo, Workspace } from "./types";
+import { openableOnly } from "./mail-level-priv1b";
 
 export const qk = {
   me: ["me"] as const,
@@ -61,6 +62,11 @@ export const useDashboard = () => useQuery({ queryKey: qk.dashboard, queryFn: ()
 export const useDomains = () => useQuery({ queryKey: qk.domains, queryFn: async () => (await api.get<{ domains: Domain[] }>("/domains")).domains });
 export const useDomain = (id: string) => useQuery({ queryKey: qk.domain(id), queryFn: async () => (await api.get<{ domain: Domain }>(`/domains/${id}`)).domain });
 export const useMailboxes = () => useQuery({ queryKey: qk.mailboxes, queryFn: async () => (await api.get<{ mailboxes: Mailbox[] }>("/mailboxes")).mailboxes });
+const openRows = (l: Mailbox[]) => openableOnly(l);
+/** PRIV1b (WC5): the same list, only rows this person can open (an admin also sees others' private mailboxes as rows). For pickers. */
+export const useOpenableMailboxes = () => useQuery({ queryKey: qk.mailboxes, queryFn: async () => (await api.get<{ mailboxes: Mailbox[] }>("/mailboxes")).mailboxes, select: openRows });
+/** PRIV1b (WC3): the mailboxes this person can open with their level in each (shared with Mail and the shared inbox). */
+export const useMailOverview = () => useQuery({ queryKey: qk.overview, queryFn: async () => (await api.get<{ mailboxes: MailboxOverview[] }>("/mail/overview")).mailboxes });
 export const useAliases = () => useQuery({ queryKey: qk.aliases, queryFn: async () => (await api.get<{ aliases: Alias[] }>("/aliases")).aliases });
 export const useOrg = () => useQuery({ queryKey: qk.org, queryFn: () => api.get<OrgInfo>("/org") });
 export const useTeam = () => useQuery({ queryKey: qk.team, queryFn: () => api.get<TeamInfo>("/team") });

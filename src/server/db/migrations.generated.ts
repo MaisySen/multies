@@ -1842,11 +1842,21 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `mailbox_access_log` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`actor_user_id` text,\n\t`actor_email` text,\n\t`action` text NOT NULL,\n\t`target_id` text,\n\t`device` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX `mailbox_access_log_mailbox_idx` ON `mailbox_access_log` (`mailbox_id`,`created_at`);",
       "UPDATE `mailboxes` SET `personal` = 1 WHERE `kind` = 'person' AND `personal` = 0 AND `id` IN (SELECT `mailbox_id` FROM `mail_connections`);",
+      "-- PRIV1b (P18): a short lived index on the claim rows, so UPDATE 4 looks each mailbox up instead of scanning audit_logs once per mailbox.\nCREATE INDEX IF NOT EXISTS `audit_logs_priv1a_claim_tmp_idx` ON `audit_logs` (`target_id`,`created_at`) WHERE `action` = 'free_address.claimed' AND `target_type` = 'mailbox';",
       "UPDATE `mailboxes` SET `personal` = 1 WHERE `kind` = 'person' AND `personal` = 0 AND `id` IN (SELECT `target_id` FROM `audit_logs` WHERE `action` = 'free_address.claimed' AND `target_type` = 'mailbox');",
       "UPDATE `mailboxes` SET `owner_user_id` = (SELECT c.`created_by_user_id` FROM `mail_connections` c JOIN `members` m ON m.`user_id` = c.`created_by_user_id` AND m.`organization_id` = c.`org_id` WHERE c.`mailbox_id` = `mailboxes`.`id` ORDER BY c.`created_at` LIMIT 1) WHERE `personal` = 1 AND `owner_user_id` IS NULL;",
       "UPDATE `mailboxes` SET `owner_user_id` = (SELECT a.`actor_user_id` FROM `audit_logs` a JOIN `members` m ON m.`user_id` = a.`actor_user_id` AND m.`organization_id` = a.`org_id` WHERE a.`action` = 'free_address.claimed' AND a.`target_type` = 'mailbox' AND a.`target_id` = `mailboxes`.`id` ORDER BY a.`created_at` LIMIT 1) WHERE `personal` = 1 AND `owner_user_id` IS NULL;",
+      "DROP INDEX IF EXISTS `audit_logs_priv1a_claim_tmp_idx`;",
       "UPDATE `mailboxes` SET `owner_user_id` = (SELECT x.`user_id` FROM `mailbox_access` x JOIN `members` m ON m.`user_id` = x.`user_id` AND m.`organization_id` = x.`org_id` WHERE x.`mailbox_id` = `mailboxes`.`id`) WHERE `personal` = 1 AND `owner_user_id` IS NULL AND (SELECT count(*) FROM `mailbox_access` x WHERE x.`mailbox_id` = `mailboxes`.`id`) = 1;",
       "UPDATE `organizations` SET `comp_plan` = 1 WHERE `id` = 'org_14tjeedzlvi8epm3';"
+    ]
+  },
+  {
+    "name": "0165_priv1b_cleanup",
+    "statements": [
+      "-- PRIV1b (P24): member grants on mailboxes 0164 made personal mean nothing now (the owner shares those) and made every Team access edit fail.\nDELETE FROM `mailbox_access` WHERE `mailbox_id` IN (SELECT `id` FROM `mailboxes` WHERE `personal` = 1);",
+      "-- PRIV1b (P24): shares end when the person or the mailbox owner left the workspace before leaving ended them.\nDELETE FROM `mailbox_delegations` WHERE NOT EXISTS (SELECT 1 FROM `members` m WHERE m.`organization_id` = `mailbox_delegations`.`org_id` AND m.`user_id` = `mailbox_delegations`.`user_id`) OR NOT EXISTS (SELECT 1 FROM `mailboxes` b JOIN `members` m ON m.`organization_id` = b.`org_id` AND m.`user_id` = b.`owner_user_id` WHERE b.`id` = `mailbox_delegations`.`mailbox_id`);",
+      "-- PRIV1b (P32): workspace deletion (cascade) and the retention prune find a workspace's rows without a scan.\nCREATE INDEX `mailbox_access_log_org_idx` ON `mailbox_access_log` (`org_id`,`created_at`);"
     ]
   }
 ];

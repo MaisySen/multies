@@ -6,12 +6,14 @@
  * - A team mailbox (personal = 0) and an agent inbox: owners and admins open it, members open the ones they are granted.
  * - A personal mailbox (a connected Gmail or IMAP inbox, or a claimed free address): only its owner, plus the people
  *   the owner shared it with (read, reply, send as). Owners and admins of the workspace can't open it. If its owner
- *   is unknown or has left, only the workspace's owners see it until it is given to someone.
+ *   is unknown or has left, only the workspace's owners see it, to read only, until it is given to someone.
+ * - PRIV1b (P9): a share counts only while the mailbox's owner is still a member; leaving ends the shares (team.ts).
  */
-import { and, eq, inArray, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { DB } from "../db";
 import { mailboxAccess, mailboxDelegations, mailboxes, members } from "../db/schema";
 import { notFound, HttpError } from "../lib/errors";
+import { inIds } from "../lib/sql-chunks";
 
 export type Role = "owner" | "admin" | "member";
 export type Need = "read" | "reply" | "send";
@@ -29,7 +31,8 @@ interface Picture {
   shares: Map<string, ShareLevel>;
 }
 
-
+// Read fresh every time (two small indexed reads): a share taken back closes the mailbox on the very next request.
+// The auth object can outlive a request (the session cache), so nothing is cached on it.
 async function loadPicture(db: DB, who: Who): Promise<Picture> {
   const [rows, shares] = await Promise.all([
     db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
@@ -46,17 +49,13 @@ async function loadPicture(db: DB, who: Who): Promise<Picture> {
   };
 }
 
-// Read fresh every time (two small indexed reads): a share taken back closes the mailbox on the very next request.
-// The auth object can outlive a request (the session cache), so nothing is cached on it.
-function picture(db: DB, who: Who): Promise<Picture> {
-  return loadPicture(db, who);
-}
-
 /** How far this person may go in one personal mailbox: "own", a share level, or null. */
 function personalLevel(p: Personal, mailboxId: string, who: Who, pic: Picture): ShareLevel | "own" | null {
   if (who.userId && p.owner === who.userId && p.ownerIsMember) return "own";
   // Unresolved (no owner, or the owner left): the workspace's owners keep it so nobody is locked out of mail.
-  if ((!p.owner || !p.ownerIsMember) && who.role === "owner") return "own";
+  // PRIV1b (P9): to read only. Removing someone must not hand their mail and their address to the workspace owner.
+  if (!p.owner || !p.ownerIsMember) return who.role === "owner" ? "read" : null;
+  // PRIV1b (P9): shares end with the owner's membership.
   return pic.shares.get(mailboxId) ?? null;
 }
 
@@ -65,7 +64,7 @@ function personalLevel(p: Personal, mailboxId: string, who: Who, pic: Picture): 
  * workspace with no personal mailbox closed to them), otherwise the exact list.
  */
 export async function scopeFor(db: DB, who: Who, need: Need = "read"): Promise<string[] | null> {
-  const pic = await picture(db, who);
+  const pic = await loadPicture(db, who);
   const closed: string[] = [];
   const open: string[] = [];
   for (const [id, p] of pic.personal) {
@@ -94,7 +93,8 @@ export function scopeCond(who: Who, col: SQLWrapper): SQL {
   const member = sql`exists (select 1 from members x where x.user_id = m.owner_user_id and x.organization_id = m.org_id)`;
   const owned = sql`(m.owner_user_id = ${me} and ${member})`;
   const orphan = sql`(m.owner_user_id is null or not ${member})`;
-  const shared = sql`m.id in (select d.mailbox_id from mailbox_delegations d where d.org_id = ${who.orgId} and d.user_id = ${me})`;
+  // PRIV1b (P9): a share counts while the owner is a member; an orphan opens to workspace owners (read, as scopeFor).
+  const shared = sql`(m.id in (select d.mailbox_id from mailbox_delegations d where d.org_id = ${who.orgId} and d.user_id = ${me}) and ${member})`;
   const open = who.role === "owner" ? sql`(${owned} or ${orphan} or ${shared})` : sql`(${owned} or ${shared})`;
   if (who.role === "owner" || who.role === "admin") {
     return sql`${col} not in (select m.id from mailboxes m where m.org_id = ${who.orgId} and m.personal = 1 and not ${open})`;
@@ -127,23 +127,23 @@ export async function personalInfo(db: DB, orgId: string, mailboxId: string) {
 }
 
 /** Everyone who can open the mailbox: for notifications, mentions, push and realtime. */
-export async function whoCanOpen(db: DB, orgId: string, mailboxId: string): Promise<string[]> {
-  const p = await personalInfo(db, orgId, mailboxId);
+export async function whoCanOpen(db: DB, orgId: string, mailboxId: string, known?: Awaited<ReturnType<typeof personalInfo>>): Promise<string[]> {
+  // PRIV1b (SP2): a caller that already read personalInfo for this mailbox passes it (null for a team mailbox).
+  const p = known !== undefined ? known : await personalInfo(db, orgId, mailboxId);
   if (p) {
     const [owner, shares] = await Promise.all([
       p.owner ? db.select({ userId: members.userId }).from(members).where(and(eq(members.organizationId, orgId), eq(members.userId, p.owner))).get() : Promise.resolve(undefined),
       db.select({ userId: mailboxDelegations.userId }).from(mailboxDelegations).where(and(eq(mailboxDelegations.orgId, orgId), eq(mailboxDelegations.mailboxId, mailboxId))),
     ]);
-    const ids = shares.map((s) => s.userId);
-    if (owner) ids.push(owner.userId);
-    else {
+    // PRIV1b (P9): shares count while the owner is a member; an orphan goes to the workspace's owners only.
+    if (!owner) {
       const owners = await db.select({ userId: members.userId }).from(members).where(and(eq(members.organizationId, orgId), eq(members.role, "owner")));
-      ids.push(...owners.map((o) => o.userId));
+      return [...new Set(owners.map((o) => o.userId))];
     }
-    // Only people still in the workspace.
-    if (!ids.length) return [];
-    const still = await db.select({ userId: members.userId }).from(members).where(and(eq(members.organizationId, orgId), inArray(members.userId, [...new Set(ids)].slice(0, 90))));
-    return [...new Set(still.map((r) => r.userId))];
+    // Only people still in the workspace. PRIV1b (P30): one bound list whatever its length, and the owner always stays.
+    const ids = shares.map((s) => s.userId).filter((u) => u !== owner.userId);
+    const still = ids.length ? await db.select({ userId: members.userId }).from(members).where(and(eq(members.organizationId, orgId), inIds(members.userId, ids))) : [];
+    return [...new Set([owner.userId, ...still.map((r) => r.userId)])];
   }
   const [leads, granted] = await Promise.all([
     db.select({ userId: members.userId, role: members.role }).from(members).where(eq(members.organizationId, orgId)),
@@ -160,27 +160,49 @@ export async function whoCanOpenAny(db: DB, orgId: string, mailboxIds: string[])
 }
 
 /**
- * An AI agent's mailboxes, minus personal mailboxes its maker can't open: an admin can't route someone's private inbox
+ * An AI agent's mailboxes, minus personal mailboxes its maker doesn't own: an admin can't route someone's private inbox
  * through an agent. Team and agent mailboxes pass as before.
+ * PRIV1b (P4): only the maker's OWN personal mailbox, while the maker is still a member. A share the maker holds no
+ * longer counts: an agent key has no share level, so a read share became trash and delete forever through it.
  */
 export async function keepOpenableBy(db: DB, orgId: string, userId: string | null | undefined, ids: string[]): Promise<string[]> {
   if (!ids.length) return ids;
-  const pic = await loadPicture(db, { orgId, userId: userId ?? "", role: "member" });
+  const pic = await loadPicture(db, { orgId, userId: "", role: "member" }); // shares not needed: one read
   return ids.filter((id) => {
     const p = pic.personal.get(id);
     if (!p) return true;
-    return !!userId && ((p.owner === userId && p.ownerIsMember) || pic.shares.has(id));
+    return !!userId && p.owner === userId && p.ownerIsMember;
   });
 }
 
 /**
- * The owner of a personal mailbox as this request sees it: undefined for a team or agent mailbox (or another
- * workspace's), null when unresolved, else the owner's user id. Uses the request's one read.
+ * PRIV1b (P5, P6, P7, P62): whether this person is the owner of a personal mailbox. undefined for a team or agent
+ * mailbox, or another workspace's. A share, even send as, is not ownership. One indexed read.
+ * PRIV1b (P9, M1): an orphan (owner unknown or left) has no owner: the workspace owner reads it only, so no app
+ * password, Reply-To, sign in or calendar through it.
  */
-export async function ownerOfPersonal(db: DB, who: Who, mailboxId: string): Promise<string | null | undefined> {
-  const p = (await picture(db, who)).personal.get(mailboxId);
-  return p ? p.owner : undefined;
+export async function isPersonalOwner(db: DB, who: Who, mailboxId: string): Promise<boolean | undefined> {
+  const st = await personalOwnerState(db, who, mailboxId);
+  return st === undefined ? undefined : st === "owner";
 }
 
-/** Kept for callers: nothing is cached, so there is nothing to forget. */
-export function forgetPicture(_who: object) { /* no cache */ }
+/**
+ * PRIV1b (integration M3): the one ownership test for a personal mailbox row (owner id, and the owner's member row).
+ * "owner": the caller owns it and is still a member. "orphan": its owner is unknown or left, so nobody owns it (P9);
+ * the workspace owner only tidies up after it (lists, disables and deletes its rules, cancels its scheduled sends).
+ * "other": someone else's. Every helper that hands out personal ownership asks here so lists and actions agree.
+ */
+export type PersonalOwnership = "owner" | "orphan" | "other";
+export function personalOwnership(r: { owner: string | null; member: string | null }, userId: string | null | undefined): PersonalOwnership {
+  if (!r.owner || !r.member) return "orphan";
+  return !!userId && r.owner === userId ? "owner" : "other";
+}
+
+/** PRIV1b (integration M3): personalOwnership for one mailbox; undefined for a team or agent mailbox. One indexed read. */
+export async function personalOwnerState(db: DB, who: Who, mailboxId: string): Promise<PersonalOwnership | undefined> {
+  const r = await db.select({ personal: mailboxes.personal, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
+    .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
+    .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, who.orgId))).get();
+  if (!r?.personal) return undefined;
+  return personalOwnership(r, who.userId);
+}

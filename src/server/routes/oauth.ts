@@ -15,6 +15,7 @@ import {
 } from "../services/developer/oauth";
 import { writeBudget } from "../services/write-budget";
 import { HttpError } from "../lib/errors";
+import { ssoBlocks } from "../auth/session";
 
 const origin = (c: Context<AppEnv>) => {
   const u = new URL(c.req.url);
@@ -95,7 +96,9 @@ export function oauthRoutes() {
     const q = c.req.query() as AuthorizeRequest;
     try {
       const req = await checkAuthorizeRequest(c.var.deps, q);
-      const workspaces = (await workspacesFor(c.var.deps, c.var.auth.userId)).filter((w) => !w.suspendedAt).map((w) => ({ id: w.id, name: w.name, role: w.role }));
+      const workspaces = (await workspacesFor(c.var.deps, c.var.auth.userId)).filter((w) => !w.suspendedAt)
+        // PRIV1b (P41): say up front which workspaces this sign in can't connect, instead of a 403 after Allow.
+        .map((w) => ({ id: w.id, name: w.name, role: w.role, ssoRequired: ssoBlocks(w.requireSso, w.role, c.var.auth.loginMethod) }));
       let redirectHost = req.redirectUri;
       try { const u = new URL(req.redirectUri); redirectHost = u.host || `${u.protocol}//`; } catch { /* checked already */ }
       return c.json({ client: { name: req.client.name, uri: req.client.clientUri }, redirectHost, requestedScope: req.requestedScope, workspaces, activeOrgId: c.var.auth.orgId, user: { name: c.var.auth.name, email: c.var.auth.email } });

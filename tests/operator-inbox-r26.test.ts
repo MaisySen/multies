@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliveries, domains, mailboxes, messages } from "@/server/db/schema";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { operatorInbox } from "@/server/config";
@@ -64,7 +65,8 @@ describe("the routing decision", () => {
     expect(() => assertDomainAllowed(cfg("org_hq"), "org_hq", "multies.si")).not.toThrow();
     expect(() => assertDomainAllowed(cfg("org_hq"), "org_x", "Multies.si")).toThrow(/reserved/);
     expect(() => assertDomainAllowed(cfg(null), "org_x", "multies.si")).toThrow(/reserved/);
-    expect(() => assertDomainAllowed(cfg("org_hq"), "org_x", "mail.multies.si")).not.toThrow();
+    // PRIV1b (P50): company subdomains are reserved too (they held the free-mail domain).
+    expect(() => assertDomainAllowed(cfg("org_hq"), "org_x", "mail.multies.si")).toThrow(/reserved/);
   });
 });
 
@@ -160,7 +162,7 @@ describe("delivery into the operator's shared inbox", () => {
   });
 
   it("other domains keep routing as before, with or without an operator workspace", async () => {
-    const domainId = (await other.post("/api/domains", { name: "acme.test" })).body.domain.id as string;
+    const domainId = await verifiedDomain(ctx, other, "acme.test");
     await other.post("/api/mailboxes", { domainId, localPart: "support", displayName: "Support" });
     expect(await inbound("support@acme.test")).toMatchObject({ accepted: true });
     Object.assign(ctx.deps.config.operatorInbox, cfg(null).operatorInbox);

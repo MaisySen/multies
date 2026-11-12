@@ -8,6 +8,7 @@ import { createHmac } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { unzipSync, strFromU8 } from "fflate";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { GLOBAL_DAILY_UNITS, GLOBAL_ROW, FREE_LIMIT_MESSAGE } from "@/server/services/tools/ai-meter";
 import { dayOf } from "@/server/services/tools/usage";
@@ -196,7 +197,7 @@ describe("Tools P2 AI routes", () => {
 
   it("builds the expense summary PDF with escaped text and appends PDF receipts from mail", async () => {
     const { app, c, engine, deps } = await setup({ text: { pages: [{ page: 1, text: "x" }] } });
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain({ dns: deps.dns } as never, c, "acme.io");
     const box = (await c.post("/api/mailboxes", { domainId, localPart: "me", displayName: "Me" })).body.mailbox;
     await deliverInbound(deps, {
       envelopeFrom: "a@example.com", rcptTo: "me@acme.io", sizeBytes: 2000, via: "test",
@@ -225,7 +226,7 @@ describe("Tools P2 AI routes", () => {
   it("reads contract facts and adds reminders as My Work tasks linked to the thread", async () => {
     const C = "This agreement is made between Blue Cafe Pty Ltd and Fresh Linen Co.\nCommencement date: 1 November 2026.\nThe agreement has a term of 12 months and will automatically renew unless either party gives 30 days written notice. Fees are $1,200 per month.";
     const { c, db, deps, ai } = await setup({ text: { pages: [{ page: 1, text: C }] } });
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain({ dns: deps.dns } as never, c, "acme.io");
     await c.post("/api/mailboxes", { domainId, localPart: "me", displayName: "Me" });
     await deliverInbound(deps, {
       envelopeFrom: "a@example.com", rcptTo: "me@acme.io", sizeBytes: 2000, via: "test",

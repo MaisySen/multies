@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { ScreenHeader, Problem } from "@/components/m3-ui";
@@ -40,7 +41,8 @@ export default function CalendarScreen() {
   const days = useMemo(() => byDay(events, hidden), [events, hidden]);
   const today = dayKey(new Date());
 
-  const setView = (v: CalendarView) => { tick(); setViewState(v); writePref(PREF_VIEW, v); };
+  // PRIV1b (P67): Agenda is "Next 30 days", so it starts from today, not from a month stepped to before.
+  const setView = (v: CalendarView) => { tick(); if (v === "agenda") setAnchor(startOfDay(new Date())); setViewState(v); writePref(PREF_VIEW, v); };
   const setHidden = (next: string[]) => { setHiddenState(next); writePref(PREF, JSON.stringify(next)); };
   const toggle = (layer: string) => { tick(); setHidden(hidden.includes(layer) ? hidden.filter((x) => x !== layer) : [...hidden, layer]); };
   const step = (n: number) => {
@@ -281,6 +283,7 @@ function AddSheet({ visible, day: initialDay, onClose }: { visible: boolean; day
   if (initialDay !== lastDay) { setLastDay(initialDay); setDay(initialDay); }
   const meeting = useCreateMeeting();
   const tasks = useTaskMutations();
+  const qc = useQueryClient();
   const close = () => { setErr(null); setTitle(""); onClose(); };
   const quick = [{ id: dayKey(new Date()), label: tr("m.cal.today") }, { id: dayKey(addDays(new Date(), 1)), label: tr("m.cal.tomorrow") }];
   const save = async () => {
@@ -295,6 +298,8 @@ function AddSheet({ visible, day: initialDay, onClose }: { visible: boolean; day
       } else {
         await tasks.create.mutateAsync({ title: title.trim(), due: day });
       }
+      // PRIV1b (P67): the new meeting or due date shows at once, not after the events query goes stale.
+      void qc.invalidateQueries({ queryKey: ["calendar"] });
       success(); close();
     } catch (x) { warning(); setErr((x as Error).message || tr("m.cal.save_failed")); }
   };

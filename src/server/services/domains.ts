@@ -4,7 +4,7 @@ import type { Deps } from "../context";
 import type { DB } from "../db";
 import { aliases, domains, mailboxes, organizations } from "../db/schema";
 import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
-import { conflict, notFound } from "../lib/errors";
+import { conflict, HttpError, notFound } from "../lib/errors";
 import { assertDomainAllowed, isOperatorDomainRow } from "./suite/operator-inbox";
 import { expectedRecords, runDnsChecks } from "./dns/checks";
 import { assertCanCreate } from "./plans";
@@ -71,12 +71,23 @@ export async function getDomain(db: DB, orgId: string, id: string) {
   return d;
 }
 
-/** `dkimKey` reuses an existing key pair (sandbox domains share one, skipping RSA key generation). */
-export async function createDomain(deps: Deps, orgId: string, name: string, opts: { dkimKey?: { publicKeyB64: string; privateKeyPem: string } } = {}) {
+export const DEMO_DOMAINS_OFF = "Domains are off in the demo. Sign up to add your own domain.";
+
+/** PRIV1b (P40): the demo keeps its sample domain; it can neither add a domain nor remove the sample. */
+async function assertNotDemo(db: DB, orgId: string) {
+  const org = await db.select({ isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, orgId)).get();
+  if (org?.isDemo) throw new HttpError(403, "demo_domains_off", DEMO_DOMAINS_OFF);
+}
+
+/** `dkimKey` reuses an existing key pair (sandbox domains share one, skipping RSA key generation).
+ * `sample` marks the demo's own sample domain, the one domain a demo workspace may hold. */
+export async function createDomain(deps: Deps, orgId: string, name: string, opts: { dkimKey?: { publicKeyB64: string; privateKeyPem: string }; sample?: boolean } = {}) {
   const { db, config } = deps;
   // R26 (DF-18): the company domain in the operator workspace is the deployment's own and is not a plan add-on.
   const operatorDomain = isOperatorDomainRow(config, { orgId, name });
   assertDomainAllowed(config, orgId, name);
+  // PRIV1b (P40): a demo (anonymous) adds no domains; only the demo seeder adds its sample domain, flagged explicitly.
+  if (!opts.sample) await assertNotDemo(db, orgId);
   if (!operatorDomain) await assertCanCreate(db, orgId, "domains");
   const existing = await db.select().from(domains).where(eq(domains.name, name)).get();
   if (existing) {
@@ -110,7 +121,9 @@ export async function createDomain(deps: Deps, orgId: string, name: string, opts
 export async function verifyDomain(deps: Deps, d: DomainRow) {
   const now = deps.now();
   // R26: the operator's company domain is set up by the deployment; a check shows the records but never demotes it.
-  const pinned = isOperatorDomainRow(deps.config, d);
+  // PRIV1b (P40): a demo's sample domain is stored verified and has no real DNS; a check must not demote it either.
+  const pinned = isOperatorDomainRow(deps.config, d)
+    || !!(await deps.db.select({ isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, d.orgId)).get())?.isDemo;
   // Ask the provider to look again first, so the records checked below are its latest ones.
   // Only domains that went through provider registration (created since round 13) are refreshed.
   const p = !pinned && (d.providerDomainId || d.providerStatus) ? await refreshProviderDomain(deps, d) : null;
@@ -197,6 +210,7 @@ export async function queuedDomainCount(db: DB) {
 
 export async function deleteDomain(db: DB, orgId: string, id: string, deps?: Deps) {
   const d = await getDomain(db, orgId, id);
+  await assertNotDemo(db, orgId); // PRIV1b (P40)
   await db.delete(domains).where(eq(domains.id, d.id));
   // Free the provider's slot too (its plan counts domains), and hand it to the next domain waiting. Best effort.
   if (deps && d.providerDomainId) {

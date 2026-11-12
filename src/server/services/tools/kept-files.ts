@@ -10,7 +10,8 @@ import type { Deps } from "../../context";
 import { HttpError, planLimit } from "../../lib/errors";
 import { newId, randomToken, sha256Hex, safeEqual } from "../../lib/crypto";
 import { KEPT_FILE_CAP, KEPT_FILE_GLOBAL_CAP, KEPT_FILE_MAX_BYTES, type KeptUsage } from "@/shared/share-sign";
-import { isPlanId, type PlanId } from "@/shared/plans";
+import { type PlanId } from "@/shared/plans";
+import { effectivePlanId } from "../plans";
 
 export type KeptKind = "share" | "sign_source" | "sign_final" | "sign_image" | "request_file" | "secret" | "sign_template" | "portal_file";
 
@@ -22,17 +23,17 @@ export function keptStore(deps: Deps) {
 }
 
 async function planOf(deps: Deps, orgId: string): Promise<PlanId> {
-  const r = await deps.db.get<{ plan: string }>(sql`select plan from organizations where id = ${orgId}`);
-  return r && isPlanId(r.plan) ? r.plan : "starter";
+  const r = await deps.db.get<{ plan: string; comp: number | null }>(sql`select plan, comp_plan as comp from organizations where id = ${orgId}`);
+  return effectivePlanId(r ? { plan: r.plan, compPlan: r.comp } : null); // PRIV1b (P19)
 }
 
 /** Live kept bytes for a workspace and its plan's cap (one read). */
 export async function keptUsage(deps: Deps, orgId: string): Promise<KeptUsage> {
   const now = deps.now().getTime();
-  const r = await deps.db.get<{ plan: string; b: number | null }>(sql`select o.plan as plan,
+  const r = await deps.db.get<{ plan: string; comp: number | null; b: number | null }>(sql`select o.plan as plan, o.comp_plan as comp,
     (select sum(bytes) from tool_files where org_id = o.id and expires_at > ${now} and deleted_at is null) as b
     from organizations o where o.id = ${orgId}`);
-  const plan = r && isPlanId(r.plan) ? r.plan : "starter";
+  const plan = effectivePlanId(r ? { plan: r.plan, compPlan: r.comp } : null); // PRIV1b (P19)
   return { bytes: Number(r?.b ?? 0), cap: KEPT_FILE_CAP[plan] };
 }
 

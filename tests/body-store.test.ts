@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { S3BodyStore, type BodyStore } from "@/server/services/storage/body-store";
 
@@ -16,7 +17,7 @@ async function withAttachment(store?: BodyStore) {
   if (store) ctx.deps.bodyStore = store;
   const c = new Client(ctx.app);
   await c.signup("owner@acme.io");
-  const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const domainId = await verifiedDomain(ctx, c, "acme.io");
   const box = (await c.post("/api/mailboxes", { domainId, localPart: "me", displayName: "Me" })).body.mailbox;
   const big = new Uint8Array(2 * 1024 * 1024).fill(7);
   await deliverInbound(ctx.deps, {

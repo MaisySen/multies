@@ -131,8 +131,9 @@ describe("sessions", () => {
     const a = new Client(ctx.app);
     await a.signup("bye@example.com");
     await a.post("/api/domains", { name: "bye.io" });
-    expect((await a.post("/api/auth/delete-user", { password: "wrong-password" })).status).toBe(400);
-    expect((await a.post("/api/auth/delete-user", { password: "a-strong-password" })).status).toBe(200);
+    // PRIV1b (P49): Better Auth's /api/auth/delete-user is closed over HTTP; the app route checks the password.
+    expect((await a.call("DELETE", "/api/account", { confirm: "DELETE", password: "wrong-password" })).status).toBe(403);
+    expect((await a.call("DELETE", "/api/account", { confirm: "DELETE", password: "a-strong-password" })).status).toBe(200);
     expect(await ctx.db.query.users.findMany()).toHaveLength(0);
     expect(await ctx.db.query.domains.findMany()).toHaveLength(0);
     expect((await a.get("/api/account/me")).status).toBe(401);

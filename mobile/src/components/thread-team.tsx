@@ -68,8 +68,9 @@ export function ThreadTeam({ threadId }: { threadId: string }) {
               </Text>
               <Text style={{ color: colors.fg, fontSize: 15, lineHeight: lh(21) }} selectable>{c.body}</Text>
             </View>
+            {/* PRIV1b (P67): a delete that fails shows the error instead of leaving the note without a word. */}
             {c.canDelete ? (
-              <Pressable onPress={() => { tick(); cact.remove.mutate(c.id); }} accessibilityRole="button" accessibilityLabel={tr("m.team.delete_note")} hitSlop={4}
+              <Pressable onPress={() => { tick(); setErr(null); cact.remove.mutate(c.id, { onError: (x) => { warning(); setErr((x as Error).message || tr("m.bulk.failed")); } }); }} accessibilityRole="button" accessibilityLabel={tr("m.team.delete_note")} hitSlop={4}
                 style={({ pressed }) => [st.del, pressed && { opacity: 0.6 }]} testID={`comment-delete-${c.id}`}>
                 <Icon name="trash-2" size={16} color={colors.subtle} />
               </Pressable>

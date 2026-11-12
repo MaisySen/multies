@@ -11,7 +11,7 @@ interface Info {
   client: { name: string; uri: string | null };
   redirectHost: string;
   requestedScope: "read" | "full";
-  workspaces: { id: string; name: string; role: string }[];
+  workspaces: { id: string; name: string; role: string; ssoRequired?: boolean }[];
   activeOrgId: string;
   user: { name: string; email: string };
 }
@@ -29,7 +29,7 @@ export function OAuthAuthorizePage() {
   const [orgId, setOrgId] = useState("");
   const [scope, setScope] = useState<"read" | "full">("full");
   useEffect(() => {
-    if (info.data) { setOrgId(info.data.activeOrgId && info.data.workspaces.some((w) => w.id === info.data!.activeOrgId) ? info.data.activeOrgId : info.data.workspaces[0]?.id ?? ""); setScope(info.data.requestedScope); }
+    if (info.data) { const open = info.data.workspaces.filter((w) => !w.ssoRequired); setOrgId(info.data.activeOrgId && open.some((w) => w.id === info.data!.activeOrgId) ? info.data.activeOrgId : open[0]?.id ?? ""); setScope(info.data.requestedScope); }
   }, [info.data]);
   useEffect(() => {
     if (info.error instanceof ApiError && info.error.status === 401) navigate(`/login?next=${encodeURIComponent(`/oauth/authorize?${qs}`)}`, { replace: true });
@@ -64,7 +64,8 @@ export function OAuthAuthorizePage() {
         <div className="mt-5 space-y-4">
           <label className="block text-sm font-medium">Workspace
             <Select className="mt-1.5 w-full" value={orgId} onChange={(e) => setOrgId(e.target.value)} data-testid="oauth-workspace">
-              {d.workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              {/* PRIV1b (P41): a workspace that needs SSO for this sign in can't be picked here. */}
+              {d.workspaces.map((w) => <option key={w.id} value={w.id} disabled={w.ssoRequired}>{w.ssoRequired ? `${w.name} (SSO)` : w.name}</option>)}
             </Select>
           </label>
           <fieldset>

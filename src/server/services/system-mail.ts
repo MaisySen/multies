@@ -5,11 +5,22 @@ import type { Brand } from "../emails";
 const loadEmails = () => import("../emails");
 import type { Deps } from "../context";
 import { newId } from "../lib/crypto";
-import { deliverInbound, isHosted, logDelivery } from "./mail/delivery";
+import { deliverInbound, logDelivery, routeRecipient } from "./mail/delivery";
 import { OutboundError } from "./mail/outbound";
 import { enqueue, PermanentJobError, registerJob } from "./jobs";
 import { eq } from "drizzle-orm";
-import { organizations } from "../db/schema";
+import { domains, organizations } from "../db/schema";
+import { systemDomainOf } from "./suite/operator-inbox";
+
+/**
+ * PRIV1b (SP5): the one stamp rule for mail the platform delivers as itself (account mail, bounce notices). Pass while
+ * no workspace holds the system domain short of verified (assertDomainAllowed reserves it for the operator); a name no
+ * workspace holds is the deployment's own mail domain. One indexed read.
+ */
+export async function systemMailAuth(deps: Deps) {
+  const row = await deps.db.select({ status: domains.status }).from(domains).where(eq(domains.name, systemDomainOf(deps.config))).get();
+  return !row || row.status === "verified" ? { spf: "pass" as const, dkim: "pass" as const, dmarc: "pass" as const } : { spf: "none" as const, dkim: "none" as const, dmarc: "none" as const };
+}
 
 async function isDemoOrg(deps: Deps, orgId: string) {
   const row = await deps.db.select({ isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, orgId)).get();
@@ -28,6 +39,12 @@ export interface SystemEmail {
   element?: ReactElement;
   /** Org the email is about, for the delivery log. */
   orgId?: string;
+  /**
+   * PRIV1b (P37): mail that can take over an account (password reset, email confirmation, invitation, account deleted).
+   * Delivered inside the platform only to a mailbox at exactly that address, never through an alias or a catch all
+   * an admin can point anywhere; otherwise it goes out through the provider like mail to an outside address.
+   */
+  accountSecurity?: boolean;
 }
 
 export interface SystemEmailResult {
@@ -61,7 +78,9 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
   const messageId = `<${newId("sys")}@${config.systemFrom.address.split("@")[1] ?? "localhost"}>`;
   const to = e.to.toLowerCase();
 
-  if (await isHosted(deps.db, to)) {
+  const route = await routeRecipient(deps.db, to);
+  const internal = e.accountSecurity ? route.kind === "mailbox" && route.mailbox.address.toLowerCase() === to : route.kind !== "none";
+  if (internal) {
     const r = await deliverInbound(deps, {
       envelopeFrom: config.systemFrom.address,
       rcptTo: to,
@@ -70,7 +89,7 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
       email: {
         messageId, from: { address: config.systemFrom.address, name: config.systemFrom.name },
         to: [{ address: to }], cc: [], subject: e.subject, text, html,
-        date: deps.now(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" },
+        date: deps.now(), attachments: [], authResults: await systemMailAuth(deps), // PRIV1b (SP5)
         headers: { "auto-submitted": "auto-generated" },
       },
     });

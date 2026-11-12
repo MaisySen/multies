@@ -10,6 +10,7 @@ import { HttpError, badRequest, forbidden, notFound } from "../../lib/errors";
 import { hmacSha256Hex, newId, safeEqual } from "../../lib/crypto";
 import { enqueue, registerJob } from "../jobs";
 import { assertMailboxAccess } from "../team";
+import { effectivePlanId } from "../plans";
 import { mergeUsedToday, recordUnsubscribe, reserveMergeQuota, templateContext, toolStateOrOff } from "../tools/automation";
 import { MERGE_DAILY_CAP } from "@/shared/tools-automation";
 import {
@@ -409,6 +410,11 @@ async function eligibleMembers(deps: Deps, l: ListRow, limit = 20000) {
   }
   return { ok, skipped };
 }
+/** PRIV1b (CB1): the daily merge cap of the workspace's effective plan, so a comp workspace gets the plan it was granted. */
+export async function mergeCap(deps: Deps, orgId: string) {
+  const o = await deps.db.get<{ plan: string | null; comp_plan: number | null }>(sql`select plan, comp_plan from organizations where id = ${orgId}`);
+  return MERGE_DAILY_CAP[effectivePlanId({ plan: o?.plan, compPlan: o?.comp_plan })];
+}
 async function eligibleCount(deps: Deps, l: ListRow) { return (await eligibleMembers(deps, l)).ok.length; }
 
 export async function sendInfo(deps: Deps, auth: AuthContext) {
@@ -510,8 +516,7 @@ export async function runCampaignBatch(deps: Deps, id: string) {
   await deps.db.run(sql`update campaigns set error = null where id = ${id} and error like 'Today%'`);
   const queued = await deps.db.all<{ idx: number }>(sql`select idx from campaign_recipients where campaign_id = ${id} and status = 'queued' and (send_after is null or send_after <= ${now}) order by idx limit 2000`);
   if (!queued.length) return;
-  const s = await deps.db.get<{ plan: keyof typeof MERGE_DAILY_CAP }>(sql`select plan from organizations where id = ${c.org_id}`);
-  const cap = MERGE_DAILY_CAP[s?.plan ?? "starter"] ?? MERGE_DAILY_CAP.starter;
+  const cap = await mergeCap(deps, c.org_id);
   const plan = sendPlan(queued.length, cap - (await mergeUsedToday(deps, c.org_id)));
   let today = plan.today;
   while (today > 0 && !(await reserveMergeQuota(deps, c.org_id, today, cap))) today = Math.floor(today / 2);
@@ -744,7 +749,7 @@ export async function runJourneyStep(deps: Deps, payload: { id: string }) {
   const lastOpened = e.last_token ? !!(await deps.db.get<{ opened_at: number | null }>(sql`select opened_at from campaign_recipients where token = ${e.last_token}`))?.opened_at : false;
   let token = e.last_token;
   if (!skipStep(step, lastOpened)) {
-    const cap = MERGE_DAILY_CAP[(await deps.db.get<{ plan: keyof typeof MERGE_DAILY_CAP }>(sql`select plan from organizations where id = ${j.org_id}`))?.plan ?? "starter"] ?? MERGE_DAILY_CAP.starter;
+    const cap = await mergeCap(deps, j.org_id);
     if (!(await reserveMergeQuota(deps, j.org_id, 1, cap))) {
       const next = nextDayStart(now, "UTC");
       await deps.db.run(sql`update journey_enrollments set next_at = ${next}, updated_at = ${now} where id = ${e.id}`);

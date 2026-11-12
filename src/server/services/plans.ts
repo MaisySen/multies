@@ -1,7 +1,7 @@
 import { and, count, eq, sql } from "drizzle-orm";
 import type { DB } from "../db";
 import { aliases, domains, mailboxes, members, orgAddons, organizations, usageCounters } from "../db/schema";
-import { ADDONS, ADDON_ORDER, PLANS, effectiveLimits, isAddonId, type AddonId, type AddonQuantities, type Plan } from "@/shared/plans";
+import { ADDONS, ADDON_ORDER, PLANS, effectiveLimits, isAddonId, isPlanId, type AddonId, type AddonQuantities, type Plan, type PlanId } from "@/shared/plans";
 import { notFound, planLimit } from "../lib/errors";
 
 export async function getOrg(db: DB, orgId: string) {
@@ -24,10 +24,19 @@ export async function setAddons(db: DB, orgId: string, addons: AddonQuantities) 
   if (rows.length) await db.insert(orgAddons).values(rows);
 }
 
+/**
+ * PRIV1b (P19): the plan a workspace is treated as. An internal comp workspace counts as Business whatever the plan
+ * column says; every read of organizations.plan that sets a limit or shows the plan goes through this.
+ */
+export function effectivePlanId(org: { plan?: string | null; compPlan?: boolean | number | null } | null | undefined): PlanId {
+  if (org?.compPlan) return "business";
+  return isPlanId(org?.plan) ? org.plan : "starter";
+}
+
 /** The workspace's plan with its add-ons applied to the limits. */
 export async function getPlan(db: DB, orgId: string): Promise<Plan & { addons: AddonQuantities }> {
   const [org, addons] = await Promise.all([getOrg(db, orgId), getAddons(db, orgId)]);
-  const base = PLANS[org.compPlan ? "business" : org.plan]; // PRIV1a: an internal comp workspace stays on Business whatever billing says
+  const base = PLANS[effectivePlanId(org)]; // PRIV1a: an internal comp workspace stays on Business whatever billing says
   return { ...base, limits: effectiveLimits(base, addons, org), addons };
 }
 
@@ -62,7 +71,7 @@ export async function getOrgCached(db: DB, orgId: string): Promise<OrgRow> { ret
 /** getPlan for a read route (a copy up to ORG_CACHE_MS old). Never use it to enforce a limit. */
 export async function getPlanCached(db: DB, orgId: string): Promise<Plan & { addons: AddonQuantities }> {
   const { org, addons } = await orgEntry(db, orgId);
-  const base = PLANS[org.compPlan ? "business" : org.plan]; // PRIV1a: an internal comp workspace stays on Business whatever billing says
+  const base = PLANS[effectivePlanId(org)]; // PRIV1a: an internal comp workspace stays on Business whatever billing says
   return { ...base, limits: effectiveLimits(base, addons, org), addons };
 }
 

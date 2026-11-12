@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { unzipSync, strFromU8 } from "fflate";
 import Papa from "papaparse";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { parseMime } from "@/server/services/mail/mime";
 
@@ -32,7 +33,7 @@ describe("privacy: data export and account deletion", () => {
   });
 
   it("exports the whole workspace, mail included, as a ZIP", async () => {
-    const domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain(ctx, owner, "acme.io");
     await owner.post("/api/mailboxes", { domainId, localPart: "ada", displayName: "Ada" });
     const raw = new TextEncoder().encode("From: bob@example.com\r\nTo: ada@acme.io\r\nSubject: Quarterly numbers\r\n\r\nSee attached\r\n");
     await deliverInbound(ctx.deps, { envelopeFrom: "bob@example.com", rcptTo: "ada@acme.io", email: await parseMime(raw), sizeBytes: raw.length, via: "test", raw });
@@ -77,11 +78,12 @@ describe("privacy: data export and account deletion", () => {
 
   it("will not orphan a shared workspace when its only owner deletes their account", async () => {
     const member = await addMember("member");
-    const blocked = await owner.post("/api/auth/delete-user", { password: "a-strong-password" });
+    // PRIV1b (P49): Better Auth's /api/auth/delete-user is closed over HTTP; the app route carries the same check.
+    const blocked = await owner.call("DELETE", "/api/account", { confirm: "DELETE", password: "a-strong-password" });
     expect(blocked.status).toBe(409);
-    expect(blocked.body.message).toMatch(/only owner of Acme/);
+    expect(blocked.body.error.message).toMatch(/only owner of Acme/);
     // A member can leave freely; the workspace and its owner stay.
-    expect((await member.post("/api/auth/delete-user", { password: "a-strong-password" })).status).toBe(200);
+    expect((await member.call("DELETE", "/api/account", { confirm: "DELETE", password: "a-strong-password" })).status).toBe(200);
     expect(await ctx.db.query.organizations.findMany()).toHaveLength(1);
     expect((await owner.get("/api/account/me")).status).toBe(200);
   });

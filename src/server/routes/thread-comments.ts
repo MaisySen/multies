@@ -15,6 +15,8 @@ const Q_THREAD_COMMENTS_1 = z.object({ ids: z.string().max(5000).default("") });
 export const CommentBody = z.object({
   body: z.string().min(1).max(COMMENT_MAX),
   mentions: z.array(z.string().min(1).max(254)).max(50).optional(),
+  // PRIV1b (P15, review M2): the mailbox whose copy of the thread the note goes on (default: the oldest one the caller can reply in).
+  mailboxId: z.string().min(1).max(64).optional(),
 });
 
 export function threadCommentRoutes() {

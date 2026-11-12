@@ -50,7 +50,9 @@ const rawHeaders = () => ({ cookie: (owner as any).cookie as string, host: "loca
 let seq = 0;
 async function seed(mailboxId: string, ageDays: number, extra: Partial<typeof messages.$inferInsert> = {}) {
   const id = `msg_r111_${++seq}`;
-  await ctx.deps.db.insert(messages).values({ id, orgId, mailboxId, folder: "inbox", threadId: `thr_${id}`, fromAddress: `p${seq}@example.com`, subject: `Fixture ${seq}`, snippet: "fixture body", sizeBytes: 100, date: new Date(now.getTime() - ageDays * DAY), ...extra });
+  // PRIV1b (P58): retention needs the stored receive time past the cutoff too, so the fixture is received when dated.
+  const at = new Date(now.getTime() - ageDays * DAY);
+  await ctx.deps.db.insert(messages).values({ id, orgId, mailboxId, folder: "inbox", threadId: `thr_${id}`, fromAddress: `p${seq}@example.com`, subject: `Fixture ${seq}`, snippet: "fixture body", sizeBytes: 100, date: at, createdAt: at, ...extra });
   return id;
 }
 const count = async () => (await ctx.deps.db.select({ id: messages.id }).from(messages).where(eq(messages.orgId, orgId))).length;
@@ -172,16 +174,17 @@ describe("R111 retention", () => {
     expect((await owner.post("/api/mail-archive/holds", { kind: "person", targetId: mate.id, name: "Again" })).status).toBe(409);
     const h2 = await owner.post("/api/mail-archive/holds", { kind: "person", targetId: ownerId, name: "Owner sent" });
     const pre = (await owner.post("/api/mail-archive/policy/preview", { keepYears: 1 })).body.preview;
-    expect(pre).toMatchObject({ eligible: 1, heldBack: 2, connectedSkipped: 1 });
+    // PRIV1b (P44): holding the owner holds every mailbox the owner can open (all team mail here), not only their sent mail.
+    expect(pre).toMatchObject({ eligible: 0, heldBack: 3, connectedSkipped: 1 });
     await turnOn(1);
     now = new Date(now.getTime() + 8 * DAY);
-    expect(await runRetentionPass(ctx.deps)).toMatchObject({ deleted: 1 });
-    expect(await count()).toBe(3);
-    // Lift the owner hold: the next day's pass takes the owner's sent mail; the person hold still keeps box B.
+    expect(await runRetentionPass(ctx.deps)).toMatchObject({ deleted: 0 });
+    expect(await count()).toBe(4);
+    // Lift the owner hold: the next day's pass takes box A (the owner's sent mail too); the person hold still keeps box B.
     expect((await owner.post(`/api/mail-archive/holds/${h2.body.hold.id}/release`)).body.hold.releasedAt).toBeTruthy();
     expect((await owner.post(`/api/mail-archive/holds/${h2.body.hold.id}/release`)).status).toBe(409);
     now = new Date(now.getTime() + DAY);
-    expect(await runRetentionPass(ctx.deps)).toMatchObject({ deleted: 1 });
+    expect(await runRetentionPass(ctx.deps)).toMatchObject({ deleted: 2 });
     expect(await count()).toBe(2);
     const acts = (await actions()).map((a) => a.action);
     expect(acts).toEqual(expect.arrayContaining(["mail.hold.placed", "mail.hold.released", "mail.retention.deleted"]));

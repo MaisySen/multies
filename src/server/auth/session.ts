@@ -7,6 +7,10 @@
 /** Sign in methods that count as single sign on for a workspace that requires it. */
 export const SSO_METHODS = new Set(["auth0", "google"]);
 
+/** The one "Require SSO" rule: everyone but the owner (break glass) must have signed in through SSO. PRIV1b (P41): shared with OAuth consent. */
+export const ssoBlocks = (requireSso: boolean | null | undefined, role: string, loginMethod: string | null | undefined) =>
+  !!requireSso && role !== "owner" && !SSO_METHODS.has(loginMethod ?? "email");
+
 export function cookieOptions(prod: boolean) {
   return {
     cookiePrefix: "mymail",

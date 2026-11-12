@@ -570,6 +570,9 @@ export function createApp(deps: Deps) {
   // the server still calls them in process through auth.api.
   installMobileWebLink(app); // MH1: app to web sign in handoff (MOBILE_WEB_LINK), before the Better Auth catch all
   app.all("/api/auth/organization/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
+  // PRIV1b (P49): account deletion goes through DELETE /api/account (password, Auth0 user); Better Auth's own endpoint needed only a fresh session.
+  app.all("/api/auth/delete-user", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
+  app.all("/api/auth/delete-user/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());

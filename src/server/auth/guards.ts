@@ -9,7 +9,7 @@ import { invitations, members, organizations, sessions, users } from "../db/sche
 import { newId } from "../lib/crypto";
 import { audit } from "../services/audit";
 import { authFor } from "./options";
-import { SSO_METHODS } from "./session";
+import { ssoBlocks } from "./session";
 import { workspaceMark } from "./workspace-mark";
 import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
 import { autoWorkspaceName } from "@/shared/person-name";
@@ -99,7 +99,7 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   // Workspaces that require SSO: everyone but the owner (the break glass account) must
   // have signed in this session through an SSO provider.
   const loginMethod = (s.session as { loginMethod?: string | null }).loginMethod ?? "email";
-  const ssoBlocked = requireSso && member.role !== "owner" && !SSO_METHODS.has(loginMethod);
+  const ssoBlocked = ssoBlocks(requireSso, member.role, loginMethod);
   return {
     ssoBlocked, loginMethod,
     userId: s.user.id, email: s.user.email, name: s.user.name, orgId: member.organizationId, role: member.role,

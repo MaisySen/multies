@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "./session";
-import { cached, setOffline } from "./offline";
+import { allowedMailboxes, cached, offlinePage, setOffline } from "./offline";
 import { kv } from "./kv";
 import { CHAT_POLL, latestChange, mergeMessages } from "./chat";
 import { useForeground, usePollWhileVisible } from "./visible";
 import type { ConnectInput } from "./mail-connect";
 import type { ChatMessage, ChatSend, NotificationSettings, Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
 import { pendingTask } from "./pending";
-import { ApiError } from "@/api/errors";
+import { ApiError, NETWORK_ERROR } from "@/api/errors";
 import { commandQueue, type NewCommand } from "./command-queue";
 import { countsClient, COUNTS_POLL_MS, type Counts } from "./counts";
 import { blockedIds, isMissingEndpoint, isUnblockDone, reportBody, withBlock, withoutBlock, type BlockedPerson, type ReportInput } from "./moderation";
@@ -81,13 +81,16 @@ export function useAgents() {
 
 export function useMessages(folder: ListFolder, mailboxId?: string) {
   const { api, mode } = useSession();
+  const qc = useQueryClient();
   return useInfiniteQuery({
     queryKey: keys.messages(folder, mailboxId),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => {
       const run = () => api.messages({ folder, mailboxId, cursor: pageParam });
+      // PRIV1b (MH5): a saved page shown offline keeps only mailboxes in the current overview (else the saved one), like offline search.
+      const boxes = qc.getQueryData<{ mailboxes: { id: string }[] }>(keys.overview)?.mailboxes.map((m) => m.id);
       // Only the first page of each folder is kept offline.
-      return pageParam ? run() : cached<MessagePage>(kv(), `list:${mode}:${folder}:${mailboxId ?? "all"}`, run);
+      return pageParam ? run() : cached<MessagePage>(kv(), `list:${mode}:${folder}:${mailboxId ?? "all"}`, run, (p) => offlinePage(kv(), p, boxes));
     },
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 60_000,
@@ -101,7 +104,16 @@ export function useSearch(q: string) {
 
 export function useThread(id: string, enabled = true) {
   const { api, mode } = useSession();
-  return useQuery({ queryKey: keys.thread(id), queryFn: () => cached(kv(), `thread:${mode}:${id}`, () => api.message(id)), enabled: enabled && !!id });
+  const qc = useQueryClient();
+  return useQuery({ queryKey: keys.thread(id), queryFn: () => {
+    // PRIV1b (MP2): a saved thread is shown offline only while its mailbox is in the current overview (else the saved one),
+    // like lists and search, so a share that ended does not open from a deep link or a notification.
+    const boxes = qc.getQueryData<{ mailboxes: { id: string }[] }>(keys.overview)?.mailboxes.map((m) => m.id);
+    return cached(kv(), `thread:${mode}:${id}`, () => api.message(id), async (v) => {
+      if (!(await allowedMailboxes(kv(), boxes)).has(v.message.mailboxId)) throw NETWORK_ERROR();
+      return v;
+    });
+  }, enabled: enabled && !!id });
 }
 
 export function useApprovals(status: Approval["status"] | "all") {

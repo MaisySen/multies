@@ -153,11 +153,12 @@ describe("MCP OAuth: sign in and tokens", () => {
     expect(r1.status).toBe(200);
     const b1 = await r1.json() as Record<string, string>;
     expect(b1.refresh_token).not.toBe(t.body.refresh_token);
-    const r2 = await ctx.app.request("/api/oauth/token", form({ grant_type: "refresh_token", refresh_token: t.body.refresh_token }));
-    expect(r2.status).toBe(400);
     // JSON bodies work too.
     const r3 = await ctx.app.request("/api/oauth/token", { method: "POST", headers: { "content-type": "application/json", host: "localhost" }, body: JSON.stringify({ grant_type: "refresh_token", refresh_token: b1.refresh_token }) });
     expect(r3.status).toBe(200);
+    // PRIV1b (P70): the old token is refused; replaying it now also ends the grant, so it runs last.
+    const r2 = await ctx.app.request("/api/oauth/token", form({ grant_type: "refresh_token", refresh_token: t.body.refresh_token }));
+    expect(r2.status).toBe(400);
   });
 
   it("an access token works only on the MCP endpoint", async () => {

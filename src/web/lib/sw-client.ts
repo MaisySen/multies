@@ -74,6 +74,8 @@ export async function clearOfflineData(): Promise<void> {
   await wipeOfflineLists(); // R33: stored list copies go with the caches
   clearMeCache(); // R40 (MB-200): and the saved account copy
   void forgetAllKeptFiles(); // R74: and any Tools file kept for a reload
+  // PRIV1b (P52): and the held send copies (undo-send.tsx HELD_RESCUE_KEY), drafts the next person must not see.
+  try { localStorage.removeItem("multies-held-sends"); } catch { /* storage blocked */ }
   try {
     if ("serviceWorker" in navigator) {
       const reg = await navigator.serviceWorker.getRegistration();

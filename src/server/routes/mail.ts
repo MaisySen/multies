@@ -7,7 +7,7 @@ import { saveDraftSchema, sendMessageSchema, updateMessageSchema } from "@/share
 import type { Folder } from "@/shared/mail";
 import { attachments, idempotencyKeys, mailboxes, messages } from "../db/schema";
 import { audit } from "../services/audit";
-import { sendMessage } from "../services/mail/send";
+import { assertSendLevel, sendMessage } from "../services/mail/send";
 import { toolFilesAsAttachments } from "../services/tools/attach"; // Tools P2
 import { attachmentBytes, storeMessage } from "../services/mail/store";
 import { assertNotHeld } from "../services/mail/archive-r111"; // R111: legal holds
@@ -117,7 +117,8 @@ export function mailRoutes() {
         .from(idempotencyKeys).where(and(eq(idempotencyKeys.scope, `user:${c.var.auth.userId}`), eq(idempotencyKeys.key, key))).get();
       return c.json({ state: heldState(row) });
     })
-    .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth)) }))
+    // PRIV1b: each mailbox carries the viewer's level (own, send_as, reply, read, team) for the composer and menus.
+    .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth), c.var.auth) }))
     .get("/messages", async (c) => {
       const q = parseQuery(c, MessageListQuery);
       // R33: the moment this list was read (server clock, as messages.created_at): a select all job leaves mail that
@@ -126,6 +127,10 @@ export function mailRoutes() {
       // R31: split inbox. Only Inbox has tabs; elsewhere the parameter is ignored.
       const splitExtra = q.split && q.folder === "inbox" && !q.q && !q.remote ? await splitCond(c.var.deps, c.var.auth, q.split) : undefined;
       const snoozeExtra = q.folder === "inbox" && !q.q && !q.remote ? snoozeHiddenCond(c.var.deps.now()) : undefined;
+      const listScope = await mailboxScope(c.var.deps.db, c.var.auth);
+      // PRIV1b (P66): a mailbox the person can't open (a share taken back or left) answers 404, so the app drops it
+      // from the screen instead of showing an empty inbox under its name.
+      if (q.mailboxId && listScope && !listScope.includes(q.mailboxId)) throw notFound("Mailbox");
       const result = await listMessages(c.var.deps.db, c.var.auth.orgId, {
         mailboxId: q.mailboxId,
         folder: q.remote ? undefined : (q.folder as Folder | "starred" | undefined),
@@ -133,15 +138,16 @@ export function mailRoutes() {
         search: q.q,
         cursor: q.cursor,
         limit: q.limit,
-        scope: await mailboxScope(c.var.deps.db, c.var.auth),
+        scope: listScope,
         // Round 20: a snoozed thread stays out of Inbox until its time. R85: a label narrows any folder.
         extra: and(snoozeExtra, splitExtra, q.label ? labelCond(c.var.auth.orgId, q.label) : undefined),
       });
       // PRIV1a: a delegate opening someone's personal mailbox lands in its "Who opened" log (the first page only).
-      if (q.mailboxId && !q.cursor) await logMailboxOpen(c.var.deps, c.var.auth, q.mailboxId, "opened_mailbox", null, c.req.raw.headers);
+      // PRIV1b (P17): only a mailbox the person could open; any other id showed nothing and accuses them of nothing.
+      if (q.mailboxId && !q.cursor && (!listScope || listScope.includes(q.mailboxId))) await logMailboxOpen(c.var.deps, c.var.auth, q.mailboxId, "opened_mailbox", null, c.req.raw.headers);
       // R85: labels on the page's threads (one read).
       if (result.messages.length) {
-        const labels = await labelsFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.threadId));
+        const labels = await labelsFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.threadId), listScope);
         if (labels.size) result.messages = result.messages.map((m) => ({ ...m, labels: labels.get(m.threadId) ?? [] }));
       }
       // R31: Sent shows read status when the sender has it on ("Opened 2x, last 3:14 PM").
@@ -184,7 +190,7 @@ export function mailRoutes() {
       const status = sentIds.length ? await readStatusFor(c.var.deps, c.var.auth.orgId, sentIds) : null;
       const thread = status ? plain.map((t) => (t.folder === "sent" ? { ...t, readStatus: status.get(t.id) ?? null } : t)) : plain;
       // R85: the thread's labels, for the reader's chips.
-      const labels = (await labelsFor(c.var.deps, c.var.auth.orgId, [m.threadId])).get(m.threadId) ?? [];
+      const labels = (await labelsFor(c.var.deps, c.var.auth.orgId, [m.threadId], [m.mailboxId])).get(m.threadId) ?? []; // PRIV1b (P15): this copy's labels
       return c.json({ message: thread.find((t) => t.id === m.id), thread, labels });
     })
     .patch("/messages/:id", async (c) => {
@@ -233,11 +239,13 @@ export function mailRoutes() {
     .get("/attachments/:id", async (c) => {
       const { db } = c.var.deps;
       const scope = await mailboxScope(db, c.var.auth);
-      const a = await db.select({ a: attachments, orgId: messages.orgId, mailboxId: messages.mailboxId }).from(attachments)
+      const a = await db.select({ a: attachments, orgId: messages.orgId, mailboxId: messages.mailboxId, threadId: messages.threadId }).from(attachments)
         .innerJoin(messages, eq(messages.id, attachments.messageId))
         .where(eq(attachments.id, c.req.param("id"))).get();
       const bytes = a && a.orgId === c.var.auth.orgId && (!scope || scope.includes(a.mailboxId)) ? await attachmentBytes(a.a, c.var.deps.bodyStore) : null;
       if (!a || !bytes) throw notFound("Attachment");
+      // PRIV1b (P17): a download from someone's personal mailbox is an open of its thread.
+      await logMailboxOpen(c.var.deps, c.var.auth, a.mailboxId, "opened_thread", a.threadId, c.req.raw.headers);
       return new Response(bytes as BodyInit, {
         headers: {
           "content-type": "application/octet-stream",
@@ -271,9 +279,12 @@ export function mailRoutes() {
     .post("/drafts", async (c) => {
       const input = await parseBody(c, saveDraftSchema);
       const { auth, deps } = c.var;
-      await assertMailboxAccess(deps.db, auth, input.mailboxId, input.inReplyToId ? "reply" : "send");
       const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
       if (!mb) throw notFound("Mailbox");
+      // PRIV1b (P10): a reply share drafts answers to the thread's own people only, as Send checks.
+      // PRIV1b (integration S3): assertSendLevel already checks the level on a personal mailbox; team mail is checked here once.
+      if (!mb.personal) await assertMailboxAccess(deps.db, auth, mb.id, input.inReplyToId ? "reply" : "send");
+      await assertSendLevel(deps.db, auth, mb, input);
       // Round 22: a shared draft reply. Saving over a draft somebody else took over, or one that changed
       // in another window, answers 409 instead of overwriting. The delete is the optimistic check: only
       // the first of two saves of the same draft finds it.

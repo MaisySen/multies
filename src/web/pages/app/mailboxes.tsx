@@ -21,6 +21,7 @@ import { AvatarTile, MailboxKindPill, StorageRing } from "@/web/components/premi
 import { mailboxKind } from "@/web/lib/premium5-r39";
 import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address";
 import { LoadError } from "@/web/components/load-error-t1g";
+import { t } from "@/web/i18n"; // PRIV1b (P66)
 
 export function MailboxesPage() {
   const [params, setParams] = useSearchParams();
@@ -97,26 +98,28 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
     <>
       {/* R39 premium pass 5: each mailbox a card with a tinted avatar tile, a kind pill and a storage ring. */}
       <ul className="space-y-2" aria-label="Mailboxes" data-testid="mailbox-cards">
-        {data.map((m) => (
+        {data.map((m) => { const locked = m.openable === false; return (
           <li key={m.id}>
             <Card className="flex items-center gap-3 p-3.5 transition-shadow duration-200 hover:shadow-[var(--shadow-e2)] motion-reduce:transition-none sm:gap-4" data-testid="mailbox-card">
               <AvatarTile label={initials(m.displayName)} name={m.address} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="min-w-0 truncate text-[15px] font-semibold">{m.address}</span>
-                  <MailboxKindPill kind={mailboxKind(m, team.data?.members ?? [])} />
+                  {/* PRIV1b (P23, P66): someone's personal mailbox comes as a reduced row: no Open, no storage, no Edit. */}
+                  <MailboxKindPill kind={locked ? "personal" : mailboxKind(m, team.data?.members ?? [])} />
+                  {locked && <Badge tone="neutral">{t("priv1a.private")}</Badge>}
                   {m.status === "suspended" && <Badge tone="warn">Suspended</Badge>}
                   {freeDomain && m.address.endsWith(`@${freeDomain}`) ? <Badge tone="neutral">Free address</Badge>
-                    : domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
+                    : !locked && domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
                 </div>
                 <div className="mt-0.5 truncate text-[13px] text-muted">{m.displayName}{m.replyTo ? ` · replies to ${m.replyTo}` : ""}</div>
               </div>
               {/* R40: the ring shows on phones too, compact (the figures are in its label and on the mailbox page). */}
-              <div className="shrink-0 max-sm:[&_[data-ring-text]]:hidden"><StorageRing used={m.usedBytes} max={m.quotaMb * 1024 * 1024} label={`Storage for ${m.address}`} show={formatBytes} /></div>
-              <Link to={`/app/mail?mailbox=${m.id}`} className="hidden rounded-full p-2 text-muted transition-colors hover:bg-hover hover:text-fg sm:block" aria-label={`Open ${m.address} in mail`}><IconInbox className="h-4 w-4" /></Link>
+              {!locked && <div className="shrink-0 max-sm:[&_[data-ring-text]]:hidden"><StorageRing used={m.usedBytes} max={m.quotaMb * 1024 * 1024} label={`Storage for ${m.address}`} show={formatBytes} /></div>}
+              {!locked && <Link to={`/app/mail?mailbox=${m.id}`} className="hidden rounded-full p-2 text-muted transition-colors hover:bg-hover hover:text-fg sm:block" aria-label={`Open ${m.address} in mail`}><IconInbox className="h-4 w-4" /></Link>}
               <Menu label={`Actions for ${m.address}`} trigger={<button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg sm:h-9 sm:w-9" aria-label={`Actions for ${m.address}`}><IconMore className="h-4 w-4" /></button>}>
-                <MenuItem icon={<IconInbox />} onSelect={() => navigate(`/app/mail?mailbox=${m.id}`)}>Open in mail</MenuItem>
-                <MenuItem icon={<IconEdit />} onSelect={() => setEditing(m)}>Edit</MenuItem>
+                {!locked && <MenuItem icon={<IconInbox />} onSelect={() => navigate(`/app/mail?mailbox=${m.id}`)}>Open in mail</MenuItem>}
+                {!locked && <MenuItem icon={<IconEdit />} onSelect={() => setEditing(m)}>Edit</MenuItem>}
                 {m.status === "active"
                   ? <MenuItem icon={<IconPause />} onSelect={() => update.mutate({ id: m.id, status: "suspended" })}>Suspend</MenuItem>
                   : <MenuItem icon={<IconPlay />} onSelect={() => update.mutate({ id: m.id, status: "active" })}>Reactivate</MenuItem>}
@@ -124,7 +127,7 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
               </Menu>
             </Card>
           </li>
-        ))}
+        ); })}
       </ul>
       {editing && <EditMailboxDialog mailbox={editing} onClose={() => setEditing(null)} />}
       <ConfirmDelete open={!!deleting} onClose={() => setDeleting(null)} what={deleting?.address ?? ""} path={`/mailboxes/${deleting?.id}`} body="Its stored mail is deleted too. Mail sent to this address will bounce." />

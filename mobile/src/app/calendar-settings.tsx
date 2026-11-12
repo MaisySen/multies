@@ -47,7 +47,9 @@ export default function CalendarSettings() {
     catch (x) { warning(); setErr((x as Error).message); }
   };
   const copy = async () => { if (!link) return; tick(); await Clipboard.setStringAsync(link); setCopied(true); success(); };
-  const remove = (s: CalendarSource) => confirm(tr("m.calset.remove_title", { name: s.name }), tr("m.calset.remove_body"), tr("common.remove"), () => act.removeSource.mutate(s.id));
+  // PRIV1b (P67): a switch, remove or stop that fails says so instead of flipping back silently.
+  const failed = { onError: (x: unknown) => { warning(); setErr((x as Error).message || tr("m.cal.save_failed")); } };
+  const remove = (s: CalendarSource) => confirm(tr("m.calset.remove_title", { name: s.name }), tr("m.calset.remove_body"), tr("common.remove"), () => { setErr(null); act.removeSource.mutate(s.id, failed); });
 
   const loading = sources.isLoading || feed.isLoading;
   return (
@@ -58,7 +60,7 @@ export default function CalendarSettings() {
           <InsetGroup header={tr("m.calset.other_header")} footer={tr("m.calset.other_footer")} testID="calset-sources">
             {(sources.data ?? []).map((s) => (
               <GroupRow key={s.id} label={s.name} sub={s.host ?? (s.kind === "caldav" ? s.address ?? tr("m.calset.caldav") : undefined)} testID={`source-${s.id}`}
-                toggle={{ value: s.enabled, onChange: (v) => act.toggleSource.mutate({ id: s.id, enabled: v }) }}
+                toggle={{ value: s.enabled, onChange: (v) => { setErr(null); act.toggleSource.mutate({ id: s.id, enabled: v }, failed); } }}
                 right={<View style={{ flexDirection: "row", alignItems: "center" }}>
                   <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: s.color, marginRight: 2 }} accessibilityElementsHidden importantForAccessibility="no" />
                   <IconButton icon="trash-2" label={tr("m.calset.remove_named", { name: s.name })} color={colors.muted} onPress={() => remove(s)} testID={`source-remove-${s.id}`} />
@@ -69,10 +71,10 @@ export default function CalendarSettings() {
           </InsetGroup>
           <InsetGroup header={tr("m.calset.feed_header")} footer={tr("m.calset.feed_footer")} testID="calset-feed">
             <GroupRow label={tr("m.calset.feed_status")} value={feed.data?.enabled ? tr("m.calset.feed_on", { hint: feed.data.hint ?? "" }) : tr("m.calset.feed_off")} />
-            <GroupRow label={tr("m.calset.include_tasks")} testID="calset-tasks" toggle={{ value: feed.data?.includeTasks ?? true, disabled: !feed.data?.enabled, onChange: (v) => act.feedTasks.mutate(v) }} />
+            <GroupRow label={tr("m.calset.include_tasks")} testID="calset-tasks" toggle={{ value: feed.data?.includeTasks ?? true, disabled: !feed.data?.enabled, onChange: (v) => { setErr(null); act.feedTasks.mutate(v, failed); } }} />
             <GroupRow icon="link" tile="green" label={feed.data?.enabled ? tr("m.calset.new_link") : tr("m.calset.make_link")} onPress={makeLink} testID="calset-make" chevron />
             {feed.data?.enabled ? <GroupRow icon="x" tile="red" label={tr("m.calset.stop_feed")} destructive testID="calset-stop"
-              onPress={() => confirm(tr("m.calset.stop_feed"), tr("m.calset.stop_body"), tr("m.calset.stop_ok"), () => { setLink(null); act.stopFeed.mutate(); })} /> : null}
+              onPress={() => confirm(tr("m.calset.stop_feed"), tr("m.calset.stop_body"), tr("m.calset.stop_ok"), () => { setLink(null); setErr(null); act.stopFeed.mutate(undefined, failed); })} /> : null}
           </InsetGroup>
           {link ? (
             <View style={{ marginHorizontal: space.lg, marginBottom: space.lg, padding: space.lg, gap: space.sm, backgroundColor: colors.surface, borderRadius: 14 }} testID="calset-link">

@@ -167,7 +167,15 @@ export function AppLayout() {
     queryFn: async () => (await api.get<{ projects: { id: string; name: string }[] }>("/projects")).projects });
   const projectName = projectParam ? projectList.data?.find((p) => p.id === projectParam)?.name ?? null : null;
   // R111: a message whose tab closed during its undo send hold is confirmed as sent or put back in Compose.
-  useEffect(() => { const t = setTimeout(() => { void import("@/web/lib/undo-send").then((m) => m.recoverHeldSends()); }, 1500); return () => clearTimeout(t); }, []);
+  // PRIV1b (P52): only once this person's account answers, and only their own copies (another person's are dropped).
+  const heldOwner = me.data ? scopeOf(me.data) : null;
+  const heldOwnerKey = heldOwner ? `${heldOwner.userId}|${heldOwner.orgId}` : "";
+  useEffect(() => {
+    if (!heldOwnerKey) return;
+    const [userId, orgId] = heldOwnerKey.split("|");
+    const t = setTimeout(() => { void import("@/web/lib/undo-send").then((m) => m.recoverHeldSends({ owner: { userId, orgId } })); }, 1500);
+    return () => clearTimeout(t);
+  }, [heldOwnerKey]);
   useEffect(() => watchKeyboardInset(), []); // R49 mobile: composers stay above the on screen keyboard
   const approvals = useQuery({
     queryKey: ["approvals", "pending"], enabled: !!me.data?.organization, refetchInterval: 30_000,

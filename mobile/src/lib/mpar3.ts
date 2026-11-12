@@ -169,12 +169,15 @@ export function composeFileProblem(f: Pick<ComposeFile, "name" | "size">, picked
 
 export type SendLaterPreset = "later_today" | "tomorrow" | "next_week";
 export const SEND_LATER_PRESETS: SendLaterPreset[] = ["later_today", "tomorrow", "next_week"];
-/** The local wall clock the server takes ("2026-11-05T09:00") for a day and time typed on the phone. */
-export function localWhen(day: string, time: string, now = new Date()): { local: string } | { error: string } {
+/**
+ * The moment to send for a day and time typed on the phone. PRIV1b (P56): sent as an instant in the phone's own zone
+ * ({ at }), as Calendar's Add does; { local } was read by the server in the profile or workspace zone instead.
+ */
+export function localWhen(day: string, time: string, now = new Date()): { at: string } | { error: string } {
   const d = localMoment(day, time);
   if (!d) return { error: tr("m.compose3.when_bad") };
   if (d.getTime() <= now.getTime() + 60_000) return { error: tr("m.compose3.when_past") };
-  return { local: `${day}T${time.padStart(5, "0")}` };
+  return { at: d.toISOString() };
 }
 
 export interface Snippet { id: string; name: string; body: string; subject: string | null; shortcut: string | null; shared: boolean }
@@ -235,6 +238,8 @@ export type BulkAction = "read" | "unread" | "star" | "unstar" | "archive" | "in
 export const BULK_MAX = 500;
 /** Selection: toggles one id, keeping the order they were picked in. */
 export const toggleId = (ids: readonly string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length >= BULK_MAX ? [...ids] : [...ids, id]);
+/** PRIV1b (P67): Select all picks at most BULK_MAX, so that many picked counts as all (the button then says Select none). */
+export const allPickedOf = (picked: number, rows: number) => rows > 0 && picked >= Math.min(rows, BULK_MAX);
 
 // ---------------------------------------------------------------- shared inbox
 

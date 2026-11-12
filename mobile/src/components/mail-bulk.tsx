@@ -57,7 +57,15 @@ export function BulkBar({ ids, mailbox, onDone, onUndoable }: { ids: string[]; m
   const run = async (action: BulkAction, to?: string) => {
     if (!ids.length) return;
     tick(); setErr(null);
-    try { await bulk.mutateAsync({ ids, action, ...(to ? { to } : {}) }); success(); onUndoable?.(ids.length, action); setMoving(false); onDone(); }
+    try {
+      const r = await bulk.mutateAsync({ ids, action, ...(to ? { to } : {}) });
+      // PRIV1b (P67): the server skips mail this person may only read and answers updated 0; say so, keep the selection.
+      const n = r?.updated ?? r?.count;
+      if (n === 0) { warning(); setMoving(false); return setErr(tr("m.bulk.nothing_changed")); }
+      // PRIV1b (P67): some were skipped: offer to undo only what changed and say the rest was not, keeping the bar up.
+      if (typeof n === "number" && n < ids.length) { warning(); onUndoable?.(n, action); setMoving(false); return setErr(tr("m.bulk.some_not_changed")); }
+      success(); onUndoable?.(typeof n === "number" ? n : ids.length, action); setMoving(false); onDone();
+    }
     catch (x) { warning(); setErr((x as Error).message || tr("m.bulk.failed")); }
   };
   const none = !ids.length || bulk.isPending;

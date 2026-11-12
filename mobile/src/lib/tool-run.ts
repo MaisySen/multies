@@ -62,8 +62,11 @@ export function useSavedRun(): SavedRun | null {
     () => (runCache && Date.now() - runCache.at < RUN_MAX_AGE_MS ? runCache : null), () => null);
 }
 
-/** Test hook: forget what is cached in memory. */
-export function resetToolRunCache() { runCache = undefined; carried = null; pendingTools = null; recentCache = null; }
+/** Forgets what is cached in memory (sign out, workspace switch, Clear saved mail; tests). */
+export function resetToolRunCache() {
+  runCache = undefined; carried = null; pendingTools = null; recentCache = null;
+  emitRun(); // PRIV1b (MH3): a mounted Tools screen drops the old run too
+}
 
 // ---------------------------------------------------------------- recent tools
 

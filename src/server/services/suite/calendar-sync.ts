@@ -12,15 +12,17 @@
  * name and app password) or a secret ICS link (stored encrypted). Events are fetched when the
  * calendar opens and kept in memory for a few minutes; they are never written to the database.
  */
-import { and, eq, gte, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { calendarFeeds, calendarSources, chatMembers, mailConnections, meetings, members, organizations, projects, tasks, users } from "../../db/schema";
+import { calendarFeeds, calendarSources, chatMembers, mailConnections, mailboxes, meetings, members, organizations, projects, tasks, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
 import { forbidden, HttpError, notFound } from "../../lib/errors";
+import { containsLower } from "../../lib/sql-chunks";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
+import { isPersonalOwner } from "../mail-access-priv1a";
 import { buildFeed, type FeedDue, type FeedMeeting } from "./ics-write";
 import { eventsIn, type ExternalEvent } from "./ics-parse";
-import { CALDAV_BASES, CALDAV_NEEDS_OAUTH, checkUrl, davRequest, discoverCalendars, reportEvents, type DavOptions, type RemoteCalendar } from "./caldav";
+import { CALDAV_BASES, CALDAV_NEEDS_OAUTH, checkUrl, davRequest, davUnreachable, discoverCalendars, reportEvents, type DavOptions, type RemoteCalendar } from "./caldav";
 import { expandWeekly, parseRrule } from "./meeting-recurrence";
 import { zonedDate } from "./scheduling";
 
@@ -100,18 +102,21 @@ export async function disableFeed(deps: Deps, actor: SuiteActor) {
 
 /** Meetings and due tasks in [from, to) for one person, or (person null) for the whole workspace. */
 export async function workItems(deps: Deps, orgId: string, person: { id: string; email: string } | null, from: Date, to: Date, opts: { includeTasks: boolean; limit: number }) {
+  // PRIV1b (P54): the person filter, the order and the limit run in SQL, so other people's meetings cannot push
+  // the person's own out of the window; cancelled series no longer match forever.
+  // The invitee match includes the JSON quotes, so it is exact.
+  const email = person?.email.toLowerCase() ?? "";
+  const mineSql = person ? or(
+    and(eq(meetings.createdByType, "member"), eq(meetings.createdById, person.id)),
+    // PRIV1b (G2): instr, not LIKE: D1 refuses a LIKE pattern over 50 bytes, and a long address made one.
+    containsLower(meetings.invitees, JSON.stringify(email)),
+    // PRIV1b (SP6): inArray over a subquery binds no list; the marker keeps the no-unbounded-IN guard on this line.
+    inArray(meetings.channelId, deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, person.id), eq(chatMembers.orgId, orgId)))), // D1: subquery
+  ) : undefined;
   const rows = await deps.db.select().from(meetings).where(and(
     eq(meetings.orgId, orgId), isNull(meetings.deletedAt), lt(meetings.startsAt, to),
-    or(gte(meetings.startsAt, new Date(from.getTime() - DAY)), isNotNull(meetings.recurrence)),
-  )).limit(opts.limit * 2);
-  let mine = rows;
-  if (person) {
-    const channels = new Set((await deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, person.id), eq(chatMembers.orgId, orgId)))).map((r) => r.id));
-    const email = person.email.toLowerCase();
-    mine = rows.filter((m) => (m.createdByType === "member" && m.createdById === person.id)
-      || (JSON.parse(m.invitees) as string[]).some((e) => e.toLowerCase() === email)
-      || (!!m.channelId && channels.has(m.channelId)));
-  }
+    or(gte(meetings.startsAt, new Date(from.getTime() - DAY)), and(isNotNull(meetings.recurrence), ne(meetings.status, "cancelled"))), mineSql,
+  )).orderBy(meetings.startsAt).limit(opts.limit * 2);
   const dues = opts.includeTasks ? await deps.db.select({ t: tasks, key: projects.key, project: projects.name }).from(tasks)
     .innerJoin(projects, eq(projects.id, tasks.projectId))
     .where(and(
@@ -119,7 +124,7 @@ export async function workItems(deps: Deps, orgId: string, person: { id: string;
       gte(tasks.dueAt, new Date(from.getTime() - DAY)), lt(tasks.dueAt, new Date(to.getTime() + DAY)),
       person ? and(eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, person.id)) : undefined,
     )).orderBy(tasks.dueAt).limit(opts.limit) : [];
-  return { meetings: mine.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()).slice(0, opts.limit), dues };
+  return { meetings: rows.slice(0, opts.limit), dues };
 }
 
 export async function zoneOf(deps: Deps, orgId: string, userId: string | null) {
@@ -129,6 +134,11 @@ export async function zoneOf(deps: Deps, orgId: string, userId: string | null) {
   return o?.tz ?? "UTC";
 }
 const ymd = (d: Date, tz: string) => { const z = zonedDate(d, tz); return `${z.y}-${pad(z.m)}-${pad(z.d)}`; };
+/**
+ * PRIV1b (DUE1): a due date picked as a day is stored as midnight UTC (parseDate). Read as an instant it lands a day
+ * early west of UTC, so exactly midnight UTC means that calendar date in every zone; any other time is an instant.
+ */
+const dueDay = (d: Date, tz: string) => (d.getTime() % DAY === 0 ? d.toISOString().slice(0, 10) : ymd(d, tz));
 
 /** Feed fetches allowed per token per minute (counted in memory by the route). */
 export const FEED_RATE_PER_MIN = 30;
@@ -151,7 +161,7 @@ export async function serveFeed(deps: Deps, token: string): Promise<{ body: stri
   const tz = await zoneOf(deps, row.f.orgId, row.f.userId);
   const app = deps.config.appUrl;
   const ms: FeedMeeting[] = items.meetings.map((m) => ({ id: m.id, title: m.title, startsAt: m.startsAt, durationMin: m.durationMin, status: m.status, recurrence: m.recurrence, recurrenceTz: m.recurrenceTz, version: m.version, updatedAt: m.updatedAt, url: `${app}/app/meetings/${m.id}` }));
-  const ds: FeedDue[] = items.dues.slice(0, Math.max(0, FEED_MAX_ITEMS - ms.length)).map(({ t, key, project }) => ({ id: t.id, title: t.title, ref: `${key}-${t.number}`, project, due: ymd(t.dueAt!, tz), url: `${app}/app/tasks?task=${t.id}`, version: t.version, updatedAt: t.updatedAt }));
+  const ds: FeedDue[] = items.dues.slice(0, Math.max(0, FEED_MAX_ITEMS - ms.length)).map(({ t, key, project }) => ({ id: t.id, title: t.title, ref: `${key}-${t.number}`, project, due: dueDay(t.dueAt!, tz), url: `${app}/app/tasks?task=${t.id}`, version: t.version, updatedAt: t.updatedAt }));
   const body = buildFeed({ meetings: ms, dues: ds });
   const etag = `"${(await sha256Hex(body)).slice(0, 32)}"`;
   return { body, etag };
@@ -209,7 +219,7 @@ export async function listCalendarEvents(deps: Deps, actor: SuiteActor, q: { fro
     }
   }
   for (const { t, key } of items.dues) {
-    const day = ymd(t.dueAt!, tz);
+    const day = dueDay(t.dueAt!, tz);
     const [y, mo, d] = day.split("-").map(Number);
     if (Date.UTC(y, mo - 1, d) >= to.getTime() || Date.UTC(y, mo - 1, d + 1) <= from.getTime()) continue;
     const next = new Date(Date.UTC(y, mo - 1, d + 1));
@@ -257,10 +267,23 @@ export async function listSources(deps: Deps, actor: SuiteActor) {
   return out;
 }
 
+/**
+ * PRIV1b (P62, S2): a connection on a personal mailbox is its owner's (nobody's on an orphan, P9), not
+ * whoever connected it, so its stored password reads only the owner's calendar. Team mailboxes: the connector, as before.
+ */
+async function connectionIsMine(deps: Deps, actor: SuiteActor, c: { mailboxId: string; createdByUserId: string | null }) {
+  const own = await isPersonalOwner(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role }, c.mailboxId);
+  return own === undefined ? c.createdByUserId === actor.userId : own;
+}
+
 /** The person's own connected mailboxes and whether each one's provider serves its calendar over CalDAV. */
 export async function calendarOptions(deps: Deps, actor: SuiteActor) {
   personOnly(actor);
-  const rows = await deps.db.select().from(mailConnections).where(and(eq(mailConnections.orgId, actor.orgId), eq(mailConnections.createdByUserId, actor.userId)));
+  // PRIV1b (P62, S2): mine = connected by me on a team mailbox, or on a personal mailbox I own.
+  const rows = (await deps.db.select({ c: mailConnections, personal: mailboxes.personal, owner: mailboxes.ownerUserId }).from(mailConnections)
+    .innerJoin(mailboxes, eq(mailboxes.id, mailConnections.mailboxId))
+    .where(and(eq(mailConnections.orgId, actor.orgId), or(eq(mailConnections.createdByUserId, actor.userId), eq(mailboxes.ownerUserId, actor.userId)))))
+    .filter((r) => r.personal ? r.owner === actor.userId : r.c.createdByUserId === actor.userId).map((r) => r.c);
   return rows.map((c) => {
     const oauth = CALDAV_NEEDS_OAUTH[c.provider];
     return {
@@ -293,7 +316,7 @@ async function fetchIcs(deps: Deps, url: string) {
   const r = await davRequest(davOpts(deps), url, { method: "GET", headers: { accept: "text/calendar, text/plain;q=0.5" } });
   if (r.status === 404 || r.status === 410) throw new HttpError(422, "ics_not_found", "That calendar link was not found. Copy it again from your calendar's settings.");
   if (r.status === 401 || r.status === 403) throw new HttpError(422, "ics_forbidden", "That calendar link needs a sign in. Use the secret (private) address your calendar offers.");
-  if (r.status !== 200) throw new HttpError(502, "ics_error", `The calendar server answered ${r.status}. Try again later.`);
+  if (r.status !== 200) throw davUnreachable(); // PRIV1b (P45): no status echo
   if (!r.text.includes("BEGIN:VCALENDAR")) throw new HttpError(422, "ics_not_calendar", "That link does not lead to a calendar (no iCalendar data). Use the ICS or iCal address.");
   return r.text;
 }
@@ -319,7 +342,7 @@ export async function addCalDavSource(deps: Deps, actor: SuiteActor, input: { co
   assertWritable(actor);
   const c = await deps.db.select().from(mailConnections).where(and(eq(mailConnections.id, input.connectionId), eq(mailConnections.orgId, actor.orgId))).get();
   if (!c) throw notFound("Connected mailbox");
-  if (c.createdByUserId !== actor.userId) throw forbidden("Only the person who connected this mailbox can show its calendar.");
+  if (!(await connectionIsMine(deps, actor, c))) throw forbidden("Only the person this mailbox belongs to can show its calendar."); // PRIV1b (P62, S2)
   if (CALDAV_NEEDS_OAUTH[c.provider] && !input.url) throw new HttpError(422, "caldav_needs_oauth", `Calendar from ${c.provider === "gmail" || c.provider.startsWith("google") ? "Gmail" : "Outlook"} needs ${CALDAV_NEEDS_OAUTH[c.provider]} sign in, coming later. For now, add its secret ICS address.`);
   if (c.authKind !== "password") throw new HttpError(422, "caldav_needs_oauth", "This mailbox signs in with OAuth. Add the calendar's ICS address instead.");
   const existing = await deps.db.select({ id: calendarSources.id }).from(calendarSources).where(and(eq(calendarSources.orgId, actor.orgId), eq(calendarSources.userId, actor.userId), eq(calendarSources.connectionId, c.id))).get();
@@ -363,7 +386,7 @@ export async function removeSource(deps: Deps, actor: SuiteActor, id: string) {
 const cache = new Map<string, { at: number; events: ExternalEvent[] }>();
 export function clearCalendarCache() { cache.clear(); }
 
-async function sourceEvents(deps: Deps, s: SourceRow, from: Date, to: Date, tz: string): Promise<ExternalEvent[]> {
+async function sourceEvents(deps: Deps, actor: SuiteActor, s: SourceRow, from: Date, to: Date, tz: string): Promise<ExternalEvent[]> {
   const key = `${s.orgId}:${s.userId}:${s.id}:${from.getTime()}:${to.getTime()}`;
   const hit = cache.get(key);
   const now = Date.now();
@@ -374,7 +397,7 @@ async function sourceEvents(deps: Deps, s: SourceRow, from: Date, to: Date, tz: 
     events = eventsIn(text, from, to, { defaultTz: tz });
   } else {
     const c = await deps.db.select().from(mailConnections).where(and(eq(mailConnections.id, s.connectionId!), eq(mailConnections.orgId, s.orgId))).get();
-    if (!c || c.createdByUserId !== s.userId) throw new HttpError(404, "not_found", "The connected mailbox is gone.");
+    if (!c || !(await connectionIsMine(deps, actor, c))) throw new HttpError(404, "not_found", "The connected mailbox is gone.");
     const auth = { username: c.username, password: await decryptSecret(deps.config.appSecret, c.secretEnc) };
     const cals = JSON.parse(s.calendars) as RemoteCalendar[];
     const texts = (await Promise.all(cals.map((cal) => reportEvents(davOpts(deps), cal.url, auth, from, to)))).flat();
@@ -391,7 +414,7 @@ async function externalEvents(deps: Deps, actor: SuiteActor, from: Date, to: Dat
   const errors: { sourceId: string; name: string; message: string }[] = [];
   await Promise.all(rows.map(async (s) => {
     try {
-      for (const e of await sourceEvents(deps, s, from, to, tz)) {
+      for (const e of await sourceEvents(deps, actor, s, from, to, tz)) {
         events.push({ id: `ext:${s.id}:${e.uid}:${e.start}`, kind: "external", title: e.title, start: e.start, end: e.end, allDay: e.allDay, url: null, sourceId: s.id, sourceName: s.name, color: s.color, readOnly: true, location: e.location });
       }
     } catch (err) {

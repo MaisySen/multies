@@ -250,10 +250,14 @@ export async function resolveRefs(deps: Deps, a: A, refs: RecordRef[]): Promise<
         const { scopeOf } = await import("./suite/common");
         const scope = await scopeOf(deps, a);
         for (const t of ids.slice(0, 20)) {
+          // PRIV1b (P15): the card shows the reader's own copy (newest in their scope, no draft or trash). A thread
+          // with no such copy is restricted, never titled from another mailbox's copy.
           const m = await db.select({ id: messages.id, subject: messages.subject, mailboxId: messages.mailboxId }).from(messages)
-            .where(and(eq(messages.orgId, orgId), eq(messages.threadId, t))).orderBy(desc(messages.date)).limit(1).get();
-          if (!m) continue;
-          if (scope && !scope.includes(m.mailboxId)) { restricted("thread", t); continue; }
+            .where(and(eq(messages.orgId, orgId), eq(messages.threadId, t), sql`${messages.folder} not in ('drafts', 'trash')`, scope ? inIds(messages.mailboxId, scope) : undefined)).orderBy(desc(messages.date)).limit(1).get();
+          if (!m) {
+            if (await db.select({ id: messages.id }).from(messages).where(and(eq(messages.orgId, orgId), eq(messages.threadId, t))).limit(1).get()) restricted("thread", t);
+            continue;
+          }
           ok("thread", t, t, m.subject || "(no subject)", "Email", refUrl({ type: "thread", id: t }, { messageId: m.id }));
         }
         break;

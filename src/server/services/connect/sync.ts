@@ -15,7 +15,7 @@
  * - Nothing runs while the write budget reads warn or shed.
  * - Flag changes from the provider write only the rows that changed.
  */
-import { and, asc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { runBatch } from "../../db";
 import { attachments, mailboxes, mailConnections, mailSyncOutbox, messages } from "../../db/schema";
@@ -128,6 +128,8 @@ type Box = BoxKey;
 
 /** Largest message copied whole; bigger ones keep their headers and a note. */
 const MAX_SYNC_BYTES = 10 * 1024 * 1024;
+// PRIV1b (P9): end of pass writes leave a paused connection paused.
+const notPaused = ne(mailConnections.status, "paused");
 const FLAG_WINDOW = 200;
 
 /**
@@ -224,7 +226,7 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
       status: authProblem ? "auth_failed" : "error", lastError: problem.message,
       // Network trouble: try again at the next interval. A refused password waits for the person.
       nextSyncAt: new Date(now.getTime() + cfg.intervalMinutes * 60_000),
-    }).where(eq(mailConnections.id, c.id));
+    }).where(and(eq(mailConnections.id, c.id), notPaused)); // PRIV1b (P9): a pause made meanwhile (owner left) stays
     deps.log?.warn("mail_sync.connect_failed", { connection: c.id, code: problem.code });
     return { ...empty, skipped: authProblem ? "auth_failed" : undefined, error: problem.message };
   }
@@ -331,7 +333,8 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
       ...repair.statements,
       ...flagChanges,
       deps.db.update(mailConnections).set({
-        status: "active", lastError: null, lastSyncAt: now, initialDone, syncState: JSON.stringify(state),
+        // PRIV1b (P9): a pass already running when the owner left doesn't set the connection going again.
+        status: sql`case when ${mailConnections.status} = 'paused' then 'paused' else 'active' end`, lastError: null, lastSyncAt: now, initialDone, syncState: JSON.stringify(state),
         nextSyncAt: new Date(now.getTime() + (result.more ? 30_000 : cfg.intervalMinutes * 60_000)),
         messagesSynced: sql`${mailConnections.messagesSynced} + ${stored.stored}`,
         messagesToday: doneToday + stored.stored, day,
@@ -340,7 +343,7 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
   } catch (err) {
     const problem = classifyProblem(err, "imap", c.provider as ConnectPresetId, c.imapHost);
     result.error = problem.message;
-    await deps.db.update(mailConnections).set({ status: "error", lastError: problem.message, nextSyncAt: new Date(now.getTime() + cfg.intervalMinutes * 60_000) }).where(eq(mailConnections.id, c.id));
+    await deps.db.update(mailConnections).set({ status: "error", lastError: problem.message, nextSyncAt: new Date(now.getTime() + cfg.intervalMinutes * 60_000) }).where(and(eq(mailConnections.id, c.id), notPaused));
     deps.log?.warn("mail_sync.failed", { connection: c.id, code: problem.code });
   } finally {
     await session.close().catch(() => undefined);

@@ -8,7 +8,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
-import { useConfig, useMailboxes } from "@/web/lib/queries";
+import { useConfig, useOpenableMailboxes } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmButton } from "@/web/components/ui/confirm";
@@ -324,7 +324,7 @@ export function ListPage() {
 
 function ListSettings({ list }: { list: ListSummary }) {
   const qc = useQueryClient();
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [f, setF] = useState(list);
   useEffect(() => setF(list), [list]);
   const save = useMutation({

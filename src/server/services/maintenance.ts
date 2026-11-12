@@ -3,13 +3,13 @@ import { isD1LimitError } from "../lib/d1-limit";
 import { expireApprovals, pruneAgentEvents } from "./agents";
 import { pruneImports } from "./import";
 import { pruneDeliveries, retryDueDeliveries } from "./developer/webhooks";
-import { and, eq, inArray, isNull, lte, ne, or, sql, type SQLWrapper } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, ne, or, sql, type SQLWrapper } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
 import { appSettings } from "../db/schema";
 import { migrationDriver, pendingMigrations } from "../db";
 import { lt } from "drizzle-orm";
-import { agentTriggers, automations, dataMoves, flowDigestItems, flowRuns, flowWatches, jobs, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
+import { agentTriggers, automations, dataMoves, flowDigestItems, flowRuns, flowWatches, jobs, mailboxAccessLog, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
 import { checkWriteBudget } from "./write-budget";
@@ -17,6 +17,7 @@ import { randomToken } from "../lib/crypto";
 import { pruneRateLimits } from "../lib/rate-limit";
 import { pruneIdempotencyKeys } from "../lib/idempotency";
 import { pruneLockouts } from "./lockout";
+import { inIds } from "../lib/sql-chunks";
 import { pruneJobs, runDueJobs } from "./jobs";
 import { crossCheck, recordUptimeCheck } from "./status";
 import "./mail/deliver-job";
@@ -109,6 +110,8 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
       pruneRateLimits(deps.db, deps.now().getTime()), pruneIdempotencyKeys(deps.db, deps.now()), pruneLockouts(deps.db, deps.now()),
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
       import("./suite/flows").then((m) => m.pruneFlowRuns(deps)),
+      import("./mailserver").then((m) => m.sweepForeignAppPasswords(deps)), // PRIV1b (P42): app passwords on personal mailboxes their owner didn't make
+      pruneMailboxOpens(deps),
     ]);
   });
   // Tools P1: keep the document engine's free host awake (no D1), and prune old usage rows once an hour.
@@ -117,6 +120,33 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
     await t.toolsMaintenance(deps, inSlot(1));
   });
   return { ...legacy, socialPosts: socialRun, jobs: jobsRun, mailSync, mailSchedules, agentTriggers: agentTriggersRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
+}
+
+/** PRIV1b (P32): "opened" rows of the mailbox access log are kept 400 days. Share changes stay. At most 500 rows a pass. */
+const OPENS_KEPT_MS = 400 * 86_400_000;
+/** PRIV1b (ML2): app_settings key holding the time (ms) before which every old open is already pruned. */
+export const OPENS_PRUNED_KEY = "mailbox_opens_pruned_before";
+/** PRIV1b (ML2): with nothing pruned, the mark only moves once it trails the cutoff by this much. */
+const OPENS_MARK_STEP_MS = 86_400_000;
+export async function pruneMailboxOpens(deps: Deps, limit = 500) {
+  const l = mailboxAccessLog;
+  const cutoff = deps.now().getTime() - OPENS_KEPT_MS;
+  // PRIV1b (ML2): share rows are kept forever, so each pass starts where the last one stopped instead of re-reading
+  // every old share row. Opens are logged at the time they happen, so nothing new lands behind the mark.
+  const from = Number((await deps.db.select({ v: appSettings.value }).from(appSettings).where(eq(appSettings.key, OPENS_PRUNED_KEY)).get())?.v ?? 0) || 0;
+  if (from >= cutoff) return 0;
+  // org_id IN (organizations) lets each workspace's range use mailbox_access_log_org_idx (org_id, created_at): no table scan.
+  const orgs = deps.db.select({ id: organizations.id }).from(organizations);
+  const old = await deps.db.select({ id: l.id }).from(l).where(and(inArray(l.orgId, orgs), // D1: a subquery, no bound list
+    gte(l.createdAt, new Date(from)), lt(l.createdAt, new Date(cutoff)), inArray(l.action, ["opened_mailbox", "opened_thread"]))).orderBy(l.createdAt).limit(limit);
+  // PRIV1b (SP6): the ids travel as one bound list (inIds), in a form the no-unbounded-IN guard sees.
+  const gone = old.length ? await deps.db.delete(l).where(inIds(l.id, old.map((r) => r.id))).returning({ at: l.createdAt }) : [];
+  // A full pass reached the cutoff; a cut one stops at its newest row (kept inclusive, so ties are not skipped).
+  const to = gone.length < limit ? cutoff : Math.max(...gone.map((g) => g.at.getTime()));
+  // PRIV1b (ML2): an idle pass writes nothing. The mark moves when rows were deleted, or once it is a day behind the
+  // cutoff, so a pass re-reads at most a day of old share rows and an idle cron writes at most once a day.
+  if (to > from && (gone.length > 0 || to - from >= OPENS_MARK_STEP_MS)) await deps.db.insert(appSettings).values({ key: OPENS_PRUNED_KEY, value: String(to) }).onConflictDoUpdate({ target: appSettings.key, set: { value: String(to) } });
+  return gone.length;
 }
 
 type Waiting = { moves: boolean; jobs: boolean; webhooks: boolean; approvals: boolean; dueSoon: boolean; duePassed: boolean; mailSync: boolean; mailSchedules: boolean; agentTriggers: boolean; social: boolean; flowRuns: boolean; flowWatches: boolean; flowDigests: boolean };

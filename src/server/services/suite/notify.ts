@@ -138,6 +138,8 @@ export async function notify(deps: Deps, orgId: string, userId: string, n: { typ
     const cat = categoryOf(n.type);
     const now = deps.now();
     const d = decide(mergePrefs(row?.settings), centreOn(deps) ? readDelivery(row?.delivery) : null, cat, now);
+    // PRIV1b (P37): account security notices can't be muted: always in the inbox and always pushed.
+    if (n.type.startsWith("security.")) { d.inApp = true; d.push = true; }
     if (d.inApp) {
       await deps.db.insert(notifications).values({ id: sortableId("ntf", now.getTime()), orgId, userId, type: n.type, entityType: n.entityType, entityId: n.entityId, title: n.title.slice(0, 300), actorName: n.actorName?.slice(0, 120) ?? null, createdAt: now });
     }
@@ -175,6 +177,34 @@ export function linkFor(n: { entityType: string; entityId: string; type: string 
   }
 }
 
+/** PRIV1b (P61): what a mail notification shows once its person can no longer open the mailbox it came from. */
+export const LOST_MAIL_TITLE = "A conversation you can no longer open";
+
+/**
+ * PRIV1b (P61): ids of thread and approval notifications whose mail this person can no longer open (a share ended,
+ * they left the mailbox). Their titles carry the subject, so the list and the digest hide it. One batched check a page.
+ */
+export async function lostMailNotifications(deps: Deps, orgId: string, userId: string, rows: { id: string; entityType: string; entityId: string }[]): Promise<Set<string>> {
+  const mail = rows.filter((r) => r.entityType === "thread" || r.entityType === "approval");
+  if (!mail.length) return new Set();
+  const { members, messages, sendApprovals } = await import("../../db/schema");
+  const m = await deps.db.select({ role: members.role }).from(members).where(and(eq(members.organizationId, orgId), eq(members.userId, userId))).get();
+  if (!m) return new Set(mail.map((r) => r.id));
+  const { mailboxScope } = await import("../team");
+  const scope = await mailboxScope(deps.db, { userId, orgId, role: m.role });
+  if (!scope) return new Set();
+  const threads = [...new Set(mail.filter((r) => r.entityType === "thread").map((r) => r.entityId))];
+  const approvals = [...new Set(mail.filter((r) => r.entityType === "approval").map((r) => r.entityId))];
+  const [openThreads, openApprovals] = await Promise.all([
+    inChunks(threads, (ids) => deps.db.selectDistinct({ id: messages.threadId }).from(messages)
+      .where(and(eq(messages.orgId, orgId), inIds(messages.threadId, ids), inIds(messages.mailboxId, scope), sql`${messages.folder} not in ('drafts', 'trash')`))),
+    inChunks(approvals, (ids) => deps.db.select({ id: sendApprovals.id }).from(sendApprovals)
+      .where(and(eq(sendApprovals.orgId, orgId), inIds(sendApprovals.id, ids), inIds(sendApprovals.mailboxId, scope)))),
+  ]);
+  const ok = new Set([...openThreads, ...openApprovals].map((r) => r.id));
+  return new Set(mail.filter((r) => !ok.has(r.entityId)).map((r) => r.id));
+}
+
 export async function listNotifications(deps: Deps, orgId: string, userId: string, opts: { unread?: boolean; limit?: number; category?: string; before?: string; view?: TriageView } = {}) {
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
   let typeFilter;
@@ -207,9 +237,10 @@ export async function listNotifications(deps: Deps, orgId: string, userId: strin
     const { chatMessages } = await import("../../db/schema");
     for (const m of await deps.db.select({ id: chatMessages.id, channelId: chatMessages.channelId }).from(chatMessages).where(inIds(chatMessages.id, chatIds))) channelOf.set(m.id, m.channelId);
   }
+  const lost = await lostMailNotifications(deps, orgId, userId, page); // PRIV1b (P61)
   return {
     notifications: page.map((r) => ({
-      id: r.id, type: r.type, category: categoryOf(r.type), entityType: r.entityType, entityId: r.entityId, title: r.title,
+      id: r.id, type: r.type, category: categoryOf(r.type), entityType: r.entityType, entityId: r.entityId, title: lost.has(r.id) ? LOST_MAIL_TITLE : r.title,
       actor: r.actorName ? { type: "member", id: null, name: r.actorName } : null, read: !!r.readAt, createdAt: r.createdAt.toISOString(),
       link: linkFor(r, channelOf.get(r.entityId)),
       doneAt: r.doneAt ? r.doneAt.toISOString() : null, snoozedUntil: r.snoozedUntil && r.snoozedUntil > now ? r.snoozedUntil.toISOString() : null,

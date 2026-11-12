@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
-import { useMailboxes } from "@/web/lib/queries";
+import { useOpenableMailboxes } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -21,7 +21,7 @@ import { LoadFailure } from "@/web/components/load-error-t1g";
 const field = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand";
 
 function MailboxSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   return (
     <label className="block space-y-1 text-[13px] font-medium">Send from
       <Select value={value} onChange={(e) => onChange(e.target.value)} data-testid="tpl-mailbox">

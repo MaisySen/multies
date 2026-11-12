@@ -30,7 +30,7 @@ import { DRIVE_LIMITS, cleanTags } from "@/shared/drive";
 import {
   DOC_LIMITS as L, DOC_TYPES, isDocType, type DocCounts, type DocDetail, type DocField, type DocFields, type DocList, type DocMatch, type DocRow, type DocRule, type DocStatus, type DocType, type DocView,
 } from "@/shared/doc-inbox";
-import { canOpen, personalInfo, scopeFor } from "../mail-access-priv1a";
+import { canOpen, isPersonalOwner, personalInfo, personalOwnership } from "../mail-access-priv1a";
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const isAdmin = (a: Actor) => a.role === "owner" || a.role === "admin";
@@ -506,8 +506,9 @@ export async function addDriveFile(deps: Deps, a: Actor, itemId: string): Promis
 export async function canAddFromMailbox(db: DB, a: Actor, mailboxId: string): Promise<boolean> {
   const mb = (await db.all<{ address: string }>(sql`select address from mailboxes where id = ${mailboxId} and org_id = ${a.orgId} limit 1`))[0];
   if (!mb) return false;
-  // PRIV1a: never from someone else's personal mailbox (team mailboxes keep the rule below).
-  if (await personalInfo(db, a.orgId, mailboxId) && !(await canOpen(db, a, mailboxId))) return false;
+  // PRIV1b (P21): a personal mailbox is decided here: its owner (nobody on an orphan, P9) who
+  // can open it; never a share, never an admin by address. Team mailboxes keep the rule below.
+  if (await personalInfo(db, a.orgId, mailboxId)) return (await isPersonalOwner(db, a, mailboxId)) === true && await canOpen(db, a, mailboxId);
   const me = (await db.all<{ email: string }>(sql`select email from users where id = ${a.userId} limit 1`))[0];
   if (me && me.email.toLowerCase() === mb.address.toLowerCase()) return true;
   const grant = await db.all<{ x: number }>(sql`select 1 as x from mailbox_access where user_id = ${a.userId} and mailbox_id = ${mailboxId} and org_id = ${a.orgId} limit 1`);
@@ -519,15 +520,17 @@ export async function canAddFromMailbox(db: DB, a: Actor, mailboxId: string): Pr
 
 /** Mailboxes whose attachments the caller may add (the same rule as canAddFromMailbox), for the Add to documents button. */
 export async function addableMailboxes(db: DB, a: Actor): Promise<string[]> {
-  const boxes = await db.all<{ id: string; address: string }>(sql`select id, address from mailboxes where org_id = ${a.orgId} limit 200`);
+  // PRIV1b (SL5): one read gives each mailbox its own personal flag and owner, so a personal mailbox can never fall
+  // into the team rule (two separately limited lists could miss each other).
+  const boxes = await db.all<{ id: string; address: string; personal: number | null; owner: string | null; member: string | null }>(sql`select m.id, m.address, m.personal, m.owner_user_id as owner, x.user_id as member
+    from mailboxes m left join members x on x.user_id = m.owner_user_id and x.organization_id = m.org_id where m.org_id = ${a.orgId} limit 200`);
   if (!boxes.length) return [];
   const me = (await db.all<{ email: string }>(sql`select email from users where id = ${a.userId} limit 1`))[0]?.email.toLowerCase() ?? "";
   const grants = new Set((await db.all<{ mailbox_id: string }>(sql`select mailbox_id from mailbox_access where user_id = ${a.userId} and org_id = ${a.orgId} limit 500`)).map((r) => r.mailbox_id));
   const owned = isAdmin(a) ? new Set((await db.all<{ email: string }>(sql`select lower(u.email) as email from members m join users u on u.id = m.user_id where m.organization_id = ${a.orgId} limit 2000`)).map((r) => r.email)) : new Set<string>();
-  const personal = new Set((await db.all<{ id: string }>(sql`select id from mailboxes where org_id = ${a.orgId} and personal = 1 limit 500`)).map((r) => r.id));
-  const scope = personal.size ? await scopeFor(db, a) : null;
-  return boxes.filter((b) => !personal.has(b.id) || !scope || scope.includes(b.id))
-    .filter((b) => b.address.toLowerCase() === me || grants.has(b.id) || (isAdmin(a) && !owned.has(b.address.toLowerCase()))).map((b) => b.id);
+  // PRIV1b (P21, integration M3): personal mailboxes as canAddFromMailbox decides them: the owner's own; an orphan is nobody's.
+  return boxes.filter((b) => (b.personal ? personalOwnership(b, a.userId) === "owner"
+    : b.address.toLowerCase() === me || grants.has(b.id) || (isAdmin(a) && !owned.has(b.address.toLowerCase())))).map((b) => b.id);
 }
 
 export async function addFromMail(deps: Deps, a: Actor, attachmentId: string): Promise<DocDetail> {

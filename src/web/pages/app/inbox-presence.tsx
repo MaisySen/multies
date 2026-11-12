@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconDocs, IconEye, IconPenLine, IconUserRoundCheck } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
-import { useMailboxes } from "@/web/lib/queries";
+import { useMailOverview } from "@/web/lib/queries";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { toast } from "sonner";
@@ -15,8 +15,8 @@ import { Compose, type ComposeDraft } from "./mail/compose";
  * Round 22 (R22.3, R22.4) in the shared inbox: who else has this thread open (viewing, or replying
  * in amber), and draft replies teammates saved in it, which anyone who can open the mailbox can take over.
  */
-export function ThreadCollab({ threadId }: { threadId: string }) {
-  const presence = useThreadPresence(threadId, "viewing");
+export function ThreadCollab({ threadId, mailboxId }: { threadId: string; mailboxId?: string }) {
+  const presence = useThreadPresence(threadId, "viewing", mailboxId);
   return (
     <>
       <PresenceBar view={presence} />
@@ -26,8 +26,8 @@ export function ThreadCollab({ threadId }: { threadId: string }) {
 }
 
 /** The same bar in webmail's reader, for the thread being read. */
-export function ThreadPresenceLine({ threadId }: { threadId: string }) {
-  const presence = useThreadPresence(threadId, "viewing");
+export function ThreadPresenceLine({ threadId, mailboxId }: { threadId: string; mailboxId?: string }) {
+  const presence = useThreadPresence(threadId, "viewing", mailboxId);
   return <div className="mt-3"><PresenceBar view={presence} /></div>;
 }
 
@@ -84,7 +84,8 @@ interface TakenDraft { draft: { id: string; threadId: string; mailboxId: string;
 /** "Draft by Maya, edited 3 min ago" with a preview; Take over opens it in Compose as yours. */
 function ThreadDrafts({ threadId }: { threadId: string }) {
   const qc = useQueryClient();
-  const mailboxes = useMailboxes();
+  // PRIV1b (WC3): From follows the overview levels, as in the shared inbox, so a read share is never offered as From.
+  const mailboxes = useMailOverview();
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
   const drafts = useQuery({ queryKey: ["thread-drafts", threadId], queryFn: () => api.get<{ drafts: ThreadDraft[] }>(`/threads/${threadId}/drafts`), refetchInterval: 30_000 });
   const take = useMutation({

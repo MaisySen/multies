@@ -7,14 +7,14 @@
  *   4. Every pass that deletes anything, every hold, search and case export is written to the audit log.
  */
 import { Zip, ZipDeflate } from "fflate";
-import { and, asc, desc, eq, isNull, lt, lte, ne, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, lte, ne, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { attachments, mailCases, mailConnections, mailLegalHolds, mailRetentionPolicies, mailboxAccess, mailboxes, members, messages, organizations, users } from "../../db/schema";
 import { HttpError, badRequest, conflict, forbidden, notFound } from "../../lib/errors";
 import { newId } from "../../lib/crypto";
 import { inIds, notInIds } from "../../lib/sql-chunks";
 import { audit } from "../audit";
-import { scopeFor } from "../mail-access-priv1a";
+import { personalInfo, scopeFor, whoCanOpen } from "../mail-access-priv1a";
 import { toMboxEntry } from "../data-move/formats";
 import {
   ARCHIVE_PAGE, CASE_EXPORT_MAX, MAX_ACTIVE_HOLDS, RETENTION_BATCH, RETENTION_INTERVAL_MS, cleanFilters, describeFilters, graceEnd, isStricter,
@@ -46,13 +46,29 @@ export async function heldScope(deps: Deps, orgId: string): Promise<HeldScope> {
   const userIds = [...new Set(holds.filter((h) => h.kind === "person").map((h) => h.targetId))];
   const boxes = new Set(holds.filter((h) => h.kind === "mailbox").map((h) => h.targetId));
   if (userIds.length) {
-    const access = await deps.db.select({ mailboxId: mailboxAccess.mailboxId }).from(mailboxAccess)
-      .where(and(eq(mailboxAccess.orgId, orgId), inIds(mailboxAccess.userId, userIds)));
+    const [access, own, roles] = await Promise.all([
+      deps.db.select({ mailboxId: mailboxAccess.mailboxId }).from(mailboxAccess)
+        .where(and(eq(mailboxAccess.orgId, orgId), inIds(mailboxAccess.userId, userIds))),
+      // PRIV1a: a person's own personal mailboxes (connected inboxes, free addresses) are theirs to hold too, also
+      // after they left the workspace.
+      deps.db.select({ id: mailboxes.id }).from(mailboxes)
+        .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.personal, true), inIds(mailboxes.ownerUserId, userIds))),
+      deps.db.select({ userId: members.userId, role: members.role }).from(members)
+        .where(and(eq(members.organizationId, orgId), inIds(members.userId, userIds))),
+    ]);
     for (const a of access) boxes.add(a.mailboxId);
-    // PRIV1a: a person's own personal mailboxes (connected inboxes, free addresses) are theirs to hold too.
-    const own = await deps.db.select({ id: mailboxes.id }).from(mailboxes)
-      .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.personal, true), inIds(mailboxes.ownerUserId, userIds)));
     for (const o of own) boxes.add(o.id);
+    // PRIV1b (P44): every mailbox the held person can open by the one rule (grants, role, shares), so a hold on a
+    // delegate or an admin keeps the mail they can open. A person who left holds what they owned (above).
+    const role = new Map(roles.map((r) => [r.userId, r.role as "owner" | "admin" | "member"]));
+    for (const u of userIds) {
+      if (!role.has(u)) continue;
+      const scope = await scopeFor(deps.db, { orgId, userId: u, role: role.get(u) });
+      if (scope) { for (const id of scope) boxes.add(id); continue; }
+      const all = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.orgId, orgId));
+      for (const r of all) boxes.add(r.id);
+      break; // every mailbox is held: nothing more to add
+    }
   }
   return { mailboxIds: [...boxes], userIds, active: holds.length };
 }
@@ -60,12 +76,20 @@ const notHeldCond = (s: HeldScope): SQL | undefined => {
   const parts = [notInIds(messages.mailboxId, s.mailboxIds), s.userIds.length ? or(isNull(messages.sentByUserId), notInIds(messages.sentByUserId, s.userIds)) : undefined].filter(Boolean) as SQL[];
   return parts.length ? and(...parts) : undefined;
 };
+// PRIV1b (P58): team mailboxes only. Personal ones are skipped by the pass and left out of every preview count below.
 async function connectedBoxes(deps: Deps, orgId: string) {
-  return (await deps.db.select({ id: mailConnections.mailboxId }).from(mailConnections).where(eq(mailConnections.orgId, orgId))).map((r) => r.id);
+  return (await deps.db.select({ id: mailConnections.mailboxId }).from(mailConnections).innerJoin(mailboxes, eq(mailboxes.id, mailConnections.mailboxId))
+    .where(and(eq(mailConnections.orgId, orgId), eq(mailboxes.personal, false)))).map((r) => r.id);
 }
 
-/** Past the cutoff, not a draft: what a policy is about. */
-const pastCond = (orgId: string, cutoff: Date) => and(eq(messages.orgId, orgId), lt(messages.date, cutoff), ne(messages.folder, "drafts"));
+/**
+ * Past the cutoff, not a draft, not in a personal mailbox: what a policy is about.
+ * PRIV1b (P58): the Date header is the sender's word, so the stored receive time must be past the cutoff too.
+ * Personal mailboxes are their owner's (the admin can't open them), so a workspace policy never deletes from them and
+ * the preview never counts them (a hold plus a preview was a per mailbox count).
+ */
+const pastCond = (orgId: string, cutoff: Date) => and(eq(messages.orgId, orgId), lt(messages.date, cutoff), lt(messages.createdAt, cutoff), ne(messages.folder, "drafts"),
+  sql`${messages.mailboxId} not in (select p.id from mailboxes p where p.org_id = ${orgId} and p.personal = 1)`);
 async function countWhere(deps: Deps, where: SQL | undefined) {
   const r = await deps.db.select({ n: sql<number>`count(*)` }).from(messages).where(where).get();
   return Number(r?.n ?? 0);
@@ -150,8 +174,13 @@ export async function runRetentionForOrg(deps: Deps, orgId: string): Promise<{ d
   const perBox: Record<string, { n: number; bytes: number }> = {};
   for (let i = 0; i < rows.length; i += 50) {
     const part = rows.slice(i, i + 50);
-    await deps.db.delete(messages).where(and(eq(messages.orgId, orgId), inIds(messages.id, part.map((r) => r.id))));
+    const ids = part.map((r) => r.id);
+    // PRIV1b (P58): large attachments live in the body store; read their keys before the rows (and the attachment
+    // rows, by foreign key) go, then delete the blobs. A failed blob delete never stops the pass.
+    const blobs = deps.bodyStore ? await deps.db.select({ key: attachments.storageKey }).from(attachments).where(and(inIds(attachments.messageId, ids), isNotNull(attachments.storageKey))) : [];
+    await deps.db.delete(messages).where(and(eq(messages.orgId, orgId), inIds(messages.id, ids)));
     for (const r of part) { const b = (perBox[r.mailboxId] ??= { n: 0, bytes: 0 }); b.n++; b.bytes += Math.max(0, r.sizeBytes); }
+    for (const b of blobs) if (b.key) await deps.bodyStore!.delete(b.key).catch((err) => deps.reportError?.(err, { where: "mail.retention.blob", orgId }));
   }
   for (const [id, b] of Object.entries(perBox)) {
     await deps.db.update(mailboxes).set({ usedBytes: sql`max(0, ${mailboxes.usedBytes} - ${b.bytes})` }).where(eq(mailboxes.id, id));
@@ -174,29 +203,66 @@ export async function runRetentionPass(deps: Deps, opts: { maxOrgs?: number } = 
   const due = await deps.db.select({ orgId: mailRetentionPolicies.orgId }).from(mailRetentionPolicies)
     .where(and(eq(mailRetentionPolicies.enabled, true), lte(mailRetentionPolicies.startsAt, now),
       or(isNull(mailRetentionPolicies.lastRunAt), lt(mailRetentionPolicies.lastRunAt, new Date(now.getTime() - RETENTION_INTERVAL_MS)), eq(mailRetentionPolicies.backlog, true))))
+    // PRIV1b (P58): never run first, then the longest waiting, so a backlog or a failing workspace can't starve the rest.
+    .orderBy(sql`${mailRetentionPolicies.lastRunAt} is not null`, asc(mailRetentionPolicies.lastRunAt))
     .limit(opts.maxOrgs ?? 5);
   let deleted = 0;
   for (const d of due) {
-    try { deleted += (await runRetentionForOrg(deps, d.orgId)).deleted; } catch (err) { deps.reportError?.(err, { where: "mail.retention", orgId: d.orgId }); }
+    // PRIV1b (P58): a failed or skipped pass still counts as a run, so the workspace goes to the back of the queue.
+    let ran = false;
+    try {
+      const r = await runRetentionForOrg(deps, d.orgId);
+      deleted += r.deleted; ran = !r.skipped;
+    } catch (err) { deps.reportError?.(err, { where: "mail.retention", orgId: d.orgId }); }
+    if (!ran) await deps.db.update(mailRetentionPolicies).set({ lastRunAt: now }).where(eq(mailRetentionPolicies.orgId, d.orgId)).catch(() => undefined);
   }
   return { orgs: due.length, deleted };
 }
 
+const legalHold = (what: "mail" | "mailbox") => new HttpError(409, "legal_hold", what === "mail"
+  ? "This mail is on legal hold, so it can't be deleted. An admin can lift the hold in Settings, Archive and retention."
+  : "This mailbox is on legal hold, so it can't be deleted or removed. Lift the hold first.");
+type HeldRow = { mailboxId: string; folder: string; sentByUserId?: string | null };
+/** PRIV1b (P44): whether any of these rows (drafts aside) is held, tested against a scope read once (import Undo). */
+export function rowsHeld(s: HeldScope, rows: HeldRow[]) {
+  if (!s.active) return false;
+  const boxes = new Set(s.mailboxIds);
+  return rows.some((r) => r.folder !== "drafts" && (boxes.has(r.mailboxId) || (!!r.sentByUserId && s.userIds.includes(r.sentByUserId))));
+}
+export function assertRowsNotHeld(s: HeldScope, rows: HeldRow[]) {
+  if (rowsHeld(s, rows)) throw legalHold("mail");
+}
+/**
+ * PRIV1b (P44): whether a hold reaches any of these mailboxes, reading only what the request touches: the holds, then
+ * per mailbox who can open it (the one rule, plus a personal owner who left), stopping at the first match. Past a few
+ * mailboxes the whole scope is cheaper.
+ */
+async function anyHeld(deps: Deps, orgId: string, boxIds: string[], senders: string[]) {
+  const holds = await deps.db.select({ kind: mailLegalHolds.kind, targetId: mailLegalHolds.targetId }).from(mailLegalHolds)
+    .where(and(eq(mailLegalHolds.orgId, orgId), isNull(mailLegalHolds.releasedAt)));
+  if (!holds.length) return false;
+  const people = new Set(holds.filter((h) => h.kind === "person").map((h) => h.targetId));
+  const ids = [...new Set(boxIds)];
+  if (holds.some((h) => h.kind === "mailbox" && ids.includes(h.targetId)) || senders.some((u) => people.has(u))) return true;
+  if (!people.size || !ids.length) return false;
+  if (ids.length > 4) { const s = await heldScope(deps, orgId); return ids.some((id) => s.mailboxIds.includes(id)); }
+  for (const id of ids) {
+    const p = await personalInfo(deps.db, orgId, id);
+    if (p?.owner && people.has(p.owner)) return true;
+    if ((await whoCanOpen(deps.db, orgId, id)).some((u) => people.has(u))) return true;
+  }
+  return false;
+}
 /** Guard for every person driven permanent delete: 409 when any (non draft) message is under a legal hold. */
-export async function assertNotHeld(deps: Deps, orgId: string, rows: { mailboxId: string; folder: string; sentByUserId?: string | null }[]) {
+export async function assertNotHeld(deps: Deps, orgId: string, rows: HeldRow[]) {
   if (!deps.config.mailArchive) return;
   const kept = rows.filter((r) => r.folder !== "drafts");
   if (!kept.length) return;
-  const s = await heldScope(deps, orgId);
-  if (!s.active) return;
-  if (kept.some((r) => s.mailboxIds.includes(r.mailboxId) || (!!r.sentByUserId && s.userIds.includes(r.sentByUserId)))) {
-    throw new HttpError(409, "legal_hold", "This mail is on legal hold, so it can't be deleted. An admin can lift the hold in Settings, Archive and retention.");
-  }
+  if (await anyHeld(deps, orgId, kept.map((r) => r.mailboxId), kept.map((r) => r.sentByUserId).filter((u): u is string => !!u))) throw legalHold("mail");
 }
 export async function assertMailboxNotHeld(deps: Deps, orgId: string, mailboxId: string) {
   if (!deps.config.mailArchive) return;
-  const s = await heldScope(deps, orgId);
-  if (s.mailboxIds.includes(mailboxId)) throw new HttpError(409, "legal_hold", "This mailbox is on legal hold, so it can't be deleted or removed. Lift the hold first.");
+  if (await anyHeld(deps, orgId, [mailboxId], [])) throw legalHold("mailbox");
 }
 
 /* ---------- Legal holds ---------- */

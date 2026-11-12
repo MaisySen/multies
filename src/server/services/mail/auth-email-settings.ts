@@ -63,11 +63,14 @@ async function currentHook(deps: Deps, orgId: string): Promise<HookRow | undefin
   return deps.db.select().from(authEmailHooks).where(eq(authEmailHooks.orgId, orgId)).orderBy(desc(authEmailHooks.createdAt)).limit(1).get();
 }
 
-/** Mailboxes on the workspace's verified domains: the addresses auth emails can come from. */
+/**
+ * Mailboxes on the workspace's verified domains: the addresses auth emails can come from. PRIV1b (W1): team mailboxes
+ * only; a person's personal mailbox is theirs, so an admin can neither list it here nor send sign-up emails as it.
+ */
 export async function senderMailboxes(deps: Deps, orgId: string) {
   return deps.db.select({ id: mailboxes.id, address: mailboxes.address, displayName: mailboxes.displayName }).from(mailboxes)
     .innerJoin(domains, eq(domains.id, mailboxes.domainId))
-    .where(and(eq(mailboxes.orgId, orgId), eq(domains.status, "verified"), eq(mailboxes.status, "active"))).orderBy(mailboxes.address);
+    .where(and(eq(mailboxes.orgId, orgId), eq(domains.status, "verified"), eq(mailboxes.status, "active"), eq(mailboxes.personal, false))).orderBy(mailboxes.address);
 }
 
 const recentTests = (h: HookRow, now: number) => {
@@ -218,6 +221,8 @@ export async function sendAuthEmailTest(deps: Deps, a: Actor, body: { type?: str
   if (!to || !to.includes("@")) throw bad("Your account has no email address to send the test to.");
   const h = await currentHook(deps, a.orgId);
   if (!h) throw notFound("Sign-up email settings");
+  // PRIV1b (W1): an older hook on a personal mailbox never sends a test as its owner. One read by primary key.
+  if ((await deps.db.select({ personal: mailboxes.personal }).from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get())?.personal) throw bad("Sign-up emails can't come from a personal mailbox. Pick a team mailbox.", "from");
   const now = deps.now().getTime();
   const recent = recentTests(h, now);
   if (recent.length >= TEST_SENDS_PER_HOUR) {

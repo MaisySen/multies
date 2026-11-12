@@ -11,6 +11,8 @@
  * A big import stops near 15 seconds, at the day's cap or at the write budget's warn level, and the same call with the
  * run id carries on from where it stopped.
  */
+import { assertOpen, personalInfo } from "../mail-access-priv1a"; // PRIV1b (P12)
+import { assertRowsNotHeld, heldScope } from "../mail/archive-r111"; // PRIV1b (P44)
 import { and, desc, eq, inArray, isNull, like, lt, ne, or, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
 import type { AuthContext, Deps } from "../../context";
@@ -44,7 +46,14 @@ type Created = { tasks?: string[]; statuses?: string[]; projects?: string[]; pro
 
 const parseJson = <T>(s: string | null | undefined, fallback: T): T => { try { return s ? JSON.parse(s) as T : fallback; } catch { return fallback; } };
 
+// PRIV1b (P8): an agent key resolves as role admin, but it acts only as its agent. An export (which adds the key
+// creator's own mailboxes) or an import is for people and workspace keys.
+function refuseAgentKey(actor: SuiteActor) {
+  if (actor.agentId) throw new HttpError(403, "agent_key_scope", "Agent keys can't export or import the workspace. Use a workspace key.");
+}
+
 function requireAdmin(actor: SuiteActor) {
+  refuseAgentKey(actor);
   if (actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only workspace owners and admins can export the whole workspace.");
 }
 
@@ -52,6 +61,7 @@ function requireAdmin(actor: SuiteActor) {
  * it, so both are for owners and admins (and workspace keys, which act as admin), like the export. */
 function requireImportAdmin(actor: SuiteActor) {
   if (actor.system) return;
+  refuseAgentKey(actor);
   if (actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only workspace owners and admins can import or undo an import.");
 }
 
@@ -507,8 +517,23 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   const m = await moveRow(deps, actor.orgId, id);
   if (m.kind !== "import") throw new HttpError(422, "validation_failed", "Only an import can be undone.");
   if (m.status === "undone") return { move: presentMove(m), removed: 0 };
-  if (m.fileKey) await dropKeptFile(deps, m); // R43: the kept upload goes with the run
   const c = parseJson<Created>(m.created, {});
+  // PRIV1b (P12): Undo deletes mail out of the target mailbox. A personal one: its owner (or a Send as share), or the
+  // person who ran the import.
+  if (c.mailboxId && !actor.system && m.createdByUserId !== actor.userId && await personalInfo(deps.db, actor.orgId, c.mailboxId)) {
+    await assertOpen(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, c.mailboxId, "send");
+  }
+  // PRIV1b (P44): Undo never deletes mail under a legal hold; checked before anything is removed.
+  // The scope is read once, then each chunk is tested in memory.
+  const held = c.messages?.length && deps.config.mailArchive ? await heldScope(deps, actor.orgId) : null;
+  if (held?.active && c.messages) {
+    for (let i = 0; i < c.messages.length; i += 90) {
+      const rows = await deps.db.select({ mailboxId: messages.mailboxId, folder: messages.folder, sentByUserId: messages.sentByUserId }).from(messages)
+        .where(and(eq(messages.orgId, actor.orgId), inIds(messages.id, c.messages.slice(i, i + 90))));
+      assertRowsNotHeld(held, rows);
+    }
+  }
+  if (m.fileKey) await dropKeptFile(deps, m); // R43: the kept upload goes with the run
   let removed = 0;
   const del = async (ids: string[] | undefined, table: typeof tasks | typeof meetings | typeof contacts | typeof docs) => {
     for (let i = 0; i < (ids ?? []).length; i += 90) {

@@ -9,7 +9,7 @@ import { and, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { mailThreadState, members, messages, users } from "../../db/schema";
 import { whoCanOpenAny } from "../mail-access-priv1a";
-import { badRequest, notFound } from "../../lib/errors";
+import { badRequest, HttpError, notFound } from "../../lib/errors";
 import { assertWritable, scopeOf, type SuiteActor } from "../suite/common";
 import { notify } from "../suite/notify";
 import { inIds } from "../../lib/sql-chunks";
@@ -37,15 +37,25 @@ const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 export const viewerOf = (a: SuiteActor) => (a.agentId ? null : a.userId || null);
 
 /** The thread's mailboxes and subject, after checking the caller can open it. */
-async function openThread(deps: Deps, actor: SuiteActor, threadId: string) {
+async function openThread(deps: Deps, actor: SuiteActor, threadId: string, need: "read" | "reply" = "read") {
   const rows = await deps.db.select({ mailboxId: messages.mailboxId, subject: messages.subject, date: messages.date }).from(messages)
     .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), sql`${messages.folder} not in ('trash', 'drafts')`))
     .orderBy(desc(messages.date)).limit(200);
   if (!rows.length) throw notFound("Thread");
   const scope = await scopeOf(deps, actor);
-  const mailboxIds = [...new Set(rows.map((r) => r.mailboxId))];
-  if (scope && !mailboxIds.some((m) => scope.includes(m))) throw notFound("Thread");
-  return { mailboxIds, newestMailboxId: rows[0].mailboxId, subject: rows[rows.length - 1].subject };
+  // PRIV1b (P15): a thread can hold copies in several mailboxes (a personal one among them). Only the copies in the
+  // caller's scope count: their mailbox ids, newest mailbox and subject, so the Assign menu never lists another
+  // mailbox's shares and nobody is assigned through a copy the caller cannot open.
+  const mine = scope ? rows.filter((r) => scope.includes(r.mailboxId)) : rows;
+  if (!mine.length) throw notFound("Thread");
+  const mailboxIds = [...new Set(mine.map((r) => r.mailboxId))];
+  // PRIV1b (P11): assigning or setting a status needs Read and reply in one of the thread's mailboxes, not a read share.
+  if (need === "reply" && !actor.agentId && !actor.system) {
+    const { mailboxScope } = await import("../team");
+    const can = await mailboxScope(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, "reply");
+    if (can && !mailboxIds.some((m) => can.includes(m))) throw new HttpError(403, "share_level", "This mailbox was shared with you to read only. Ask its owner.");
+  }
+  return { mailboxIds, newestMailboxId: mine[0].mailboxId, subject: mine[mine.length - 1].subject };
 }
 
 async function stateRow(deps: Deps, orgId: string, threadId: string) {
@@ -57,7 +67,7 @@ async function present(deps: Deps, orgId: string, threadId: string): Promise<Thr
 }
 
 /** States for a set of threads in one query (threads without a row are open and unassigned). */
-export async function listThreadStates(deps: Deps, orgId: string, threadIds: string[]): Promise<Map<string, ThreadState>> {
+export async function listThreadStates(deps: Deps, orgId: string, threadIds: string[], scope?: string[] | null): Promise<Map<string, ThreadState>> {
   const out = new Map<string, ThreadState>();
   const ids = [...new Set(threadIds)];
   if (!ids.length) return out;
@@ -66,14 +76,25 @@ export async function listThreadStates(deps: Deps, orgId: string, threadIds: str
     const rows = await deps.db.select({ s: mailThreadState, name: users.name }).from(mailThreadState).leftJoin(users, eq(users.id, mailThreadState.assigneeUserId))
       .where(and(eq(mailThreadState.orgId, orgId), inArray(mailThreadState.threadId, ids.slice(i, i + 90))));
     for (const { s, name } of rows) {
+      if (scope && !scope.includes(s.mailboxId)) continue; // PRIV1b (P15, review S2): another copy's state reads as open and unassigned
       out.set(s.threadId, { threadId: s.threadId, status: s.status, assignee: s.assigneeUserId ? { id: s.assigneeUserId, name: name ?? "" } : null, assignedAt: iso(s.assignedAt), doneAt: iso(s.doneAt) });
     }
   }
   return out;
 }
 
+/**
+ * PRIV1b (P15, review S2): mail_thread_state holds one row per thread id, not per mailbox copy (no schema change in
+ * PRIV1b). The row belongs to the copy it was first written from (its mailbox_id): callers whose copies don't include
+ * that mailbox see the thread as open and unassigned and can't change it. Residual: thread list view filters (threadViewCond)
+ * still filter by that one row, so a copy's Mine/Done views can follow a status set from another copy.
+ */
+const otherCopy = (cur: { mailboxId: string } | undefined, mailboxIds: string[]) => !!cur && !mailboxIds.includes(cur.mailboxId);
+const notYours = () => new HttpError(409, "conflict", "This thread's status is kept with another mailbox's copy of it.");
+
 export async function getThreadState(deps: Deps, actor: SuiteActor, threadId: string) {
-  await openThread(deps, actor, threadId);
+  const t = await openThread(deps, actor, threadId);
+  if (otherCopy(await stateRow(deps, actor.orgId, threadId), t.mailboxIds)) return { threadId, status: "open", assignee: null, assignedAt: null, doneAt: null } as ThreadState;
   return present(deps, actor.orgId, threadId);
 }
 
@@ -101,8 +122,9 @@ export async function assignableMembers(deps: Deps, actor: SuiteActor, threadId:
  */
 export async function assignThread(deps: Deps, actor: SuiteActor, threadId: string, userId: string | null) {
   assertWritable(actor);
-  const t = await openThread(deps, actor, threadId);
+  const t = await openThread(deps, actor, threadId, "reply");
   const cur = await stateRow(deps, actor.orgId, threadId);
+  if (otherCopy(cur, t.mailboxIds)) throw notYours();
   if ((cur?.assigneeUserId ?? null) === userId) return present(deps, actor.orgId, threadId);
   if (userId) await assertAssignable(deps, actor.orgId, userId, t.mailboxIds);
   const now = deps.now();
@@ -123,8 +145,9 @@ export async function assignThread(deps: Deps, actor: SuiteActor, threadId: stri
 export async function setThreadStatus(deps: Deps, actor: SuiteActor, threadId: string, status: ThreadStatus) {
   assertWritable(actor);
   if (!(THREAD_STATUSES as readonly string[]).includes(status)) throw badRequest("Status is open, waiting or done.");
-  const t = await openThread(deps, actor, threadId);
+  const t = await openThread(deps, actor, threadId, "reply");
   const cur = await stateRow(deps, actor.orgId, threadId);
+  if (otherCopy(cur, t.mailboxIds)) throw notYours();
   if ((cur?.status ?? "open") === status) return present(deps, actor.orgId, threadId);
   const now = deps.now();
   const set = { status, doneAt: status === "done" ? now : null, updatedAt: now };
@@ -214,7 +237,8 @@ export async function replyStats(deps: Deps, actor: SuiteActor, q: { mailboxId?:
       group by m.thread_id having min(m.date) >= ${from.getTime()}
       order by first_in desc limit ${cap + 1}
     ), outs as (
-      select f.thread_id, (select o.id from ${messages} o where o.org_id = ${actor.orgId} and o.thread_id = f.thread_id and o.folder = 'sent' and o.date >= f.first_in order by o.date asc limit 1) as out_id
+      -- PRIV1b (P15): the first response is a reply from the same mailbox, never another mailbox's copy of the thread.
+      select f.thread_id, (select o.id from ${messages} o where o.org_id = ${actor.orgId} and o.thread_id = f.thread_id and o.mailbox_id = f.mailbox_id and o.folder = 'sent' and o.date >= f.first_in order by o.date asc limit 1) as out_id
       from firsts f
     )
     select f.thread_id, f.mailbox_id, f.first_in, o.date as first_out, o.sent_by_user_id as out_user, o.sent_by_agent_id as out_agent, s.done_at, s.status

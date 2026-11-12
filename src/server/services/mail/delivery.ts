@@ -9,7 +9,9 @@ import { newId } from "../../lib/crypto";
 import type { ParsedEmail } from "./mime";
 import { storeMessage } from "./store";
 import { OutboundError } from "./outbound";
-import { getPlan } from "../plans";
+import { getOrg, getPlan } from "../plans";
+import { recentOutboundStats, recordAbuse, scoreOutbound, SPAM_HOLD_AT } from "../abuse";
+import { decide, externalSentToday, guardConfig, newSenderCap, providerSentToday, sendingOff } from "./send-guard-r34";
 import { notifyAgentsOfInbound } from "../agents";
 import { operatorDecision } from "../suite/operator-inbox";
 import { isBulkMail } from "@/shared/mail-splits";
@@ -34,6 +36,12 @@ export async function routeRecipient(db: DB, address: string): Promise<Recipient
   const addr = baseAddress(address);
   const domain = await db.select().from(domains).where(eq(domains.name, domainOf(addr))).get();
   if (!domain) return { kind: "none" };
+  // PRIV1b (P36): only a domain whose owner proved it in DNS routes inside the platform. A pending or failed
+  // claim (anyone can add any name) would otherwise catch password resets, invites and other customers' mail.
+  // Platform, operator and sample rows are stored verified. No domain is returned, so nothing is logged to the claimant.
+  // PRIV1b (integration M1): a domain once proved keeps routing when a later re-check fails (an SPF edit, DNS drift):
+  // the re-check keeps verifiedAt, and bouncing every message of a live workspace is worse than the drift.
+  if (domain.status !== "verified" && !domain.verifiedAt) return { kind: "none" };
   const mailbox = await db.select().from(mailboxes).where(eq(mailboxes.address, addr)).get();
   // A connected mailbox (an address at another provider) sits on the shared connected row, not this domain: mail for it goes out over the internet.
   if (mailbox && mailbox.domainId === domain.id) return { kind: "mailbox", mailbox, domain };
@@ -182,13 +190,26 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
   const result: InboundResult = { accepted: false, code: 550, reason: "No destination accepted the message.", storedIn: [], forwardedTo: [] };
   const external: string[] = [];
   for (const dest of destinations) {
-    if (await isHosted(db, dest)) {
-      const r = await deliverInbound(deps, { ...d, rcptTo: dest, requireOrgId: undefined }, depth + 1, seen);
+    // PRIV1b (P38): a hosted destination is delivered inside only when it is in the alias's own workspace, and the
+    // nested route keeps that workspace as its signer. Another workspace's address goes out as a normal forward.
+    const destRoute = await routeRecipient(db, dest);
+    if (destRoute.kind !== "none" && destRoute.domain.orgId === alias.orgId) {
+      const r = await deliverInbound(deps, { ...d, rcptTo: dest, requireOrgId: alias.orgId }, depth + 1, seen);
       result.storedIn.push(...r.storedIn);
       result.forwardedTo.push(...r.forwardedTo);
     } else {
       external.push(dest);
     }
+  }
+  // PRIV1b (P39): a forward is outbound mail from the workspace, so it passes the same gates as send.ts.
+  // PRIV1b (integration S1): a failed check refuses the forward but keeps the copies already stored, so the MTA does not retry and store them twice.
+  const refused = external.length ? await forwardRefusal(deps, alias.orgId, route.domain, d.email, external.length)
+    .catch((err) => { deps.reportError?.(err, { where: "alias.forward_guard" }); return "Forward check failed"; }) : null;
+  if (refused) {
+    for (const to of external) {
+      await logDelivery(db, { orgId: alias.orgId, direction: "outbound", fromAddress: alias.address, toAddress: to, subject, status: "rejected", provider: deps.outbound.name, detail: refused });
+    }
+    external.length = 0;
   }
   if (external.length) {
     const fromName = d.email.from.name ? `${d.email.from.name} via ${alias.address}` : `${d.email.from.address} via ${alias.address}`;
@@ -223,13 +244,51 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
   return result;
 }
 
+/** PRIV1b (P39): why an alias may not forward `count` recipients now (suspended, sending off or paused, unverified
+ * domain, over the plan cap, the R34 new sender limit or the shared headroom, or spam), or null. Refusals are logged,
+ * never queued: the sender's MTA gets a bounce.
+ * PRIV1b (P39 trade-off): anyone who mails a forwarding alias spends the workspace's daily cap, as the manager decided
+ * forwards count like sends; a refused forward bounces to the envelope sender. A separate per-alias cap would avoid
+ * both and is left for later. */
+async function forwardRefusal(deps: Deps, orgId: string, domain: typeof domains.$inferSelect, email: ParsedEmail, count: number): Promise<string | null> {
+  const [org, plan, used] = await Promise.all([getOrg(deps.db, orgId), getPlan(deps.db, orgId), sentToday(deps.db, orgId, deps.now())]);
+  if (org.suspendedAt) return "Workspace is suspended";
+  if (sendingOff(org) && !org.isDemo) return "Sending is turned off for this workspace";
+  const { sendingPausedForPayment } = await import("../billing/dunning"); // lazy: dunning pulls in the mail templates
+  if (sendingPausedForPayment(org, deps.now())) return "Sending is paused for payment";
+  if (domain.status !== "verified" && !domain.verifiedAt) return `${domain.name} is not verified`; // the routeRecipient rule (integration M1)
+  // PRIV1b (P39): the same R34 guard as send.ts (plan cap, new sender limit, shared headroom), refused instead of queued.
+  const cfg = guardConfig(deps);
+  const ext = org.isDemo ? 0 : count; // a demo workspace only has the plan cap, as in send.ts
+  const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
+  const recent = ext ? await recentOutboundStats(deps, orgId) : null;
+  const verdict = decide({
+    cfg, used, cap: org.sendCapDaily ?? plan.limits.dailySends, recipients: count, external: ext,
+    underReview: org.sendCapDaily !== null && org.sendCapDaily < plan.limits.dailySends,
+    externalUsed: ext ? await externalSentToday(deps, orgId) : 0,
+    newCap: recent ? newSenderCap(cfg, ageDays, recent) : null,
+    providerUsed: ext && cfg.providerDailyCap > 0 ? await providerSentToday(deps) : 0,
+  });
+  if (!verdict.ok) return verdict.reason.replace(/ Queued until tomorrow.*$/, "");
+  if (recent) {
+    const spam = scoreOutbound({ subject: email.subject ?? "", text: email.text ?? "", html: email.html, recipients: count, workspaceAgeDays: ageDays, recent });
+    if (spam.score >= SPAM_HOLD_AT) {
+      // PRIV1b (P39, review M1): an outsider wrote this message, so it is logged under its own kind and never counts
+      // toward the workspace's auto-suspension (abuse.ts maybeAutoSuspend counts "outbound_held" only).
+      await recordAbuse(deps, orgId, "forward_held", spam.score, spam.reasons.join("; "));
+      return "Held by the spam filter";
+    }
+  }
+  return null;
+}
+
 /** Recipients sent today (UTC) by an org. This is what the plan's daily limit counts. */
 export async function sentToday(db: DB, orgId: string, now: Date): Promise<number> {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const row = await db.select({ n: sql<number>`count(*)` }).from(deliveries).where(and(
     eq(deliveries.orgId, orgId),
     eq(deliveries.direction, "outbound"),
-    inArray(deliveries.status, ["sent", "queued", "delivered"]),
+    inArray(deliveries.status, ["sent", "queued", "delivered", "forwarded"]), // PRIV1b (P39): alias forwards count too
     gte(deliveries.createdAt, start),
   )).get();
   return Number(row?.n ?? 0);

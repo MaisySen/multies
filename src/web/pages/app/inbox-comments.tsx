@@ -119,7 +119,7 @@ function NoteEditor({ people, initial = "", submitLabel, busy, onSubmit, onCance
 }
 
 /** "Team notes" under a thread's messages. */
-export function ThreadNotes({ threadId }: { threadId: string }) {
+export function ThreadNotes({ threadId, mailboxId }: { threadId: string; mailboxId?: string }) {
   const { confirm, dialogs } = useDialogs();
   const qc = useQueryClient();
   const key = ["thread-notes", threadId];
@@ -128,7 +128,7 @@ export function ThreadNotes({ threadId }: { threadId: string }) {
   const [formKey, setFormKey] = useState(0);
   const refresh = () => { void qc.invalidateQueries({ queryKey: key }); void qc.invalidateQueries({ queryKey: ["thread-notes", "counts"] }); };
   const add = useMutation({
-    mutationFn: (b: { body: string; mentions: string[] }) => api.post(`/threads/${encodeURIComponent(threadId)}/comments`, b),
+    mutationFn: (b: { body: string; mentions: string[] }) => api.post(`/threads/${encodeURIComponent(threadId)}/comments`, { ...b, ...(mailboxId ? { mailboxId } : {}) }), // PRIV1b (P15, review M2): the copy on screen
     onSuccess: () => { setFormKey((k) => k + 1); refresh(); },
   });
   const edit = useMutation({

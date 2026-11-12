@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
-import { useMailboxes, useMe } from "@/web/lib/queries";
+import { useOpenableMailboxes, useMe } from "@/web/lib/queries";
 import { Badge, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Select } from "@/web/components/ui/input";
@@ -23,7 +23,7 @@ export function ImportSection() {
   const isAdmin = me.data?.organization?.role !== "member";
   const info = useQuery({ queryKey: ["imports"], queryFn: () => api.get<ImportsInfo>("/imports"), enabled: isAdmin,
     refetchInterval: (q) => (q.state.data?.imports.some((j) => j.status === "queued" || j.status === "running") ? 5000 : false) });
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [f, setF] = useState({ provider: "gmail" as Provider["id"], mailboxId: "", sourceUser: "", appPassword: "", sourceHost: "" });
   const start = useMutation({
     mutationFn: () => api.post("/imports", { ...f, mailboxId: f.mailboxId || mailboxes.data?.[0]?.id, ...(f.provider === "imap" ? {} : { sourceHost: undefined }) }),

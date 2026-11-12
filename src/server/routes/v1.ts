@@ -17,7 +17,7 @@ import { HttpError, unauthorized } from "../lib/errors";
 import { idempotency, idempotentCreate } from "../lib/idempotency"; // R53: idempotentCreate for webhook endpoints
 import { audit } from "../services/audit";
 import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes, updateMailbox } from "../services/addresses";
-import { mailboxReplyToSchema } from "@/shared/schemas";
+import { createDomainSchema, mailboxReplyToSchema } from "@/shared/schemas";
 import { resolveApiKey } from "../services/developer/api-keys";
 import { hasScope, insufficientScopeBody, isPresetScope, routeScopeForRequest } from "../lib/api-scopes";
 import { resolveOAuthToken } from "../services/developer/oauth";
@@ -26,6 +26,7 @@ import { createDomain, getDomain, listDomains, presentDomain, verifyDomain } fro
 import { getMessage, getThread, listMessages } from "../services/mail/mailbox-view";
 import { sendMessage } from "../services/mail/send";
 import { deprovisionMailbox } from "../services/mailserver";
+import { mailboxScope } from "../services/team";
 import { registerAgentRoutes } from "./v1-agents";
 import { registerMcpRoute } from "./mcp";
 import { registerSuiteRoutes } from "./v1-suite";
@@ -291,8 +292,9 @@ export function v1Routes() {
   for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling", "people", "agent-members"]) api.use(`/${r}/*`, apiKeyAuth);
   api.use("/tools/*", apiKeyAuth, workspaceKeyOnly); // Tools P2: developer API ("/x/*" also matches "/x")
   api.use("/work-imports/*", apiKeyAuth);
-  api.use("/data-moves", apiKeyAuth);
-  api.use("/data-moves/*", apiKeyAuth);
+  // PRIV1b (P8): agent and agent member keys can't export or import the workspace.
+  api.use("/data-moves", apiKeyAuth, workspaceKeyOnly);
+  api.use("/data-moves/*", apiKeyAuth, workspaceKeyOnly);
   api.use("/epics/*", apiKeyAuth);
   api.use("/sprints/*", apiKeyAuth);
   api.use("/triage/*", apiKeyAuth);
@@ -342,9 +344,13 @@ export function v1Routes() {
     request: body(z.object({ name: z.string().min(3).max(253).openapi({ example: "acme.com" }) })),
     responses: { 201: json(Domain, "The new domain with the DNS records to publish."), 401: errors[401], 422: errors[422] } }),
   async (c) => {
-    const { name } = c.req.valid("json");
+    const { name: raw } = c.req.valid("json");
     const { auth, deps } = c.var;
-    const d = await createDomain(deps, auth.orgId, name.trim().toLowerCase());
+    // PRIV1b (P70): the same name rules as the app (no trailing dot, no scheme, real hostname), so "acme.io." can't sit beside "acme.io".
+    const parsed = createDomainSchema.safeParse({ name: raw });
+    if (!parsed.success) throw new HttpError(422, "validation_failed", parsed.error.issues[0]?.message ?? "Enter a domain like example.com");
+    const { name } = parsed.data;
+    const d = await createDomain(deps, auth.orgId, name);
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "domain.added", targetType: "domain", targetId: d.id, metadata: { name: d.name, via: "api" }, ip: c.var.ip });
     await verifyDomain(deps, d);
     return c.json(domainOut(await getDomain(deps.db, auth.orgId, d.id), deps), 201);
@@ -365,7 +371,13 @@ export function v1Routes() {
 
   api.openapi(createRoute({ method: "get", path: "/mailboxes", tags: ["Mailboxes"], summary: "List mailboxes", security: secured,
     responses: { 200: json(z.object({ data: z.array(Mailbox) }), "The workspace's mailboxes."), 401: errors[401] } }),
-  async (c) => c.json({ data: (await listMailboxes(c.var.deps.db, c.var.auth.orgId)).map(mailboxOut) }, 200));
+  async (c) => {
+    // PRIV1b (P23, M2): like GET /api/mailboxes, a key sees only the mailboxes its person can open; personal ones
+    // outside that are left out (this list is the full Mailbox shape, Reply-To included).
+    const [rows, scope] = await Promise.all([listMailboxes(c.var.deps.db, c.var.auth.orgId), mailboxScope(c.var.deps.db, c.var.auth)]);
+    const open = scope ? new Set(scope) : null;
+    return c.json({ data: rows.filter((m) => !open || open.has(m.id)).map(mailboxOut) }, 200);
+  });
 
   api.openapi(createRoute({ method: "post", path: "/mailboxes", tags: ["Mailboxes"], summary: "Create a mailbox", security: secured,
     request: body(z.object({
@@ -376,7 +388,7 @@ export function v1Routes() {
   async (c) => {
     const input = c.req.valid("json");
     const { auth, deps } = c.var;
-    const m = await createMailbox(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase() }, deps.config);
+    const m = await createMailbox(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase() }, deps.config, { deps, userId: auth.userId, email: auth.email, ip: c.var.ip }); // PRIV1b (P37)
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.created", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, via: "api" }, ip: c.var.ip });
     return c.json(mailboxOut(m), 201);
   });
@@ -403,7 +415,7 @@ export function v1Routes() {
     const { auth, deps } = c.var;
     const patch = c.req.valid("json");
     if (patch.displayName === undefined && patch.replyTo === undefined) throw new HttpError(422, "validation_failed", "Send displayName or replyTo.");
-    const m = await updateMailbox(deps.db, auth.orgId, c.req.valid("param").id, patch);
+    const m = await updateMailbox(deps.db, auth.orgId, c.req.valid("param").id, patch, auth); // PRIV1b (P7)
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.updated", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, ...patch, via: "api" }, ip: c.var.ip });
     return c.json(mailboxOut(m), 200);
   });
@@ -430,7 +442,7 @@ export function v1Routes() {
   async (c) => {
     const input = c.req.valid("json");
     const { auth, deps } = c.var;
-    const a = await createAlias(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase(), destinations: input.destinations.map((d) => d.toLowerCase()) });
+    const a = await createAlias(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase(), destinations: input.destinations.map((d) => d.toLowerCase()) }, auth.userId); // PRIV1b (P37)
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "alias.created", targetType: "alias", targetId: a.id, metadata: { address: a.address, via: "api" }, ip: c.var.ip });
     return c.json({ id: a.id, domainId: a.domainId, address: a.address, destinations: a.destinations, enabled: a.enabled, createdAt: iso(a.createdAt)! }, 201);
   });

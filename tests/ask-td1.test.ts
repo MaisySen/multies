@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { crmEntries } from "@/server/db/schema";
 import { cosine, parseAbout, stemOf, widenWords } from "@/server/services/ask-td1";
 import { askAi } from "@/server/services/tools/ai-meter";
@@ -39,7 +40,7 @@ const ask = async (cl: Client, question: string, about?: string) => {
   return { status: r.status, body: r.body as { thread: { id: string }; message: Msg; code?: string; error?: { code?: string } } };
 };
 async function mailMessage() {
-  const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const domainId = await verifiedDomain(ctx, c, "acme.io");
   const box = (await c.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox;
   await deliverInbound(ctx.deps, {
     envelopeFrom: "maria@blueharbor.example", rcptTo: "hello@acme.io", sizeBytes: 500, via: "test",

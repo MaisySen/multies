@@ -104,8 +104,10 @@ export async function saveSettings(deps: Deps, a: AuthContext, patch: Partial<Se
   if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? "Those settings are not valid.");
   const ids = [...new Set([...parsed.data.mailboxIds, ...(parsed.data.widget.mailboxId ? [parsed.data.widget.mailboxId] : [])])];
   if (ids.length) {
-    const found = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), inIds(mailboxes.id, ids))).all();
+    const found = await deps.db.select({ id: mailboxes.id, personal: mailboxes.personal }).from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), inIds(mailboxes.id, ids))).all();
     if (found.length !== ids.length) throw badRequest("One of those mailboxes is not in this workspace.");
+    // PRIV1b (P22): a personal mailbox is private to its owner; its mail never becomes team tickets.
+    if (found.some((m) => m.personal)) throw badRequest("A personal mailbox can't be a helpdesk mailbox. Pick a team mailbox.");
   }
   const wasOn = cur.mailboxIds.length > 0 || cur.chats;
   const nowOn = parsed.data.mailboxIds.length > 0 || parsed.data.chats;
@@ -186,7 +188,8 @@ export async function syncTickets(deps: Deps, orgId: string, ctx?: HelpdeskConte
   const cursor = row.syncCursor;
   let created = 0, updated = 0, newCursor = nowMs - 2000;
   if (s.mailboxIds.length) {
-    const boxes = await deps.db.select({ id: mailboxes.id, address: mailboxes.address }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inIds(mailboxes.id, s.mailboxIds))).all();
+    // PRIV1b (P22, review S4): a personal mailbox saved before settings refused one is never read.
+    const boxes = await deps.db.select({ id: mailboxes.id, address: mailboxes.address }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inIds(mailboxes.id, s.mailboxIds), eq(mailboxes.personal, false))).all();
     const own = new Set(boxes.map((b) => b.address.toLowerCase()));
     const rows = await deps.db.select({
       threadId: messages.threadId, mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName,
@@ -364,7 +367,8 @@ async function detail(deps: Deps, a: AuthContext, t: TicketRow, ctx: HelpdeskCon
   const [contact, history] = await Promise.all([
     t.contactId ? deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email }).from(contacts).where(and(eq(contacts.orgId, a.orgId), eq(contacts.id, t.contactId))).get() : undefined,
     t.requesterEmail ? deps.db.select({ id: hdTickets.id, number: hdTickets.number, subject: hdTickets.subject, status: hdTickets.status, createdAt: hdTickets.createdAt })
-      .from(hdTickets).where(and(eq(hdTickets.orgId, a.orgId), eq(hdTickets.requesterEmail, t.requesterEmail), ne(hdTickets.id, t.id))).orderBy(desc(hdTickets.createdAt)).limit(5).all() : [],
+      // PRIV1b (P22): only earlier tickets this person can open (mailbox scope), like the ticket list.
+      .from(hdTickets).where(and(eq(hdTickets.orgId, a.orgId), eq(hdTickets.requesterEmail, t.requesterEmail), ne(hdTickets.id, t.id), await scopeCond(deps, a))).orderBy(desc(hdTickets.createdAt)).limit(5).all() : [],
   ]);
   return {
     ticket: summarize(t, ctx.cfg, now, who),

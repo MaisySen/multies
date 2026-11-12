@@ -8,7 +8,7 @@ import {
 } from "@/shared/plans";
 import { LAUNCH_CODE, LAUNCH_MONTHS, LAUNCH_PERCENT_OFF } from "@/shared/offers";
 import { audit } from "../audit";
-import { getAddons, getOrg, overLimits, setAddons, usage } from "../plans";
+import { effectivePlanId, getAddons, getOrg, overLimits, setAddons, usage } from "../plans";
 import { sentToday } from "../mail/delivery";
 import type { Stripe } from "./stripe";
 import { loadStripe } from "./stripe-lazy";
@@ -130,8 +130,8 @@ function cleanAddons(input: Record<string, number>): AddonQuantities {
 export async function billingOverview(deps: Deps, orgId: string) {
   const org = await getOrg(deps.db, orgId);
   const [used, sends, addons] = await Promise.all([usage(deps.db, orgId, deps.now()), sentToday(deps.db, orgId, deps.now()), getAddons(deps.db, orgId)]);
-  const plan = PLANS[org.plan];
-  const base = plan.legacy ? plan.priceMonthly : 0;
+  const plan = PLANS[effectivePlanId(org)]; // PRIV1b (P19): a comp workspace shows Business and pays nothing for it
+  const base = plan.legacy && !org.compPlan ? plan.priceMonthly : 0;
   const monthly = base + ADDON_ORDER.reduce((sum, id) => sum + ADDONS[id].priceMonthly * (addons[id] ?? 0), 0);
   return {
     enabled: deps.config.billing.enabled,
@@ -139,6 +139,7 @@ export async function billingOverview(deps: Deps, orgId: string) {
     testMode: deps.config.billing.testMode,
     webhooks: !!deps.config.billing.stripeWebhookSecret,
     plan,
+    compPlan: !!org.compPlan,
     addons,
     charge: chargeFor(addons, base, org.billingInterval),
     interval: org.billingInterval ?? null,
@@ -221,6 +222,8 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
   const addons = cleanAddons(input);
   if (!Object.keys(addons).length) throw badRequest("Choose at least one add-on.");
   const org = await getOrg(deps.db, auth.orgId);
+  // PRIV1b (P19): a comp workspace has no subscription to record add-ons on, so a checkout would charge for nothing.
+  if (org.compPlan) throw new HttpError(409, "comp_plan", "This workspace is on an internal plan. Its plan doesn't change here.");
   if (!deps.config.billing.enabled) {
     await assertFits(deps, auth.orgId, org.plan, addons, org);
     await setAddons(deps.db, auth.orgId, addons);

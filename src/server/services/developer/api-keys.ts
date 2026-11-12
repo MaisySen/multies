@@ -66,7 +66,7 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   const token = header?.match(/^Bearer\s+(mm_live_[A-Za-z0-9_-]{20,})$/)?.[1];
   if (!token) return null;
   // One round trip: the key, whether its creator is still a member, and the workspace's state.
-  const row = await deps.db.select({ k: apiKeys, memberId: members.id, memberKind: members.kind, memberTitle: members.title, memberDisabledAt: members.disabledAt, creatorName: users.name, suspendedAt: organizations.suspendedAt, orgName: organizations.name, agentName: agents.name })
+  const row = await deps.db.select({ k: apiKeys, memberId: members.id, memberKind: members.kind, memberTitle: members.title, memberDisabledAt: members.disabledAt, creatorName: users.name, creatorBanned: users.banned, creatorBanExpires: users.banExpires, suspendedAt: organizations.suspendedAt, orgName: organizations.name, agentName: agents.name })
     .from(apiKeys)
     .innerJoin(organizations, eq(organizations.id, apiKeys.orgId))
     .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
@@ -82,6 +82,8 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   // R26 (DF-3): a paused agent member's keys are refused until an admin resumes it.
   if (agentMember && row.memberDisabledAt) return null;
   const now = deps.now();
+  // PRIV1b (P48): the keys of a person under a platform ban stop working (same rule as the OAuth resolver).
+  if (row.creatorBanned && (!row.creatorBanExpires || row.creatorBanExpires.getTime() > now.getTime())) return null;
   // Write at most once every 15 minutes per key: an agent polling once a minute would otherwise
   // cost 1,440 row writes a day per key against the shared D1 daily budget.
   if (!k.lastUsedAt || now.getTime() - k.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {

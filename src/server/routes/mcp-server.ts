@@ -35,7 +35,7 @@ import { createGoal, goalTree, updateKeyResult } from "../services/suite/goals";
 import { listNotifications } from "../services/suite/notify";
 import { updateProject } from "../services/suite/tasks";
 import {
-  createAgent, eventsSince, getAgent, latestEventSeq, listAgents, listThreads, readThread, replyInThread, requestSend, scopeFor, searchMessages, type Actor,
+  agentMailboxIdsFor, createAgent, eventsPage, getAgent, latestEventSeq, listAgents, listThreads, readThread, replyInThread, requestSend, scopeFor, searchMessages, type Actor,
 } from "../services/agents";
 
 import { registerMailScheduleTools } from "./mcp-mail-schedule";
@@ -166,7 +166,8 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
       split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional().describe("Only this Inbox tab: important, other, or one of your split ids (mail_split_list)."),
     },
   }, tool(async (a: { agentId?: string; mailboxId?: string; unread?: boolean; limit: number; split?: string }) => {
-    const scope = actor.agentId || a.agentId ? (await agentFor(a.agentId)).mailboxIds : await scopeFor(deps, actor);
+    // PRIV1b (M1): the agent's mailboxes as this caller may work them, like v1 (a workspace key loses the maker's personal inbox).
+    const scope = actor.agentId || a.agentId ? await agentMailboxIdsFor(deps, actor, (await agentFor(a.agentId)).id) : await scopeFor(deps, actor);
     // R31: an Inbox split narrows to Inbox mail of that tab.
     const extra = a.split ? await (await import("../services/mail/splits")).splitCond(deps, actor as never, a.split) : undefined;
     return listThreads(deps, actor.orgId, scope, { mailboxId: a.mailboxId, unread: a.unread, limit: a.limit, ...(extra ? { extra, folder: "inbox" } : {}) });
@@ -216,7 +217,8 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
   }, tool(async (a: { agentId?: string; to: string[]; cc?: string[]; subject: string; text: string }) => {
     writable();
     const agent = await agentFor(a.agentId);
-    return requestSend(deps, { ...actor, agentId: agent.id }, agent.id, { to: a.to.map((x) => x.toLowerCase()), cc: a.cc?.map((x) => x.toLowerCase()), subject: a.subject, text: a.text });
+    // PRIV1b (M1): the caller's own actor, as v1 does, so a workspace key keeps its own scope.
+    return requestSend(deps, actor, agent.id, { to: a.to.map((x) => x.toLowerCase()), cc: a.cc?.map((x) => x.toLowerCase()), subject: a.subject, text: a.text });
   }));
 
   server.registerTool("reply", {
@@ -231,7 +233,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
   }, tool(async (a: { threadId: string; text: string; replyAll: boolean; agentId?: string }) => {
     writable();
     const agent = await agentFor(a.agentId);
-    return replyInThread(deps, { ...actor, agentId: agent.id }, agent.id, a.threadId, { text: a.text, replyAll: a.replyAll });
+    return replyInThread(deps, actor, agent.id, a.threadId, { text: a.text, replyAll: a.replyAll }); // PRIV1b (M1): the caller's own actor
   }));
 
   server.registerTool("wait_for_email", {
@@ -247,8 +249,9 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
     let after = a.cursor ?? (await latestEventSeq(deps, actor.orgId));
     const until = Date.now() + a.timeoutSeconds * 1000;
     for (;;) {
-      const events = await eventsSince(deps, { ...actor, agentId: agent.id }, { after, agentId: agent.id, limit: 50 });
-      if (events.length) after = events[events.length - 1].id;
+      // PRIV1b (M1): the caller's own scope, so a workspace key doesn't read codes from a personal inbox it can't open.
+      const { events, last } = await eventsPage(deps, actor, { after, agentId: agent.id, limit: 50 });
+      after = Math.max(after, last);
       const received = events.filter((e) => e.type === "message.received");
       if (received.length || Date.now() >= until) return { messages: received.map((e) => e.data), cursor: after };
       await new Promise((r) => setTimeout(r, 1500));
@@ -279,7 +282,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
       },
     }, tool(async (a: { mailboxId: string; replyTo: string | null }) => {
       writable();
-      const m = await updateMailbox(deps.db, actor.orgId, a.mailboxId, { replyTo: a.replyTo ? a.replyTo.trim().toLowerCase() : null });
+      const m = await updateMailbox(deps.db, actor.orgId, a.mailboxId, { replyTo: a.replyTo ? a.replyTo.trim().toLowerCase() : null }, { userId: actor.agentId ? "" : actor.userId, role: actor.role }); // PRIV1b (P7)
       return { mailboxId: m.id, address: m.address, replyTo: m.replyTo ?? null };
     }));
   }

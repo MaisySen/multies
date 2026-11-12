@@ -1,5 +1,6 @@
 import { it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { runMaintenance } from "@/server/services/maintenance";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { fakeIdpR25, R25_IDP, socialSignIn } from "./fake-idp-r25"; // R25 social sign in
@@ -185,7 +186,7 @@ it("mail schedules (round 20): an idle pass writes 0 rows; snooze, send later an
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
   await u.signup();
-  const domainId = (await u.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const domainId = await verifiedDomain(ctx, u, "acme.io");
   const { body } = await u.get(`/api/domains/${domainId}`);
   for (const r of body.domain.records) {
     if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
@@ -389,7 +390,7 @@ it("thread notes (round 22): a note is its row and one index entry, each mention
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
-  const domainId = (await u.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const domainId = await verifiedDomain(ctx, u, "acme.io");
   const { body } = await u.get(`/api/domains/${domainId}`);
   for (const r of body.domain.records) {
     if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
@@ -702,7 +703,8 @@ it("calls in chat (round 23): presence polls write nothing; a DM call rings each
 
 it("calendar sync (round 23): feed on 2, reset at most 3, off 2; other calendars 1 each; serving the feed and viewing events write nothing", async () => {
   const ics = "BEGIN:VCALENDAR\r\nX-WR-CALNAME:Home\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261103T090000Z\r\nDTEND:20261103T100000Z\r\nSUMMARY:Dentist\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-  const ctx = await makeTestApp({}, { fetch: (async () => new Response(ics)) as typeof fetch });
+  // PRIV1b (P45): the calendar fetch checks DNS over HTTPS first; answer it with a public address.
+  const ctx = await makeTestApp({}, { fetch: (async (u: string) => (String(u).startsWith("https://cloudflare-dns.com/") ? Response.json({ Answer: String(u).endsWith("type=A") ? [{ type: 1, data: "93.184.216.34" }] : [] }) : new Response(ics))) as typeof fetch });
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
   const me = (await u.get("/api/account/me")).body;
@@ -1140,7 +1142,7 @@ it("R26: support@ on the company domain costs what any inbound delivery costs, a
   await u.post("/api/mailboxes", { domainId: hq, localPart: "support", displayName: "Support" });
   const v = new Client(ctx.app);
   await v.signup("ann@acme.test", "Ann", "Acme");
-  const acme = (await v.post("/api/domains", { name: "acme.test" })).body.domain.id as string;
+  const acme = await verifiedDomain(ctx, v, "acme.test");
   await v.post("/api/mailboxes", { domainId: acme, localPart: "help", displayName: "Help" });
   const mail = (to: string) => deliverInbound(ctx.deps, {
     envelopeFrom: "pat@gmail.com", rcptTo: to, sizeBytes: 300, via: "test",

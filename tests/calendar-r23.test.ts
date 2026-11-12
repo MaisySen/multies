@@ -131,6 +131,8 @@ function fakeFetch(routes: FakeRoute[]) {
   const calls: { url: string; method: string; auth: string | null; depth: string | null; body: string }[] = [];
   const f = async (input: string | URL | Request, init: RequestInit = {}) => {
     const url = String(input);
+    // PRIV1b (P45): calendar fetches check DNS first (DNS over HTTPS); answer with a public address, not recorded.
+    if (url.startsWith("https://cloudflare-dns.com/")) return dohPublic(url);
     const h = new Headers(init.headers);
     calls.push({ url, method: init.method ?? "GET", auth: h.get("authorization"), depth: h.get("depth"), body: String(init.body ?? "") });
     for (const r of routes) { const res = r(url, init); if (res) return res; }
@@ -138,6 +140,7 @@ function fakeFetch(routes: FakeRoute[]) {
   };
   return { fetch: f as typeof fetch, calls };
 }
+const dohPublic = (url: string) => Response.json({ Answer: url.endsWith("type=A") ? [{ type: 1, data: "93.184.216.34" }] : [] });
 const ms = (xml: string) => new Response(xml, { status: 207, headers: { "content-type": "application/xml" } });
 const fastmailRoutes: FakeRoute[] = [
   (u) => (u === "https://caldav.fastmail.com/.well-known/caldav" ? new Response(null, { status: 301, headers: { location: "/dav/calendars/" } }) : undefined),
@@ -231,7 +234,7 @@ describe("CalDAV", () => {
     expect(multistatus(STALWART_REPORT).map((r) => r.href)).toEqual(["/dav/cal/grace/default/a.ics", "/dav/cal/grace/default/b.ics"]);
   });
   it("says wrong password and no CalDAV in plain words", async () => {
-    const opts = (status: number) => ({ fetch: (async () => new Response("", { status })) as typeof fetch, allowPrivateHosts: false });
+    const opts = (status: number) => ({ fetch: (async (u: string) => (String(u).startsWith("https://cloudflare-dns.com/") ? dohPublic(String(u)) : new Response("", { status }))) as typeof fetch, allowPrivateHosts: false });
     await expect(discoverCalendars(opts(401), "https://caldav.fastmail.com/", { username: "u", password: "bad" })).rejects.toMatchObject({ code: "caldav_auth" });
     await expect(discoverCalendars(opts(405), "https://mail.example.com/", { username: "u", password: "p" })).rejects.toMatchObject({ code: "caldav_unsupported" });
   });

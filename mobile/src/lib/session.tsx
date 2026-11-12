@@ -9,11 +9,13 @@ import { kv } from "./kv";
 import type { Me } from "@/api/types";
 import { JAR_KEY, MODE_KEY } from "./session-keys";
 import { registerPush, unregisterPush } from "./push";
-import { LEGACY_KEY } from "./tasks";
+import { clearUserData } from "./local-data";
+import { commandQueue } from "./command-queue";
 import { signInAtIdp } from "./idp";
 import { verdictFor } from "./auth-keep";
 import { AppState } from "react-native";
 import { clearLock } from "./app-lock";
+import { resetWebLink } from "./web-link";
 
 export type Status = "loading" | "signedOut" | "twoFactor" | "signedIn";
 export type Mode = "live" | "sample";
@@ -61,8 +63,8 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     jarRef.current = {};
     await secureStorage.remove(JAR_KEY).catch(() => {});
     await secureStorage.remove(MODE_KEY).catch(() => {});
-    // Nothing from one account stays on the phone for the next one.
-    for (const prefix of ["list:", "thread:", "meta:", "task:", "worklist:", "queue:", LEGACY_KEY]) await kv().clear(prefix).catch(() => {});
+    // Nothing from one account stays on the phone for the next one. PRIV1b (P53): one shared list, files too.
+    await clearUserData("signOut").catch(() => {});
     setMe(null);
   }, []);
 
@@ -95,6 +97,9 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     })();
     return () => { cancelled = true; };
   }, [initialMode, live, sample, transportOverride]);
+
+  // PRIV1b (P35): a sign in or sign out forgets a remembered "no sign in links" answer from the server.
+  useEffect(() => { resetWebLink(); }, [status]);
 
   // R33: renew the session before it runs out, at launch and each time the app comes back.
   useEffect(() => {
@@ -172,10 +177,17 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     async refreshMe() { setMe(await api.me()); },
     async switchWorkspace(id) {
       if (me?.organization?.id === id) return;
-      await api.switchWorkspace(id);
-      // Mail, tasks and lists saved on this phone belong to the workspace just left.
-      for (const prefix of ["list:", "thread:", "meta:", "task:", "worklist:"]) await kv().clear(prefix).catch(() => {});
-      setMe(await api.me());
+      // PRIV1b (MH1): nothing queued in the workspace being left is sent once the server is in the next one. Stop the
+      // queue first (and wait for a change already on its way); the clear below drops what waits.
+      const q = commandQueue();
+      await q?.hold();
+      try { await api.switchWorkspace(id); } catch (err) { q?.release(); throw err; }
+      // Mail, tasks and lists saved on this phone belong to the workspace just left. PRIV1b (P53): so do
+      // snoozed items, tabs, rules, the tool run, searches, files and the changes waiting to sync.
+      await clearUserData("workspace").catch(() => {});
+      // PRIV1b (MP1): the queue starts again whatever happens next; the clear above emptied it and each change
+      // still checks its own workspace, so a failed me() can't leave changes stuck until the app restarts.
+      try { setMe(await api.me()); } finally { q?.release(); }
     },
   }), [status, mode, api, transport, me, live, sample, clearLocal]);
 

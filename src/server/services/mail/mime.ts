@@ -53,6 +53,13 @@ export function parseAuthResults(headerValues: string[]): AuthResults {
   };
 }
 
+/** PRIV1b (P38): verdicts from headers nobody we trust added. A pass could be forged, so it becomes none; a
+ * failing verdict is kept, since it can only send the message to spam. */
+export function untrustedAuthResults(r: AuthResults): AuthResults {
+  const keep = <T extends string | undefined>(v: T) => (v && v !== "pass" ? v : "none");
+  return { spf: keep(r.spf), dkim: keep(r.dkim), dmarc: keep(r.dmarc) } as AuthResults;
+}
+
 /** Parses a raw RFC 5322 message (string or bytes). */
 export async function parseMime(raw: string | Uint8Array | ArrayBuffer): Promise<ParsedEmail> {
   const { default: PostalMime } = await loadPostalMime();

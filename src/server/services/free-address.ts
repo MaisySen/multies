@@ -88,6 +88,9 @@ export function suggestFreeLocalPart(personName: string, workspaceName: string, 
  */
 export async function ensurePlatformDomain(deps: Deps, name: string) {
   const existing = await deps.db.select().from(domains).where(eq(domains.name, name)).get();
+  // PRIV1b (P50): a row some workspace added first is theirs, not the platform's. Adopting it would put every free address
+  // in their hands (and their delete would cascade). Refuse loudly; support releases the name, the squatter's data stays.
+  if (existing && existing.orgId !== PLATFORM_ORG) throw new HttpError(409, "platform_domain_taken", `${name} is held by a workspace, so it can't be used for shared addresses. Contact support.`);
   if (existing) return existing;
   await deps.db.insert(organizations).values({ id: PLATFORM_ORG, name: "Multies platform", slug: "mymail-platform" }).onConflictDoNothing();
   const { publicKeyB64, privateKeyPem } = await generateDkimKeyPair();
@@ -219,8 +222,10 @@ export async function claimFreeAddress(deps: Deps, auth: AuthContext, input: { l
   const plan = await getPlan(deps.db, auth.orgId);
   const id = newId("mbx");
   const displayName = (input.displayName?.trim() || auth.name || local).slice(0, 120);
-  // PRIV1a: a free address is the claimer's personal mailbox.
-  await deps.db.insert(mailboxes).values({ id, orgId: auth.orgId, domainId: domain.id, localPart: local, address, displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null });
+  // PRIV1a: a free address is the claimer's personal mailbox. PRIV1b (P26): one claimed with an API key is the
+  // workspace's (a team mailbox), not the key maker's private one that the key loses when they leave.
+  const personal = !!auth.userId && !(auth as { apiKeyId?: string }).apiKeyId;
+  await deps.db.insert(mailboxes).values({ id, orgId: auth.orgId, domainId: domain.id, localPart: local, address, displayName, quotaMb: plan.limits.storagePerMailboxMb, personal, ownerUserId: personal ? auth.userId : null });
   await audit(deps.db, {
     orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: CLAIM_ACTION, targetType: "mailbox", targetId: id,
     metadata: { address, ...(ctx.deviceId ? { device: ctx.deviceId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64) } : {}) }, ip: ctx.ip ?? undefined,

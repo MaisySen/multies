@@ -229,9 +229,11 @@ describe("MH1 app to web sign in handoff", () => {
     let last = 0;
     for (let i = 0; i <= RATE_LIMITS.handoff; i++) last = (await phone.post("/api/auth/mobile/web-link")).status;
     expect(last).toBe(429);
-    let lastGet = 0;
-    for (let i = 0; i <= RATE_LIMITS.handoff; i++) lastGet = (await open(app, "/auth/mobile/web?code=bad")).status;
-    expect(lastGet).toBe(429);
+    // PRIV1b (P33): malformed codes never reach the limiter (no write); well formed ones count, and a limited redeem
+    // goes back to sign in (the code is burned all the same).
+    let lastGet: string | null = null;
+    for (let i = 0; i <= RATE_LIMITS.handoff; i++) lastGet = (await open(app, `/auth/mobile/web?code=${"b".repeat(40)}${String(i).padStart(3, "0")}`)).headers.get("location");
+    expect(lastGet).toBe("/login?error=rate_limited");
   });
 
   it("never writes the code into a log line", async () => {

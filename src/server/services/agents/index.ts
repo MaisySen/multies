@@ -6,7 +6,7 @@
  * sends before they leave), the plan's monthly agent message allowance, and an audit log
  * entry for everything an agent does.
  */
-import { and, asc, count, desc, eq, gt, gte, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
   agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
@@ -20,11 +20,14 @@ import { audit } from "../audit";
 import { addonHint, assertCanCreate, bumpCounter, getPlan, readCounter } from "../plans";
 import { createApiKey, listApiKeys } from "../developer/api-keys";
 import { emitEvent } from "../developer/webhooks";
-import { isHosted } from "../mail/delivery";
+import { routeRecipient } from "../mail/delivery";
 import { sendMessage, type SendResult } from "../mail/send";
 import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
-import { keepOpenableBy } from "../mail-access-priv1a";
+import { memberSigningInAs } from "../addresses";
+import { assertOpen, keepOpenableBy } from "../mail-access-priv1a";
+import { assertMailboxNotHeld } from "../mail/archive-r111"; // PRIV1b (P44)
+import { logMailboxOpen } from "../mailbox-sharing-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
@@ -68,6 +71,17 @@ export async function agentMailboxIds(deps: Deps, a: Agent): Promise<string[]> {
   const rows = await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id));
   // PRIV1a: an agent never reaches a personal mailbox its maker can't open (an admin can't route someone's inbox through one).
   return keepOpenableBy(deps.db, a.orgId, a.createdByUserId, [a.mailboxId, ...rows.map((r) => r.id).filter((id) => id !== a.mailboxId)]);
+}
+
+/**
+ * PRIV1b (P4): the agent's mailboxes as this caller may work them. The agent's own key gets them all; a person or a
+ * workspace key acting for the agent loses the personal mailboxes the caller doesn't own (the maker's private inbox
+ * isn't open to every admin's key through the agent).
+ */
+export async function agentMailboxIdsFor(deps: Deps, actor: Actor, agent: Agent | string): Promise<string[]> {
+  const a = typeof agent === "string" ? (await row(deps, actor.orgId, agent)).a : agent;
+  const ids = await agentMailboxIds(deps, a);
+  return actor.agentId === a.id ? ids : keepOpenableBy(deps.db, a.orgId, actor.userId, ids);
 }
 
 const startOfUtcDay = (now: Date) => new Date(Math.floor(now.getTime() / DAY) * DAY);
@@ -118,6 +132,17 @@ export function assertActsAs(actor: Actor, agentId: string) {
 export function assertWorkspaceActor(actor: Actor) {
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "Agent keys can't manage agents. Use a workspace key from Settings, Developers.");
   if (actor.role === "member") throw forbidden("Only workspace owners and admins can manage agent inboxes.");
+}
+
+/**
+ * PRIV1b (P3, P4): a personal mailbox goes on an agent only by its owner's own hand (for a key: the key's creator).
+ * Admins manage agents, they don't route someone's private inbox through one, and a share never counts.
+ */
+async function assertOwnPersonal(deps: Deps, actor: Actor, ids: string[]) {
+  if (!ids.length) return;
+  const rows = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId }).from(mailboxes)
+    .where(and(eq(mailboxes.orgId, actor.orgId), eq(mailboxes.personal, true), inIds(mailboxes.id, ids)));
+  if (rows.some((r) => !actor.userId || r.owner !== actor.userId)) throw forbidden("Only its owner can give a personal mailbox to an agent.");
 }
 
 const actorFields = (actor: Actor) => ({ actorUserId: actor.userId || null, actorEmail: actor.email });
@@ -181,10 +206,13 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   const address = `${local}@${domain.name}`;
   const taken = await db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.address, address)).get();
   if (taken) throw conflict(`${address} is already in use.`);
+  // PRIV1b (P37): an agent inbox is never a person's mailbox; at a member's sign in address it would get their password resets.
+  if (await memberSigningInAs(db, actor.orgId, address)) throw conflict(`${address} is the sign in address of a member of this workspace. Pick another address for the agent.`);
   const extra = [...new Set(input.mailboxIds ?? [])];
   if (extra.length) {
     const ok = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, extra)));
     if (ok.length !== extra.length) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
+    await assertOwnPersonal(deps, actor, extra);
   }
   const mailboxId = opts.mailboxId ?? newId("mbx");
   await db.insert(mailboxes).values({
@@ -224,6 +252,11 @@ export interface UpdateAgentInput {
 export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: UpdateAgentInput) {
   assertWorkspaceActor(actor);
   const { a } = await row(deps, actor.orgId, id);
+  if (patch.mailboxIds) {
+    // PRIV1b (P3, P4): checked before any write. Mailboxes the agent already holds may stay; new personal ones need their owner.
+    const held = new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id));
+    await assertOwnPersonal(deps, actor, [...new Set(patch.mailboxIds)].filter((m) => m !== a.mailboxId && !held.has(m)));
+  }
   const plan = await getPlan(deps.db, actor.orgId);
   if (patch.sendCapDaily !== undefined && patch.sendCapDaily > plan.limits.agentDailySends) {
     throw planLimit(`Agents can send up to ${plan.limits.agentDailySends} messages a day on your plan.`);
@@ -254,6 +287,7 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
 export async function deleteAgent(deps: Deps, actor: Actor, id: string) {
   assertWorkspaceActor(actor);
   const { a, mb } = await row(deps, actor.orgId, id);
+  await assertMailboxNotHeld(deps, actor.orgId, mb.id); // PRIV1b (P44): a held agent inbox stays, as DELETE /api/mailboxes/:id
   await deprovisionMailbox(deps, actor.orgId, mb.id).catch(() => undefined);
   await deps.db.delete(apiKeys).where(eq(apiKeys.agentId, a.id));
   await deps.db.delete(agents).where(eq(agents.id, a.id));
@@ -268,6 +302,12 @@ export async function deleteAgent(deps: Deps, actor: Actor, id: string) {
 export async function createAgentKey(deps: Deps, actor: Actor, agentId: string, name?: string) {
   assertWorkspaceActor(actor);
   const { a } = await row(deps, actor.orgId, agentId);
+  // PRIV1b (P4): a key to an agent that holds a personal mailbox is minted only by the agent's maker.
+  if (!actor.userId || actor.userId !== a.createdByUserId) {
+    const personal = await deps.db.select({ id: mailboxes.id }).from(agentMailboxAccess).innerJoin(mailboxes, eq(mailboxes.id, agentMailboxAccess.mailboxId))
+      .where(and(eq(agentMailboxAccess.agentId, a.id), eq(mailboxes.personal, true))).limit(1).get();
+    if (personal) throw forbidden("This agent works a personal mailbox. Only the person who made it can create its keys.");
+  }
   const k = await createApiKey(deps, actor, { name: name ?? `${a.name} agent key`, scope: "full", agentId: a.id });
   await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id });
   return k;
@@ -335,10 +375,10 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
     : [];
   const pending = rows.length
     ? await inChunks(rows.map((r) => r.threadId), (ids) => deps.db.select({ threadId: sendApprovals.threadId, n: count() }).from(sendApprovals)
-        .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inIds(sendApprovals.threadId, ids))).groupBy(sendApprovals.threadId))
+        .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inIds(sendApprovals.threadId, ids), scope ? inIds(sendApprovals.mailboxId, scope) : undefined)).groupBy(sendApprovals.threadId))
     : [];
   const names = await agentNames(deps, orgId);
-  const states = await listThreadStates(deps, orgId, rows.map((r) => r.threadId));
+  const states = await listThreadStates(deps, orgId, rows.map((r) => r.threadId), scope);
   return {
     data: rows.map((r) => {
       const inThread = latest.filter((x) => x.threadId === r.threadId);
@@ -363,14 +403,17 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
 }
 
 /** One thread as structured JSON: every message with its new text, codes, links and attachments. */
-export async function readThread(deps: Deps, actor: Actor, threadId: string, origin: string) {
+export async function readThread(deps: Deps, actor: Actor, threadId: string, origin: string, headers?: Headers) {
   const scope = await scopeFor(deps, actor);
   const rows = await deps.db.select().from(messages)
     .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), scopeCond(scope), sql`${messages.folder} <> 'drafts'`)).orderBy(asc(messages.date));
   if (!rows.length) throw notFound("Thread");
   const atts = await deps.db.select().from(attachments).where(inIds(attachments.messageId, rows.map((r) => r.id)));
   const names = await agentNames(deps, actor.orgId);
-  const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending")));
+  // PRIV1b (P15): approvals are keyed by thread, which a personal mailbox's copy can share: only mailboxes in scope.
+  const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending"), scope ? inIds(sendApprovals.mailboxId, scope) : undefined));
+  // PRIV1b (P17): the Team inbox reader, v1 GET /threads/{id} and MCP read_thread land in "Who opened my mailbox".
+  for (const mb of new Set(rows.map((r) => r.mailboxId))) await logMailboxOpen(deps, actor, mb, "opened_thread", threadId, headers);
   if (actor.agentId) {
     const { a, mb } = await row(deps, actor.orgId, actor.agentId);
     // Reads roll up to one audit row per agent, thread and hour (round 20): an agent polling a thread
@@ -441,7 +484,10 @@ const asAgent = (orgId: string, a: Agent, mb: Mailbox): AuthContext => ({
 });
 
 async function deliverAsAgent(deps: Deps, orgId: string, a: Agent, mb: Mailbox, from: Mailbox, input: AgentSendInput, approvedBy?: Actor) {
-  const res = await sendMessage(deps, approvedBy ? { ...asAgent(orgId, a, mb), userId: approvedBy.userId } : asAgent(orgId, a, mb), {
+  // PRIV1b (P31): from its maker's own personal mailbox (the only personal one agentMailboxIds keeps) the send is
+  // checked as the maker, so approvalMode "never" works there. Any other mailbox sends as before.
+  const userId = approvedBy ? approvedBy.userId : from.personal && a.createdByUserId && from.ownerUserId === a.createdByUserId ? a.createdByUserId : "";
+  const res = await sendMessage(deps, { ...asAgent(orgId, a, mb), userId }, {
     mailboxId: from.id, to: input.to, cc: input.cc, bcc: input.bcc, subject: input.subject, text: input.text, html: input.html, inReplyToId: input.inReplyToId,
   }, { agentId: a.id, attachments: input.attachments?.map((x) => ({ filename: x.filename, contentType: x.contentType, content: fromB64Or(x.contentBase64, () => new HttpError(422, "validation_failed", "Each attachment needs contentBase64 in base64.")) })) });
   await bumpCounter(deps.db, orgId, "agent_messages", deps.now());
@@ -462,7 +508,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
   };
   if (a.status !== "active") throw await block("agent_paused", "This agent is paused. A person can resume it in Agents.");
   const fromId = input.mailboxId ?? a.mailboxId;
-  const allowed = await agentMailboxIds(deps, a);
+  const allowed = await agentMailboxIdsFor(deps, actor, a);
   if (!allowed.includes(fromId)) throw await block("mailbox_not_allowed", "This agent can't send from that mailbox.");
   const from = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, fromId)).get())!;
   const recipients = [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])];
@@ -480,7 +526,19 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     if (!parent || !allowed.includes(parent.mailboxId)) throw notFound("Message");
     threadId = parent.threadId;
   }
-  const external = (await Promise.all(recipients.map((r) => isHosted(deps.db, r)))).some((h) => !h);
+  // PRIV1b (P51): "inside" is only a mailbox or alias of this workspace on a verified domain (routeRecipient routes
+  // verified domains only). Another workspace on the platform is outside: its mail waits like any other.
+  // PRIV1b (S2): an alias counts as inside only when every destination is a mailbox of this workspace (one level).
+  const box = async (r: string) => { const x = await routeRecipient(deps.db, r); return x.kind === "mailbox" && x.mailbox.orgId === a.orgId; };
+  const ours = async (r: string) => {
+    const x = await routeRecipient(deps.db, r);
+    if (x.kind === "mailbox") return x.mailbox.orgId === a.orgId;
+    if (x.kind !== "alias" || x.alias.orgId !== a.orgId) return false;
+    let dest: unknown;
+    try { dest = JSON.parse(x.alias.destinations); } catch { return false; }
+    return Array.isArray(dest) && dest.length > 0 && (await Promise.all(dest.map((d) => typeof d === "string" && box(d)))).every(Boolean);
+  };
+  const external = (await Promise.all(recipients.map(ours))).some((h) => !h);
   const needsApproval = a.approvalMode === "always" || (a.approvalMode === "external" && external);
   if (needsApproval) {
     const id = newId("apr");
@@ -490,8 +548,8 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     });
     const approval = presentApproval((await deps.db.select().from(sendApprovals).where(eq(sendApprovals.id, id)).get())!);
     await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { to: input.to, subject: input.subject, reason: a.approvalMode } });
-    await recordEvent(deps, actor.orgId, a.id, "approval.requested", { approvalId: id, to: input.to, subject: input.subject, threadId });
-    await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, from: from.address, to: input.to, subject: input.subject, threadId });
+    await recordEvent(deps, actor.orgId, a.id, "approval.requested", { approvalId: id, mailboxId: from.id, to: input.to, subject: input.subject, threadId }); // PRIV1b (S3): filtered like message events
+    await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, mailboxId: from.id, from: from.address, to: input.to, subject: input.subject, threadId }); // PRIV1b (AP1): mailboxId, so the webhook filter does not rest on the from address
     // Everyone who can open that inbox gets it in their notifications inbox (and on their phone).
     try {
       const { notify } = await import("../suite/notify");
@@ -504,7 +562,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
   }
   const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input);
   await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.message_sent", targetType: "message", targetId: result.messageId, metadata: { to: input.to, subject: input.subject, from: from.address } });
-  await recordEvent(deps, actor.orgId, a.id, "message.sent", { messageId: result.messageId, to: input.to, subject: input.subject });
+  await recordEvent(deps, actor.orgId, a.id, "message.sent", { messageId: result.messageId, mailboxId: from.id, to: input.to, subject: input.subject });
   return { status: "sent", result };
 }
 
@@ -512,7 +570,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
 export async function replyInThread(deps: Deps, actor: Actor, agentId: string, threadId: string, input: { text: string; html?: string; replyAll?: boolean; mailboxId?: string }) {
   assertActsAs(actor, agentId);
   const { a } = await row(deps, actor.orgId, agentId);
-  const allowed = await agentMailboxIds(deps, a);
+  const allowed = await agentMailboxIdsFor(deps, actor, a);
   const rows = await deps.db.select().from(messages)
     .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), inIds(messages.mailboxId, allowed), sql`${messages.folder} <> 'drafts'`)).orderBy(desc(messages.date));
   const last = rows.find((m) => m.folder !== "sent") ?? rows[0];
@@ -540,12 +598,14 @@ export async function listApprovals(deps: Deps, actor: Actor, q: { status?: stri
   return rows.map(presentApproval);
 }
 
-async function approvalFor(deps: Deps, actor: Actor, id: string) {
+async function approvalFor(deps: Deps, actor: Actor, id: string, need: "reply" | "send") {
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "An agent can't approve its own messages. A person approves them in the app.");
   const r = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.id, id), eq(sendApprovals.orgId, actor.orgId))).get();
   if (!r) throw notFound("Approval");
   const scope = await scopeFor(deps, actor);
   if (scope && !scope.includes(r.mailboxId)) throw notFound("Approval");
+  // PRIV1b (P11): rejecting needs Read and reply, approving (it sends) needs Send as; a read share only looks.
+  await assertOpen(deps.db, actor, r.mailboxId, need);
   if (r.status !== "pending") throw conflict(`This message was already ${r.status === "sent" ? "approved and sent" : r.status}.`);
   if (r.expiresAt.getTime() <= deps.now().getTime()) throw conflict("This request expired. The agent can ask again.");
   return r;
@@ -553,7 +613,7 @@ async function approvalFor(deps: Deps, actor: Actor, id: string) {
 
 /** A person approves (optionally after editing the subject or text): the message is sent as the agent. */
 export async function approveSend(deps: Deps, actor: Actor, id: string, edits: { subject?: string; text?: string } = {}) {
-  const r = await approvalFor(deps, actor, id);
+  const r = await approvalFor(deps, actor, id, "send");
   const { a, mb } = await row(deps, actor.orgId, r.agentId);
   const from = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, r.mailboxId)).get())!;
   const input = { ...(JSON.parse(r.payload) as AgentSendInput), ...(edits.subject !== undefined ? { subject: edits.subject } : {}), ...(edits.text !== undefined ? { text: edits.text } : {}) };
@@ -577,7 +637,7 @@ export async function approveSend(deps: Deps, actor: Actor, id: string, edits: {
 }
 
 export async function rejectSend(deps: Deps, actor: Actor, id: string, note?: string) {
-  const r = await approvalFor(deps, actor, id);
+  const r = await approvalFor(deps, actor, id, "reply");
   await deps.db.update(sendApprovals).set({ status: "rejected", note: note ?? null, decidedByUserId: actor.userId || null, decidedByEmail: actor.email, decidedAt: deps.now() }).where(eq(sendApprovals.id, r.id));
   await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: r.agentId, action: "approval.rejected", targetType: "approval", targetId: r.id, metadata: { note } });
   await recordEvent(deps, actor.orgId, r.agentId, "approval.decided", { approvalId: r.id, decision: "rejected", note });
@@ -598,22 +658,55 @@ export async function expireApprovals(deps: Deps) {
 /** Called after mail lands in a mailbox: every agent that can read it gets an event. */
 export async function notifyAgentsOfInbound(deps: Deps, mb: Pick<Mailbox, "id" | "orgId">, m: { id: string; threadId: string; from: { address: string; name?: string }; subject: string; text: string; html?: string | null }) {
   const own = await deps.db.select({ id: agents.id }).from(agents).where(eq(agents.mailboxId, mb.id));
-  const shared = await deps.db.select({ id: agentMailboxAccess.agentId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.mailboxId, mb.id));
+  const given = await deps.db.select({ id: agents.id, maker: agents.createdByUserId }).from(agentMailboxAccess).innerJoin(agents, eq(agents.id, agentMailboxAccess.agentId))
+    .where(eq(agentMailboxAccess.mailboxId, mb.id));
+  // PRIV1b (P3): the same rule as agentMailboxIds. A personal mailbox's mail reaches only an agent its owner made,
+  // while the owner is a member. (S1) The mailbox is read once, not once per agent, on the delivery path.
+  let shared: { id: string }[] = given;
+  if (given.length) {
+    const box = await deps.db.select({ personal: mailboxes.personal, owner: mailboxes.ownerUserId }).from(mailboxes).where(eq(mailboxes.id, mb.id)).get();
+    if (box?.personal) {
+      const owner = box.owner && (await keepOpenableBy(deps.db, mb.orgId, box.owner, [mb.id])).length ? box.owner : null;
+      shared = given.filter((g) => !!owner && g.maker === owner);
+    }
+  }
   const ids = [...new Set([...own, ...shared].map((r) => r.id))];
   const parsed = { messageId: m.id, threadId: m.threadId, mailboxId: mb.id, from: m.from, subject: m.subject, latestText: latestText(m.text), codes: extractCodes(m.text, m.subject), links: extractLinks(m.text, m.html) };
   for (const id of ids) await recordEvent(deps, mb.orgId, id, "message.received", parsed);
   return { agentIds: ids, parsed };
 }
 
-/** Events after `after` (a sequence number), oldest first. Agent keys see their own agent's. */
+/**
+ * Events after `after` (a sequence number), oldest first. Agent keys see their own agent's.
+ * PRIV1b (P3): message events carry mail, so each is kept only when its mailbox is in the caller's own scope (an
+ * agent key: its agent's mailboxes now; a person or workspace key: what they may open), whichever agent it is for.
+ */
 export async function eventsSince(deps: Deps, actor: Actor, q: { after?: number; agentId?: string; limit?: number }) {
+  return (await eventsPage(deps, actor, q)).events;
+}
+
+/** eventsSince plus `last`, the newest sequence number returned, so a stream moves on. */
+export async function eventsPage(deps: Deps, actor: Actor, q: { after?: number; agentId?: string; limit?: number }) {
   const agentId = actor.agentId ?? q.agentId;
   if (agentId) await row(deps, actor.orgId, agentId);
-  const rows = await deps.db.select().from(agentEvents).where(and(
-    eq(agentEvents.orgId, actor.orgId), gt(agentEvents.seq, q.after ?? 0), agentId ? eq(agentEvents.agentId, agentId) : undefined,
-  )).orderBy(asc(agentEvents.seq)).limit(Math.min(q.limit ?? 100, 500));
-  return rows.map((r) => ({ id: r.seq, type: r.type, agentId: r.agentId, data: JSON.parse(r.data) as Record<string, unknown>, createdAt: r.createdAt }));
+  const limit = Math.min(q.limit ?? 100, 500);
+  const base = and(eq(agentEvents.orgId, actor.orgId), gt(agentEvents.seq, q.after ?? 0), agentId ? eq(agentEvents.agentId, agentId) : undefined);
+  const read = async (cond: SQL | undefined) => (await deps.db.select().from(agentEvents).where(and(base, cond)).orderBy(asc(agentEvents.seq)).limit(limit))
+    .map((r) => ({ id: r.seq, type: r.type, agentId: r.agentId, data: JSON.parse(r.data) as Record<string, unknown>, createdAt: r.createdAt }));
+  const page = (events: Awaited<ReturnType<typeof read>>) => ({ events, last: events.length ? events[events.length - 1].id : q.after ?? 0 });
+  // PRIV1b (P3, S3): message events and approval.requested carry mail (to, subject, codes), so they are kept only when
+  // their mailbox is in the caller's scope. A quiet poll needs no scope read.
+  const all = await read(undefined);
+  if (!all.some(carriesMail)) return page(all);
+  const scope = await scopeFor(deps, actor);
+  if (!scope) return page(all);
+  // PRIV1b (M2): filtered in SQL, so a page never fills with hidden events and a poller can't stall behind them.
+  // An older event with no mailbox id is seen only by the agent's own key.
+  const mb = sql`json_extract(${agentEvents.data}, '$.mailboxId')`;
+  const mailish = sql`(${agentEvents.type} like 'message.%' or ${agentEvents.type} = 'approval.requested')`;
+  return page(await read(or(sql`not ${mailish}`, inIds(mb, scope), actor.agentId ? and(sql`${mb} is null`, eq(agentEvents.agentId, actor.agentId)) : undefined)));
 }
+const carriesMail = (e: { type: string }) => e.type.startsWith("message.") || e.type === "approval.requested";
 
 /** The newest event sequence number, so a new stream starts from now. */
 export async function latestEventSeq(deps: Deps, orgId: string) {

@@ -57,6 +57,7 @@ beforeEach(async () => {
 
 describe("inbound via Cloudflare Email Worker", () => {
   it("stores a signed message, with attachments, in the inbox", async () => {
+    await verifyDomain(); // PRIV1b (P36): only a verified domain receives mail
     const key = (await c.post("/api/inbound-keys")).body.key;
     const r = await viaWorker(rawEmail({ attachment: true, auth: "spf=pass; dkim=pass; dmarc=pass" }), key);
     expect(r.rejected).toBeNull();
@@ -64,7 +65,8 @@ describe("inbound via Cloudflare Email Worker", () => {
     expect(list.body.messages).toHaveLength(1);
     expect(list.body.messages[0]).toMatchObject({ subject: "Hello there", isRead: false, hasAttachments: true, from: { address: "grace@navy.mil", name: "Grace Hopper" } });
     const full = await c.get(`/api/mail/messages/${list.body.messages[0].id}`);
-    expect(full.body.message.authResults).toEqual({ spf: "pass", dkim: "pass", dmarc: "pass" });
+    // PRIV1b (P38): a workspace key's own Authentication-Results headers can't claim pass.
+    expect(full.body.message.authResults).toEqual({ spf: "none", dkim: "none", dmarc: "none" });
     const att = full.body.message.attachments[0];
     expect(att.filename).toBe("notes.txt");
     const dl = await ctx.app.request(`/api/mail/attachments/${att.id}`, { headers: { cookie: c.cookie, host: "localhost" } });
@@ -74,6 +76,7 @@ describe("inbound via Cloudflare Email Worker", () => {
   });
 
   it("bounces unknown recipients and files DMARC failures as spam", async () => {
+    await verifyDomain(); // PRIV1b (P36): only a verified domain receives mail
     const key = (await c.post("/api/inbound-keys")).body.key;
     expect((await viaWorker(rawEmail({ to: "nobody@acme.io" }), key, "nobody@acme.io")).rejected).toMatch(/No mailbox/);
     await viaWorker(rawEmail({ auth: "spf=fail; dkim=fail; dmarc=fail" }), key);
@@ -81,6 +84,7 @@ describe("inbound via Cloudflare Email Worker", () => {
   });
 
   it("refuses bad signatures and other tenants' domains", async () => {
+    await verifyDomain(); // PRIV1b (P36): only a verified domain receives mail
     const key = (await c.post("/api/inbound-keys")).body.key;
     const forged = await viaWorker(rawEmail(), { id: key.id, secret: "whsec_wrong" });
     expect(forged.rejected).toMatch(/Temporary failure/);
@@ -93,6 +97,7 @@ describe("inbound via Cloudflare Email Worker", () => {
   });
 
   it("routes plus-addresses, aliases and the catch-all", async () => {
+    await verifyDomain(); // PRIV1b (P36): only a verified domain receives mail
     const key = (await c.post("/api/inbound-keys")).body.key;
     await c.post("/api/aliases", { domainId, localPart: "sales", destinations: ["hello@acme.io", "founder@gmail.com"] });
     await viaWorker(rawEmail({ to: "hello+news@acme.io" }), key, "hello+news@acme.io");
@@ -147,6 +152,7 @@ describe("sending", () => {
 
 describe("webmail", () => {
   it("searches, stars, archives, trashes and deletes", async () => {
+    await verifyDomain(); // PRIV1b (P36): only a verified domain receives mail
     const key = (await c.post("/api/inbound-keys")).body.key;
     await viaWorker(rawEmail({ subject: "Invoice #42", body: "Your invoice is attached" }), key);
     await viaWorker(rawEmail({ subject: "Lunch?", body: "Tacos at noon" }), key);
@@ -167,6 +173,7 @@ describe("webmail", () => {
   });
 
   it("paginates with a stable cursor", async () => {
+    await verifyDomain(); // PRIV1b (P36): only a verified domain receives mail
     const key = (await c.post("/api/inbound-keys")).body.key;
     for (let i = 0; i < 5; i++) await viaWorker(rawEmail({ subject: `m${i}` }), key);
     const p1 = await c.get("/api/mail/messages?limit=2");

@@ -20,9 +20,9 @@ export function registerPresenceRoutes(api: OpenAPIHono<AppEnv>) {
   const route = (method: "get" | "post", path: string, tag: string, summary: string, description: string) =>
     createRoute({ method, path, tags: [tag], summary, description, security: [{ bearerAuth: [] }], request: { params: Id }, responses: { 200: json("OK."), 401: err("Missing or invalid API key."), 403: err("The key can't do this."), 404: err("Not found."), 409: err("The draft changed hands just now.") } });
 
-  api.openapi(route("get", "/threads/{id}/presence", "Threads", "Who is in a thread now", "People who have the shared inbox thread open right now: { people: [{ userId, name, state: viewing | replying, since, lastSeen, tabs }], replying: [names] }. Entries expire 40 seconds after the last heartbeat. 404 when the key can't open the thread."),
+  api.openapi(route("get", "/threads/{id}/presence", "Threads", "Who is in a thread now", "People who have the shared inbox thread open right now: { people: [{ userId, name, state: viewing | replying, since, lastSeen, tabs }], replying: [names] }. Entries expire 40 seconds after the last heartbeat. Query mailboxId picks which mailbox's copy of the thread (default: the oldest the key can open). 404 when the key can't open the thread."),
     async (c) => {
-      const v = await threadPresence(c.var.deps, c.var.auth, pid(c), { op: "list" });
+      const v = await threadPresence(c.var.deps, c.var.auth, pid(c), { op: "list" }, { mailboxId: c.req.query("mailboxId")?.slice(0, 64) });
       return send(c, { threadId: pid(c), people: v.people, replying: v.people.filter((p) => p.state === "replying").map((p) => p.name) });
     });
   api.openapi(route("get", "/threads/{id}/drafts", "Threads", "List draft replies in a thread", "Draft replies in the thread, in mailboxes the key can open: { drafts: [{ id, mailboxId, subject, snippet, to, author: { userId, name } | null, mine, updatedAt }] }."),

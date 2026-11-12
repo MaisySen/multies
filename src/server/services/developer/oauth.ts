@@ -10,13 +10,14 @@
  * - D1 writes: registration 1 row; sign in 2 (row + org index); code exchange 2; refresh 2; revoke 2;
  *   last used at most once an hour per grant (2). API keys keep working unchanged.
  */
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, notInArray } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { members, oauthClients, oauthGrants, organizations, users } from "../../db/schema";
 import { hmacSha256Hex, newId, randomToken, safeEqual, sha256Hex, tryFromB64 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import type { ApiKeyAuth, ApiKeyScope } from "./api-keys";
 import { deferrableWrite } from "../write-priority";
+import { ssoBlocks } from "../../auth/session";
 
 export const ACCESS_TOKEN_TTL_S = 3600;
 export const REFRESH_TOKEN_TTL_MS = 90 * 24 * 3600_000;
@@ -120,7 +121,7 @@ export async function checkAuthorizeRequest(deps: Deps, q: AuthorizeRequest) {
 
 /** The workspaces a person can connect: every human membership, with its role. */
 export async function workspacesFor(deps: Deps, userId: string) {
-  return deps.db.select({ id: organizations.id, name: organizations.name, role: members.role, suspendedAt: organizations.suspendedAt })
+  return deps.db.select({ id: organizations.id, name: organizations.name, role: members.role, suspendedAt: organizations.suspendedAt, requireSso: organizations.requireSso })
     .from(members).innerJoin(organizations, eq(organizations.id, members.organizationId))
     .where(and(eq(members.userId, userId), eq(members.kind, "human"))).all();
 }
@@ -128,11 +129,13 @@ export async function workspacesFor(deps: Deps, userId: string) {
 export const scopeWord = (s: ApiKeyScope) => (s === "read" ? "mcp:read" : "mcp:read mcp:write");
 
 /** The person said yes: a grant row with the code's hash. Returns the URL to send the browser to. */
-export async function approve(deps: Deps, user: Pick<AuthContext, "userId">, q: AuthorizeRequest, choice: { orgId: string; scope: ApiKeyScope }, issuer = deps.config.appUrl) {
+export async function approve(deps: Deps, user: Pick<AuthContext, "userId" | "loginMethod">, q: AuthorizeRequest, choice: { orgId: string; scope: ApiKeyScope }, issuer = deps.config.appUrl) {
   const req = await checkAuthorizeRequest(deps, q);
   const ws = (await workspacesFor(deps, user.userId)).find((w) => w.id === choice.orgId);
   if (!ws) throw new HttpError(403, "forbidden", "You are not a member of that workspace.");
   if (ws.suspendedAt) throw new HttpError(403, "workspace_suspended", "This workspace is suspended.");
+  // PRIV1b (P41): the guards' "Require SSO" rule holds for the chosen workspace, not only the session's active one.
+  if (ssoBlocks(ws.requireSso, ws.role, user.loginMethod)) throw new HttpError(403, "sso_required", "This workspace requires single sign on. Sign out, then sign in with your company's SSO.");
   // Never more than the app asked for.
   const scope: "full" | "read" = req.requestedScope === "read" || choice.scope === "read" ? "read" : "full"; // R36: OAuth grants keep the two presets
   const id = newId("mcpg");
@@ -200,21 +203,61 @@ export async function token(deps: Deps, r: TokenRequest) {
     if (r.redirect_uri && r.redirect_uri !== grant.redirectUri) throw new OAuthError(400, "invalid_grant", "redirect_uri does not match the sign in request.");
     if (!grant.codeChallenge || (await pkceChallenge(r.code_verifier)) !== grant.codeChallenge) throw new OAuthError(400, "invalid_grant", "The PKCE code_verifier does not match.");
     const t = await issueTokens(deps, grant);
-    await deps.db.update(oauthGrants).set({ codeUsedAt: now, refreshHash: t.refreshHash, refreshExpiresAt: t.refreshExpiresAt, lastUsedAt: now }).where(and(eq(oauthGrants.id, grant.id), isNull(oauthGrants.codeUsedAt)));
+    // PRIV1b (P70): tokens only when this request is the one that marked the code used; a racing second exchange ends the grant.
+    const won = await deps.db.update(oauthGrants).set({ codeUsedAt: now, refreshHash: t.refreshHash, refreshExpiresAt: t.refreshExpiresAt, lastUsedAt: now })
+      .where(and(eq(oauthGrants.id, grant.id), isNull(oauthGrants.codeUsedAt), isNull(oauthGrants.revokedAt))).returning({ id: oauthGrants.id }).get();
+    if (!won) {
+      await deps.db.update(oauthGrants).set({ revokedAt: now, refreshHash: null }).where(eq(oauthGrants.id, grant.id));
+      throw new OAuthError(400, "invalid_grant", "That code was already used.");
+    }
     return tokenBody(t, grant.scope);
   }
   if (r.grant_type === "refresh_token") {
     if (!r.refresh_token) throw new OAuthError(400, "invalid_request", "Send refresh_token.");
     const grant = await grantByToken(deps, r.refresh_token, "mm_ort_");
-    if (!grant || grant.revokedAt || !grant.refreshHash || !safeEqual(grant.refreshHash, await sha256Hex(r.refresh_token))) throw new OAuthError(400, "invalid_grant", "That refresh token is not valid. Sign in again.");
+    const presented = await sha256Hex(r.refresh_token);
+    if (!grant || grant.revokedAt || !grant.refreshHash) throw new OAuthError(400, "invalid_grant", "That refresh token is not valid. Sign in again.");
+    if (!safeEqual(grant.refreshHash, presented)) {
+      // PRIV1b (P70): an old (rotated) refresh token for a live grant was replayed: one copy is stolen, so end the grant (OAuth 2.1 section 4.3.1).
+      await revokeGrantRow(deps, grant.id);
+      throw new OAuthError(400, "invalid_grant", "That refresh token is not valid. Sign in again.");
+    }
     if (r.client_id && r.client_id !== grant.clientId) throw new OAuthError(400, "invalid_grant", "That refresh token belongs to another client.");
     if (!grant.refreshExpiresAt || grant.refreshExpiresAt.getTime() < now.getTime()) throw new OAuthError(400, "invalid_grant", "That refresh token has expired. Sign in again.");
     const t = await issueTokens(deps, grant);
-    await deps.db.update(oauthGrants).set({ refreshHash: t.refreshHash, refreshExpiresAt: t.refreshExpiresAt, lastUsedAt: now }).where(eq(oauthGrants.id, grant.id));
+    // PRIV1b (P70): rotate only from the token just checked; a racing refresh with the same token loses and ends the grant.
+    const won = await deps.db.update(oauthGrants).set({ refreshHash: t.refreshHash, refreshExpiresAt: t.refreshExpiresAt, lastUsedAt: now })
+      .where(and(eq(oauthGrants.id, grant.id), eq(oauthGrants.refreshHash, presented), isNull(oauthGrants.revokedAt))).returning({ id: oauthGrants.id }).get();
+    if (!won) {
+      await revokeGrantRow(deps, grant.id);
+      throw new OAuthError(400, "invalid_grant", "That refresh token is not valid. Sign in again.");
+    }
     return tokenBody(t, grant.scope);
   }
   throw new OAuthError(400, "unsupported_grant_type", "Supported grant types: authorization_code and refresh_token.");
 }
+
+async function revokeGrantRow(deps: Deps, id: string) {
+  await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(and(eq(oauthGrants.id, id), isNull(oauthGrants.revokedAt)));
+}
+
+/** PRIV1b (P48): account recovery (password change or reset, sign out everywhere, a ban) ends every app the person signed in. */
+export async function revokeUserGrants(deps: Deps, userId: string) {
+  await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(and(eq(oauthGrants.userId, userId), isNull(oauthGrants.revokedAt)));
+}
+
+/**
+ * PRIV1b (P41): when a workspace starts requiring SSO, grants made before (possibly from a password session) end,
+ * except the owner's (the break glass account the rule exempts). New grants pass the same rule in approve().
+ */
+export async function revokeGrantsForSso(deps: Deps, orgId: string) {
+  const owners = (await deps.db.select({ userId: members.userId }).from(members).where(and(eq(members.organizationId, orgId), eq(members.role, "owner"))).all()).map((m) => m.userId);
+  await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null })
+    .where(and(eq(oauthGrants.orgId, orgId), isNull(oauthGrants.revokedAt), owners.length ? notInArray(oauthGrants.userId, owners) : undefined));
+}
+
+/** A platform ban that is in force (Better Auth's admin plugin lifts an expired one at the next sign in). */
+export const banActive = (u: { banned: boolean | null; banExpires: Date | null }, now: Date) => !!u.banned && (!u.banExpires || u.banExpires.getTime() > now.getTime());
 
 /** RFC 7009: revoking either token ends the grant. Unknown tokens are not an error. */
 export async function revokeToken(deps: Deps, tokenValue: string) {
@@ -248,7 +291,7 @@ export async function resolveOAuthToken(deps: Deps, header: string | undefined):
   if (!tokenValue) return null;
   const p = await verifyAccessToken(deps, tokenValue);
   if (!p) return null;
-  const row = await deps.db.select({ g: oauthGrants, role: members.role, kind: members.kind, name: users.name, email: users.email, suspendedAt: organizations.suspendedAt, clientName: oauthClients.name })
+  const row = await deps.db.select({ g: oauthGrants, role: members.role, kind: members.kind, name: users.name, email: users.email, banned: users.banned, banExpires: users.banExpires, suspendedAt: organizations.suspendedAt, clientName: oauthClients.name })
     .from(oauthGrants)
     .innerJoin(organizations, eq(organizations.id, oauthGrants.orgId))
     .innerJoin(users, eq(users.id, oauthGrants.userId))
@@ -258,6 +301,7 @@ export async function resolveOAuthToken(deps: Deps, header: string | undefined):
   // Revoked, or the person left the workspace: the token stops working at once.
   if (!row || row.g.revokedAt || !row.role || row.kind !== "human") return null;
   const now = deps.now();
+  if (banActive(row, now)) return null; // PRIV1b (P48): a banned person's apps stop at once
   if (!row.g.lastUsedAt || now.getTime() - row.g.lastUsedAt.getTime() > GRANT_LAST_USED_EVERY_MS) {
     await deferrableWrite(deps, "last_used", `grant:${row.g.id}`, () => deps.db.update(oauthGrants).set({ lastUsedAt: now }).where(eq(oauthGrants.id, row.g.id))); // R32: deferrable
   }

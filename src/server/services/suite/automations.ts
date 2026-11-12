@@ -54,6 +54,14 @@ function validate(i: Pick<AutomationInput, "trigger" | "action" | "conditions" |
   if (i.trigger === "due_soon") { const h = Number(c.hoursBefore ?? 24); if (!(h >= 1 && h <= 24 * 14)) throw new HttpError(422, "validation_failed", "Remind between 1 hour and 14 days before."); }
 }
 
+/** PRIV1b (P2): a workspace rule may not name someone's personal mailbox (it runs as a system actor nobody shared it with). */
+async function refusePersonalMailbox(deps: Deps, orgId: string, conditions?: Record<string, unknown>) {
+  const id = conditions?.mailboxId;
+  if (typeof id !== "string" || !id) return;
+  const { personalInfo } = await import("../mail-access-priv1a");
+  if (await personalInfo(deps.db, orgId, id)) throw new HttpError(422, "validation_failed", "Rules can't watch a personal mailbox. Pick a team mailbox.");
+}
+
 /** R24.4: rules with the newer triggers, actions or conditions are checked in automations-r24.ts (ids must be this workspace's). */
 async function checkR24(deps: Deps, orgId: string, i: { trigger: string; action: string; conditions?: Record<string, unknown>; actionConfig?: Record<string, unknown> }) {
   const r24 = await import("./automations-r24");
@@ -72,6 +80,7 @@ async function validateAction(deps: Deps, orgId: string, i: { trigger: string; a
 export async function createAutomation(deps: Deps, actor: SuiteActor, input: AutomationInput) {
   assertWritable(actor);
   validate(input);
+  await refusePersonalMailbox(deps, actor.orgId, input.conditions);
   input = { ...input, conditions: (await checkR24(deps, actor.orgId, input)).conditions, actionConfig: await validateAction(deps, actor.orgId, input) };
   const now = deps.now();
   const id = sortableId("aut", now.getTime());
@@ -86,6 +95,8 @@ export async function updateAutomation(deps: Deps, actor: SuiteActor, id: string
   if (!r) throw notFound("Automation");
   const next = { trigger: patch.trigger ?? r.trigger, action: patch.action ?? r.action, conditions: patch.conditions ?? JSON.parse(r.conditions), actionConfig: patch.actionConfig ?? JSON.parse(r.actionConfig) };
   validate(next);
+  // PRIV1b (P2): check only new conditions, so a rule saved before this guard can still be disabled or renamed.
+  if (patch.conditions !== undefined) await refusePersonalMailbox(deps, actor.orgId, next.conditions);
   next.conditions = (await checkR24(deps, actor.orgId, next)).conditions ?? next.conditions;
   next.actionConfig = await validateAction(deps, actor.orgId, next);
   await deps.db.update(automations).set({

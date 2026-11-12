@@ -7,7 +7,7 @@
  */
 import { and, eq } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { attachments, deliveries, mailboxes, messages } from "../../db/schema";
+import { attachments, deliveries, domains, mailboxes, messages } from "../../db/schema";
 import { attachmentBytes } from "./store";
 import { PermanentJobError, RetryableJobError, registerJob } from "../jobs";
 import { deliverInbound } from "./delivery";
@@ -61,6 +61,12 @@ export async function runDeliver(deps: Deps, payload: unknown) {
   // A connected mailbox retries through its own provider's SMTP, like its first try.
   const { connectionForMailbox } = await import("../connect");
   const conn = await connectionForMailbox(deps, mb.id);
+  // PRIV1b (P58): a retry from a connected mailbox whose connection was removed never falls back to the platform outbound.
+  if (!conn) {
+    const { CONNECTED_DOMAIN } = await import("../connect");
+    const d = await deps.db.select({ name: domains.name }).from(domains).where(eq(domains.id, mb.domainId)).get();
+    if (d?.name === CONNECTED_DOMAIN) throw new PermanentJobError(`${mb.address} is no longer connected, so it can't send.`);
+  }
   const outbound = conn ? (await import("../connect/outbound")).connectionOutbound(deps, conn) : deps.outbound;
   // R31: a retry carries the same open image as the first try, when the message has one.
   const { existingToken, pixelUrl, withPixel } = await import("./read-status");
@@ -98,13 +104,16 @@ export async function onDeliverDead(deps: Deps, payload: unknown, _job: unknown,
     "",
     "Nothing else needs doing on your side for other recipients. You can send it again from your Sent folder.",
   ].join("\n");
+  // PRIV1b (AR1, SP5): pass only while the system address's domain is not a workspace claim short of verified; the
+  // same rule as account mail (systemMailAuth).
+  const { systemMailAuth } = await import("../system-mail");
   await deliverInbound(deps, {
     envelopeFrom: deps.config.systemFrom.address, rcptTo: mb.address, sizeBytes: text.length, via: "internal",
     email: {
       messageId: `<ndr.${m.id}@${deps.config.systemFrom.address.split("@")[1] ?? "localhost"}>`,
       from: { address: deps.config.systemFrom.address, name: "Mail Delivery" }, to: [{ address: mb.address }], cc: [],
       subject: `Undeliverable: ${m.subject || "(no subject)"}`, text, date: deps.now(), attachments: [],
-      authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: { "auto-submitted": "auto-replied" },
+      authResults: await systemMailAuth(deps), headers: { "auto-submitted": "auto-replied" },
       inReplyTo: m.messageIdHeader ?? undefined,
     },
   });

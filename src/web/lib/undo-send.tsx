@@ -7,6 +7,8 @@ import {
 } from "@/shared/undo-send";
 import { Kbd } from "@/web/components/ui/misc";
 import { buttonClass } from "@/web/components/ui/button";
+import { readMeCache } from "./me-cache"; // PRIV1b (P52)
+import { scopeOf } from "./offline-lists"; // PRIV1b (P52)
 
 /** One queue for the whole tab, so a held message keeps counting down after Compose closes or the page changes. */
 export const sendHold = createSendHold();
@@ -204,7 +206,10 @@ export function keepaliveExit(path: string, key: string, body: () => unknown, do
  * there were some), so nothing large or private sits in storage.
  */
 export const HELD_RESCUE_KEY = "multies-held-sends";
-export interface HeldRescue { key: string; dueAt: number; label: string; draft: unknown; hadFiles: boolean }
+/** PRIV1b (P52): each copy names the person and workspace it belongs to; clearOfflineData drops the key at sign out. */
+export interface HeldRescue { key: string; dueAt: number; label: string; draft: unknown; hadFiles: boolean; userId?: string; orgId?: string }
+/** PRIV1b (P52): who is signed in here: the saved /account/me copy, which follows sign in, sign out and workspace switch. */
+const currentOwner = () => scopeOf(readMeCache());
 function rescueRead(): HeldRescue[] {
   try { const v = JSON.parse(localStorage.getItem(HELD_RESCUE_KEY) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
 }
@@ -216,7 +221,10 @@ function storableDraft(d: unknown): unknown {
   if (!d || typeof d !== "object") return d;
   return { ...(d as Record<string, unknown>), files: [] };
 }
-export function rescueAdd(r: HeldRescue) { rescueWrite([...rescueRead().filter((x) => x.key !== r.key), { ...r, draft: storableDraft(r.draft) }]); }
+export function rescueAdd(r: HeldRescue) {
+  const o = r.userId ? { userId: r.userId, orgId: r.orgId } : currentOwner() ?? {};
+  rescueWrite([...rescueRead().filter((x) => x.key !== r.key), { ...r, ...o, draft: storableDraft(r.draft) }]);
+}
 export function rescueRemove(key: string) { rescueWrite(rescueRead().filter((x) => x.key !== key)); }
 
 export type HeldStatus = "sent" | "pending" | "failed" | "unknown";
@@ -239,6 +247,8 @@ let recovering = false;
  */
 export async function recoverHeldSends(opts: {
   now?: number;
+  /** PRIV1b (P52): the signed in person and workspace; nothing is looked at until they are known. */
+  owner?: { userId: string; orgId: string } | null;
   status?: (key: string) => Promise<HeldStatus>;
   reopen?: (draft: unknown) => void;
   notify?: (kind: "sent" | "reopen", r: HeldRescue) => void;
@@ -247,7 +257,14 @@ export async function recoverHeldSends(opts: {
   recovering = true;
   try {
     const now = opts.now ?? Date.now();
-    const due = rescueRead().filter((r) => now - r.dueAt > RESCUE_GRACE_MS);
+    const owner = opts.owner === undefined ? currentOwner() : opts.owner;
+    if (!owner) return;
+    // PRIV1b (P52): a copy of another person (or one with no owner) is dropped, never reopened: on a shared computer it
+    // would show the last person's message to the next one. Another workspace of the same person waits for it.
+    const all = rescueRead();
+    const mine = all.filter((r) => r.userId === owner.userId);
+    if (mine.length !== all.length) rescueWrite(mine);
+    const due = mine.filter((r) => r.orgId === owner.orgId && now - r.dueAt > RESCUE_GRACE_MS);
     const status = opts.status ?? (async (key: string) => {
       const { api } = await import("@/web/lib/api");
       return (await api.get<{ state: HeldStatus }>(`/mail/held-status?key=${encodeURIComponent(key)}`)).state;

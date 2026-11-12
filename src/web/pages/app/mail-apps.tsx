@@ -5,7 +5,7 @@ import { IconCheck, IconDevices, IconKey, IconPlus, IconTrash } from "@/web/comp
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
-import { useMailboxes } from "@/web/lib/queries";
+import { useOpenableMailboxes } from "@/web/lib/queries";
 import { CopyButton, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -44,7 +44,7 @@ function NotConnected({ missing }: { missing: string[] }) {
 }
 
 function Connected({ access }: { access: MailAccess }) {
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [mailboxId, setMailboxId] = useState("");
   useEffect(() => { if (!mailboxId && mailboxes.data?.[0]) setMailboxId(mailboxes.data[0].id); }, [mailboxes.data, mailboxId]);
   const mailbox = mailboxes.data?.find((m) => m.id === mailboxId);

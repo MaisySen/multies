@@ -7,7 +7,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
-import { useMailboxes } from "@/web/lib/queries";
+import { useOpenableMailboxes } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { ConfirmButton } from "@/web/components/ui/confirm";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
@@ -82,7 +82,7 @@ export function NewsletterPage() {
   const q = useQuery({ queryKey: ["r109-newsletter", id], queryFn: () => api.get<Newsletter>(`${B}/newsletters/${id}`), refetchInterval: (x) => (x.state.data?.status === "sending" ? 5000 : false) });
   const info = useInfo();
   const lists = useLists();
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [d, setD] = useState<Newsletter | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [at, setAt] = useState("");
@@ -199,7 +199,7 @@ export function JourneyPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient(); const nav = useNavigate();
   const q = useQuery({ queryKey: ["r109-journey", id], queryFn: () => api.get<Journey>(`${B}/journeys/${id}`) });
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [d, setD] = useState<Journey | null>(null);
   useEffect(() => { if (q.data) setD(q.data); }, [q.data]);
   const j = q.data;

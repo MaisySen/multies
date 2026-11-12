@@ -218,6 +218,16 @@ type CardRow = { id: string; message_id: string; kind: string; target_id: string
 
 const parseJson = <T,>(s: string, d: T): T => { try { return JSON.parse(s) as T; } catch { return d; } };
 
+/** PRIV1b (P22): mail the answer read, cited or not; its words may be in the answer, so losing it hides the answer. */
+const mailSource = (s: { type: string }) => s.type === "mail" || s.type === "attachments";
+
+async function lostSource(deps: Deps, v: SearchViewer, src: StoredSource[]) {
+  const check = src.filter((s) => s.cited || mailSource(s));
+  if (!check.length) return false;
+  const ok = await openableR98(deps, v, check.map((s) => ({ type: s.type, id: s.id })));
+  return check.some((s) => !ok.has(`${s.type}:${s.id}`));
+}
+
 /** Shows saved answers to their person: re-checks every source with today's permissions first. */
 export async function present(deps: Deps, actor: SuiteActor, rows: MsgRow[]): Promise<MessageOut[]> {
   const v: SearchViewer = { kind: "actor", actor };
@@ -228,7 +238,7 @@ export async function present(deps: Deps, actor: SuiteActor, rows: MsgRow[]): Pr
   const cards = ids.length ? await deps.db.all<CardRow>(sql`select id, message_id, kind, target_id, payload, status, result_id from ask_cards where message_id in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)}) order by created_at`) : [];
   return rows.map((r, i) => {
     const src = all[i];
-    const lost = src.some((s) => s.cited && !ok.has(`${s.type}:${s.id}`));
+    const lost = src.some((s) => (s.cited || mailSource(s)) && !ok.has(`${s.type}:${s.id}`));
     const visible = src.filter((s) => ok.has(`${s.type}:${s.id}`));
     const myCards = lost ? [] : cards.filter((c) => c.message_id === r.id).flatMap((c): CardOut[] => {
       const p = parseJson<Record<string, unknown>>(c.payload, {});
@@ -273,9 +283,11 @@ export async function askQuestion(deps: Deps, actor: SuiteActor, input: { questi
   if (td1) await assertAiAllowed(deps, actor.orgId); // TD1: AI off means nothing is read and no provider call
   const threadId = input.threadId ? String(input.threadId) : null;
   const thread = threadId ? await threadOf(deps, actor.orgId, userId, threadId) : null;
-  const [previous] = thread ? await deps.db.all<{ question: string; answer: string }>(sql`select question, answer from ask_messages where thread_id = ${thread.id} and status = 'answered' order by created_at desc limit 1`) : [];
+  const [last] = thread ? await deps.db.all<{ question: string; answer: string; sources: string }>(sql`select question, answer, sources from ask_messages where thread_id = ${thread.id} and status = 'answered' order by created_at desc limit 1`) : [];
 
   const v: SearchViewer = { kind: "actor", actor };
+  // PRIV1b (P22): an earlier answer the asker would now see as hidden (a source lost) never goes back to the model.
+  const previous = last && !(await lostSource(deps, v, parseJson<StoredSource[]>(last.sources, []))) ? last : undefined;
   // Retrieval needs the previous question's words too, so a follow up ("and when is it due?") still finds the item.
   const asked = previous ? `${question} ${previous.question}` : question;
   // TD1: the about item (re checked now, 404 when it cannot be opened) comes first; meaning search widens the rest.

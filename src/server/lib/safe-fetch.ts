@@ -126,7 +126,8 @@ export async function safeFetch(fetcher: Fetcher, raw: string, o: { maxBytes: nu
   }
 }
 
-async function readCapped(res: Response, max: number): Promise<{ bytes: Uint8Array; truncated: boolean }> {
+/** The body as bytes, read in a stream and cut at `max`. Also used by the calendar fetch (PRIV1b P45). */
+export async function readCapped(res: Response, max: number): Promise<{ bytes: Uint8Array; truncated: boolean }> {
   if (!res.body) return { bytes: new Uint8Array(0), truncated: false };
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];

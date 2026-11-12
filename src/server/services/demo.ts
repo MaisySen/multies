@@ -134,7 +134,7 @@ export async function createDemoWorkspace(deps: Deps, opts: { check?: boolean } 
     deps.db.update(users).set({ emailVerified: true }).where(eq(users.id, userId)),
   ]);
 
-  const domain = await createDomain(deps, orgId, domainName, { dkimKey });
+  const domain = await createDomain(deps, orgId, domainName, { dkimKey, sample: true });
   // Sample domains can't have real DNS; mark them verified and say so in the report.
   await deps.db.update(domains).set({
     status: "verified",

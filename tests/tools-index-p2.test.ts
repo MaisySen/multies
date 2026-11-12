@@ -9,6 +9,7 @@ import { createHmac } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { strToU8, zipSync } from "fflate";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { mailboxAccess, members, sessions, users } from "@/server/db/schema";
 import { resetWriteBudgetCache } from "@/server/services/write-budget";
@@ -74,7 +75,7 @@ async function world(extra: Record<string, string> = {}) {
   await owner.signup("owner@acme.io", "Olive Owner", "Acme");
   const me = (await owner.get("/api/account/me")).body;
   const orgId: string = me.organization.id;
-  const domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const domainId = await verifiedDomain(ctx, owner, "acme.io");
   const support = (await owner.post("/api/mailboxes", { domainId, localPart: "support", displayName: "Support" })).body.mailbox;
   const sales = (await owner.post("/api/mailboxes", { domainId, localPart: "sales", displayName: "Sales" })).body.mailbox;
   let n = 0;

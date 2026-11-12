@@ -36,7 +36,7 @@ export function agentRoutes() {
       // Round 22: the list shows open threads unless a view says otherwise (all, mine, unassigned, assigned, waiting, done).
       return c.json(await listThreads(c.var.deps, c.var.auth.orgId, await scopeFor(c.var.deps, c.var.auth), { ...q, view: q.view ?? "open", viewerUserId: c.var.auth.userId }));
     })
-    .get("/threads/:id", async (c) => c.json(await readThread(c.var.deps, c.var.auth, c.req.param("id"), new URL(c.req.url).origin)))
+    .get("/threads/:id", async (c) => c.json(await readThread(c.var.deps, c.var.auth, c.req.param("id"), new URL(c.req.url).origin, c.req.raw.headers)))
     .get("/:id", async (c) => c.json(await getAgent(c.var.deps, c.var.auth.orgId, c.req.param("id"))))
     .patch("/:id", requireAdmin, async (c) => {
       const patch = await parseBody(c, z.object({
