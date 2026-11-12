@@ -23,7 +23,7 @@ import type { Deps } from "../../context";
 import { activity, automations, changes, projectStatuses, projects, taskFieldValues, tasks, webhookEndpoints } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
-import { actorOf, assertWritable, parseDate, sortableId, type SuiteActor } from "./common";
+import { actorOf, assertWritable, parseDate, sortableId, withCaller, type SuiteActor } from "./common";
 import { assertMoveKeepsTriage, assertNoWaitingItems, coAssigneesOf, machineTriage, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
 import { inIds } from "../../lib/sql-chunks";
 import { claimNumbers } from "./project-counter";
@@ -160,7 +160,7 @@ function changeRows(deps: Deps, orgId: string, rows: { id: string; version: numb
 
 function summaryRow(actor: SuiteActor, now: Date, verb: string, entity: { type: string; id: string }, data: Record<string, unknown>) {
   const a = actorOf(actor);
-  return { id: sortableId("act", now.getTime()), orgId: actor.orgId, actorType: a.type, actorId: a.id, actorName: a.name, verb, entityType: entity.type, entityId: entity.id, data: JSON.stringify(data), createdAt: now };
+  return { id: sortableId("act", now.getTime()), orgId: actor.orgId, actorType: a.type, actorId: a.id, actorName: a.name, verb, entityType: entity.type, entityId: entity.id, data: JSON.stringify(withCaller(a, data)), createdAt: now };
 }
 
 /** Webhook endpoints that want this event, read once per action. */

@@ -12,11 +12,12 @@ import {
   agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals, users,
 } from "../../db/schema";
 
-/** Agent thread reads are audited once per agent, thread and hour. */
+/** Agent thread reads are audited once per agent, thread, key or connected app (AIS1) and hour. */
 export const READ_AUDIT_ROLLUP_MS = 60 * 60_000;
 import { fromB64Or, newId, randomToken } from "../../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound, planLimit } from "../../lib/errors";
 import { audit } from "../audit";
+import { stampFor } from "../../lib/request-caller";
 import { addonHint, assertCanCreate, bumpCounter, getPlan, readCounter } from "../plans";
 import { createApiKey, listApiKeys } from "../developer/api-keys";
 import { emitEvent } from "../developer/webhooks";
@@ -311,7 +312,7 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   if (input.createKey !== false) {
     const k = await createApiKey(deps, actor, { name: `${input.name} agent key`, scope: "full", agentId: id });
     key = { id: k.apiKey.id, prefix: k.apiKey.prefix, secret: k.secret };
-    await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id });
+    await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { name: k.apiKey.name, prefix: k.apiKey.prefix } });
   }
   const agent = await getAgent(deps, actor.orgId, id);
   await recordEvent(deps, actor.orgId, id, "agent.created", { agentId: id, address });
@@ -402,7 +403,7 @@ export async function createAgentKey(deps: Deps, actor: Actor, agentId: string, 
     if (personal) throw forbidden("This agent works a personal mailbox. Only the person who made it can create its keys.");
   }
   const k = await createApiKey(deps, actor, { name: name ?? `${a.name} agent key`, scope: "full", agentId: a.id });
-  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id });
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { name: k.apiKey.name, prefix: k.apiKey.prefix } });
   return k;
 }
 
@@ -417,7 +418,7 @@ export async function revokeAgentKey(deps: Deps, actor: Actor, agentId: string, 
   const k = await deps.db.select().from(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.agentId, agentId))).get();
   if (!k) throw notFound("Agent key");
   await deps.db.delete(apiKeys).where(eq(apiKeys.id, k.id));
-  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId, action: "agent.key_revoked", targetType: "api_key", targetId: k.id });
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId, action: "agent.key_revoked", targetType: "api_key", targetId: k.id, metadata: { name: k.name, prefix: k.prefix } }); // AIS1: the row is hard deleted, the log keeps its name
   return { id: k.id, revoked: true };
 }
 
@@ -513,10 +514,22 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
     const { a, mb } = await row(deps, actor.orgId, actor.agentId);
     // Reads roll up to one audit row per agent, thread and hour (round 20): an agent polling a thread
     // every minute used to write 3 D1 rows a minute. The row still says who read what and when.
+    // AIS1 (audit row 15): it names the thread by its subject as well as its id (the same row, one more field).
+    // AIS1 review: and one row per key or connected app, since the row names it (metadata.caller): a second key reading
+    // the same thread in that hour gets its own row. audit() appends the same stamp object, so its JSON text matches.
+    const caller = stampFor(agentActor(a, mb))?.caller;
+    const sameCaller = caller ? sql`instr(${auditLogs.metadata}, ${`"caller":${JSON.stringify(caller)}`}) > 0` : undefined;
     const since = new Date(deps.now().getTime() - READ_AUDIT_ROLLUP_MS);
     const recent = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
-      .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId))).limit(1).get();
-    if (!recent) await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
+      .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId), sameCaller)).limit(1).get();
+    if (!recent) {
+      // AIS1 review: a personal mailbox (PRIV1a) is opened only by its owner, but admins and the workspace owner read the
+      // audit log and its export. A thread in one keeps its id and loses its subject. One read, on the write path only.
+      const personal = await deps.db.select({ id: mailboxes.id }).from(mailboxes)
+        .where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, [...new Set(rows.map((r) => r.mailboxId))]), eq(mailboxes.personal, true))).limit(1).get();
+      const subject = personal ? {} : { subject: rows[0].subject.slice(0, 200) };
+      await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, ...subject, via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
+    }
   }
   return {
     id: threadId,
@@ -563,6 +576,17 @@ export interface AgentSendInput {
   attachments?: { filename: string; contentType: string; contentBase64: string }[];
 }
 
+/**
+ * AIS1 review: what an audit row says about a send. Mail in someone's personal mailbox (PRIV1a) is theirs alone, but
+ * admins, the workspace owner and the export read the audit log, and a reply's subject is the private thread's own
+ * subject. So a send from a personal mailbox (or one Multies can't place) keeps how many people it went to, not the
+ * subject or any address, as task history does for personal mail (suite/hooks.ts).
+ */
+function sendAuditFacts(personal: boolean, input: Pick<AgentSendInput, "to" | "cc" | "bcc" | "subject">, fromAddress?: string): Record<string, unknown> {
+  if (personal) return { personal: true, recipientCount: input.to.length + (input.cc?.length ?? 0) + (input.bcc?.length ?? 0) };
+  return { to: input.to, subject: input.subject, ...(fromAddress ? { from: fromAddress } : {}) };
+}
+
 function recipientAllowed(allow: string[] | null, address: string) {
   if (!allow) return true;
   const a = address.toLowerCase();
@@ -603,15 +627,19 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
   assertActsAs(actor, agentId);
   const { a, mb } = await row(deps, actor.orgId, agentId);
   const who = agentActor(a, mb);
+  const fromId = input.mailboxId ?? a.mailboxId;
+  // AIS1 review: read before the first check, so even a blocked send's row knows whether the mailbox is personal.
+  // The same read the send needed anyway; only the two refusals before it (agent paused, mailbox not allowed) read
+  // one more row than before.
+  const from = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, fromId), eq(mailboxes.orgId, actor.orgId))).get();
+  const personal = !from || from.personal;
   const block = async (code: string, message: string, status: 403 | 429 = 403) => {
-    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_blocked", metadata: { code, to: input.to, subject: input.subject } });
+    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_blocked", metadata: { code, ...sendAuditFacts(personal, input) } });
     return new HttpError(status, code, message);
   };
   if (a.status !== "active") throw await block("agent_paused", "This agent is paused. A person can resume it in Agents.");
-  const fromId = input.mailboxId ?? a.mailboxId;
   const allowed = await agentMailboxIdsFor(deps, actor, a);
-  if (!allowed.includes(fromId)) throw await block("mailbox_not_allowed", "This agent can't send from that mailbox.");
-  const from = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, fromId)).get())!;
+  if (!from || !allowed.includes(fromId)) throw await block("mailbox_not_allowed", "This agent can't send from that mailbox.");
   const recipients = [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])];
   const allow = parseAllow(a.allowedRecipients);
   const outside = recipients.filter((r) => !recipientAllowed(allow, r));
@@ -649,7 +677,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
       apiKeyId: actor.apiKeyId ?? null, expiresAt: new Date(deps.now().getTime() + APPROVAL_TTL_DAYS * DAY),
     });
     const approval = presentApproval((await deps.db.select().from(sendApprovals).where(eq(sendApprovals.id, id)).get())!);
-    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { to: input.to, subject: input.subject, reason: a.approvalMode } });
+    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { ...sendAuditFacts(personal, input), reason: a.approvalMode } });
     await recordEvent(deps, actor.orgId, a.id, "approval.requested", { approvalId: id, mailboxId: from.id, to: input.to, subject: input.subject, threadId }); // PRIV1b (S3): filtered like message events
     await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, mailboxId: from.id, from: from.address, to: input.to, subject: input.subject, threadId }); // PRIV1b (AP1): mailboxId, so the webhook filter does not rest on the from address
     // Everyone who can open that inbox gets it in their notifications inbox (and on their phone).
@@ -663,7 +691,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     return { status: "pending_approval", approval };
   }
   const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input);
-  await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.message_sent", targetType: "message", targetId: result.messageId, metadata: { to: input.to, subject: input.subject, from: from.address } });
+  await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.message_sent", targetType: "message", targetId: result.messageId, metadata: sendAuditFacts(personal, input, from.address) });
   await recordEvent(deps, actor.orgId, a.id, "message.sent", { messageId: result.messageId, mailboxId: from.id, to: input.to, subject: input.subject });
   return { status: "sent", result };
 }
@@ -729,7 +757,7 @@ export async function approveSend(deps: Deps, actor: Actor, id: string, edits: {
   try {
     const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input, actor);
     await deps.db.update(sendApprovals).set({ messageId: result.messageId, payload: JSON.stringify(input) }).where(eq(sendApprovals.id, r.id));
-    await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "approval.approved", targetType: "approval", targetId: r.id, metadata: { messageId: result.messageId, edited: Object.keys(edits).length > 0, to: input.to, subject: input.subject } });
+    await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "approval.approved", targetType: "approval", targetId: r.id, metadata: { messageId: result.messageId, edited: Object.keys(edits).length > 0, ...sendAuditFacts(from.personal, input) } });
     await recordEvent(deps, actor.orgId, a.id, "approval.decided", { approvalId: r.id, decision: "approved", messageId: result.messageId });
     await emitEvent(deps, actor.orgId, "approval.decided", { approvalId: r.id, agentId: a.id, decision: "approved", messageId: result.messageId, by: actor.email });
     return { approval: presentApproval((await deps.db.select().from(sendApprovals).where(eq(sendApprovals.id, r.id)).get())!), result };
@@ -850,7 +878,9 @@ export async function pruneAgentEvents(deps: Deps) {
 }
 
 export async function agentAudit(deps: Deps, actor: Actor, agentId: string, limit = 100) {
-  const { listAudit } = await import("../audit");
+  const { listAudit, memberSafeAudit } = await import("../audit");
   await row(deps, actor.orgId, agentId);
-  return listAudit(deps.db, actor.orgId, { agentId, limit });
+  const rows = await listAudit(deps.db, actor.orgId, { agentId, limit });
+  // AIS1: a plain member (or an agent member's key) sees no IPs, addresses or mail subjects, as on the dashboard.
+  return actor.role === "member" ? rows.map(memberSafeAudit) : rows;
 }

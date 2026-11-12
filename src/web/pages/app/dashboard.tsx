@@ -11,6 +11,7 @@ import { api } from "@/web/lib/api";
 import { Card, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { ButtonLink } from "@/web/components/ui/button";
 import { DomainStatusBadge, describeAudit } from "@/web/components/app-bits";
+import { auditWho } from "@/shared/audit-caller";
 import { dayPart, formatBytes, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import type { Dashboard } from "@/web/lib/types";
@@ -84,9 +85,10 @@ function OverviewClassic({ embedded }: { embedded?: boolean }) {
             <ul className="mt-3 divide-y divide-line">
               {data.recent.map((e) => {
                 const { verb, object, subject } = describeAudit(e);
+                const who = auditWho(e); // AIS1
                 return (
                   <li key={e.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                    <span className="min-w-0 truncate"><span className="text-muted">{subject ?? e.actorEmail ?? "System"}</span> {verb}{object && <span className="font-medium"> {object}</span>}</span>
+                    <span className="min-w-0 truncate"><span className="text-muted">{subject ?? who.actor ?? "System"}</span> {verb}{object && <span className="font-medium"> {object}</span>}{who.via && <span className="text-subtle"> {who.via}</span>}</span>
                     <time className="shrink-0 text-xs text-subtle" dateTime={e.createdAt}>{timeAgo(e.createdAt)}</time>
                   </li>
                 );

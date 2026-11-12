@@ -136,7 +136,7 @@ export async function createAgentMember(deps: Deps, actor: Actor, input: CreateA
     await deps.db.delete(users).where(eq(users.id, userId));
     throw e;
   }
-  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.created", targetType: "user", targetId: userId, metadata: { name, scope: input.scope ?? "full", via: actor.apiKeyId ? "api" : "app" } });
+  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.created", targetType: "user", targetId: userId, metadata: { name, scope: input.scope ?? "full", via: actor.apiKeyId ? "api" : "app", key: { id: key.apiKey.id, name: key.apiKey.name, prefix: key.apiKey.prefix } } });
   return { member: await getPerson(deps, actor.orgId, userId), apiKey: key.apiKey, secret: key.secret };
 }
 
@@ -157,17 +157,17 @@ export async function createAgentMemberKey(deps: Deps, actor: Actor, userId: str
   assertAdminActor(actor);
   const p = await agentRow(deps, actor.orgId, userId);
   const k = await createApiKey(deps, { orgId: actor.orgId, userId }, { name: clean(input.name, 80) ?? `${p.name} key`, scope: input.scope ?? "full" });
-  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { member: userId } });
+  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { member: userId, name: k.apiKey.name, prefix: k.apiKey.prefix } });
   return k;
 }
 
 export async function revokeAgentMemberKey(deps: Deps, actor: Actor, userId: string, keyId: string) {
   assertAdminActor(actor);
   await agentRow(deps, actor.orgId, userId);
-  const k = await deps.db.select({ id: apiKeys.id }).from(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.createdByUserId, userId))).get();
+  const k = await deps.db.select({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix }).from(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.createdByUserId, userId))).get();
   if (!k) throw notFound("API key");
   await deps.db.delete(apiKeys).where(eq(apiKeys.id, k.id));
-  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.key_revoked", targetType: "api_key", targetId: k.id, metadata: { member: userId } });
+  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.key_revoked", targetType: "api_key", targetId: k.id, metadata: { member: userId, name: k.name, prefix: k.prefix } }); // AIS1: the row is hard deleted, the log keeps its name
 }
 
 /** Removes an agent member and its keys. What it wrote stays, under the name it had. */

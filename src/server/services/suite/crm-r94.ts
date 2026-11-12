@@ -9,7 +9,7 @@ import type { Deps } from "../../context";
 import { bookings, changes, companies, contacts, crmEntries, crmSegments, deals, formSubmissions, forms, meetings, messages } from "../../db/schema";
 import { badRequest, forbidden, notFound } from "../../lib/errors";
 import { addressNeedle, chunkIds, containsLower, endsWithLower, inIds } from "../../lib/sql-chunks";
-import { actorOf, assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, type SuiteActor } from "./common";
+import { actorOf, assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, withCaller, type SuiteActor } from "./common";
 import { dealProbability, ensureCompany, isFreeMail, listContacts, presentContact, type ContactSegmentFilters, type DealStage } from "./contacts";
 import type { CsvContact } from "../../../shared/crm-csv";
 
@@ -450,6 +450,7 @@ export async function importBatch(deps: Deps, a: Actor, rows: CsvContact[], mode
   const inserts: (typeof contacts.$inferInsert)[] = [];
   const feed: (typeof changes.$inferInsert)[] = [];
   const who = actorOf(a);
+  const feedData = JSON.stringify(withCaller(who)); // AIS1: names the key or connected app that imported
   for (const r of list) {
     try {
       let companyId: string | null = null;
@@ -470,20 +471,20 @@ export async function importBatch(deps: Deps, a: Actor, rows: CsvContact[], mode
           ...(r.name ? { name: r.name } : {}), ...(r.phone ? { phone: r.phone } : {}), ...(r.title ? { title: r.title } : {}),
           ...(companyId ? { companyId } : {}), updatedAt: now, version: old.version + 1,
         }).where(eq(contacts.id, old.id));
-        feed.push({ orgId: a.orgId, entityType: "contact", entityId: old.id, op: "update", version: old.version + 1, actorType: who.type, actorId: who.id, actorName: who.name, verb: "updated_from_import", data: "{}" });
+        feed.push({ orgId: a.orgId, entityType: "contact", entityId: old.id, op: "update", version: old.version + 1, actorType: who.type, actorId: who.id, actorName: who.name, verb: "updated_from_import", data: feedData });
         updated++;
         continue;
       }
       if (old && old.deletedAt) {
         await deps.db.update(contacts).set({ deletedAt: null, name: r.name || old.name, ...(r.phone ? { phone: r.phone } : {}), ...(r.title ? { title: r.title } : {}), ...(companyId ? { companyId } : {}), updatedAt: now, version: old.version + 1 }).where(eq(contacts.id, old.id));
-        feed.push({ orgId: a.orgId, entityType: "contact", entityId: old.id, op: "update", version: old.version + 1, actorType: who.type, actorId: who.id, actorName: who.name, verb: "imported", data: "{}" });
+        feed.push({ orgId: a.orgId, entityType: "contact", entityId: old.id, op: "update", version: old.version + 1, actorType: who.type, actorId: who.id, actorName: who.name, verb: "imported", data: feedData });
         created++;
         continue;
       }
       if (!companyId) companyId = await ensureCompany(deps, a, r.email.split("@")[1] ?? "");
       const id = sortableId("con", now.getTime());
       inserts.push({ id, orgId: a.orgId, companyId, name: r.name ?? "", email: r.email, phone: r.phone ?? null, title: r.title ?? null, notes: r.notes ?? "", source: "import", ownerUserId: a.userId || null, messageCount: 0, ...createdBy(a), createdAt: now, updatedAt: now });
-      feed.push({ orgId: a.orgId, entityType: "contact", entityId: id, op: "create", version: 1, actorType: who.type, actorId: who.id, actorName: who.name, verb: "imported", data: "{}" });
+      feed.push({ orgId: a.orgId, entityType: "contact", entityId: id, op: "create", version: 1, actorType: who.type, actorId: who.id, actorName: who.name, verb: "imported", data: feedData });
       created++;
     } catch (err) {
       failed.push({ email: r.email, reason: err instanceof Error ? err.message : "Could not import" });

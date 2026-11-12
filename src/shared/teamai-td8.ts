@@ -15,7 +15,13 @@ export const TEAMAI_CAPS = {
   runsPerPass: 10,
   answerTokens: 600,
   callTimeoutMs: 25_000,
-  keepRunsDays: 30,
+  /**
+   * AIS1 (audit row 15): the run log is kept for a year (it was 30 days). The audit log itself is kept for the life of
+   * the workspace, but a run row holds the answer or draft text (up to draftChars) and a workspace may make runsPerDay
+   * runs, so keeping runs forever would grow without limit on the free plan's database. A year bounds it at
+   * runsPerDay x 365 rows a workspace. Change it here; the prune in services/teamai-td8.ts and the page read it.
+   */
+  keepRunsDays: 365,
   questionChars: 1_000,
   draftChars: 8_000,
   audienceMax: 50,
@@ -28,6 +34,8 @@ export const ROUTINE_OUTPUTS = ["draft", "chat"] as const;
 export type RoutineOutput = (typeof ROUTINE_OUTPUTS)[number];
 export const RUN_STATUSES = ["queued", "running", "done", "skipped", "failed"] as const;
 export type RunStatus = (typeof RUN_STATUSES)[number];
+/** AIS1: the statuses a run ends in, which the year's prune may delete. Every status but queued and running. */
+export const FINISHED_RUN_STATUSES: readonly RunStatus[] = RUN_STATUSES.filter((s) => s !== "queued" && s !== "running");
 export type RunKind = "routine" | "mention" | "try";
 
 export const TRIGGER_LABEL: Record<RoutineTrigger, string> = {

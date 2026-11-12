@@ -439,7 +439,7 @@ function RunsTab({ s }: { s: TeamAiState }) {
   const items = q.data?.runs ?? [];
   return (
     <section aria-label="Run log" className="space-y-3">
-      <p className="text-[13px] text-muted">{s.isAdmin ? "Every run in the last 30 days." : "Your runs and questions in the last 30 days."} Chat answers stay in their channel.</p>
+      <p className="text-[13px] text-muted">{s.isAdmin ? `Every run in the last ${TEAMAI_CAPS.keepRunsDays} days.` : `Your runs and questions in the last ${TEAMAI_CAPS.keepRunsDays} days.`} Chat answers stay in their channel.</p>
       {q.isError && !q.data ? <LoadError onRetry={() => q.refetch()} /> : !q.data ? <Loading label="Loading the run log" /> : !items.length ? (
         <EmptyState title="No runs yet" body="Runs from routines, Try it and chat questions show here." />
       ) : (

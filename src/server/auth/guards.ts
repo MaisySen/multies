@@ -5,6 +5,7 @@ import { and, desc, eq, gt } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "../context";
 import { forbidden, HttpError, unauthorized } from "../lib/errors";
 import { isLostRequestState, withAuthRequestState } from "../lib/request-state";
+import { noteRequestCaller } from "../lib/request-caller";
 import { invitations, members, organizations, sessions, users } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { audit } from "../services/audit";
@@ -249,6 +250,7 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw new HttpError(403, "sso_required", "This workspace requires single sign on. Sign out, then sign in with your company's SSO.");
   }
   c.set("auth", auth);
+  noteRequestCaller(auth); // AIS1: audit entries made in this request carry the IP (lib/request-caller.ts)
   await enforceWorkspaceBudget(c, auth.orgId);
   await next();
 };

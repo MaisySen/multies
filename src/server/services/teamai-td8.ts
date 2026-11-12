@@ -27,7 +27,7 @@ import { openableR98, type RetrievedR98 } from "./search-r98";
 import { teamAiSwitchOn } from "./teamai-gate-td8";
 import { askAi, STRONG_CHAT_MODEL } from "./tools/ai-meter";
 import {
-  TEAMAI_CAPS as CAP, REASON_TEXT, ROUTINE_OUTPUTS, ROUTINE_TRIGGERS, citedNumbers, cleanText, dayStart, mentionsAssistant, nextRunAt, questionOf,
+  TEAMAI_CAPS as CAP, FINISHED_RUN_STATUSES, REASON_TEXT, ROUTINE_OUTPUTS, ROUTINE_TRIGGERS, citedNumbers, cleanText, dayStart, mentionsAssistant, nextRunAt, questionOf,
   FREE_LIMIT_REPLY, freeWindowStart, type InstructionSet, type MemoryEntry, type Routine, type RoutineOutput, type RoutineTrigger, type RunEntry, type RunKind, type RunStatus, type TeamAiState,
 } from "@/shared/teamai-td8";
 
@@ -398,6 +398,8 @@ export async function deleteRun(deps: Deps, a: A, id: string): Promise<{ ok: tru
   if (!isAdmin(a) && r.kind !== "try") throw forbidden("Only workspace admins can do that.");
   if (r.status === "running" || r.status === "queued") throw new HttpError(409, "busy", "This run is still going. Try again in a minute.");
   await deps.db.run(sql`delete from teamai_runs where id = ${r.id} and org_id = ${a.orgId}`);
+  // AIS1 (audit row 15): removing a run from the AI log is itself kept, for the life of the workspace (one row, on a click).
+  await audit(deps.db, { orgId: a.orgId, actorUserId: a.userId || null, actorEmail: a.email, action: "teamai.run_deleted", targetType: "teamai_run", targetId: r.id, metadata: { kind: r.kind, name: r.label, status: r.status, at: new Date(Number(r.created_at)).toISOString() } });
   return { ok: true };
 }
 
@@ -733,7 +735,10 @@ export async function runTeamAiPass(deps: Deps): Promise<{ queued: number; ran: 
   await deps.db.run(sql`update teamai_runs set status = 'failed', reason = 'timeout', input = null, finished_at = ${now} where status = 'running' and started_at < ${now - 10 * 60_000}`);
   const waiting = await deps.db.all<{ id: string }>(sql`select id from teamai_runs where status = 'queued' order by created_at asc limit ${CAP.runsPerPass}`);
   for (const x of waiting) { await processRun(deps, x.id); ran++; }
-  await deps.db.run(sql`delete from teamai_runs where created_at < ${now - CAP.keepRunsDays * 86_400_000} and status not in ('queued', 'running')`);
+  // AIS1: finished runs only, through teamai_runs_status_idx (status, created_at), so a year of runs is not scanned each pass.
+  // FINISHED_RUN_STATUSES is every status but queued and running, so a status added later is pruned too.
+  const finished = sql.join(FINISHED_RUN_STATUSES.map((s) => sql`${s}`), sql`, `);
+  await deps.db.run(sql`delete from teamai_runs where status in (${finished}) and created_at < ${now - CAP.keepRunsDays * 86_400_000}`);
   takePending();
   return { queued, ran };
 }
