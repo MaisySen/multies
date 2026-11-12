@@ -32,6 +32,10 @@ import { useLiveMail } from "@/web/lib/live-mail";
 import { ProviderFolderNav, moveTargets, useProviderFolders } from "./mail/provider-folders";
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
+import { AI_KEY_FIX_PATH } from "@/shared/ai-connect-ai2"; // QUAL1
+
+/** QUAL1: the codes an AI route answers when the provider refused the workspace's key, its credit or its model. */
+const AI_KEY_CODES = new Set(["ai_key_refused", "ai_no_credit", "ai_model_unavailable"]);
 import { MakeTask, MakeTaskBarButton } from "./work/make-task";
 import { AttachmentTools } from "./mail/attachment-tools"; // Tools P1
 import { BatchTools } from "@/web/components/tools/batch-tools"; // Tools P2
@@ -815,15 +819,23 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
 
 const TRIAGE_LABEL: Record<string, string> = { needs_reply: "Needs a reply", invoice: "Invoice", receipt: "Receipt", update: "Update", newsletter: "Newsletter", suspicious: "Looks suspicious" };
 
+/** QUAL1: an AI answer may say built-in AI wrote it because the workspace's own key was refused. */
+type AiFallbackNote = { fallback?: { reason: string; message: string } };
+
 /** Summaries, triage and drafted replies, on the workspace's own AI key (bring your own AI). */
-function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: string) => void }) {
+export function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: string) => void }) { // exported for tests (QUAL1)
   const status = useAiStatus();
-  const summary = useMutation({ mutationFn: () => api.post<{ summary: string; actionItems: string[] }>("/ai/summary", { messageId }), onError: (e) => showError(e) });
-  const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } }>("/ai/triage", { messageId }), onError: (e) => showError(e) });
-  const draft = useMutation({ mutationFn: () => api.post<{ text: string }>("/ai/draft", { messageId }), onSuccess: (r) => onDraft(r.text), onError: (e) => showError(e) });
-  // AI2 (MB-330): a refusal for the switch or the daily limit stays on the page in plain words, not only in a toast.
-  const refused = [summary.error, triage.error, draft.error].find((e) => e instanceof ApiError && (e.code === "ai_off" || e.code === "builtin_ai_limit"));
-  const aiRefusal = refused ? errorMessage(refused) : null;
+  const qc = useQueryClient();
+  // QUAL1 (audit rows 12, 14): a key refusal changes what Settings shows, so the status is read again after one.
+  const onAiError = (e: Error) => { if (e instanceof ApiError && AI_KEY_CODES.has(e.code)) void qc.invalidateQueries({ queryKey: ["ai-status"] }); };
+  const summary = useMutation({ mutationFn: () => api.post<{ summary: string; actionItems: string[] } & AiFallbackNote>("/ai/summary", { messageId }), onError: onAiError });
+  const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } } & AiFallbackNote>("/ai/triage", { messageId }), onError: onAiError });
+  const draft = useMutation({ mutationFn: () => api.post<{ text: string } & AiFallbackNote>("/ai/draft", { messageId }), onSuccess: (r) => onDraft(r.text), onError: onAiError });
+  // AI2 (MB-330), QUAL1 (row 12): every failure stays on the page in plain words with Retry, not only in a toast.
+  const failed = [summary, draft, triage].find((m) => m.isError && m.error);
+  const aiFailure = failed?.error ? errorMessage(failed.error) : null;
+  const failedCode = failed?.error instanceof ApiError ? failed.error.code : null;
+  const fallbackNote = [summary.data, draft.data, triage.data].find((d) => d?.fallback)?.fallback?.message ?? null;
   if (!status.data) return null;
   // AI2 (MB-330): the workspace switch is off, so say so plainly instead of offering buttons that would be refused.
   if (status.data.builtin?.off) {
@@ -857,8 +869,14 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
         <Button size="sm" variant="secondary" loading={summary.isPending} onClick={() => summary.mutate()}>{tr("mail.summarise")}</Button>
         <Button size="sm" variant="secondary" loading={draft.isPending} onClick={() => draft.mutate()}>{tr("mail.draft_a_reply")}</Button>
         <Button size="sm" variant="ghost" loading={triage.isPending} onClick={() => triage.mutate()}>{tr("mail.sort_it")}</Button>
-        <span className="ml-auto text-xs text-subtle">On your {status.data.providerName} key</span>
+        {status.data.connected && !status.data.problem && <span className="ml-auto text-xs text-subtle">On your {status.data.providerName} key</span>}
       </div>
+      {/* QUAL1 (audit row 14): a refused key is never shown as working. */}
+      {status.data.connected && status.data.problem && (
+        <p role="status" data-testid="mail-ai-key-problem" className="mt-3 rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-fg">
+          {status.data.problemMessage}{" "}<Link to={AI_KEY_FIX_PATH} className="font-medium text-brand-hover underline-offset-2 hover:underline">{tr("ai.fix_key")}</Link>
+        </p>
+      )}
       {triage.data && (
         <p className="mt-3 text-sm"><span className={cn("mr-2 rounded border px-1.5 py-0.5 text-xs", triage.data.triage.category === "suspicious" ? "border-bad/50 text-bad" : "border-line text-muted")}>{TRIAGE_LABEL[triage.data.triage.category] ?? triage.data.triage.category}{triage.data.triage.priority === "high" ? ", urgent" : ""}</span>{triage.data.triage.reason}</p>
       )}
@@ -868,7 +886,16 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
           {summary.data.actionItems.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">{summary.data.actionItems.map((a) => <li key={a}>{a}</li>)}</ul>}
         </div>
       )}
-      {aiRefusal && <p role="alert" className="mt-3 text-sm text-muted" data-testid="mail-ai-refused">{aiRefusal}</p>}
+      {fallbackNote && <p className="mt-2 text-xs text-muted" data-testid="mail-ai-fallback">{fallbackNote}</p>}
+      {aiFailure && failed && (
+        <div role="alert" data-testid="mail-ai-refused" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-bad-soft px-3 py-2 text-[13px] text-bad">
+          <span>{aiFailure}</span>
+          <span className="flex gap-2">
+            {failedCode && AI_KEY_CODES.has(failedCode) && <ButtonLink size="sm" variant="ghost" to={AI_KEY_FIX_PATH}>{tr("ai.fix_key")}</ButtonLink>}
+            <Button size="sm" variant="outline" loading={failed.isPending} onClick={() => failed.mutate()} data-testid="mail-ai-retry">{tr("common.retry")}</Button>
+          </span>
+        </div>
+      )}
     </section>
   );
 }

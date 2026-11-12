@@ -12,6 +12,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { auditLabel } from "@/web/components/app-bits";
+import { auditWho } from "@/shared/audit-caller";
 
 export interface AgentInfo {
   id: string; name: string; description: string | null; address: string; inboxId: string;
@@ -113,7 +114,7 @@ function NewAgentDialog({ open, onClose }: { open: boolean; onClose: () => void 
               </Select>}
             </Field>
           </div>
-          <Field label="Before it sends" hint="You can change this any time.">
+          <Field label="Before it sends" hint="It starts at 100 messages a day and writes only to your own verified domains (or just to you until one is verified). Change any of this later under Guardrails.">
             {(p) => <Select {...p} value={mode} onChange={(e) => setMode(e.target.value as AgentInfo["approvalMode"])}>
               <option value="always">A person approves every message</option>
               <option value="external">A person approves mail to outside addresses</option>
@@ -265,13 +266,17 @@ export function AgentDetailPage() {
             <h2 className="text-sm font-semibold">Audit log</h2>
             <p className="mt-1 text-xs text-subtle">Everything this agent did, and every decision people made about it.</p>
             <ol className="mt-3 space-y-2.5 text-sm">
-              {audit.isPending ? <Skeleton className="h-16" /> : !audit.data?.length ? <li className="text-muted">Nothing yet.</li> : audit.data.slice(0, 40).map((e) => (
-                <li key={e.id} className="flex items-start justify-between gap-3">
-                  <span className="min-w-0"><span className="text-muted">{e.actorEmail?.startsWith("agent:") ? a.name : e.actorEmail ?? "Multies"}</span> {auditLabel(e.action)}
-                    {typeof e.metadata?.subject === "string" && <span className="text-subtle"> "{e.metadata.subject}"</span>}</span>
-                  <time className="shrink-0 text-xs text-subtle" dateTime={e.createdAt}>{timeAgo(e.createdAt)}</time>
-                </li>
-              ))}
+              {audit.isPending ? <Skeleton className="h-16" /> : !audit.data?.length ? <li className="text-muted">Nothing yet.</li> : audit.data.slice(0, 40).map((e) => {
+                const who = auditWho(e); // AIS1: which key or connected app it went through
+                return (
+                  <li key={e.id} className="flex items-start justify-between gap-3">
+                    <span className="min-w-0"><span className="text-muted">{e.actorEmail?.startsWith("agent:") ? a.name : who.actor ?? "Multies"}</span> {auditLabel(e.action)}
+                      {typeof e.metadata?.subject === "string" && <span className="text-subtle"> "{e.metadata.subject}"</span>}
+                      {who.via && <span className="text-subtle"> {who.via}</span>}</span>
+                    <time className="shrink-0 text-xs text-subtle" dateTime={e.createdAt}>{timeAgo(e.createdAt)}</time>
+                  </li>
+                );
+              })}
             </ol>
           </Card>
         </div>

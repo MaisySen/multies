@@ -62,6 +62,6 @@ Migrations never roll back, so they are always backward compatible.
 
 ## Versioning
 
-- Web app and API: semantic versioning, one minor version per build round before 1.0.0 (round 10 is 0.10.0). Each deploy also carries a 12 character release id shown on `/api/health` and `/api/config` and in Sentry.
+- Web app and API: semantic versioning, one minor version per build round before 1.0.0 (round 10 is 0.10.0). Each deploy also carries a 12 character release id shown on `/api/config` (and `/api/admin/health` for operators) and in Sentry.
 - Public API: `/api/v1` changes are additive. A breaking change needs a new version path.
 - Mobile app: its own version and build number per store release ([mobile.md](mobile.md)).

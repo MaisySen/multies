@@ -1,11 +1,12 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import fs from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R45 board helper: the windowed board under jump scrolling, keyboard drag past the window, keyboard multi select and
  * Move to sprint in the backlog, and a board with swimlanes under load. Mocked API like ui-r44 (the demo's first task
  * cloned 5,000 times). MEASURE=before only takes the numbers (run against a build of main); RUN=<n> tags the files.
- * PROFILE=1 also writes a CPU profile summary of the jump scroll. Numbers land in /home/user/tab/files/multies-r45/.
+ * PROFILE=1 also writes a CPU profile summary of the jump scroll. Numbers land in SHOTS_ROOT/multies-r45/.
  */
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
@@ -16,7 +17,7 @@ test.setTimeout(240_000);
 const LABEL = process.env.MEASURE === "before" ? "before" : "after";
 const AFTER = LABEL === "after";
 const RUN = process.env.RUN ?? "0";
-const DIR = "/home/user/tab/files/multies-r45";
+const DIR = `${SHOTS_ROOT}/multies-r45`;
 const N = 5000;
 
 async function demo(page: Page) {

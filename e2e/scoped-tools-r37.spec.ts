@@ -1,12 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R37: "Show only the tools this key can use". A key made with picked areas has the option on, shows the
  * tool count and a row chip; the public MCP docs page previews a key's tool list. Shots (before and after,
- * set R37_SHOTS_LABEL) go to /home/user/tab/files/multies-r37/agents.
+ * set R37_SHOTS_LABEL) go to SHOTS_ROOT/multies-r37/agents.
  */
-const SHOTS = process.env.R37_SHOTS ?? "/home/user/tab/files/multies-r37/agents";
+const SHOTS = process.env.R37_SHOTS ?? `${SHOTS_ROOT}/multies-r37/agents`;
 const LABEL = process.env.R37_SHOTS_LABEL ?? "after";
 const ip = () => `10.37.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
 

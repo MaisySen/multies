@@ -326,7 +326,8 @@ function MergeDialog({ open, item, onClose, onDone, onUndo }: { open: boolean; i
   const [busy, setBusy] = useState(false);
   const found = useQuery({
     queryKey: ["triage", "merge-search", term], enabled: open && term.trim().length >= 2,
-    queryFn: async () => (await api.get<{ tasks: Task[] }>(`/tasks?q=${encodeURIComponent(term.trim())}&limit=8&includeSubtasks=true`)).tasks,
+    // AIS1 review: search also finds items waiting in Triage; a duplicate goes into a task that isn't, and never itself.
+    queryFn: async () => (await api.get<{ tasks: TriageItem[] }>(`/tasks?q=${encodeURIComponent(term.trim())}&limit=8&includeSubtasks=true`)).tasks.filter((t) => !t.triage && t.id !== item.id),
   });
   const merge = async (target: Task) => {
     setBusy(true);

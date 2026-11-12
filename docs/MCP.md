@@ -15,6 +15,11 @@ General, AI; it is encrypted at rest.
 ## Signing in
 
 There are two ways in. Both keep every guardrail: agent approval rules, daily send caps and read only access.
+Neither can loosen them: only a person signed in to Multies lowers an agent's approval rule, send cap or allowed
+recipients, resumes an agent, deletes a paused one or one held under 100 sends a day, or approves an agent's
+waiting message (AIS1). Sign-up emails can't
+be set to come from an agent's inbox. An older hook that still does can only be switched off, moved to a team
+mailbox or deleted this way: switching it back on, changing its words or links, or a new signing secret needs a person.
 
 ### OAuth: add Multies by its URL (round 20)
 
@@ -78,14 +83,14 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | --- | --- |
 | `list_inboxes` | List inboxes |
 | `list_threads` | List threads (R31: `split` narrows to an Inbox tab) |
-| `read_thread` | Read a thread |
+| `read_thread` | Read a thread (AIS1: Multies' own mail is `withheld`, as in `wait_for_email`) |
 | `search` | Search mail |
 | `search_everything` | One search across mail, tasks (or a key like OPS-12), docs, chat, contacts and deals, grouped by type. Only what the key can open (read only) |
 | `my_work` | What is waiting today: tasks due today and overdue, mentions, threads on my tasks, approvals waiting, today's meetings (read only) |
 | `send_email` | Send an email |
 | `reply` | Reply in a thread |
-| `wait_for_email` | Wait for new email |
-| `create_agent_inbox` | Create an agent inbox |
+| `wait_for_email` | Wait for new email. AIS1: Multies' own mail (invites, confirmations, resets) comes with `withheld: "platform_mail"`, no codes, links or text; mail from anyone else keeps them |
+| `create_agent_inbox` | Create an agent inbox. It starts safe: a person approves every message, 100 sends a day, only the workspace's own verified domains as recipients. `approvalMode` other than `always` answers `person_only`; a person loosens it in the app (AIS1) |
 | `create_agent_member` | Add an AI agent member (no seat, mailbox optional); returns its first key, shown once. Full workspace key (R26) |
 | `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |
 | `snooze_thread` | Snooze a thread until a time (round 20, registered in src/server/routes/mcp-mail-schedule.ts) |
@@ -100,18 +105,18 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `list_tasks` | List tasks |
 | `get_task` | Get a task |
 | `next_task` | Next task for this agent |
-| `create_task` | Create a task (with `type`, `points` and `sprintId` when wanted) |
-| `update_task` | Update a task, including its type, estimate (`points`) and sprint (`sprintId`, null for the backlog) |
-| `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels, type (task, story, bug) or project (round 21, registered in src/server/routes/mcp-r21-table.ts) |
+| `create_task` | Create a task (with `type`, `points` and `sprintId` when wanted). When the project uses Triage (new projects do), the task waits there for a person, also when made from an email or as a subtask (AIS1) |
+| `update_task` | Update a task, including its type, estimate (`points`) and sprint (`sprintId`, null for the backlog). Moving a task from a project with Triage off into one with Triage on answers `person_only` (AIS1) |
+| `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels, type (task, story, bug) or project; moving tasks from a project with Triage off into one with Triage on answers `person_only` (round 21, registered in src/server/routes/mcp-r21-table.ts) |
 | `comment_on_task` | Comment on a task |
 | `list_projects` | List projects |
 | `set_task_blocked_by` | Set a task as blocked by another; `lagDays` sets a wait after the blocker ends, negative for a lead (R38) |
 | `check_task_schedule` | Date clashes along dependencies: tasks that start before a task they wait on ends, each with `lagDays`, `overlapDays` and `fix { taskId, start, due }`; with `projectId` also the project's schedule rules (R37, R38, `tasks:read`) |
 | `reschedule_task` | Move a task (`start`, `due`) and shift the tasks that wait on it by just enough, keeping their length; `strict: true` moves them all by the same days (R38); `moveDependents: false` moves only this one, `preview: true` changes nothing (R37, `tasks:write`) |
 | `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
-| `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins) |
+| `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins). AIS1: Multies' own mail (invites, confirmations, resets) is in it with its subject and sender only |
 | `list_data_moves` | The last 50 imports and exports with status, progress and whether each can be undone (R38, `admin:read`) |
-| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped (R38, `admin:write`) |
+| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped. Tasks it brings into a project with Triage on wait there for a person (R38, `admin:write`) |
 | `undo_import` | Removes exactly what one import made (R38, `admin:write`) |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |
@@ -122,7 +127,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `set_project_health` | Set a project's health |
 | `update_project` | Rename a project or change its key (a key used by another project, any case, is refused with key_taken; R33) |
 | `list_guests` | List a project's guests |
-| `invite_guest` | Invite a guest to a project |
+| `invite_guest` | Invite a guest to a project. AIS1: the invite email always waits for a person to approve it, and an AI agent's address is refused (`agent_address`) |
 | `list_epics` | List epics with progress: done of total, percent, points when tasks carry points (round 21, registered in src/server/routes/mcp-r21-types.ts) |
 | `get_epic` | One epic with its items and progress (round 21) |
 | `add_to_epic` | Put tasks, stories or bugs in an epic, or take them out with `remove: true` (round 21) |
@@ -139,7 +144,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `read_doc` | Read a doc |
 | `create_doc` | Create a doc |
 | `append_to_doc` | Add to a doc |
-| `docs_append` | Append markdown to a doc (R28): keeps what is there; `ifVersion` fails with `version_conflict` if the doc changed |
+| `docs_append` | Append markdown to a doc (R28): keeps what is there; `ifVersion` fails with `version_conflict` if the doc changed; a line too complex to format (for example thousands of unmatched runs of backticks) stays plain text |
 | `docs_add_block` | Add a table (`rows`, `header`), an image (`url` https, `alt`) or a callout (`text`, `variant` info, success, warning, danger) to the end of a doc (R32); `ifVersion` as for `docs_append` |
 | `search_contacts` | Search contacts |
 | `contact_timeline` | Contact timeline |
@@ -164,7 +169,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `list_goals` | Goals and key results |
 | `create_goal` | Create a goal |
 | `update_key_result` | Record progress on a key result |
-| `list_people` | List people and agents |
+| `list_people` | List people and agents (AIS1: a person member whose address is an AI agent's inbox carries `agentInbox: true`) |
 | `list_agent_members` | AI agent members with avatar, paused state, linked inbox and key count (R26) |
 | `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |
@@ -188,12 +193,12 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `read_chat_thread` | Read a chat thread |
 | `post_message` | Post in a chat channel |
 | `pin_message` | Pin or unpin a chat message |
-| `message_to_task` | Turn a chat message into a task |
+| `message_to_task` | Turn a chat message into a task. It waits in Triage when the project uses it; `triage: true` sends it there anyway |
 | `react_to_chat_message` | Add or take off an emoji reaction on a chat message (write keys) |
 
 ### Triage
 
-New work from mail rules, public forms, incoming hooks or the API can wait in Triage before it becomes a task. Read only keys can list; the rest need a write key.
+New work from mail rules, public forms, incoming hooks, the API or AI apps can wait in Triage before it becomes a task. Read only keys can list; adding needs a write key. Since AIS1 a new project has Triage on, and every task an AI app or a key makes in a project with Triage on waits there: `create_task` (also from an email and as a subtask), `duplicate_task`, `use_template`, `message_to_task`, `checklist_item_to_subtask`, `create_action_items` and `import_file` (also into a new project the import makes). A decision on a task takes its subtasks with it, and undo puts them back. `update_task` and `bulk_update_tasks` can't move a task from a project with Triage off into one with Triage on (`person_only`). A task form made with `create_form` sends its answers to Triage. Only a person turns a project's Triage off. Only a person signed in to Multies decides: `triage_accept`, `triage_decline` and `triage_merge` answer `person_only` for an API key or a connected AI app (AIS1).
 
 | Tool | What it does |
 | --- | --- |
@@ -232,9 +237,28 @@ Give a mail thread an owner, mark it done, list threads by view and read reply t
 | `create_incoming_hook` | Create an incoming webhook |
 
 Agents read only the threads they can open, and anything an agent sends outside Multies still goes
-through its approval rule. Sends and approvals are in the audit log. Thread reads by an agent are in
-the audit log too, rolled up to one entry per agent, thread and hour so a polling agent doesn't fill
-the log (or the database's daily write budget).
+through its approval rule. Sends and approvals are in the audit log. Thread reads with an agent's own key
+are in the audit log too, rolled up to one entry per agent, thread, agent key and hour so a polling agent doesn't
+fill the log (or the database's daily write budget); a workspace key or a connected app reading a thread
+writes no read entry. Each read names the thread by its id and its subject, except a thread in a personal
+mailbox, which keeps only its id: admins read the audit log, and only the mailbox's owner may read that
+mail. A send, queued send, block or approval from a personal mailbox (a reply in a personal thread
+included) likewise has no subject or addresses, only `personal: true` and `recipientCount`. A plain
+member reading the audit log gets no IP and no subject or mail address in an entry's metadata; the
+entry's actor is still shown.
+
+Every entry a tool call writes to the audit log names the key or connected app that made it and carries
+the request's IP. `metadata.caller` names the key (`kind` `workspace_key`, `agent_key` or `agent_member_key`,
+with the key's `key` name and `prefix`) or, for a connected app that signed in with OAuth, `kind`
+`oauth` and the name the app registered with in `app`. When the tool call makes an agent act (`send_email`
+or `reply` with `agentId`), that entry's actor is the agent, so a connected app's `caller` also names whose
+app it was: `user` (the person's id), `person` (their name) and `grant` (the connection's id), shown as
+"via Ada Lee's Acme Assistant (connected app)". The same key reads the same over REST and MCP;
+only an agent's thread read says which one it came over (`metadata.via`, `mcp` or `api`). Workspace
+admins see it in the app as "via Acme Assistant (connected app)" or "via API key Billing bot
+(mm_live_3kf9)", and in the CSV and JSON export. A task made or changed by a tool, moved into an epic or
+sprint, or changed in bulk carries the same `caller` in its history (`get_task`, `activity[].data`).
+See "Audit log: which key or connected app acted" in the REST API reference.
 
 ### Sprints (round 21)
 
@@ -286,7 +310,7 @@ Registered in src/server/routes/mcp-r32-mail.ts. Same service as the web app's s
 | Tool | What it does |
 | --- | --- |
 | `mail_bulk_action` | One action on up to 500 message ids: read, unread, star, unstar, archive, inbox, spam, trash, delete (forever), move (`to`), snooze (`until` or `preset`) or unsnooze. Inverses undo: inbox undoes archive or trash, unread undoes read, unsnooze undoes snooze |
-| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam, trash (delete, undoable), snooze (`snooze_until` or `snooze_preset`; Undo clears it) or move (`to`, a synced folder; R35: Undo moves each message back to the folder it came from). Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed |
+| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam, trash (delete, undoable), snooze (`snooze_until` or `snooze_preset`; Undo clears it) or move (`to`, a synced folder; R35: Undo moves each message back to the folder it came from). Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed. AIS1: a `query` from a key, an agent or a connected app never matches Multies' own mail (invites, confirmations, resets), so a count can't guess its text |
 
 ### Live chat typing (R32)
 
@@ -298,12 +322,12 @@ Registered in src/server/routes/mcp-r32-live.ts.
 
 ### Task triage queue (R32)
 
-Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage page and the v1 triage routes.
+Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage page and the v1 triage routes. Over MCP only snooze and unsnooze work: accept, decline, duplicate and restore answer `person_only`, because a person decides Triage in Multies (AIS1).
 
 | Tool | What it does |
 | --- | --- |
 | `task_triage_list` | Tasks waiting in Triage (from mail, forms, the API and agents), newest first, with the count. `view`: pending (default) or snoozed |
-| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`, at most a year out), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day). `comment`: a one line note written with an accept or decline (the answer carries `comment.id`); `commentId` with restore removes it in the same undo |
+| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`; a key or an AI app may snooze only until 7 days after the item came in, a person up to a year), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day). `comment`: a one line note written with an accept or decline (the answer carries `comment.id`); `commentId` with restore removes it in the same undo |
 
 ### Chat channels (C1)
 
@@ -530,7 +554,7 @@ Registered in src/server/routes/mcp-r28-auth-email-settings.ts, over the same se
 
 | Tool | What it does |
 | --- | --- |
-| `get_auth_email_settings` | The settings (`enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding`, `endpointUrl`, `secret: { set, masked }`, `testSendsLeft`) and the sender mailboxes on verified domains. `settings` is null before the first save. Writes nothing |
+| `get_auth_email_settings` | The settings (`enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding`, `endpointUrl`, `secret: { set, masked }`, `testSendsLeft`, and `fromAllowed`, false when a From saved before AIS1 may no longer send) and the sender mailboxes on verified domains. `settings` is null before the first save. Writes nothing |
 | `update_auth_email_settings` | Create (`from` and `supabaseUrl` needed the first time; that answer carries `secret` once) or change any of `enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding` (merged, null clears), with the API's validation. Audited; a change that changes nothing writes nothing |
 | `regenerate_auth_email_secret` | A new signing secret, returned once as `secret`; the old one stops working at once. Audited without the value |
 | `preview_auth_email` | The email one `type` would send (signup by default), with a sample link and the code 123456, and unsaved `appName` or `branding` merged in. Nothing sent or stored |
@@ -553,7 +577,7 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 
 | Tool | What it does |
 | --- | --- |
-| `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: never), `showWorkspaceName` (default true). Returns the url once. One row written |
+| `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: 30); `null` (never) answers `person_only`, because only a person in Multies makes a link that never expires (AIS1). `showWorkspaceName` (default true). Returns the url once. One row written |
 | `list_share_links` | Active links (not revoked, not expired), newest first; pass `kind` and `targetId` for one doc or project |
 | `revoke_share_link` | Stop a link at once by id; its page then says it is no longer active |
 

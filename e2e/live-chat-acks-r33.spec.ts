@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 33 live chat: a message typed while the socket is reconnecting is held (shown as Sending),
@@ -36,7 +37,7 @@ test("a send during a forced reconnect is held until hello and lands exactly onc
   const pending = page.getByTestId("chat-pending-item").filter({ hasText: body });
   await expect(pending).toBeVisible();
   await expect(pending).toContainText("Sending");
-  const shots = "/home/user/tab/files/multies-r33";
+  const shots = `${SHOTS_ROOT}/multies-r33`;
   mkdirSync(shots, { recursive: true });
   await page.screenshot({ path: `${shots}/chat-sending.png` });
 

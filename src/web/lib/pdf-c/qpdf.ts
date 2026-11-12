@@ -28,7 +28,8 @@ export function qpdfArgs(op: FixOp, opts: { password?: string; encrypt?: Encrypt
 }
 
 export const LOCKED_MESSAGE = "This PDF is locked. Type its current password and try again.";
-export const WRONG_PASSWORD_MESSAGE = "That password is not right. Check it and try again.";
+// Semgrep (QUAL1): an error message, not a password.
+export const WRONG_PASSWORD_MESSAGE = "That password is not right. Check it and try again."; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_password
 
 /** Turns qpdf's exit code and messages into a result or a plain sentence. Exit 3 means it worked with warnings.
  * `ctx.encrypted` and `ctx.password` let a failed open of a locked file read as a wrong password: qpdf writes

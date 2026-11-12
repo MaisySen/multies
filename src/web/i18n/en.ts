@@ -5,6 +5,10 @@
 import type { Bundle } from "./core";
 
 export const en: Bundle = {
+  "ai.badge_key_refused": "Key refused",
+  "ai.badge_model_unavailable": "Model not offered",
+  "ai.badge_no_credit": "No credit",
+  "ai.fix_key": "Fix it in Settings, AI",
   "appearance.language": "Language",
   "appearance.language_draft_note": "This translation is new. Some pages are still in English while we finish them.",
   "appearance.language_hint": "Just for you. Menus, buttons and messages show in this language, and dates and numbers follow it.",
@@ -892,7 +896,7 @@ export const en: Bundle = {
   "tasks.tag": "Tag",
   "tasks.tag_filter": "Tag filter",
   "tasks.tags": "Tags",
-  "tasks.tasks_made_from_mail_rules_and_forms_wait_in_tri": "Tasks made from mail rules and forms wait in Triage until someone accepts them.",
+  "tasks.triage_switch_hint": "Tasks from mail rules, forms, the API and AI apps wait in Triage until a person accepts them. Tasks you add yourself go straight to the board.",
   "tasks.template": "Template",
   "tasks.the_mind_map_shows_one_project_s_tasks_and_subta": "The mind map shows one project's tasks and subtasks. Choose a project above.",
   "tasks.to_do": "To do",

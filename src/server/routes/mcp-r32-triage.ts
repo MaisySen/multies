@@ -1,7 +1,8 @@
 /**
  * R32: task Triage on MCP. task_triage_list reads the queue (or the snoozed items); task_triage_action
  * accepts, declines, snoozes, unsnoozes, marks a duplicate or restores (undo). Same services as the app
- * and POST /api/v1/tasks/{id}/triage.
+ * and POST /api/v1/tasks/{id}/triage. AIS1 (audit row 66): over MCP only snooze and unsnooze work; the
+ * decisions answer person_only.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -25,7 +26,7 @@ export function registerTriageR32Tools(server: McpServer, deps: Deps, actor: Sco
 
   server.registerTool("task_triage_action", {
     title: "Act on a task in Triage", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-    description: "action: accept (optional statusId, status, projectId, assignee member:<id> or agent:<id>), decline (optional reason), snooze (until: ISO date or date-time, at most a year out), unsnooze, duplicate (duplicateOf: the task id it repeats) or restore (undo an accept, decline or duplicate from the last day). comment: a one line note written with an accept or decline (the answer carries comment.id); pass that as commentId with restore to remove it in the same undo.",
+    description: "action: accept (optional statusId, status, projectId, assignee member:<id> or agent:<id>), decline (optional reason), snooze (until: ISO date or date-time, a key or an AI app may snooze only until 7 days after the item came in, a person up to a year), unsnooze, duplicate (duplicateOf: the task id it repeats) or restore (undo an accept, decline or duplicate from the last day). comment: a one line note written with an accept or decline (the answer carries comment.id); pass that as commentId with restore to remove it in the same undo. Only a person signed in to Multies accepts, declines, marks a duplicate or restores: an API key or a connected AI app gets person_only and may snooze or unsnooze.",
     inputSchema: {
       id: z.string(), action: z.enum(TRIAGE_ACTIONS),
       statusId: z.string().optional(), status: z.enum(["todo", "doing", "done"]).optional(), projectId: z.string().optional(), assignee: z.string().nullable().optional(),

@@ -20,7 +20,8 @@ type S = Record<string, any>;
 // Tool, arguments (from what earlier steps returned), and what to keep from the answer for later steps.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each tool answers its own shape
 const STEPS: [string, (s: S) => Args, ((r: any, s: S) => void)?][] = [
-  ["create_agent_inbox", () => ({ name: "Support agent", localPart: "support", approvalMode: "external" }), (r, s) => { s.agentId = r.agent.id; s.agentAddr = r.agent.address; }],
+  // AIS1 (row 4): a key creates agents at "a person approves every message"; "external" would answer person_only.
+  ["create_agent_inbox", () => ({ name: "Support agent", localPart: "support" }), (r, s) => { s.agentId = r.agent.id; s.agentAddr = r.agent.address; }],
   ["list_inboxes", () => ({})],
   ["list_threads", () => ({ limit: 3 }), (r, s) => { s.threadId = (r.data ?? r.threads)[0]?.id; }],
   ["read_thread", (s) => ({ threadId: s.threadId })],
@@ -135,6 +136,9 @@ describe.skipIf(!process.env.CAPTURE_MCP_EXAMPLES)("capture MCP example results 
     for (const [name, argsOf, keep] of STEPS) {
       if (name === "list_threads" && !mailed) {
         mailed = true;
+        // AIS1 (row 51): a new agent may only mail the workspace's own domains; Sam (a person, in the app) lets this
+        // support agent answer customers, so the send examples below go to ada@example.com as before.
+        await c.patch(`/api/agents/${s.agentId}`, { allowedRecipients: null });
         await deliverInbound(ctx.deps, {
           envelopeFrom: "ada@example.com", rcptTo: s.agentAddr, sizeBytes: 400, via: "test",
           email: { messageId: "<inv-1042@example.com>", from: { address: "ada@example.com", name: "Ada Lovelace" }, to: [{ address: s.agentAddr }], cc: [], subject: "Invoice 1042", text: "Hi, could you send invoice 1042 as a PDF? Thanks, Ada", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },

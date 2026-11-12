@@ -254,7 +254,8 @@ async function newFlow(server: ServerSettings, auth: ImapAuth, opts: ImapConnect
     auth: auth.xoauth2 ? { user: auth.user, accessToken: auth.secret } : { user: auth.user, pass: auth.secret },
     logger: false, emitLogs: false, disableAutoIdle: true, connectionTimeout: timeout, greetingTimeout: timeout, socketTimeout: timeout * 3,
     // Only the local test server (MAIL_CONNECT_ALLOW_SELF_SIGNED, never in production) sets this; Workers can't skip the check anyway.
-    ...(opts.allowSelfSigned ? { tls: { rejectUnauthorized: false } } : {}),
+    // Semgrep (QUAL1): only MAIL_CONNECT_ALLOW_SELF_SIGNED sets this, and loadConfig refuses it in production (testOnly).
+    ...(opts.allowSelfSigned ? { tls: { rejectUnauthorized: false } } : {}), // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification
   });
   client.on("error", () => { /* surfaced through the awaited call that failed */ });
   return client;

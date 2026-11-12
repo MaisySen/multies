@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 31 meetings end to end, with the browser's fake camera and microphone: the pre-join screen
@@ -15,7 +16,7 @@ test.use({
 });
 test.describe.configure({ mode: "serial" });
 
-const SHOTS = "/home/user/tab/files/multies-r31";
+const SHOTS = `${SHOTS_ROOT}/multies-r31`;
 let visitor = 0;
 const ip = () => `10.131.${test.info().workerIndex % 200}.${++visitor}`;
 

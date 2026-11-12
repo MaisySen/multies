@@ -36,7 +36,7 @@ export function developerRoutes() {
       // presets keep their pre-R37 behaviour (Full never hides; Read only hides only when asked).
       const showOnlyUsableTools = scope === "full" ? false : scope === "read" ? input.showOnlyUsableTools ?? false : input.showOnlyUsableTools ?? true;
       const out = await createApiKey(deps, auth, { name: input.name, scope, showOnlyUsableTools });
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.created", targetType: "api_key", targetId: out.apiKey.id, metadata: { name: input.name, scope, showOnlyUsableTools }, ip: c.var.ip });
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.created", targetType: "api_key", targetId: out.apiKey.id, metadata: { name: input.name, prefix: out.apiKey.prefix, scope, showOnlyUsableTools }, ip: c.var.ip });
       return c.json(out, 201);
     })
     // R36: edit a key's scopes. Essential write (one row on an admin's click).
@@ -46,13 +46,13 @@ export function developerRoutes() {
       const { auth, deps } = c.var;
       const scope = input.scope === undefined ? undefined : toStoredScope(input.scope);
       const apiKey = await updateApiKeyScope(deps, auth.orgId, c.req.param("id"), scope, input.showOnlyUsableTools);
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.scope_changed", targetType: "api_key", targetId: apiKey.id, metadata: { name: apiKey.name, scope: apiKey.scope, showOnlyUsableTools: apiKey.showOnlyUsableTools }, ip: c.var.ip });
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.scope_changed", targetType: "api_key", targetId: apiKey.id, metadata: { name: apiKey.name, prefix: apiKey.prefix, scope: apiKey.scope, showOnlyUsableTools: apiKey.showOnlyUsableTools }, ip: c.var.ip });
       return c.json({ apiKey });
     })
     .delete("/keys/:id", async (c) => {
       const { auth, deps } = c.var;
       const k = await deleteApiKey(deps, auth.orgId, c.req.param("id"));
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.deleted", targetType: "api_key", targetId: k.id, metadata: { name: k.name }, ip: c.var.ip });
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.deleted", targetType: "api_key", targetId: k.id, metadata: { name: k.name, prefix: k.prefix }, ip: c.var.ip });
       return c.json({ ok: true });
     })
     .get("/webhooks", async (c) => c.json({ endpoints: await listEndpoints(c.var.deps, c.var.auth.orgId) }))

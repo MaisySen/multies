@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R39 timeline polish:
@@ -54,7 +55,7 @@ async function shot(page: Page, name: string) {
   const phase = process.env.SHOTS;
   if (!phase) return;
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `/home/user/tab/files/multies-r39/timeline-${phase}-${name}.png`, fullPage: false });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r39/timeline-${phase}-${name}.png`, fullPage: false });
 }
 
 test("timeline polish: label flips at the right edge, lag drawn on arrows, days off picker", async ({ page }) => {

@@ -26,6 +26,7 @@ import { enqueue, registerJob } from "../jobs";
 import { sendSystemEmail } from "../system-mail";
 import { assertWritable, createdBy, sortableId, type SuiteActor } from "../suite/common";
 import { hash36 } from "../suite/chat-ack-r33"; // R53 (MB-239): stable item ids under an Idempotency-Key
+import { isPersonSession, type CallerLike } from "../../lib/actor-kind";
 import { createDoc } from "../suite/docs";
 import { markdownToDoc } from "../suite/markdown-doc";
 import { invalidateStatuses } from "../suite/read-cache";
@@ -42,7 +43,9 @@ export const MAX_ITEMS = 5_000;
 const STEP_MS = 15_000;
 
 export type MoveKind = "tasks" | "calendar" | "contacts" | "docs" | "workspace";
-type Created = { tasks?: string[]; statuses?: string[]; projects?: string[]; projectCreated?: boolean; meetings?: string[]; contacts?: string[]; docs?: string[]; messages?: string[]; mailboxId?: string };
+type Created = { tasks?: string[]; statuses?: string[]; projects?: string[]; projectCreated?: boolean; meetings?: string[]; contacts?: string[]; docs?: string[]; messages?: string[]; mailboxId?: string;
+  /** AIS1 (row 32): an export a person started in the app; any other (a key, a connected app) withholds Multies' own mail. */
+  byPerson?: boolean };
 
 const parseJson = <T>(s: string | null | undefined, fallback: T): T => { try { return s ? JSON.parse(s) as T : fallback; } catch { return fallback; } };
 
@@ -146,6 +149,7 @@ export async function startExport(deps: Deps, actor: SuiteActor) {
   // Essential write: one row for the run.
   await deps.db.insert(dataMoves).values({
     id, orgId: actor.orgId, kind: "export", source: "workspace", status: "ready", total, done: 0, counts: JSON.stringify(counts),
+    ...(isPersonSession(actor as CallerLike) ? { created: JSON.stringify({ byPerson: true } satisfies Created) } : {}),
     tokenHash: await sha256Hex(token), expiresAt: new Date(now.getTime() + EXPORT_LINK_HOURS * 3600_000),
     createdByUserId: actor.userId || null, createdByEmail: await starterEmail(deps, actor), createdAt: now, updatedAt: now,
   });
@@ -153,6 +157,9 @@ export async function startExport(deps: Deps, actor: SuiteActor) {
   const row = await moveRow(deps, actor.orgId, id);
   return { ...presentMove(row), downloadPath: `/api/data-moves/exports/${id}/download?token=${token}` };
 }
+
+/** AIS1 (row 32): whether this export's ZIP withholds Multies' own mail (it does unless a person started it). */
+export const exportWithholds = (m: { created: string | null }) => parseJson<Created>(m.created, {}).byPerson !== true;
 
 /** Checks a download link. Answers the run and the auth to build the ZIP with, or throws 404 or 410. */
 export async function openExport(deps: Deps, id: string, token: string) {

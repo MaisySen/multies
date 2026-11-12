@@ -328,14 +328,17 @@ export async function aiDraft(deps: Deps, actor: SuiteActor, prompt: unknown) {
   if (gate === "off") throw new HttpError(409, "ai_off", "AI is turned off for this workspace. Paste your questions or import a CSV instead.");
   if (gate === "no_key") throw new HttpError(409, "ai_no_key", "Add your AI key in Settings to draft with AI, or paste your questions or import a CSV instead.");
   let out: string | null;
+  let fallback: { reason: string; message: string } | undefined;
   try {
     const { askWorkspaceAi } = await import("../ai");
-    out = (await askWorkspaceAi(deps, actor.orgId, { system: DRAFT_SYSTEM, user: text, maxTokens: 1200 })).text;
+    const res = await askWorkspaceAi(deps, actor.orgId, { system: DRAFT_SYSTEM, user: text, maxTokens: 1200 });
+    out = res.text;
+    fallback = res.fallback; // QUAL1 review: built-in AI drafted in place of a refused workspace key, and the answer says so
   } catch (err) {
     if (err instanceof HttpError) throw err; // AI off, today's built in limit, or the provider's own refusal, in plain words
     throw new HttpError(502, "ai_failed", "The AI service didn't answer. Try again, or paste your questions instead.");
   }
   const draft = out ? cleanDraft(out) : null;
   if (!draft) throw new HttpError(502, "ai_failed", "The AI answer couldn't be used. Try again with more detail, or paste your questions instead.");
-  return { draft };
+  return { draft, ...(fallback ? { fallback } : {}) };
 }

@@ -214,6 +214,8 @@ describe("contacts from mail", () => {
 
 describe("automations", () => {
   it("makes a task when matching mail arrives, and counts the run", async () => {
+    // AIS1: the first project would start with Triage on, where mail tasks wait; this one has it off.
+    await c.post("/api/projects", { name: "Tasks", triage: false });
     const r = await c.post("/api/automations", { name: "Invoices", trigger: "email_received", conditions: { subjectContains: "invoice" }, action: "create_task", actionConfig: { priority: "high", dueInDays: 2 } });
     expect(r.status).toBe(201);
     await inbound("Invoice INV-204 overdue", "Please pay.");

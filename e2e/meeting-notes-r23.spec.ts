@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 23 (R23.1): schedule a meeting, open its Notes, type an agenda and two action items with an
@@ -62,7 +63,7 @@ test("meeting notes: agenda, action items with @mention and due date, tasks made
   await expect(page.getByTestId("notes-state")).toHaveText("Saved", { timeout: 10_000 });
   await expect(items).toHaveCount(2, { timeout: 10_000 });
 
-  const mkdir = "/home/user/tab/files/multies-r23";
+  const mkdir = `${SHOTS_ROOT}/multies-r23`;
   mkdirSync(mkdir, { recursive: true });
   await page.setViewportSize({ width: 1360, height: 900 });
   await page.getByTestId("meeting-notes").scrollIntoViewIfNeeded();
@@ -72,7 +73,7 @@ test("meeting notes: agenda, action items with @mention and due date, tasks made
   await expect(page.getByTestId("action-item-task")).toHaveCount(2);
   await expect(page.getByTestId("action-item")).toHaveCount(0);
   await expect(page.getByTestId("action-items")).toContainText("2 of 2 are tasks");
-  await page.screenshot({ path: "/home/user/tab/files/multies-r23/notes-created.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r23/notes-created.png` });
 
 
   // The tasks are real, assigned and dated, and show in My Work.

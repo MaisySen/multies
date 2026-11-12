@@ -9,7 +9,7 @@ import { assertMailboxNotHeld } from "../services/mail/archive-r111"; // R111
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { apiReferenceBootJs, apiReferenceHtml } from "../lib/api-reference-page";
 import type { Context, MiddlewareHandler } from "hono";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { mailboxes } from "../db/schema";
 import { claimFreeAddress } from "../services/free-address";
@@ -21,9 +21,11 @@ import { createDomainSchema, mailboxReplyToSchema } from "@/shared/schemas";
 import { resolveApiKey } from "../services/developer/api-keys";
 import { hasScope, insufficientScopeBody, isPresetScope, routeScopeForRequest } from "../lib/api-scopes";
 import { resolveOAuthToken } from "../services/developer/oauth";
+import { noteRequestCaller } from "../lib/request-caller";
 import { WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, listEndpoints } from "../services/developer/webhooks";
 import { createDomain, getDomain, listDomains, presentDomain, verifyDomain } from "../services/domains";
 import { getMessage, getThread, listMessages } from "../services/mail/mailbox-view";
+import { isWithheld, WITHHELD_TEXT, withheldRow, withheldSql, withheldView } from "../services/agents/platform-mail";
 import { sendMessage } from "../services/mail/send";
 import { deprovisionMailbox } from "../services/mailserver";
 import { mailboxScope } from "../services/team";
@@ -133,6 +135,7 @@ const Message = MessageSummary.extend({
   cc: z.array(Address), bcc: z.array(Address), replyTo: z.string().nullable(), text: z.string(), html: z.string().nullable(),
   messageIdHeader: z.string().nullable(), sizeBytes: z.number().int(),
   attachments: z.array(z.object({ id: z.string(), filename: z.string(), contentType: z.string(), sizeBytes: z.number().int(), available: z.boolean() })),
+  withheld: z.literal("platform_mail").optional().openapi({ description: "AIS1: Multies' own mail (an invite, an email confirmation, a password reset). Its text, html, codes and links are hidden from keys and agents; a person reads it in the app." }),
 }).openapi("Message");
 
 const SendRequest = z.object({
@@ -197,6 +200,7 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
+  noteRequestCaller(auth); // AIS1: audit entries and task changes name this key or connected app (lib/request-caller.ts)
   await enforceWorkspaceBudget(c, auth.orgId);
   await next();
 };
@@ -465,11 +469,15 @@ export function v1Routes() {
   async (c) => {
     const { split, ...q } = c.req.valid("query");
     const { splitCond } = await import("../services/mail/splits");
-    const extra = split && q.folder === "inbox" && !q.search ? await splitCond(c.var.deps, c.var.auth as unknown as Parameters<typeof splitCond>[1], split) : undefined;
+    const split_ = split && q.folder === "inbox" && !q.search ? await splitCond(c.var.deps, c.var.auth as unknown as Parameters<typeof splitCond>[1], split) : undefined;
+    // AIS1 (row 32): a key's text search never matches the platform's own mail (a search is an oracle on the text).
+    const systemFrom = c.var.deps.config.systemFrom.address;
+    const extra = q.search?.trim() ? and(split_, sql`not ${withheldSql(systemFrom)}`) : split_;
     // PRIV1a (MB-366): the same mailbox rule as the app (a workspace key opens team mailboxes and its maker's own).
     const scope = await scopeOf(c.var.deps, c.var.auth as unknown as SuiteActor);
     const r = await listMessages(c.var.deps.db, c.var.auth.orgId, { ...q, extra, scope });
-    return c.json({ data: r.messages.map((m) => ({ ...m, date: iso(m.date)! })) as z.infer<typeof MessageSummary>[], nextCursor: r.nextCursor }, 200);
+    // AIS1: a preview stored before the fix may still hold part of a link; the platform's mail shows the notice instead.
+    return c.json({ data: r.messages.map((m) => ({ ...m, ...(isWithheld(undefined, m.from.address, systemFrom) ? { snippet: WITHHELD_TEXT.slice(0, 200) } : {}), date: iso(m.date)! })) as z.infer<typeof MessageSummary>[], nextCursor: r.nextCursor }, 200);
   });
 
   api.openapi(createRoute({ method: "get", path: "/messages/{id}", tags: ["Messages"], summary: "Get a message", security: secured, request: { params: IdParam },
@@ -478,13 +486,15 @@ export function v1Routes() {
     const { deps, auth } = c.var;
     const m = await getMessage(deps.db, auth.orgId, c.req.valid("param").id, await scopeOf(deps, auth as unknown as SuiteActor));
     await logMailboxOpen(deps, auth, m.mailboxId, "opened_thread", m.threadId);
-    const full = (await getThread(deps.db, auth.orgId, m)).find((x) => x.id === m.id);
-    return c.json({ ...full!, date: iso(full!.date)! } as z.infer<typeof Message>, 200);
+    const found = (await getThread(deps.db, auth.orgId, m)).find((x) => x.id === m.id)!;
+    // AIS1 (row 32): a key never gets the text, html, codes or links of the platform's own mail.
+    const full = withheldRow(m, deps.config.systemFrom.address) ? withheldView(found) : found;
+    return c.json({ ...full, date: iso(full.date)! } as z.infer<typeof Message>, 200);
   });
 
-  api.openapi(createRoute({ method: "post", path: "/messages", tags: ["Messages"], summary: "Send a message", description: "Sends from one of your mailboxes. The domain must be verified. Counts toward the plan's daily sending limit.", security: secured,
+  api.openapi(createRoute({ method: "post", path: "/messages", tags: ["Messages"], summary: "Send a message", description: "Sends from one of your mailboxes. The domain must be verified. Counts toward the plan's daily sending limit. An agent's inbox sends only through its agent (`POST /agents/{id}/send`), so its approval rule, daily cap and allowed recipients apply: naming one here answers 403 `agent_inbox`.", security: secured,
     request: body(SendRequest),
-    responses: { 200: json(SendResult, "Where each recipient's copy went."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
+    responses: { 200: json(SendResult, "Where each recipient's copy went."), 401: errors[401], 403: { description: "`agent_inbox`: that mailbox is an agent's inbox; send as the agent. Also a key without the right scope.", content: { "application/json": { schema: ErrorSchema } } }, 404: errors[404], 422: errors[422] } }),
   async (c) => {
     const input = c.req.valid("json");
     const { auth, deps } = c.var;

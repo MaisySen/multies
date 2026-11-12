@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R24.5 Docs tree and backlinks end to end: three pages; drag one onto another to nest it, reorder
@@ -89,8 +90,8 @@ test("nest and reorder pages, link pages and a task, and see Linked from after a
   await expect(linked.getByRole("link", { name: /Launch plan/ })).toBeVisible();
   await expect(linked).toContainText("Media needs are in the Press kit before we ship.");
   await expect(page.getByTestId("doc-breadcrumbs")).toContainText("Launch plan");
-  mkdirSync("/home/user/tab/files/multies-r24", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r24/docs.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r24`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r24/docs.png` });
 
   // Reload: the tree, the breadcrumbs and Linked from all stay.
   await page.reload();

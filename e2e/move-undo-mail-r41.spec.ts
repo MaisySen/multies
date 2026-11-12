@@ -1,6 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R41 move: a mail archive (.mbox) import can be undone from the history like any other import. The 3 messages
@@ -8,7 +9,7 @@ import { mkdirSync } from "node:fs";
  * light and dark) in files/multies-r41.
  */
 test.describe.configure({ mode: "serial" });
-const SHOT_DIR = "/home/user/tab/files/multies-r41";
+const SHOT_DIR = `${SHOTS_ROOT}/multies-r41`;
 let ctx: BrowserContext;
 let page: Page;
 test.beforeAll(async ({ browser }) => {

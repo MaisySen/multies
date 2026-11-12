@@ -29,7 +29,8 @@ async function mcpFor(key: string) {
   return client;
 }
 const data = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
-const project = async () => (await c.post("/api/projects", { name: "Client work" })).body.project as { id: string; key: string };
+// AIS1: new projects start with Triage on; off here so tasks made with a key go straight to the lists read below.
+const project = async () => (await c.post("/api/projects", { name: "Client work", triage: false })).body.project as { id: string; key: string };
 const task = async (projectId: string, title: string, extra: Record<string, unknown> = {}) => (await c.post("/api/tasks", { title, projectId, ...extra })).body.task;
 
 describe("custom fields", () => {

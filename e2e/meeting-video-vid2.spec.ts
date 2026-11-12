@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { confirmEmail } from "./support/confirm-email";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * VID2 end to end on a real local LiveKit dev server (LIVEKIT_URL=ws://localhost, outside production only), with
@@ -14,7 +15,7 @@ import { mkdirSync, readFileSync, rmSync } from "node:fs";
  */
 const LIVE = /^ws:\/\/(localhost|127\.0\.0\.1)/.test(process.env.LIVEKIT_URL ?? "");
 const ON = ["1", "true", "on"].includes(String(process.env.VIDEO_REC_VID2 ?? "").toLowerCase());
-const SHOTS = process.env.SHOTS_DIR ?? "/home/user/tab/files/catalogue/vid2/shots";
+const SHOTS = process.env.SHOTS_DIR ?? `${SHOTS_ROOT}/catalogue/vid2/shots`;
 const TMP = process.env.VID2_TMP ?? "/tmp/vid2-e2e";
 test.skip(!LIVE, "needs the local LiveKit dev server");
 test.describe.configure({ mode: "serial" });

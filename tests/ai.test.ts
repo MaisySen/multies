@@ -119,8 +119,10 @@ describe("AI assistant: bring your own AI", () => {
     await c.put("/api/ai/key", { provider: "openai", apiKey: KEY });
     fakeProvider(() => new Response('{"error":"invalid_api_key"}', { status: 401 }));
     const r = await c.post("/api/ai/triage", { messageId });
-    expect(r.status).toBe(502);
-    expect(r.body.error).toMatchObject({ code: "ai_provider_error", message: "OpenAI did not accept the API key. Check it in Settings." });
+    // QUAL1 (audit rows 12, 14): a refused key is its own 409 code with the sentence Settings shows, not a bare 502.
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatchObject({ code: "ai_key_refused", message: "OpenAI refused your workspace's AI key. An admin can paste a new key in Settings, AI." });
+    expect((await c.get("/api/ai/status")).body).toMatchObject({ connected: true, problem: "key_refused" });
     expect((await c.del("/api/ai/key")).body.connected).toBe(false);
     expect((await c.post("/api/ai/triage", { messageId })).status).toBe(409);
     expect((await c.put("/api/ai/key", { provider: "openai", apiKey: "short" })).status).toBe(422);

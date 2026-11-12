@@ -44,7 +44,7 @@ export const FormCreate = z.object({
   name: z.string().trim().min(1).max(120), description: z.string().max(2000).optional(), target: z.enum(["task", "contact", "review"]).optional(), // R93: review = a call for submissions (Forms plus)
   projectId: z.string().nullable().optional(), assigneeId: z.string().nullable().optional(), fields: z.array(Field).min(1).max(60).optional(), // TD2: 60 items, 30 questions (checked in the service)
   successMessage: z.string().max(500).optional(), enabled: z.boolean().optional(),
-  triage: z.boolean().optional(),
+  triage: z.boolean().optional().openapi({ description: "Answers wait in Triage until a person accepts them. On when left out." }),
   routing: z.array(FormRouteSchema).max(10).optional(), // R31
   td2: z.object({ progress: z.boolean().optional(), oneAtATime: z.boolean().optional() }).optional(), // TD2
 });

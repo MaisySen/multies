@@ -17,7 +17,7 @@ import type { Deps } from "../../context";
 import { activity, changes, tasks } from "../../db/schema";
 import { runBatch } from "../../db";
 import { HttpError, notFound } from "../../lib/errors";
-import { actorOf, assertWritable, sortableId, type SuiteActor } from "./common";
+import { actorOf, assertWritable, sortableId, withCaller, type SuiteActor } from "./common";
 import { inIds } from "../../lib/sql-chunks";
 
 export const TASK_TYPES = ["task", "story", "bug", "epic"] as const;
@@ -195,7 +195,7 @@ async function moveItems(deps: Deps, actor: SuiteActor, epicIdOrRef: string, ids
     statements.push(deps.db.insert(activity).values({
       id: sortableId("act", now.getTime()), orgId: actor.orgId, actorType: a.type, actorId: a.id, actorName: a.name,
       verb: mode === "add" ? "added_to_epic" : "removed_from_epic", entityType: "task", entityId: epic.id,
-      data: JSON.stringify({ ids: moving.map((r) => r.id) }), createdAt: now,
+      data: JSON.stringify(withCaller(a, { ids: moving.map((r) => r.id) })), createdAt: now,
     }));
     await runBatch(deps.db, statements);
     await notifyLiveChanges(deps, actor.orgId, 0); // R47 (MB-139)

@@ -5,6 +5,7 @@ import { and, desc, eq, gt } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "../context";
 import { forbidden, HttpError, unauthorized } from "../lib/errors";
 import { isLostRequestState, withAuthRequestState } from "../lib/request-state";
+import { noteRequestCaller } from "../lib/request-caller";
 import { invitations, members, organizations, sessions, users } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { audit } from "../services/audit";
@@ -61,6 +62,16 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
     }
   }
   if (!member) {
+    // AIS1 (audit row 1): an account made before the fix whose address reaches an AI agent never gets a workspace of
+    // its own either. Only on this no workspace path (a first sign in), never on a member's signed in read: a few
+    // indexed reads. Such a session lands here on every request, so the refusal is flagged once a day, not each time.
+    const { refuseAgentAddress } = await import("../services/agents/agent-address");
+    try {
+      await refuseAgentAddress(deps, s.user.email, { action: "member.join_refused", actorUserId: s.user.id, actorEmail: s.user.email, metadata: { via: "new_workspace" }, oncePerDay: true });
+    } catch (err) {
+      if (err instanceof HttpError) throw forbidden(err.message);
+      throw err;
+    }
     const orgId = newId("org");
     // No zone is assumed: UTC until onboarding saves the person's own (from their browser). The
     // country starts from the edge's guess (Cloudflare's CF-IPCountry) when it is a real country.
@@ -239,6 +250,7 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw new HttpError(403, "sso_required", "This workspace requires single sign on. Sign out, then sign in with your company's SSO.");
   }
   c.set("auth", auth);
+  noteRequestCaller(auth); // AIS1: audit entries made in this request carry the IP (lib/request-caller.ts)
   await enforceWorkspaceBudget(c, auth.orgId);
   await next();
 };

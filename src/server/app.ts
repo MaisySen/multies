@@ -3,12 +3,12 @@ import { productAnalyticsActions } from "./services/product-analytics";
 import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, MCP_TOOLS_MD_PATH, versionJson } from "./routes/web-meta-r32";
 import { crmRoutes } from "./routes/crm-r94"; // R94: CRM timeline
 import { mapsRoutes } from "./routes/maps-r115"; // R115: maps
-import { recordWorkspaceWrites, runMetered, workspaceHealthView } from "./services/workspace-budget";
+import { recordWorkspaceWrites, runMetered } from "./services/workspace-budget";
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
-import { healthView, noteD1LimitHit, readsView, writeBudget } from "./services/write-budget";
-import { deferredCounts } from "./services/write-priority";
+import { noteD1LimitHit, writeBudget } from "./services/write-budget";
+import { publicHealth } from "./services/health"; // QUAL1 (audit row 36)
 import { API_CSP, CAMPAIGN_PUBLIC_CSP, EMBED_FORM_PATH, PRIVATE_PAGE_PATH, appCsp, docsCsp, frameableCsp, isHttps, securityHeaders, snapShareCsp } from "./lib/security-headers";
 import { installCspReport } from "./routes/csp-report-r30";
 import { installMonitoringTunnel } from "./routes/monitoring-tunnel-pol3";
@@ -16,6 +16,7 @@ import type { AppEnv, Deps } from "./context";
 import { HttpError, isNoValuesToSet, nothingToChange } from "./lib/errors";
 import { clientIp, csrfGuard, requireAuth } from "./middleware";
 import { jsonLogger, requestIdFrom } from "./lib/logger";
+import { runWithRequestCaller } from "./lib/request-caller";
 import { rateLimit } from "./lib/rate-limit";
 import { createHash } from "./lib/hash";
 import { accountRoutes } from "./routes/account";
@@ -74,7 +75,6 @@ import { dashboardRoutes } from "./routes/dashboard";
 import { homeWidgetsRoutes } from "./routes/home-widgets-r131"; // R131
 import { toursRoutes } from "./routes/tours-r130"; // R130
 import { PLANS } from "@/shared/plans";
-import { migrationDriver, pendingMigrations } from "./db";
 import { inviteRoutes, teamRoutes } from "./routes/team";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
@@ -131,7 +131,7 @@ import { courseRoutes } from "./routes/courses-r129"; // R129
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { workImportRoutes } from "./routes/work-imports";
 import { dataMoveDownloadRoutes, dataMoveRoutes } from "./routes/data-moves";
-import { systemStatus, uptimeHistory } from "./services/status";
+import { publicStatus, systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 import { authHookWebhookRoutes } from "./routes/auth-hooks";
 import { SECURITY_EMAIL } from "@/shared/trust";
@@ -255,7 +255,8 @@ export function createApp(deps: Deps) {
     c.set("ip", requestIp(clientIp(c), deps.config.auth.localAddresslessUnlimited));
     c.set("requestId", requestId);
     c.set("log", log);
-    await next();
+    // AIS1: audit entries and task changes made in this request carry its IP and who called (lib/request-caller.ts).
+    await runWithRequestCaller(c.var.ip, next);
     c.res.headers.set("x-request-id", requestId);
     // One access line per API request. No query strings (they can carry tokens) and no bodies.
     // R112: anonymous reports write no access line at all (not even the path and status).
@@ -304,8 +305,10 @@ export function createApp(deps: Deps) {
   // a refusal, a limit or a server error there becomes /login?error=... with a Try again button.
   app.use("/api/auth/*", async (c, next) => {
     if (!isAuthNavigation(c.req.method, c.req.path, c.req.raw.headers)) return next();
-    if (c.req.path.startsWith("/api/auth/error")) return c.redirect(authErrorRedirectUrl(c.req.path, 400, c.req.query("error")), 302);
-    try { await next(); } catch (err) { c.var.log?.warn?.("auth_nav_error", { path: c.req.path, error: String(err).slice(0, 200) }); c.res = c.redirect(authErrorRedirectUrl(c.req.path, 500), 302); return; }
+    // Semgrep (QUAL1): not an open redirect. authErrorRedirectUrl always answers /login with a cleaned code, never a URL
+    // from the request (tests/open-redirect-qual1.test.ts).
+    if (c.req.path.startsWith("/api/auth/error")) return c.redirect(authErrorRedirectUrl(c.req.path, 400, c.req.query("error")), 302); // nosemgrep: ajinabraham.njsscan.redirect.open_redirect.express_open_redirect
+    try { await next(); } catch (err) { c.var.log?.warn?.("auth_nav_error", { path: c.req.path, error: String(err).slice(0, 200) }); c.res = c.redirect(authErrorRedirectUrl(c.req.path, 500), 302); return; } // nosemgrep: ajinabraham.njsscan.redirect.open_redirect.express_open_redirect
     const loc = c.res.status >= 300 && c.res.status < 400 ? c.res.headers.get("location") : null;
     const errLoc = loc ? authErrorPageCode(loc) : undefined;
     if (errLoc !== undefined) {
@@ -378,22 +381,10 @@ export function createApp(deps: Deps) {
   }
 
   // Health: the database must be reachable and fully migrated (migrations run at deploy time).
-  let schemaCurrent = false;
+  // QUAL1 (audit row 36): the public answer is { ok, db } only; operators read the detail at /api/admin/health.
   const health = async (c: Context<AppEnv>) => {
-    try {
-      if (!schemaCurrent) {
-        const pending = await pendingMigrations(migrationDriver((deps.db as unknown as { $client: unknown }).$client));
-        // Pending migrations are a deploy step not yet run, not an outage: answer 200 and say so, so
-        // uptime checks page only when the database itself fails. Deploy checks read `db`.
-        if (pending.length) return c.json({ ok: true, degraded: true, mode: deps.config.mode, db: "migrations_pending", pending, release: deps.config.release });
-        schemaCurrent = true;
-      }
-      // The account's D1 writes today (cached five minutes per isolate; absent when the guard is off).
-      const wb = await writeBudget(deps);
-      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { ...healthView(wb, deps.config.writeBudget, deps.now()), deferred: deferredCounts() }, reads: readsView(wb.rowsRead, deps.config.writeBudget) } : {}), workspaces: await workspaceHealthView(deps).catch(() => null) });
-    } catch {
-      return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
-    }
+    const r = await publicHealth(deps);
+    return c.json(r.body, r.status);
   };
   app.get("/api/health", health);
   // R45: production test session for the build team (404 unless the TEST_SESSION_* settings are set; see routes/test-session-r45.ts).
@@ -456,7 +447,8 @@ export function createApp(deps: Deps) {
   app.get("/api/status", async (c) => {
     const [body, history] = await Promise.all([systemStatus(deps), uptimeHistory(deps).catch(() => null)]);
     c.header("cache-control", "public, max-age=30");
-    return c.json({ ...body, history }, body.overall === "down" ? 503 : 200);
+    // QUAL1 (audit row 69): no platform mail volume on the public page (operators: /api/admin/status).
+    return c.json({ ...publicStatus(body), history }, body.overall === "down" ? 503 : 200);
   });
   app.get("/api/config", (c) =>
     c.json({

@@ -1,16 +1,17 @@
 import path from "node:path";
 import Database from "better-sqlite3";
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R46 ui helper.
  * Archive older mail stays offered on an empty Inbox tab (Important empty, Other has mail): the sheet counts the whole
  * Inbox and says so. The sprint header and the backlog selection bar at 390 and 360: one row each, no wrapping, and
  * the selection bar sits at the foot of the screen on a phone like a native toolbar. SHOTS=before|after writes shots to
- * /home/user/tab/files/multies-r46/.
+ * SHOTS_ROOT/multies-r46/.
  */
 const SHOTS = process.env.SHOTS;
-const DIR = "/home/user/tab/files/multies-r46";
+const DIR = `${SHOTS_ROOT}/multies-r46`;
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": `10.146.${test.info().workerIndex % 200}.${++visitor}` });

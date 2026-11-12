@@ -99,10 +99,12 @@ Results for each item are in docs/qa/report.md.
 
 - GET `/api/admin/abuse`
 - POST `/api/admin/abuse/resolve`
+- GET `/api/admin/health`
 - GET `/api/admin/jobs`
 - POST `/api/admin/jobs/replay`
 - GET `/api/admin/overview`
 - POST `/api/admin/sentry-test`
+- GET `/api/admin/status`
 - GET `/api/admin/users`
 - DELETE `/api/admin/users/:id`
 - PUT `/api/admin/workspaces/:id/send-cap`

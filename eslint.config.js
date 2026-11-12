@@ -6,7 +6,10 @@ import globals from "globals";
 export default tseslint.config(
   // mobile/ is the Expo app, merged from the mobile branch, with its own lint and tests.
   // deploy/auth0: scripts that run inside the identity provider (its globals, not ours); tests/auth0-legacy-migration.test.ts runs them.
-  { ignores: ["dist", ".wrangler", "node_modules", "drizzle", "coverage", "src/server/db/migrations.generated.ts", "mobile", "deploy/auth0"] },
+  // Third party bundles copied in as they ship (THIRD_PARTY_NOTICES.md): public/vendor (libarchive worker, qpdf, and the
+  // API reference renderer that scripts/restore-vendor.mjs rebuilds there) and the libarchive loader under convert/vendor.
+  // They are minified upstream code, not ours to restyle; their own .d.ts files stay linted.
+  { ignores: ["dist", ".wrangler", "node_modules", "drizzle", "coverage", "src/server/db/migrations.generated.ts", "mobile", "deploy/auth0", "public/vendor", "src/web/lib/convert/vendor/**/*.js"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -15,7 +18,9 @@ export default tseslint.config(
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      // caughtErrorsIgnorePattern: scripts/widget-src.js runs on customer sites in old browsers too, so it keeps
+      // catch (_e) rather than the newer bare catch {}.
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
     },
   },
   // R39: CommonJS helper scripts (the e2e shot scripts under e2e/support) load with require by design.

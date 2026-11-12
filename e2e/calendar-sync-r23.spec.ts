@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import { mkdirSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { sydneyMonth } from "./support/sydney-month";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 23 (R23.4) end to end: Settings > Calendar turns on a personal feed whose .ics holds a meeting
@@ -131,8 +132,8 @@ test("calendar feed with a meeting, reset, and a calendar link shown read only o
   // Read only: clicking it opens nothing.
   await cal.getByText("Grandma visits").click();
   await expect(page).toHaveURL(/view=calendar/);
-  mkdirSync("/home/user/tab/files/multies-r23", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r23/calendar.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r23`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r23/calendar.png` });
   // Toggle the layer off.
   await bar.getByRole("button", { name: "Hide Family" }).click();
   await expect(cal.getByText("Grandma visits")).toHaveCount(0);

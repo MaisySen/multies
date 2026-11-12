@@ -7,6 +7,7 @@ import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/
 import { Button } from "@/web/components/ui/button";
 import { useConfig, useMe } from "@/web/lib/queries";
 import { AUDIT_AREAS } from "@/shared/mail-archive";
+import { auditWho } from "@/shared/audit-caller";
 import { Input, Select } from "@/web/components/ui/input";
 import { describeAudit } from "@/web/components/app-bits";
 import { fullDate, timeAgo } from "@/web/lib/format";
@@ -132,9 +133,10 @@ function Audit({ query = "" }: { query?: string }) {
     <Card className="divide-y divide-line">
       {rows.map((e) => {
         const { verb, object, subject } = describeAudit(e);
+        const who = auditWho(e); // AIS1: a key by name and prefix, a connected app by name
         return (
           <div key={e.id} className="flex flex-col gap-1 px-4 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between">
-            <span className="min-w-0"><span className="font-medium">{subject ?? e.actorEmail ?? "System"}</span> <span className="text-muted">{verb}</span>{object && <span className="font-medium"> {object}</span>}</span>
+            <span className="min-w-0"><span className="font-medium">{subject ?? who.actor ?? "System"}</span> <span className="text-muted">{verb}</span>{object && <span className="font-medium"> {object}</span>}{who.via && <span className="text-subtle"> {who.via}</span>}</span>
             <span className="flex shrink-0 items-center gap-3 text-xs text-subtle">{e.ip && e.ip !== "unknown" && <span className="font-mono">{e.ip}</span>}<time dateTime={e.createdAt} title={fullDate(e.createdAt)}>{timeAgo(e.createdAt)}</time></span>
           </div>
         );

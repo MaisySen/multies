@@ -14,7 +14,7 @@
  * a normal non demo workspace with no domain and no mailbox; the worker refuses to mint otherwise. Each mint replaces
  * the last test session. Every mint is in the workspace's audit log. The token and the cookie are written to mode 600
  * files under ~/.multies-secrets and never printed; secrets reach wrangler through a mode 600 file, never argv.
- * It checks /api/health D1 reads first and refuses at 50% or more of the daily budget.
+ * It checks the D1 reads on /api/admin/health first (MULTIES_OPERATOR_COOKIE) and refuses at 50% or more of the daily budget.
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -24,7 +24,8 @@ import path from "node:path";
 
 const DB = "mymail-au";
 const BASE = process.env.PROD_BASE ?? "https://multies.si";
-export const USER_ID = "usr_prodqa45a1b2c3", ORG_ID = "org_prodqa45a1b2c3", MEMBER_ID = "mem_prodqa45a1b2c3";
+// Semgrep (QUAL1): row ids of the production QA account, not credentials.
+export const USER_ID = "usr_prodqa45a1b2c3", ORG_ID = "org_prodqa45a1b2c3", MEMBER_ID = "mem_prodqa45a1b2c3"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_username
 // The test user's address lives in the database row (made once); a fresh setup reads it from PROD_QA_EMAIL.
 const EMAIL = process.env.PROD_QA_EMAIL ?? "prodqa@example.com";
 const DIR = path.join(os.homedir(), ".multies-secrets");
@@ -44,13 +45,15 @@ function wrangler(argv, label) {
   if (r.status !== 0) throw new Error(`${label} failed: ${scrub(r.stderr || r.stdout).slice(-600)}`);
 }
 
-const health = await (await fetch(`${BASE}/api/health`)).json().catch(() => ({}));
+// QUAL1 (audit row 36): the reads count is on /api/admin/health, for platform operators only (MULTIES_OPERATOR_COOKIE).
+const health = await (await fetch(`${BASE}/api/admin/health`, { headers: { cookie: process.env.MULTIES_OPERATOR_COOKIE || "" } })).json().catch(() => ({}));
 const readsPct = Number(health?.reads?.pct ?? NaN);
-if (!Number.isFinite(readsPct)) { console.error("could not read /api/health reads: refusing"); process.exit(3); }
+if (!Number.isFinite(readsPct)) { console.error("could not read /api/admin/health reads (set MULTIES_OPERATOR_COOKIE to a platform operator's session cookie): refusing"); process.exit(3); }
 if (readsPct >= 50) { console.error(`D1 reads at ${readsPct}% of the daily budget: refusing`); process.exit(3); }
 
 if (args.has("--off")) {
-  wrangler(["secret", "delete", "TEST_SESSION_TOKEN", "--env", ""], "secret delete");
+  // Semgrep (QUAL1): the name of a Worker secret being deleted, not its value.
+  wrangler(["secret", "delete", "TEST_SESSION_TOKEN", "--env", ""], "secret delete"); // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
   rmSync(OUT, { force: true });
   console.log(JSON.stringify({ off: true }));
   process.exit(0);
@@ -69,7 +72,8 @@ if (args.has("--setup")) {
   mkdirSync(DIR, { recursive: true, mode: 0o700 });
   writeFileSync(TOKEN_FILE, JSON.stringify({ base: BASE, token }), { mode: 0o600 });
   const bulk = tmpFile("secrets.json", JSON.stringify({ TEST_SESSION_TOKEN: token, TEST_SESSION_USER_ID: USER_ID, TEST_SESSION_ORG_ID: ORG_ID }));
-  try { wrangler(["secret", "bulk", bulk.file, "--env", ""], "secret bulk"); } finally { bulk.done(); }
+  // Semgrep (QUAL1): uploads a temporary file written at run time; no value here.
+  try { wrangler(["secret", "bulk", bulk.file, "--env", ""], "secret bulk"); } finally { bulk.done(); } // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
   console.log(JSON.stringify({ setup: true, user: USER_ID, org: ORG_ID }));
   process.exit(0);
 }

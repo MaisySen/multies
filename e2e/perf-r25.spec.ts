@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R25 API speed end to end: the task list renders from the faster reads, a renamed status shows at
@@ -60,7 +61,7 @@ test("task list after a status rename and a formula change, and a 304 for an unc
   await page.reload();
   await expect(page.getByRole("gridcell", { name: "Status" }).filter({ hasText: /^Up next$/ }).first()).toBeVisible();
   await expect(page.getByText("Refresh product screenshots").first()).toBeVisible();
-  mkdirSync("/home/user/tab/files/multies-r25", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r25/r25-perf.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r25`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r25/r25-perf.png` });
   await ctx.close();
 });

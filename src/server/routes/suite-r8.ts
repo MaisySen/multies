@@ -15,7 +15,7 @@ import { fromB64 } from "../lib/crypto";
 import { createField, createWorkspaceField, deleteField, deleteWorkspaceField, listFields, listWorkspaceFields, updateField, updateWorkspaceField } from "../services/suite/fields";
 import { portfolio } from "../services/suite/portfolio";
 import {
-  acceptInvite, addFile, GUEST_COOKIE, GUEST_SESSION_DAYS, guestComment, guestDoc, guestHome, guestTaskDetail, inviteGuest, listFiles, listGuests, newGuestLink, readFile, resolveGuest, revokeGuest,
+  acceptInvite, addFile, confirmGuest, GUEST_COOKIE, GUEST_SESSION_DAYS, guestComment, guestDoc, guestHome, guestTaskDetail, inviteGuest, listFiles, listGuests, newGuestLink, readFile, resolveGuest, revokeGuest,
   type GuestContext,
 } from "../services/suite/guests";
 import { assertCoursesOn, courseDetail, lessonPage } from "../services/courses-r129"; // R129
@@ -88,6 +88,8 @@ export function guestAdminRoutes() {
     })
     // R58 (MB-253): a new link to share by hand when the invite email did not reach the guest. No email is sent.
     .post("/:id/link", async (c) => c.json(await newGuestLink(c.var.deps, c.var.auth, c.req.param("id"))))
+    // AIS1 (audit row 1): a person sends a guest invite that a key or a connected app made.
+    .post("/:id/confirm", async (c) => c.json(await confirmGuest(c.var.deps, c.var.auth, c.req.param("id"))))
     .delete("/:id", async (c) => c.json(await revokeGuest(c.var.deps, c.var.auth, c.req.param("id"))));
 }
 

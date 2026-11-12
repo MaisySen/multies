@@ -12,7 +12,7 @@ your shell, never write them into the repo.
 
 - [ ] `main` has every commit you mean to ship, and the checks in [../sdlc.md](../sdlc.md) pass on it.
 - [ ] A schema change has a backward compatible migration (`npm run db:generate`). After merging branches that each add one, keep `drizzle/meta/_journal.json` in number order and rerun `npx tsx scripts/bundle-migrations.ts`.
-- [ ] D1 writes: check `writes.level` on `/api/health` is `ok` before a migration that rebuilds indexes ([d1-daily-limits.md](d1-daily-limits.md)).
+- [ ] D1 writes: check `writes.level` on `/api/admin/health` (signed in as a platform operator) is `ok` before a migration that rebuilds indexes ([d1-daily-limits.md](d1-daily-limits.md)). The public `/api/health` answers only `{ "ok": true, "db": "ok" }` since QUAL1.
 - [ ] New environment variables are in `.env.example` and `wrangler.toml`, or set with `wrangler secret put` for staging and production.
 - [ ] Before every production deploy, record the Time Travel bookmark (`npx wrangler d1 time-travel info mymail-au`) in the deploy log ([db-backup-restore.md](db-backup-restore.md)). Prefer the bookmark at any hour: it restores to any minute of the last 30 days and blocks nothing. Owner rule (27 Oct 2026): if a full `wrangler d1 export` of production is truly needed, run it only between 07:00 and 21:00 UTC (outside Sydney business hours), never between 21:00 and 07:00 UTC. An export blocks every other query on the database while it runs.
 - [ ] Email worker: deploy `email-worker/` only from a checkout whose `MYMAIL_ROUTES` carries the current inbound key ids. An old key id makes support@ and security@ bounce. After any email worker deploy or key rotation, send a test mail to security@multies.si and check that it arrives.
@@ -32,7 +32,7 @@ RELEASE=$RELEASE npm run build:worker
 
 Then run the local E2E smoke against this build (`npx playwright test e2e/smoke.spec.ts` plus the specs for what changed). Type checks and unit tests do not load the bundled chunks: in R32 a new editor dependency (`fast-equals`) landed outside the `vendor-editor` chunk in `vite.config.ts`, the two chunks imported each other, and the docs editor failed on load ("reading 'create'") while tsc and vitest were green. A new dependency of the editor, chart or calendar code goes in the matching vendor regex.
 
-`RELEASE` is the 12 character release id that `/api/health`, `/api/config` and Sentry report. It is
+`RELEASE` is the 12 character release id that `/api/config`, `/api/admin/health` (operators) and Sentry report. It is
 normally the commit's short hash; if you use another id, write down the commit it maps to.
 
 ## 2. Staging
@@ -66,7 +66,7 @@ shared with production, and no app code change, so production is untouched):
   first. The session lasts 30 days and rolls forward daily while used; run it again if the GETs script says so.
 - `python3 scripts/staging-signed-gets.py 50` makes 50 signed in GETs over the hot routes with that session and prints
   the status counts and empty 503s (exit 1 on any non 200, 2 when the session needs reseeding). It checks prod
-  `/api/health` reads first and refuses at 50% or more. Never point it at prod.
+  D1 reads on `/api/admin/health` first (set `MULTIES_OPERATOR_COOKIE` to a platform operator's session cookie) and refuses at 50% or more. Never point it at prod.
 
 Sign in client login URI: since R42 the "Multies Staging" client's login URI is
 `https://preview.multies.si/login?confirmed=1`, the same pattern as production's `https://multies.si/login?confirmed=1`

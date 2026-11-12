@@ -32,6 +32,7 @@ import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { initials, mailDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task } from "./data";
+import { callerStampOf, viaLabel } from "@/shared/audit-caller";
 import { recordRecent } from "@/web/lib/palette-recents"; // R36
 import { LagChip } from "./schedule-r38"; // R38: lead and lag per link
 import { AskAboutButton } from "@/web/components/ask-about-td1"; // TD1
@@ -41,6 +42,12 @@ const VERBS: Record<string, string> = {
   commented: "commented", email_received: "replied on the thread", email_sent: "replied on the thread", doc_linked: "linked a doc", deleted: "deleted it",
 };
 const dateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
+
+/** AIS1 (audit row 50): "via Claude (connected app)" on a history line made through a key or a connected AI app. */
+function ActivityVia({ data }: { data: ActivityEntry["data"] }) {
+  const stamp = callerStampOf(data?.caller);
+  return stamp ? <span className="text-subtle"> {viaLabel(stamp)}</span> : null;
+}
 
 export function describeActivity(a: ActivityEntry) {
   if (a.verb === "moved" && a.data.status && typeof a.data.status === "object") return `moved it to ${(a.data.status as { name: string }).name}`;
@@ -303,7 +310,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
               {q.data!.activity.slice(0, 20).map((a) => (
                 <li key={a.id} className="flex items-center gap-2 text-[12.5px] text-muted">
                   {a.actor.type === "agent" ? <IconAgent className="h-3.5 w-3.5 text-brand-hover" /> : a.actor.type === "system" ? <IconCalendar className="h-3.5 w-3.5" /> : <IconUser className="h-3.5 w-3.5" />}
-                  <span><span className="text-fg">{a.actor.name ?? "Someone"}</span> {describeActivity(a)}</span>
+                  <span><span className="text-fg">{a.actor.name ?? "Someone"}</span> {describeActivity(a)}<ActivityVia data={a.data} /></span>
                   <span className="ml-auto shrink-0 text-subtle">{timeAgo(a.at)}</span>
                 </li>
               ))}
@@ -452,7 +459,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
               {q.data!.activity.slice(0, 20).map((a) => (
                 <li key={a.id} className="flex items-center gap-2 text-[12.5px] text-muted">
                   {a.actor.type === "agent" ? <IconAgent className="h-3.5 w-3.5 text-brand-hover" /> : a.actor.type === "system" ? <IconCalendar className="h-3.5 w-3.5" /> : <IconUser className="h-3.5 w-3.5" />}
-                  <span><span className="text-fg">{a.actor.name ?? "Someone"}</span> {describeActivity(a)}</span>
+                  <span><span className="text-fg">{a.actor.name ?? "Someone"}</span> {describeActivity(a)}<ActivityVia data={a.data} /></span>
                   <span className="ml-auto shrink-0 text-subtle">{timeAgo(a.at)}</span>
                 </li>
               ))}

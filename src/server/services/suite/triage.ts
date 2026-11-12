@@ -4,10 +4,19 @@
  * triage_state = "pending": it keeps its number, but lists, boards, My Work, reports and counts leave it
  * out until someone accepts it. Accept clears the flag in the same write as any other change; decline
  * soft deletes the item (and can send the sender a short reply); merge folds it into an existing task.
+ *
+ * AIS1 (audit row 66): Triage is a human check. Accept, decline, merge (and restore, in triage-r32.ts) need a person
+ * signed in to Multies; an API key or a connected AI app gets 403 person_only. Keys can still add items, read the
+ * queue and snooze.
+ *
+ * AIS1 review: a key's or an AI app's subtasks wait with their parent (a copy, a template, an import). A decision on
+ * the parent takes its direct subtasks with it: accept brings the waiting ones in, decline and merge remove them all
+ * (as a delete does), and restore in triage-r32.ts puts them back.
  */
-import { and, count, eq, isNull, lte, or } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { organizations, taskComments, tasks } from "../../db/schema";
+import { requirePerson } from "../../lib/actor-kind";
 import { HttpError } from "../../lib/errors";
 import { actorOf, assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { emitEvent } from "../developer/webhooks";
@@ -23,6 +32,12 @@ export type TriageSource = "mail" | "form" | "api" | "chat" | "agent";
 export const BULK_LIMIT = 100;
 
 const notFound = () => new HttpError(404, "not_found", "Triage item not found.");
+
+/** AIS1: what every Triage decision checks first: a write key's scope (read_only_key), then that a person decides. */
+export function assertDecider(actor: SuiteActor, what = "Accepting, declining or merging a Triage item") {
+  assertWritable(actor);
+  requirePerson(actor, what);
+}
 
 async function pendingRow(deps: Deps, actor: SuiteActor, id: string) {
   if (typeof id !== "string" || !id) throw notFound();
@@ -72,9 +87,38 @@ export async function createTriageItem(deps: Deps, actor: SuiteActor, input: Cre
 
 export interface AcceptInput { projectId?: string; assignee?: Assignee | null; statusId?: string; status?: Category; priority?: Priority; due?: string | null }
 
+/**
+ * AIS1 review: `cascaded` collects the subtasks a decision on their parent also decided, so a bulk call counts them
+ * done. Accept leaves the ids in `leave` alone: a bulk accept gives each item it names the same options itself.
+ */
+export interface DecideOpts { cascaded?: Set<string>; leave?: Set<string> }
+
+/** Live direct subtasks of an item; with `waiting`, only those still pending. One read on the parent index. */
+function children(deps: Deps, actor: SuiteActor, parentId: string, waiting: boolean) {
+  return deps.db.select({ id: tasks.id, snoozed: tasks.triageSnoozedUntil }).from(tasks)
+    .where(and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, parentId), isNull(tasks.deletedAt), waiting ? eq(tasks.triageState, "pending") : undefined));
+}
+
+/**
+ * Decline and merge remove the item's live direct subtasks that came through Triage with it, at the same time, so
+ * restore finds them again. AIS1 second review: a subtask that never came through Triage (a person's own task that
+ * was put under the item) is not part of what was declined, so it stays and only leaves the item (parentId null).
+ */
+async function removeChildren(deps: Deps, actor: SuiteActor, parentId: string, now: Date, opts: DecideOpts) {
+  const rows = await deps.db.select({ id: tasks.id, src: tasks.triageSource, state: tasks.triageState }).from(tasks)
+    .where(and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, parentId), isNull(tasks.deletedAt)));
+  if (!rows.length) return;
+  const viaTriage = (r: { src: string | null; state: string | null }) => !!r.src || r.state === "pending";
+  const live = and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, parentId), isNull(tasks.deletedAt));
+  const bump = { updatedAt: now, version: sql`${tasks.version} + 1` };
+  if (rows.some(viaTriage)) await deps.db.update(tasks).set({ deletedAt: now, ...bump }).where(and(live, or(isNotNull(tasks.triageSource), eq(tasks.triageState, "pending"))));
+  if (rows.some((r) => !viaTriage(r))) await deps.db.update(tasks).set({ parentId: null, ...bump }).where(and(live, isNull(tasks.triageSource), or(isNull(tasks.triageState), ne(tasks.triageState, "pending"))));
+  for (const r of rows) if (viaTriage(r)) opts.cascaded?.add(r.id);
+}
+
 /** Makes the item a normal task. Every change rides the one task update that clears the flag. */
-export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, input: AcceptInput = {}) {
-  assertWritable(actor);
+export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, input: AcceptInput = {}, opts: DecideOpts = {}) {
+  assertDecider(actor);
   const t = await pendingRow(deps, actor, id);
   if (t.triageSnoozedUntil) await deps.db.update(tasks).set({ triageSnoozedUntil: null }).where(eq(tasks.id, t.id));
   const patch: Parameters<typeof updateTask>[3] = { triage: null };
@@ -85,6 +129,14 @@ export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, in
   if (input.priority !== undefined) patch.priority = input.priority;
   if (input.due !== undefined) patch.due = input.due;
   const task = await updateTask(deps, actor, t.id, patch);
+  // AIS1 review: its waiting subtasks come in with it (the options above, apart from the project, are for the item itself).
+  for (const c of await children(deps, actor, t.id, true)) {
+    if (opts.leave?.has(c.id)) continue;
+    if (c.snoozed) await deps.db.update(tasks).set({ triageSnoozedUntil: null }).where(eq(tasks.id, c.id));
+    // AIS1 second review: an accept into another project takes them there too, so they don't stay behind.
+    await updateTask(deps, actor, c.id, { triage: null, ...(input.projectId ? { projectId: input.projectId } : {}) });
+    opts.cascaded?.add(c.id);
+  }
   await emitTriage(deps, actor, "triage.accepted", { task, source: t.triageSource ?? null });
   return task;
 }
@@ -107,12 +159,13 @@ export function isNoReply(address: string) {
 export interface DeclineInput { reason?: string; reply?: boolean; message?: string }
 
 /** Declines an item: soft deletes it with the reason, and can send the sender a short polite reply (off unless asked). */
-export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, input: DeclineInput = {}) {
-  assertWritable(actor);
+export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, input: DeclineInput = {}, opts: DecideOpts = {}) {
+  assertDecider(actor);
   const t = await pendingRow(deps, actor, id);
   const now = deps.now();
   const reason = (input.reason ?? "").trim().slice(0, 500);
   await deps.db.update(tasks).set({ deletedAt: now, triageState: null, triageSnoozedUntil: null, triageReason: reason || null, updatedAt: now, version: t.version + 1 }).where(eq(tasks.id, t.id));
+  await removeChildren(deps, actor, t.id, now, opts); // AIS1 review: its subtasks go with it
   await recordWrite(deps, actor, {
     entityType: "task", entityId: t.id, op: "delete", version: t.version + 1, verb: "triage_declined",
     data: { title: t.title, ...(reason ? { reason } : {}) }, event: "task.deleted", eventData: { id: t.id },
@@ -141,7 +194,7 @@ export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, i
  * moves to the target (so replies show there) and the item is deleted.
  */
 export async function mergeTriage(deps: Deps, actor: SuiteActor, id: string, targetId: string) {
-  assertWritable(actor);
+  assertDecider(actor);
   const t = await pendingRow(deps, actor, id);
   if (!targetId || targetId === t.id) throw new HttpError(422, "validation_failed", "Pick another task to merge into.");
   const target = await getTask(deps, actor, targetId);
@@ -160,6 +213,7 @@ export async function mergeTriage(deps: Deps, actor: SuiteActor, id: string, tar
   }).where(eq(tasks.id, target.id));
   if (t.threadId && !takeThread) await link(deps, actor.orgId, { type: "task", id: target.id }, { type: "thread", id: t.threadId }, "merged");
   await deps.db.update(tasks).set({ deletedAt: now, triageState: null, triageSnoozedUntil: null, duplicateOf: target.id, updatedAt: now, version: t.version + 1 }).where(eq(tasks.id, t.id));
+  await removeChildren(deps, actor, t.id, now, {}); // AIS1 review: its subtasks go with it
   await recordWrite(deps, actor, {
     entityType: "task", entityId: target.id, op: "update", version: target.version, verb: "triage_merged",
     data: { from: t.id, title: t.title, commentId, ...(takeThread ? { threadId: t.threadId } : {}) }, event: "task.commented",
@@ -175,15 +229,20 @@ export interface BulkInput { ids: string[]; action: "accept" | "decline"; accept
 
 /** Accept or decline several items at once (at most 100). Each item reports on its own. */
 export async function bulkTriage(deps: Deps, actor: SuiteActor, input: BulkInput) {
-  assertWritable(actor);
+  // AIS1: a key is refused for the whole call (a 200 with every item failed reads as success to a script).
+  assertDecider(actor);
   const ids = [...new Set(input.ids ?? [])];
   if (!ids.length) throw new HttpError(422, "validation_failed", "Pick at least one item.");
   if (ids.length > BULK_LIMIT) throw new HttpError(422, "validation_failed", `Pick at most ${BULK_LIMIT} items at a time.`);
   const results: { id: string; ok: boolean; error?: string }[] = [];
+  // AIS1 review: a subtask its parent's decision already took counts as done, not as "not found".
+  const cascaded = new Set<string>();
+  const leave = new Set(ids);
   for (const id of ids) {
     try {
-      if (input.action === "accept") await acceptTriage(deps, actor, id, input.accept ?? {});
-      else await declineTriage(deps, actor, id, input.decline ?? {});
+      if (cascaded.has(id)) { results.push({ id, ok: true }); continue; }
+      if (input.action === "accept") await acceptTriage(deps, actor, id, input.accept ?? {}, { cascaded, leave });
+      else await declineTriage(deps, actor, id, input.decline ?? {}, { cascaded });
       results.push({ id, ok: true });
     } catch (err) {
       results.push({ id, ok: false, error: err instanceof HttpError ? err.code : "failed" });

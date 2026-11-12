@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 21 Triage end to end: a public form for a project with Triage on lands in Triage (not in the
@@ -54,7 +55,7 @@ test("a form submission waits in Triage, is accepted with an assignee and shows 
   const preview = page.getByTestId("triage-preview");
   await expect(preview.getByRole("heading", { name: subject })).toBeVisible();
   await expect(preview).toContainText("From grace@harbourcoffee.com.au");
-  const shots = "/home/user/tab/files/multies-r21";
+  const shots = `${SHOTS_ROOT}/multies-r21`;
   mkdirSync(shots, { recursive: true });
   await page.screenshot({ path: `${shots}/triage.png` });
 

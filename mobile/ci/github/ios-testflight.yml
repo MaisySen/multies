@@ -34,7 +34,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to the same commits as .github/workflows/ci.yml (a tag can be moved by its owner).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Check secrets
         env:
@@ -53,7 +54,7 @@ jobs:
           sudo xcode-select -s "$X"
           xcodebuild -version
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -67,11 +68,17 @@ jobs:
           npx expo prebuild --platform ios --clean > ../prebuild.log 2>&1 || { tail -60 ../prebuild.log; exit 1; }
           ls ios
 
+      # QUAL1: the typed build number reaches the shell through env and must be digits, so text typed into the
+      # Run workflow box can never run as a command (Semgrep run-shell-injection).
       - name: Set build number
         working-directory: ${{ env.APP_DIR }}
+        env:
+          BUILD_INPUT: ${{ inputs.build }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
-          BUILD="${{ inputs.build }}"
-          if [ -z "$BUILD" ]; then BUILD=$((100 + ${{ github.run_number }})); fi
+          BUILD="$BUILD_INPUT"
+          if [ -z "$BUILD" ]; then BUILD=$((100 + RUN_NUMBER)); fi
+          case "$BUILD" in ''|*[!0-9]*) echo "The build number must be digits only, got: $BUILD"; exit 1;; esac
           echo "Build number $BUILD"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "ios/$SCHEME/Info.plist"
           echo "BUILD=$BUILD" >> "$GITHUB_ENV"

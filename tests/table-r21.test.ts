@@ -131,6 +131,9 @@ describe("bulk task changes", () => {
   });
 
   it("finishing a repeating task in bulk still makes the next one", async () => {
+    // QUAL1: the clock is pinned to three days after the due date. A task finished late never gets its next one in
+    // the past (tests/repeat-late-qual1.test.ts), so on the real clock this expectation went stale on 10 November.
+    ctx.deps.now = () => new Date("2026-11-05T09:00:00.000Z");
     const p = await project();
     const r = await task(p.id, "Weekly report", { due: "2026-11-02", repeat: { freq: "weekly" } });
     const plain = await task(p.id, "One off");

@@ -281,12 +281,12 @@ export async function searchMentions(deps: Deps, a: A, rawQ: string, limit = 12)
   const orgId = a.orgId;
   const has = (col: Parameters<typeof containsText>[0]) => (q ? containsText(col, q) : sql`1 = 1`);
   const { assignees } = await import("./suite/tasks");
-  const everyone = await assignees(deps, orgId);
+  const everyone = await assignees(deps, orgId, { pickers: true }); // AIS1 (row 52): one AI shows once
   const ql = q.toLowerCase();
   const people = everyone
     .filter((p) => !q || p.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(ql)) || p.name.toLowerCase().includes(ql))
     .slice(0, 5)
-    .map((p) => ({ kind: "person" as const, type: p.type as "member" | "agent", id: p.id.includes(":") ? p.id.split(":")[1]! : p.id, title: p.name, subtitle: p.type === "agent" ? "Agent" : "Person", at: null }));
+    .map((p) => ({ kind: "person" as const, type: p.type as "member" | "agent", id: p.id.includes(":") ? p.id.split(":")[1]! : p.id, title: p.name, subtitle: p.type === "agent" || ("isAgent" in p && p.isAgent) ? "Agent" : "Person", at: null }));
   const want = new Set(PICK_TYPES.filter((t) => t !== "invoice" || isAdmin(a)));
   const runs: Promise<PickItem[]>[] = [];
   const add = (t: RefType, p: Promise<PickItem[]>) => { if (want.has(t)) runs.push(p); };

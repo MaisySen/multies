@@ -154,10 +154,18 @@ export async function writeSummarySoFar(deps: Deps, a: SuiteActor, meetingId: st
   const { providerFor } = await import("../ai/keys");
   const ai = await providerFor(deps, a.orgId);
   if (!ai) throw new HttpError(409, "no_ai_key", "Add your workspace's own AI key in Settings to write a summary. The So far digest works without one.");
-  const out = await ai.complete({
-    system: "You summarise a live work call for someone who just joined. Use only the facts given. Five short bullet lines at most: what is being discussed, decisions, open to-dos. Plain text, no preamble.",
-    user: s.text.slice(0, 8000), maxTokens: 400,
-  });
+  let out: string | null;
+  try {
+    out = await ai.complete({
+      system: "You summarise a live work call for someone who just joined. Use only the facts given. Five short bullet lines at most: what is being discussed, decisions, open to-dos. Plain text, no preamble.",
+      user: s.text.slice(0, 8000), maxTokens: 400,
+    });
+  } catch (err) {
+    // QUAL1 (audit row 12): a refused key or a provider outage answers in plain words, never a bare 500.
+    const plain = (await import("../ai")).aiCallError(err);
+    if (plain) throw plain;
+    throw err;
+  }
   if (!out) throw new HttpError(502, "ai_failed", "Your AI provider didn't return a summary. Try again, or read the So far digest.");
   return { meetingId: s.meetingId, summary: out.trim(), digest: s };
 }

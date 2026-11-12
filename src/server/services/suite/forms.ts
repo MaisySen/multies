@@ -191,7 +191,7 @@ export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput
     id, orgId: actor.orgId, name, description: (input.description ?? "").slice(0, 2000), slug: randomToken(9).replace(/[^A-Za-z0-9]/g, "").slice(0, 12).toLowerCase(),
     target, projectId: input.projectId ?? null, assigneeType: assignee?.type ?? null, assigneeId: assignee?.id ?? null,
     fields: JSON.stringify(fields), successMessage: (input.successMessage ?? "Thanks, we got it. We'll be in touch.").slice(0, 500), enabled: input.enabled ?? true,
-    triage: input.triage ?? false,
+    triage: input.triage ?? true, // AIS1 (audit row 35): on unless the creator chose off, as the web form does
     routing: JSON.stringify(await normaliseRouting(deps, actor.orgId, fields, input.routing)),
     ...(td2On && input.td2 ? { td2: JSON.stringify(parseTd2(input.td2)) } : {}),
     ...createdBy(actor), createdAt: now, updatedAt: now,

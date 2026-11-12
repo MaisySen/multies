@@ -49,7 +49,7 @@ Write costs measured locally in D1 terms (one row per table write plus one per i
 Sign in, normal use and the cron are cheap. The cap is reached only by bursts of workspace creation: test suites and demos.
 
 What changed:
-- Write budget guard (`src/server/services/write-budget.ts`). Each cron pass reads the account's rows written today from Cloudflare analytics with `CF_ANALYTICS_TOKEN` (read only, no database writes), logs `d1.write_budget` (searchable in Workers Logs) and reports to Sentry once per level per day from 60% (`warn`). From 80% (`shed`; 85% since R32, see "D1 limit reached") production stops opening new demo workspaces. Staging runs with `WRITE_BUDGET_GUARD=strict` and answers every API write with the read only message from 60%, so tests on staging can never take production read only. Sign in and normal writes on production are never refused by the guard. `/api/health` shows `writes` (today, budget, level). Without the token the guard is off and refuses nothing.
+- Write budget guard (`src/server/services/write-budget.ts`). Each cron pass reads the account's rows written today from Cloudflare analytics with `CF_ANALYTICS_TOKEN` (read only, no database writes), logs `d1.write_budget` (searchable in Workers Logs) and reports to Sentry once per level per day from 60% (`warn`). From 80% (`shed`; 85% since R32, see "D1 limit reached") production stops opening new demo workspaces. Staging runs with `WRITE_BUDGET_GUARD=strict` and answers every API write with the read only message from 60%, so tests on staging can never take production read only. Sign in and normal writes on production are never refused by the guard. `/api/admin/health` (platform operators only; the public `/api/health` is `{ ok, db }` since QUAL1) shows `writes` (today, budget, level). Without the token the guard is off and refuses nothing.
 - `DEMO_DAILY_LIMIT` 10 on production (at most about 20,000 rows a day) and 2 on staging.
 - Staging cron runs hourly.
 - Last used times for API keys, inbound keys and auth email hooks are written at most every 15 minutes (an agent polling once a minute was up to 1,440 writes a day per key).
@@ -59,7 +59,7 @@ What changed:
 
 Expected daily writes after this: production about 2,000 to 5,000 rows on a normal day (cron, sign ins, mail, real work) plus up to about 20,000 if all 10 demos are used; staging about 500 without test runs. Well under 100,000, with the guard as the backstop.
 
-Setup (once, at deploy): create a Cloudflare API token with only Account Analytics: Read on account 84058c44c33b60521d2bb03c36dc0881, then `npx wrangler secret put CF_ANALYTICS_TOKEN` and the same with `--env staging`. Check with one GET of `/api/health`: `writes.level` is `ok` and `writes.today` matches the dashboard (analytics lag a few minutes).
+Setup (once, at deploy): create a Cloudflare API token with only Account Analytics: Read on account 84058c44c33b60521d2bb03c36dc0881, then `npx wrangler secret put CF_ANALYTICS_TOKEN` and the same with `--env staging`. Check with one GET of `/api/admin/health` as a platform operator: `writes.level` is `ok` and `writes.today` matches the dashboard (analytics lag a few minutes).
 
 ## Plan: staging on its own free account (not done yet)
 1. Create a second free Cloudflare account for staging (owner signs up, or Tab with a new mailbox).
@@ -74,7 +74,7 @@ Result: staging and its tests can never spend production's daily budget.
 
 ### How to tell
 - The API answers `503` with `{"error":{"code":"read_only"}}` ("Multies is read only for a short while") on writes, and the web app shows the read only banner. Sign in callbacks land on `/login?error=read_only`.
-- `GET https://multies.si/api/health` shows `writes`: `today`, `budget`, `pct`, `level` (`ok`, `warn` from 60%, `shed` from 85%), `resetAt` (next 00:00 UTC), `byEnvironment` (production, staging) and `deferred` (what this isolate wrote, coalesced or skipped). The operator console (`/app/admin`) shows the same as a meter.
+- `GET https://multies.si/api/admin/health` (signed in as a platform operator) shows `writes`: `today`, `budget`, `pct`, `level` (`ok`, `warn` from 60%, `shed` from 85%), `resetAt` (next 00:00 UTC), `byEnvironment` (production, staging) and `deferred` (what this isolate wrote, coalesced or skipped). The operator console (`/app/admin`) shows the same as a meter.
 - The alert mail to `OPS_ALERT_EMAIL` (default security@multies.si): "Multies D1 writes at 60% today (60,123 of 100,000)" and again at 85%. Once per level per UTC day for the whole deployment (one `app_settings` row per alert, key `d1_alert:<date>:<level>`). Also a Sentry error and a `d1.write_budget` line in Workers Logs on every cron pass.
 - The analytics query (account token in the Cloudflare section of CREDENTIALS, read through creds.mjs, never printed):
 
@@ -114,7 +114,7 @@ query($a:String!,$d:Date!){viewer{accounts(filter:{accountTag:$a}){
 5. Post in #engineering what you saw and did. Do not run `wrangler d1 export` or migrations until the reset.
 
 ### Recovery
-The cap resets at 00:00 UTC (11:00 Sydney in summer). Nothing needs restoring: refused writes were never applied, and the API told each client it was read only. After the reset check `/api/health` (`writes.level` is `ok`), send a test mail to security@ and confirm it lands, and check that the cron's next pass ran (uptime row). Mail that bounced during the window was retried by the sending servers.
+The cap resets at 00:00 UTC (11:00 Sydney in summer). Nothing needs restoring: refused writes were never applied, and the API told each client it was read only. After the reset check `/api/admin/health` (`writes.level` is `ok`), send a test mail to security@ and confirm it lands, and check that the cron's next pass ran (uptime row). Mail that bounced during the window was retried by the sending servers.
 
 ### Permanent fixes
 - Staging on its own free Cloudflare account (steps in "Plan: staging on its own free account" above). This removes the main cause: staging can never spend production's budget. Needs the owner, or a new mailbox, to sign up.

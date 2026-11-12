@@ -13,7 +13,8 @@ import { SettingsEmbed } from "./components/ui/misc"; // R121
 /** R82F (MB-279): an old address that moved; the query and hash ride along (a mailbox sign in comes back with ?connected=). */
 function Moved({ to }: { to: string }) {
   const loc = useLocation();
-  return <Navigate to={`${to}${loc.search}${loc.hash}`} replace />;
+  // QUAL1: a target with a query of its own (a tab) keeps the address's query too.
+  return <Navigate to={movedTarget(to, loc.search, loc.hash)} replace />;
 }
 
 /**
@@ -45,6 +46,7 @@ function GoMoved() {
 /** R66 (MB-259): the AI document pages show while any AI feature is on. */
 const AI_FEATURES = ["ask", "translate", "extract", "expenses", "contracts"] as const;
 import { AppSkeleton } from "./layouts/app-skeleton";
+import { APP_MOVES, movedTarget } from "@/web/lib/route-moves-qual1"; // QUAL1
 import { lazyPage } from "@/web/components/lazy-page";
 
 // R25: sign-in and the other public pages load on their own, so the landing page carries none of the
@@ -368,7 +370,7 @@ export const router = createBrowserRouter([
       { path: "tools", element: page(<ToolsPage />) }, // Tools P1
       { path: "tools/vault", element: page(<VaultPage />) }, // R128 (VAULT_R128; the page shows not found while it is off)
       { path: "tools/ask", element: page(<AskPage />) }, // R110 (ASK_R110; the page shows not found while it is off)
-      { path: "tools/ai", element: page(<ToolFeatureGate features={AI_FEATURES}><ToolsAiPage /></ToolFeatureGate>) }, // Tools P2: AI documents
+      { path: "tools/ai", element: page(<ToolFeatureGate features={AI_FEATURES} offTo="/app/tools"><ToolsAiPage /></ToolFeatureGate>) }, // Tools P2: AI documents (QUAL1: off here, the address opens Tools)
       { path: "tools/convert", element: page(<ConvertHubPage />) },
       { path: "tools/edit-pdf", element: page(<EditPdfPage />) }, // R86 // R78: Convert hub (before the editors' :editor)
       { path: "tools/links", element: page(<ToolFeatureGate features={["links"]}><LinksPage /></ToolFeatureGate>) }, // R87: Links (before :editor)
@@ -393,6 +395,8 @@ export const router = createBrowserRouter([
       { path: "deliverability", element: <MovedWhenP2>{page(<DeliverabilityPage />)}</MovedWhenP2> },
       { path: "admin", element: page(<AdminPage />) },
       { path: "admin/reports", element: page(<ModerationPage />) }, // R35: moderation queue
+      // QUAL1 (audit rows 29, 48, 58): addresses that read a word as an id, or had no page without one, open their list.
+      ...APP_MOVES.map((m) => ({ path: m.path, element: <Moved to={m.to} /> })),
       {
         path: "settings",
         element: page(<SettingsLayout />),

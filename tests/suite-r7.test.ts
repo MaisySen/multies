@@ -261,7 +261,7 @@ describe("meetings", () => {
 
   it("sends an agent's invite through the approval queue", async () => {
     await setup();
-    const { apiKey } = (await c.post("/api/agents", { name: "Scheduler", localPart: "scheduler" })).body;
+    const { apiKey } = (await c.post("/api/agents", { name: "Scheduler", localPart: "scheduler", allowedRecipients: null })).body; // AIS1: the guest is outside the default list
     const mcp = await mcpFor(apiKey.secret);
     const res = data(await mcp.callTool({ name: "schedule_meeting", arguments: { title: "Intro call", invitees: ["jordan@lumen.dev"], sendInvites: true } }));
     expect(res.invites.status).toBe("pending_approval");

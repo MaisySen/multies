@@ -65,7 +65,8 @@ describe("privacy: data export and account deletion", () => {
     const csv = await owner.get("/api/org/audit/export");
     expect(csv.status).toBe(200);
     const rows = Papa.parse<Record<string, string>>(csv.body as string, { header: true, skipEmptyLines: true });
-    expect(rows.meta.fields).toEqual(["at", "action", "actor", "actorUserId", "targetType", "targetId", "ip", "metadata"]);
+    // AIS1: two columns at the end say which key or connected app acted (empty for a person in the app).
+    expect(rows.meta.fields).toEqual(["at", "action", "actor", "actorUserId", "targetType", "targetId", "ip", "metadata", "callerKind", "via"]);
     expect(rows.data.some((r) => r.action === "domain.added" || r.action.startsWith("domain."))).toBe(true);
     const json = await owner.get("/api/org/audit/export?format=json&from=2000-01-01");
     expect(Array.isArray(json.body)).toBe(true);
