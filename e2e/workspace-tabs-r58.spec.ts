@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R58 (MB-245): one browser, two tabs. Switching workspace in one tab puts a calm Reload banner in the other, which
@@ -8,7 +9,7 @@ import { test, expect } from "@playwright/test";
 test.skip(!!process.env.E2E_BASE_URL, "local only");
 let visitor = 0;
 const ip = () => `10.158.${test.info().workerIndex % 200}.${++visitor}`;
-const SHOTS = "/home/user/tab/files/multies-r58";
+const SHOTS = `${SHOTS_ROOT}/multies-r58`;
 
 test("a tab behind a workspace switch made in another tab shows Reload and sends no write", async ({ browser }) => {
   test.setTimeout(90_000);

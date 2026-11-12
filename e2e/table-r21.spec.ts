@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 21 (R21.2): the list view is a table. Edit a title in place and a status from the cell menu,
@@ -81,9 +82,9 @@ test("edits cells in place and changes three tasks at once from the bulk bar", a
   for (const r of refs.slice(0, 3)) await expect(row(r).getByRole("gridcell", { name: "Type" })).toContainText("Bug");
   expect(bulkCalls).toHaveLength(3);
 
-  mkdirSync("/home/user/tab/files/multies-r21", { recursive: true });
+  mkdirSync(`${SHOTS_ROOT}/multies-r21`, { recursive: true });
   await page.waitForTimeout(400);
-  await page.screenshot({ path: process.env.E2E_SHOT ?? "/home/user/tab/files/multies-r21/table.png" }).catch(() => {});
+  await page.screenshot({ path: process.env.E2E_SHOT ?? `${SHOTS_ROOT}/multies-r21/table.png` }).catch(() => {});
 
   // After a reload the server has it all.
   await page.reload();

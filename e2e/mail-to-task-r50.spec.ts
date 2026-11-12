@@ -1,13 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R50 (MB-238): mail to task on a phone. The reply bar carries a 44 px task button; the thread's chips show the task
  * title at 44 px; Back from the task returns to the thread; desktop keeps its inline button and ref chips.
- * SHOTS=before|after writes shots to /home/user/tab/files/multies-r50/ (before runs only the shot steps).
+ * SHOTS=before|after writes shots to SHOTS_ROOT/multies-r50/ (before runs only the shot steps).
  */
 const SHOTS = process.env.SHOTS;
-const DIR = "/home/user/tab/files/multies-r50";
+const DIR = `${SHOTS_ROOT}/multies-r50`;
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": `10.150.${test.info().workerIndex % 200}.${++visitor}` });

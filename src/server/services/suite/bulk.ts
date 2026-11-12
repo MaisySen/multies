@@ -23,8 +23,8 @@ import type { Deps } from "../../context";
 import { activity, automations, changes, projectStatuses, projects, taskFieldValues, tasks, webhookEndpoints } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
-import { actorOf, assertWritable, parseDate, sortableId, type SuiteActor } from "./common";
-import { coAssigneesOf, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
+import { actorOf, assertWritable, parseDate, sortableId, withCaller, type SuiteActor } from "./common";
+import { assertMoveKeepsTriage, assertNoWaitingItems, coAssigneesOf, machineTriage, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
 import { inIds } from "../../lib/sql-chunks";
 import { claimNumbers } from "./project-counter";
 
@@ -160,7 +160,7 @@ function changeRows(deps: Deps, orgId: string, rows: { id: string; version: numb
 
 function summaryRow(actor: SuiteActor, now: Date, verb: string, entity: { type: string; id: string }, data: Record<string, unknown>) {
   const a = actorOf(actor);
-  return { id: sortableId("act", now.getTime()), orgId: actor.orgId, actorType: a.type, actorId: a.id, actorName: a.name, verb, entityType: entity.type, entityId: entity.id, data: JSON.stringify(data), createdAt: now };
+  return { id: sortableId("act", now.getTime()), orgId: actor.orgId, actorType: a.type, actorId: a.id, actorName: a.name, verb, entityType: entity.type, entityId: entity.id, data: JSON.stringify(withCaller(a, data)), createdAt: now };
 }
 
 /** Webhook endpoints that want this event, read once per action. */
@@ -196,6 +196,14 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   if (patch.projectId) {
     target = (await deps.db.select().from(projects).where(and(eq(projects.id, patch.projectId), eq(projects.orgId, actor.orgId), isNull(projects.deletedAt))).get()) ?? null;
     if (!target) throw new HttpError(404, "not_found", "Project not found.");
+    // AIS1 review (row 35): a key may not move tasks out of a project with Triage off into one with Triage on. One read
+    // of the source projects, only for a key or an AI app moving tasks that never passed Triage; before any write.
+    const unchecked = target.triage && machineTriage(actor) ? rows.filter((t) => t.projectId !== target!.id && !t.triageState && !t.triageSource) : [];
+    if (unchecked.length) {
+      const on = new Set((await deps.db.select({ id: projects.id }).from(projects)
+        .where(and(eq(projects.orgId, actor.orgId), eq(projects.triage, true), inIds(projects.id, [...new Set(unchecked.map((t) => t.projectId))])))).map((p) => p.id));
+      assertMoveKeepsTriage(actor, true, unchecked.map((t) => ({ ...t, fromTriage: on.has(t.projectId) })));
+    }
   }
   const projectOf = (t: TaskRow) => (target ? target.id : t.projectId);
   const needStatuses = patch.status !== undefined || patch.statusId !== undefined || !!target;
@@ -432,6 +440,8 @@ export async function bulkDeleteTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   const ids = capIds(idsOrRefs);
   const level = await assertBudget(deps);
   const rows = await loadTasks(deps, actor.orgId, ids);
+  // AIS1 (audit row 66): a key can't remove items that wait in Triage; refused before any write.
+  await assertNoWaitingItems(deps, actor, rows);
   const now = deps.now();
   const stmts: PromiseLike<unknown>[] = [];
   for (const part of chunk(rows.map((r) => r.id), 45)) {

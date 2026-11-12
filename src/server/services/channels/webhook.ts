@@ -13,8 +13,11 @@ import { hmacSha256Hex, safeEqual } from "../../lib/crypto";
 import type { ChatMessageKind } from "@/shared/channels";
 import type { InboundMessage, StatusUpdate, WebhookBatch } from "./provider";
 
-/** The secret the local test provider signs with (CHANNELS_MOCK only; never accepted in production). */
-export const MOCK_APP_SECRET = "local-test-channel-secret";
+/**
+ * The secret the local test provider signs with (CHANNELS_MOCK only; never accepted in production: loadConfig refuses
+ * CHANNELS_MOCK in production and receive.ts adds this secret only when it is on). Semgrep (QUAL1) is told so below.
+ */
+export const MOCK_APP_SECRET = "local-test-channel-secret"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
 
 export function verifyChallenge(q: { mode?: string; token?: string; challenge?: string }, verifyToken: string | undefined): string | null {
   if (q.mode !== "subscribe" || !verifyToken || !q.token || !q.challenge) return null;

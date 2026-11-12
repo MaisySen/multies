@@ -1,13 +1,14 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R40 move: upload a small .mbox in Settings, Import and export, watch the count, and run it again to see every
  * message skipped as already there. SHOTS=before|after also saves light and dark shots, desktop and phone.
  */
 test.describe.configure({ mode: "serial" });
-const SHOT_DIR = "/home/user/tab/files/multies-r40";
+const SHOT_DIR = `${SHOTS_ROOT}/multies-r40`;
 let ctx: BrowserContext;
 let page: Page;
 test.beforeAll(async ({ browser }) => {

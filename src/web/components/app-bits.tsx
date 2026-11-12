@@ -60,6 +60,13 @@ const ACTIONS: Record<string, string> = {
   "member.invited": "invited",
   "member.invite_resent": "re-sent an invitation to",
   "member.invite_revoked": "revoked the invitation for",
+  // AIS1 (audit row 1): an AI agent's address can't join as a person, and a key's invite waits for a person.
+  "member.invite_confirmed": "confirmed and sent the invitation for",
+  "member.invite_refused": "was stopped from inviting an AI agent's inbox",
+  "member.join_refused": "was stopped from joining with an AI agent's inbox",
+  "account.signup_refused": "was stopped from signing up with an AI agent's inbox",
+  "guest.invite_refused": "was stopped from inviting an AI agent's inbox as a guest",
+  "guest.join_refused": "was stopped from opening a guest invite for an AI agent's inbox",
   "member.joined": "joined the workspace",
   "member.updated": "updated access for",
   "member.removed": "removed",
@@ -85,6 +92,7 @@ const ACTIONS: Record<string, string> = {
   "agent_trigger.secret_rotated": "rotated the secret of the agent trigger",
   "agent_trigger.fired": "fired the agent trigger",
   "agent_trigger.refused": "refused to fire the agent trigger",
+  "teamai.run_deleted": "deleted a Team AI run", // AIS1
 };
 
 /** R28 (DF-3 slice 3): why a trigger did not fire, in plain words. */
@@ -126,7 +134,9 @@ export function describeAudit(e: AuditEntry): { verb: string; object?: string; s
     if (e.action === "agent_trigger.refused") return { verb, object: `${m.triggerName}: ${TRIGGER_REFUSALS[String(m.reason)] ?? String(m.reason ?? "refused")}` };
     return { verb, object: m.triggerName };
   }
-  const object = (m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
+  // AIS1 (row 15): a thread entry (an agent's read) names the thread by its subject.
+  const subject = e.targetType === "thread" && typeof m.subject === "string" && m.subject ? `"${m.subject}"` : undefined;
+  const object = (subject ?? m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
   return { verb: ACTIONS[e.action] ?? e.action.replace(/[._]/g, " "), object };
 }
 

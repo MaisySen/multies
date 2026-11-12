@@ -4,7 +4,7 @@ import { api } from "@/web/lib/api";
 import { Card } from "@/web/components/ui/misc";
 import { LOCALE } from "@/shared/locale";
 
-/** R32: the account's D1 writes today, from /api/health (Cloudflare analytics, cached a few minutes). */
+/** R32: the account's D1 writes today, from /api/admin/health (QUAL1: operators only; Cloudflare analytics, cached a few minutes). */
 export interface HealthWrites {
   today: number; budget: number; level: "ok" | "warn" | "shed"; at: string;
   pct?: number; warnAt?: number; shedAt?: number; resetAt?: string; byEnvironment?: Record<string, number>;
@@ -27,7 +27,7 @@ function untilReset(resetAt: string | undefined, now = Date.now()) {
 
 /** The meter on the operator console. Hidden when the deployment has no analytics token (level off). */
 export function WriteBudgetMeter() {
-  const q = useQuery({ queryKey: ["health-writes"], queryFn: () => api.get<{ writes?: HealthWrites }>("/health"), refetchInterval: 60_000 });
+  const q = useQuery({ queryKey: ["health-writes"], queryFn: () => api.get<{ writes?: HealthWrites }>("/admin/health"), refetchInterval: 60_000 });
   const w = q.data?.writes;
   if (q.isPending) return <Card className="h-36 animate-pulse motion-reduce:animate-none" aria-hidden="true">{null}</Card>;
   if (!w) {

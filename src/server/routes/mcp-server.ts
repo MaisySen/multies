@@ -238,7 +238,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
 
   server.registerTool("wait_for_email", {
     title: "Wait for new email", annotations: ro,
-    description: "Wait up to timeoutSeconds for new mail to an agent inbox (for example a sign up code), then return the new messages, parsed. Pass the cursor from the last call to avoid repeats.",
+    description: "Wait up to timeoutSeconds for new mail to an agent inbox (for example a sign up code from another service), then return the new messages, parsed. Multies' own mail (invites, confirmations, resets) comes withheld: no text, codes or links. Pass the cursor from the last call to avoid repeats.",
     inputSchema: {
       agentId: z.string().optional(),
       timeoutSeconds: z.number().int().min(0).max(50).default(25),
@@ -261,11 +261,12 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
   if (!actor.agentId && actor.role !== "member") {
     server.registerTool("create_agent_inbox", {
       title: "Create an agent inbox", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-      description: "Create a new agent with its own email address on the workspace's domain. Its sends need a person's approval unless approvalMode says otherwise. Returns the agent and a key for it, shown once.",
+      // AIS1 (row 4): MCP callers are keys or connected AI apps, never a person in the app, so the agent starts safe.
+      description: "Create a new agent with its own email address on the workspace's domain. It starts safe: a person approves every message it sends, 100 sends a day, and only the workspace's own domains as recipients. Only a person in the Multies app can loosen those. Returns the agent and a key for it, shown once.",
       inputSchema: {
         name: z.string().min(1).max(80),
         localPart: z.string().regex(/^[a-z0-9._-]+$/i).max(64).optional().describe("The part before the @."),
-        approvalMode: z.enum(["always", "external", "never"]).default("always"),
+        approvalMode: z.enum(["always", "external", "never"]).default("always").describe("Leave it out. Only \"always\" is accepted here; \"external\" and \"never\" are a person's choice in the app (person_only)."),
       },
     }, tool(async (a: { name: string; localPart?: string; approvalMode: "always" | "external" | "never" }) => {
       writable();
@@ -399,7 +400,7 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
 
   server.registerTool("create_task", {
     title: "Create a task", annotations: rw,
-    description: "Create a task. Pass messageId or threadId to make it from an email: the title defaults to the subject and the task links to the thread.",
+    description: "Create a task. Pass messageId or threadId to make it from an email: the title defaults to the subject and the task links to the thread. When the project uses Triage (new projects do), the task waits there until a person accepts it, a subtask too.",
     inputSchema: {
       title: z.string().max(300).optional().describe("Required unless messageId or threadId is given."), notes: z.string().max(50_000).optional(),
       projectId: z.string().optional(), status: z.enum(["todo", "doing", "done"]).optional(), assignee: assigneeArg,
@@ -415,12 +416,12 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
     const assignee = parseAssignee(x.assignee);
     if (x.messageId || x.threadId) return { task: await createTaskFromThread(deps, a, { ...x, assignee }, await mcpCreate("tsk")) }; // R53: same id on a retry
     if (!x.title) throw new HttpError(422, "validation_failed", "Give the task a title, or pass messageId to make it from an email.");
-    return { task: await createTask(deps, a, { ...x, title: x.title, assignee, triage: { source: "agent", when: "if_project" } }, await mcpCreate("tsk")) }; // R32: agents' tasks wait in Triage when the project uses it
+    return { task: await createTask(deps, a, { ...x, title: x.title, assignee, triage: { source: "agent", when: "if_project" } }, await mcpCreate("tsk")) }; // R32: agents' tasks wait in Triage when the project uses it (AIS1: subtasks too)
   }));
 
   server.registerTool("update_task", {
     title: "Update a task", annotations: rw,
-    description: "Change a task: status (todo, doing, done) or a project status id, assignee, priority, due date, labels, title, notes, type (task, story, bug, epic), estimate (points) or sprint (sprintId).",
+    description: "Change a task: status (todo, doing, done) or a project status id, assignee, priority, due date, labels, title, notes, type (task, story, bug, epic), estimate (points) or sprint (sprintId). Moving a task from a project with Triage off into one with Triage on answers person_only; make the task in that project instead, where it waits for a person.",
     inputSchema: {
       id: z.string(), title: z.string().max(300).optional(), notes: z.string().max(50_000).optional(), status: z.enum(["todo", "doing", "done"]).optional(), statusId: z.string().optional(),
       assignee: assigneeArg, priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(), due: z.string().nullable().optional(), labels: z.array(z.string()).max(20).optional(),
@@ -677,7 +678,7 @@ function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
 
   server.registerTool("invite_guest", {
     title: "Invite a guest to a project", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
-    description: "Invite an outside person by email to one project. Guests are free and see only that project's tasks, comments and docs. The invite email goes from this agent's inbox and follows its approval rules, so it may wait for a person to approve it.",
+    description: "Invite an outside person by email to one project. Guests are free and see only that project's tasks, comments and docs. The invite email goes from this agent's inbox and always waits for a person to approve it, whatever the agent's approval rule. An AI agent's address can't be invited.",
     inputSchema: { projectId: z.string(), email: z.string().email(), name: z.string().max(80).optional() },
   }, tool(async (x: { projectId: string; email: string; name?: string }) => {
     writable();
@@ -745,7 +746,7 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
 
   server.registerTool("message_to_task", {
     title: "Turn a chat message into a task", annotations: rw,
-    description: "Make a task from a chat message. The task links back to the message and the message shows the task. Set triage: true to send it to the Triage queue instead.",
+    description: "Make a task from a chat message. The task links back to the message and the message shows the task. It waits in Triage when the project uses it; set triage: true to send it to the Triage queue anyway.",
     inputSchema: { messageId: z.string(), title: z.string().max(300).optional(), projectId: z.string().optional(), assignee: z.string().optional(), triage: z.boolean().optional() },
   }, tool(async (x: { messageId: string; title?: string; projectId?: string; assignee?: string; triage?: boolean }) => {
     writable();

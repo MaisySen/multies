@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /** R34: unread counts (ETag 304), the task query with OR, brackets and history, and old refs after a key edit and a move. */
 let visitor = 0;
@@ -53,11 +54,11 @@ test("counts answer 304 when nothing moved; the query takes OR, brackets and his
   await page.locator("body").click({ position: { x: 5, y: 5 } }); // close suggestions so the message shows
   await expect(page.locator("#task-query-error")).toContainText("Expected )");
   if (!process.env.E2E_BASE_URL) {
-    mkdirSync("/home/user/tab/files/multies-r34", { recursive: true });
-    await page.screenshot({ path: "/home/user/tab/files/multies-r34/tasks-query-error.png" });
+    mkdirSync(`${SHOTS_ROOT}/multies-r34`, { recursive: true });
+    await page.screenshot({ path: `${SHOTS_ROOT}/multies-r34/tasks-query-error.png` });
     await box.click();
     await box.fill("(label:ops OR label:security) AND status ");
     await expect(page.getByRole("option", { name: /WAS/ })).toBeVisible();
-    await page.screenshot({ path: "/home/user/tab/files/multies-r34/tasks-query-suggest.png" });
+    await page.screenshot({ path: `${SHOTS_ROOT}/multies-r34/tasks-query-suggest.png` });
   }
 });

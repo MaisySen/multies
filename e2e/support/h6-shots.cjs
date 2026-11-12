@@ -6,7 +6,7 @@
  */
 const { chromium } = require("@playwright/test");
 const fs = require("fs");
-const B = "http://localhost:8871", OUT = "/home/user/tab/files/multies-tools/p2";
+const B = "http://localhost:8871", OUT = (process.env.SHOTS_ROOT || "/home/user/tab/files") + "/multies-tools/p2";
 const log = (...a) => console.log("[shots]", ...a);
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });

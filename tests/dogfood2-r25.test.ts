@@ -108,6 +108,10 @@ describe("DF-7: the public API covers an org setup", () => {
     const r = await api(key, "POST", "/invites", { email: "Design@Haajir.test", title: "Head of Design", bio: "Brand and product design." });
     expect(r.status).toBe(201);
     expect(r.body.link).toContain(`/invite/${r.body.id}`);
+    // AIS1 (audit row 1): a key's invite waits for a person. Nothing is emailed until the owner confirms it in the app.
+    expect(r.body).toMatchObject({ status: "awaiting_approval", emailed: false });
+    expect(ctx.outbound.sent.slice(sentBefore).find((m) => m.to.includes("design@haajir.test"))).toBeUndefined();
+    expect((await owner.post(`/api/team/invites/${r.body.id}/confirm`)).status).toBe(200);
     const mail = ctx.outbound.sent.slice(sentBefore).find((m) => m.to.includes("design@haajir.test"));
     expect(mail?.subject).toBe("Olive Owner invited you to Haajir HQ on Multies");
     const list = await api(key, "GET", "/invites");
@@ -130,6 +134,7 @@ describe("DF-7: the public API covers an org setup", () => {
   it("an admin invite needs a key made by the owner; seats apply; a key whose creator left can't invite", async () => {
     const admin = await api(key, "POST", "/invites", { email: "cto@haajir.test", role: "admin" });
     expect(admin.status).toBe(201);
+    expect((await owner.post(`/api/team/invites/${admin.body.id}/confirm`)).status).toBe(200); // AIS1: a person confirms a key's invite
     const cto = await join("cto@haajir.test", admin.body.id, "Cee Tee");
     const ctoKey = (await cto.post("/api/developer/keys", { name: "CTO script" })).body.secret as string;
     expect(ctoKey).toMatch(/^mm_live_/);

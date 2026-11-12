@@ -140,7 +140,7 @@ describe("agent inboxes over the API", () => {
   });
 
   it("queues sends for approval by default, then sends as the agent once a person approves", async () => {
-    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Support bot", localPart: "support-bot" })).body;
+    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Support bot", localPart: "support-bot", allowedRecipients: ["@example.com"] })).body; // AIS1: outside the default list
     await inbound(agent.address, "Where is my order?", "Hi, order 1182 hasn't arrived.");
     const thread = (await api(apiKey.secret, "GET", `/agents/${agent.id}/threads`)).body.data[0];
     const reply = await api(apiKey.secret, "POST", `/agents/${agent.id}/threads/${thread.id}/reply`, { text: "Sorry about that. It ships today." });
@@ -175,7 +175,8 @@ describe("agent inboxes over the API", () => {
   });
 
   it("rejects, expires, and applies approval modes, allow lists and the daily cap", async () => {
-    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Outreach", approvalMode: "external", sendCapDaily: 2, allowedRecipients: ["@example.com", "team@acme.io"] })).body;
+    // AIS1 (row 4): "external" and "never" are a person's choice, so the owner makes and loosens this agent in the app.
+    const { agent, apiKey } = (await c.post("/api/agents", { name: "Outreach", approvalMode: "external", sendCapDaily: 2, allowedRecipients: ["@example.com", "team@acme.io"] })).body;
     await c.post("/api/mailboxes", { domainId, localPart: "team", displayName: "Team" });
     // Internal mail skips approval in "external" mode.
     const internal = await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["team@acme.io"], subject: "FYI", text: "Inside" });
@@ -197,13 +198,13 @@ describe("agent inboxes over the API", () => {
     expect(audit.filter((a: string) => a === "agent.send_blocked")).toHaveLength(2);
 
     // "never": sends go straight out; pausing stops everything.
-    await api(wsKey, "PATCH", `/agents/${agent.id}`, { approvalMode: "never", sendCapDaily: 10 });
+    await c.patch(`/api/agents/${agent.id}`, { approvalMode: "never", sendCapDaily: 10 });
     expect((await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["lead@example.com"], subject: "Now", text: "x" })).body.status).toBe("sent");
     await api(wsKey, "PATCH", `/agents/${agent.id}`, { status: "paused" });
     expect((await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["lead@example.com"], subject: "x", text: "x" })).body.error.code).toBe("agent_paused");
 
     // Requests nobody decides expire after a week.
-    await api(wsKey, "PATCH", `/agents/${agent.id}`, { status: "active", approvalMode: "always" });
+    await c.patch(`/api/agents/${agent.id}`, { status: "active", approvalMode: "always" });
     await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["lead@example.com"], subject: "Later", text: "x" });
     const real = ctx.deps.now;
     ctx.deps.now = () => new Date(real().getTime() + 8 * 86400_000);
@@ -213,7 +214,7 @@ describe("agent inboxes over the API", () => {
 
   it("lets an agent work a shared mailbox beside people", async () => {
     const team = (await c.post("/api/mailboxes", { domainId, localPart: "support", displayName: "Support" })).body.mailbox;
-    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Triage", mailboxIds: [team.id], approvalMode: "never" })).body;
+    const { agent, apiKey } = (await c.post("/api/agents", { name: "Triage", mailboxIds: [team.id], approvalMode: "never", allowedRecipients: null })).body; // AIS1: a person's choice
     expect(agent.mailboxIds).toEqual([agent.inboxId, team.id]);
     await inbound("support@acme.io", "Refund please", "I'd like a refund for invoice 77.");
     const threads = (await api(apiKey.secret, "GET", `/agents/${agent.id}/threads`)).body.data;

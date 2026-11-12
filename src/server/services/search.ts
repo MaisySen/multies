@@ -31,6 +31,7 @@ import { inIds } from "../lib/sql-chunks";
 import { containsAny } from "../lib/like-search";
 import { notBlockedBy } from "./suite/reports-r35"; // R35
 import { searchAttachmentText } from "./tools/attachment-index"; // Tools P2 (17)
+import { safeSnippet } from "./agents/platform-mail"; // AIS1 (row 32): pre-fix previews of the platform's own mail
 
 // Tools P2 (17): "attachments" (text inside mail attachments) is listed only while the deployment has the index feature on.
 export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals", "attachments"] as const;
@@ -114,7 +115,7 @@ async function searchMail(deps: Deps, actor: SuiteActor, term: string, limit: nu
     seen.add(m.threadId);
     out.push({
       type: "mail", id: m.id, title: m.subject || "(no subject)", subtitle: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress,
-      snippet: m.snippet.slice(0, 160), url: `/app/mail?mailbox=${encodeURIComponent(m.mailboxId)}&folder=${encodeURIComponent(m.folder)}&m=${encodeURIComponent(m.id)}`, at: iso(m.date),
+      snippet: safeSnippet(m.snippet, m.fromAddress, deps.config.systemFrom.address).slice(0, 160), url: `/app/mail?mailbox=${encodeURIComponent(m.mailboxId)}&folder=${encodeURIComponent(m.folder)}&m=${encodeURIComponent(m.id)}`, at: iso(m.date),
     });
     if (out.length >= limit) break;
   }

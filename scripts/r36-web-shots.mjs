@@ -1,7 +1,7 @@
 
 import { chromium } from "@playwright/test";
 const [,, phase] = process.argv;
-const OUT = "/home/user/tab/files/multies-r36";
+const OUT = (process.env.SHOTS_ROOT || "/home/user/tab/files") + "/multies-r36";
 const base = "http://localhost:8964";
 const browser = await chromium.launch();
 const tagOf = (w) => (w === 390 ? "phone" : "desktop");

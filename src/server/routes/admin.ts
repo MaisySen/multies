@@ -16,6 +16,20 @@ import { containsAny } from "../lib/like-search";
 export function adminRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth, requirePlatformAdmin)
+    // QUAL1 (audit row 36): the health detail that used to be public: the release, pending migrations, the account's
+    // D1 writes and reads with their budgets and shed levels, the production and staging split and the busiest
+    // workspaces (counts only). The public /api/health answers { ok, db } only.
+    .get("/health", async (c) => {
+      const r = await (await import("../services/health")).operatorHealth(c.var.deps);
+      c.header("cache-control", "no-store");
+      return c.json(r.body, r.status);
+    })
+    // QUAL1 (audit row 69): the status page with the last 24 hours of mail volume, which the public page no longer shows.
+    .get("/status", async (c) => {
+      const { systemStatus } = await import("../services/status");
+      c.header("cache-control", "no-store");
+      return c.json(await systemStatus(c.var.deps));
+    })
     .get("/overview", async (c) => {
       const { db, config } = c.var.deps;
       const [u, o, d, m, sent] = await Promise.all([

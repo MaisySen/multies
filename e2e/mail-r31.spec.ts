@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import path from "node:path";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R31: split inbox (Important, Other, a custom split by domain) and read status on sent mail, in a demo
@@ -58,7 +59,7 @@ test("Important and Other split the demo inbox, and a custom split by domain tak
   await custom.click();
   const list1 = page.getByRole("region", { name: "Messages" }).or(page.locator("section[aria-label=Messages]"));
   await expect(list1.getByText(pick.subject || "(no subject)").first()).toBeVisible();
-  await page.screenshot({ path: "/home/user/tab/files/multies-r31/mail-split-inbox.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r31/mail-split-inbox.png` });
 
   // It left Other (and Important).
   const splitId = new URL(page.url()).searchParams.get("split")!;
@@ -102,5 +103,5 @@ test("read status: turn it on, send, the open image is fetched, Sent shows Opene
   await expect(row.getByTestId("read-status")).toHaveText(/Opened 1x, last/);
   await row.getByRole("button").first().click();
   await expect(page.getByRole("article").getByTestId("read-status")).toHaveText(/Opened 1x/);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r31/mail-read-status.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r31/mail-read-status.png` });
 });

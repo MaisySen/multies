@@ -2,6 +2,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R35 (Apple 1.2): report and block end to end. Olive reports a message from Sam (sheet, reason, send), then blocks
@@ -11,7 +12,7 @@ import { join } from "node:path";
 test.describe.configure({ mode: "serial" });
 let visitor = 0;
 const ip = () => `10.135.${test.info().workerIndex % 200}.${++visitor}`;
-const SHOTS = "/home/user/tab/files/multies-r35";
+const SHOTS = `${SHOTS_ROOT}/multies-r35`;
 
 const OUTBOX = ".data/e2e-outbox";
 function lastEmailTo(address: string): { subject: string; text: string } | undefined {

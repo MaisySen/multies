@@ -1,9 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R42 phone helper: the mail selects open the app's bottom sheet at 390 px (compose From, Undo window and Remind me,
  * plus the bulk bar's Move to when a row can be picked), and the Tasks list gets the board's rapid add at its foot.
- * SHOTS=before or SHOTS=after saves screenshots to /home/user/tab/files/multies-r42/ (before skips the new checks).
+ * SHOTS=before or SHOTS=after saves screenshots to SHOTS_ROOT/multies-r42/ (before skips the new checks).
  */
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
@@ -13,7 +14,7 @@ test.setTimeout(180_000);
 
 const SHOTS = process.env.SHOTS;
 const AFTER = SHOTS !== "before";
-const DIR = "/home/user/tab/files/multies-r42";
+const DIR = `${SHOTS_ROOT}/multies-r42`;
 const PHONE = { width: 390, height: 844 };
 const DESK = { width: 1280, height: 800 };
 

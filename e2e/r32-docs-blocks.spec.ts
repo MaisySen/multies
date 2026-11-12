@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R32: docs table, image and callout blocks. "/table" Enter makes a 3 by 3 table with a header
@@ -124,7 +125,7 @@ test("docs blocks: table, callout and image from the slash menu", async ({ brows
   expect(clsAfter - clsAtAppear).toBe(0);
 
   await page.mouse.click(1300, 120);
-  const shots = "/home/user/tab/files/multies-r32";
+  const shots = `${SHOTS_ROOT}/multies-r32`;
   mkdirSync(shots, { recursive: true });
   await page.screenshot({ path: `${shots}/docs-blocks.png` });
   await ctx.close();

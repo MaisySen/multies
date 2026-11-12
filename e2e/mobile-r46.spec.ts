@@ -1,13 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R46 mobile web: every main screen at 360, 390 and 430 px, light and dark. Checks that the page never scrolls
  * sideways, the phone tab bar is on screen, tap targets reach 44 px and text fields are 16 px (so iOS Safari does
- * not zoom). SHOTS=before|after writes shots and a metrics file to /home/user/tab/files/multies-mobile/.
+ * not zoom). SHOTS=before|after writes shots and a metrics file to SHOTS_ROOT/multies-mobile/.
  */
 const SHOTS = process.env.SHOTS;
-const DIR = "/home/user/tab/files/multies-mobile";
+const DIR = `${SHOTS_ROOT}/multies-mobile`;
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": `10.147.${test.info().workerIndex % 200}.${++visitor}` });

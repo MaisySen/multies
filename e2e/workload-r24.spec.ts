@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R24.2 Workload end to end: two members with estimated tasks across two weeks. Open Workload, see
@@ -64,8 +65,8 @@ test("see each person's load per week, drag a task to a teammate and move one to
   await expect(ada.locator(`td[data-cell$="|${thisWeek}"]`).getByTestId("load")).toHaveText("18 / 20 pts");
   await expect(maxRow.locator(`td[data-cell$="|${thisWeek}"]`).getByTestId("load")).toHaveText("3 / 20 pts");
   await expect(ada.locator(`td[data-cell$="|${nextWeek}"]`).getByTestId("load")).toHaveText("1 / 20 pts");
-  mkdirSync("/home/user/tab/files/multies-r23", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r23/workload.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r23`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r23/workload.png` });
 
   // Drag "Write launch announcement" from Ada to Max in the same week.
   const chip = ada.locator('[data-testid="chip"]', { hasText: "Write launch announcement" }).getByRole("button", { name: /Write launch announcement/ });

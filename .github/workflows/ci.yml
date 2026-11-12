@@ -3,6 +3,9 @@ name: CI
 # all private repos). Every push runs only the fast checks the builders run locally before a push
 # (npm ci, audit, tsc, eslint, copy check, Vale, unit tests). The slow half (build, Playwright E2E,
 # Lighthouse) runs on pull requests, nightly, on demand, and whenever a deploy is asked for.
+# QUAL1: on the 2 core runner a push costs about 25 minutes and a pull request or night 65 to 75 (check plus
+# e2e), so the nightly run alone would use about all of the 2,000 minutes a month. Fewer nights, a public repo,
+# a larger runner or shards are the owner's choice; the limits below only fit the measured times.
 # Deploys are manual by default (Run workflow), because production is deployed by hand
 # (docs/runbooks/deploy.md); set the repository variable AUTO_DEPLOY=true to deploy on every push.
 on:
@@ -37,8 +40,10 @@ jobs:
   check:
     # Pinned: ubuntu-latest moves to Ubuntu 26 from 19 October 2026 (runner-images issue 14748).
     runs-on: ubuntu-24.04
-    # A hung runner step otherwise holds the queue for GitHub's six hour default.
-    timeout-minutes: 15
+    # A hung runner step otherwise holds the queue for GitHub's six hour default. QUAL1: measured on 2 CPU cores
+    # (the private runner's size, 11 November 2026): npm ci 21 s, typecheck 101 s (5.4 GB), lint 37 s, unit tests
+    # with coverage 20 min, about 24 min in all. The limit is about 1.5 times that.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -58,7 +63,9 @@ jobs:
           curl -sSfL https://github.com/errata-ai/vale/releases/download/v3.9.1/vale_3.9.1_Linux_64-bit.tar.gz | tar xz vale
           ./vale $(git ls-files '*.md')
       - name: Unit and integration tests with coverage
-        run: npm run test:coverage
+        # QUAL1: four workers on the two cores. Most tests wait on timers and the database, so this took 20 min
+        # (peak 2.6 GB) where vitest's default of one worker there would take about 38.
+        run: npm run test:coverage -- --maxWorkers=4
       - name: Coverage summary
         if: always()
         run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
@@ -73,7 +80,9 @@ jobs:
     # Slow checks: never on a plain push unless pushes deploy (AUTO_DEPLOY=true).
     if: github.event_name != 'push' || vars.AUTO_DEPLOY == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # QUAL1: sized from a run on 2 CPU cores: build 1 min, Playwright 33 to 39 min with two workers (a tenth of the
+    # suite took 3.9 min, peak 4.5 GB; scaled by count and by the full run's test times), Lighthouse up to 10.
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -87,9 +96,10 @@ jobs:
       - run: npx playwright install chromium
         timeout-minutes: 5
       # The connected mailbox spec skips itself here (no STALWART_TEST_* on the runner).
+      # QUAL1: Playwright gives a two core runner one worker by default; two are set here (measured above).
       - name: End to end tests (Playwright)
-        run: npm run test:e2e
-        timeout-minutes: 12
+        run: npm run test:e2e -- --workers=2
+        timeout-minutes: 60
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:

@@ -1,6 +1,7 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R31: notification triage and catch-up end to end. Ben assigns Ada a task; it shows in Ada's Inbox; E moves it to
@@ -13,7 +14,7 @@ const ip = () => `10.131.${test.info().workerIndex % 200}.${++visitor}`;
 let a: Page, b: Page, ctxA: BrowserContext, ctxB: BrowserContext;
 let headersA: Record<string, string>, headersB: Record<string, string>;
 let adaId = "", channelId = "", projectId = "";
-const shots = "/home/user/tab/files/multies-r31";
+const shots = `${SHOTS_ROOT}/multies-r31`;
 
 async function person(browser: Browser, email: string, name: string) {
   const base = test.info().project.use.baseURL!;

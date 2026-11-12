@@ -7,6 +7,8 @@ describe("public task list paging", () => {
     const ctx = await makeTestApp();
     const c = new Client(ctx.app);
     await c.signup("owner@acme.io", "Olive Owner");
+    // AIS1: a key's task waits in Triage when the project uses it (new projects do); this first project has it off.
+    await c.post("/api/projects", { name: "Work", triage: false });
     const key = (await c.post("/api/developer/keys", { name: "rw" })).body.secret as string;
     const h = { host: "localhost", authorization: `Bearer ${key}` };
     const made: string[] = [];

@@ -1,14 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R53 (MB-133): "What's new". The account menu carries a What's new item with a small unread dot when the newest
  * entry is one this browser has not seen (localStorage only); opening it marks it seen and shows /changelog, a
- * public page listing the entries. SHOTS=before|after writes shots to /home/user/tab/files/multies-r53/whats-new/.
+ * public page listing the entries. SHOTS=before|after writes shots to SHOTS_ROOT/multies-r53/whats-new/.
  */
 const SHOTS = process.env.SHOTS;
-const DIR = "/home/user/tab/files/multies-r53/whats-new";
+const DIR = `${SHOTS_ROOT}/multies-r53/whats-new`;
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": `10.153.${test.info().workerIndex % 200}.${++visitor}` });

@@ -24,10 +24,16 @@ export const options = {
 };
 
 // R39: D1's free plan blocks every read for the whole account (production too) past 5 million rows a day.
-// The test refuses to start once today's reads are at 50% or more (/api/health "reads").
+// The test refuses to start once today's reads are at 50% or more ("reads" on /api/admin/health, for platform
+// operators only since QUAL1: pass MULTIES_OPERATOR_COOKIE, as for load/reads-guard.mjs).
 export function setup() {
-  const reads = http.get(`${BASE}/api/health`).json("reads");
-  if (reads && reads.pct >= 50) exec.test.abort(`D1 rows read today are at ${reads.pct}% of the daily limit. Load tests wait until 00:00 UTC.`);
+  const cookie = __ENV.MULTIES_OPERATOR_COOKIE || "";
+  if (!cookie && /\/\/(localhost|127\.0\.0\.1)[:/]/.test(`${BASE}/`)) return; // a local server shares no D1 budget
+  if (!cookie) exec.test.abort("Set MULTIES_OPERATOR_COOKIE to a platform operator's session cookie, so the test can check today's D1 reads first.");
+  const res = http.get(`${BASE}/api/admin/health`, { headers: { cookie } });
+  const reads = res.status === 200 ? res.json("reads") : null;
+  if (!reads) exec.test.abort(`Could not read today's D1 reads (HTTP ${res.status}). Load tests do not start without them.`);
+  if (reads.pct >= 50) exec.test.abort(`D1 rows read today are at ${reads.pct}% of the daily limit. Load tests wait until 00:00 UTC.`);
 }
 
 export function browse() {

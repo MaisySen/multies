@@ -204,14 +204,14 @@ export class Runner {
     this.note("Dry run for a new workspace: planned from the config.");
   }
 
-  /** The write estimate against the server's own daily write budget (its public /api/health). */
+  /** The write estimate against the server's own daily write budget (/api/admin/health: shown only when this session is a platform operator's). */
   async report(t0: number) {
     const calls = Object.values(this.planned).reduce((a, b) => a + b, 0);
     const rows = estimateRows(this.planned);
     const kinds = Object.entries(this.planned).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing";
     let budget = "";
     try {
-      const h = await (await fetch(`${this.base}/api/health`)).json() as { writes?: { today: number; budget: number } };
+      const h = await (await fetch(`${this.base}/api/admin/health`, { headers: this.cookie ? { cookie: this.cookie } : {} })).json() as { writes?: { today: number; budget: number } };
       if (h.writes) budget = ` The server has used ${h.writes.today} of ${h.writes.budget} writes today, so this is about ${Math.round((rows / Math.max(1, h.writes.budget - h.writes.today)) * 100)} percent of what is left.`;
     } catch { /* health not reachable */ }
     this.note(`${this.dry ? "Dry run: would make" : `Done in ${Math.round((Date.now() - t0) / 1000)} s with`} ${calls} create or update calls (${kinds}), about ${rows} database rows.${budget} State: ${this.statePath}`);
@@ -341,10 +341,12 @@ export class Runner {
     const found = have.find((x) => x.name === a.name);
     if (!found) {
       try {
-        const out = await this.v1("POST", "/agents", { name: a.name, description: bio, localPart: a.localPart ?? slug(a.name), approvalMode: a.approvalMode ?? "always", createKey: true });
+        // AIS1: an API key creates agents only at "a person approves every message"; a person lowers it in the app.
+        const out = await this.v1("POST", "/agents", { name: a.name, description: bio, localPart: a.localPart ?? slug(a.name), createKey: true });
         this.state.agents[a.key] = { id: out.agent.id, keyId: out.apiKey?.id, secret: out.apiKey?.secret, address: out.agent.address };
         this.save();
         this.note(`Created mail agent ${a.name} (${a.title}) with key "${a.name} agent key"`);
+        if (a.approvalMode && a.approvalMode !== "always") this.note(`  ${a.name} starts with a person approving every message; set approval to "${a.approvalMode}" yourself in the app (Agents, ${a.name}, Guardrails)`);
       } catch (e) { this.note(`  agent ${a.name} not created: ${(e as Error).message}`); }
       return;
     }

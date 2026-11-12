@@ -36,10 +36,11 @@ export function setupError(provider: AiProviderId | null) {
 }
 
 /** The workspace's key for transcribing, or the setup error. */
-export async function transcribeKeyFor(deps: Deps, orgId: string): Promise<{ provider: TranscribeProviderId; apiKey: string }> {
-  const row = await deps.db.select({ provider: aiKeys.provider, keyEnc: aiKeys.keyEnc }).from(aiKeys).where(eq(aiKeys.orgId, orgId)).get();
+export async function transcribeKeyFor(deps: Deps, orgId: string): Promise<{ provider: TranscribeProviderId; apiKey: string; version: Date; problem: string | null }> {
+  const row = await deps.db.select({ provider: aiKeys.provider, keyEnc: aiKeys.keyEnc, updatedAt: aiKeys.updatedAt, problem: aiKeys.problem }).from(aiKeys).where(eq(aiKeys.orgId, orgId)).get();
   if (!row || !canTranscribe(row.provider)) throw setupError(row?.provider ?? null);
-  return { provider: row.provider, apiKey: await decryptSecret(deps.config.appSecret, row.keyEnc) };
+  // QUAL1: version and problem let the caller note a refusal on this key (or clear it), as every other AI call does.
+  return { provider: row.provider, apiKey: await decryptSecret(deps.config.appSecret, row.keyEnc), version: row.updatedAt, problem: row.problem ?? null };
 }
 
 const scrub = (text: string, apiKey: string) => (apiKey ? text.split(apiKey).join("[key]") : text).replace(/(sk|gsk)[-_][A-Za-z0-9_-]{8,}/g, "[key]");

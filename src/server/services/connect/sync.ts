@@ -838,7 +838,8 @@ export async function syncAndChain(deps: Deps, connectionId: string, opts: { for
     if (deps.dispatchMailSync) {
       await deps.dispatchMailSync(connectionId).catch((err) => deps.log?.warn("mail_sync.chain_failed", { connection: connectionId, error: (err as Error).message }));
     } else if (deps.config.mailConnect.chainMs > 0) {
-      const t = setTimeout(() => { void syncAndChain(deps, connectionId).catch(() => undefined); }, deps.config.mailConnect.chainMs);
+      // Semgrep (QUAL1): setTimeout is given a function, not a string, so nothing is evaluated.
+      const t = setTimeout(() => { void syncAndChain(deps, connectionId).catch(() => undefined); }, deps.config.mailConnect.chainMs); // nosemgrep: ajinabraham.njsscan.eval.eval_node.eval_nodejs
       (t as unknown as { unref?: () => void }).unref?.();
     }
   }

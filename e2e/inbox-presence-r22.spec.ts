@@ -1,6 +1,7 @@
 import { test, expect, type Browser } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 22 (R22.3 and R22.4) end to end: two people in one workspace open the same shared inbox
@@ -69,8 +70,8 @@ test("a teammate sees viewing, then replying, then takes over the saved draft", 
   await expect(draft).toContainText("I have reset the link");
   await expect(bar).toContainText(`${first(adaName)} is replying`, { timeout: 25_000 });
   await b.page.getByTestId("thread-presence").scrollIntoViewIfNeeded();
-  mkdirSync("/home/user/tab/files/multies-r22", { recursive: true });
-  await b.page.screenshot({ path: "/home/user/tab/files/multies-r22/presence.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r22`, { recursive: true });
+  await b.page.screenshot({ path: `${SHOTS_ROOT}/multies-r22/presence.png` });
 
   // Ben takes over: the draft opens in his Compose, and it is his now.
   await draft.getByRole("button", { name: "Take over" }).click();

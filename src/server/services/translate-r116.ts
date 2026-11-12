@@ -12,15 +12,17 @@ import type { Deps } from "../context";
 import { HttpError } from "../lib/errors";
 import { DbRateLimitStore } from "../lib/rate-limit";
 import { aiAllowed } from "./ai-trust-td1";
-import { askAi, type AiRequest } from "./tools/ai-meter";
+import { aiRefusalError, askAi, type AiOk, type AiRequest } from "./tools/ai-meter";
 import { AI_OFF_MESSAGE } from "@/shared/ask-td1";
 import { detectLanguage, isR116Language, R116_LIMITS, type R116Language } from "@/shared/translate-r116";
 
 export type TranslateInput = { texts: string[]; target: string; source?: string | null };
-export type TranslateOutput = { texts: string[]; source: R116Language | null; target: R116Language; cached: boolean; same: boolean };
+/** fallback (QUAL1 review): built-in AI translated because the provider refused the workspace's own key; `message` says so. */
+export type TranslateOutput = { texts: string[]; source: R116Language | null; target: R116Language; cached: boolean; same: boolean; fallback?: AiOk["fallback"] };
 
 const CACHE_MAX = 300, CACHE_TTL_MS = 60 * 60_000;
-const cache = new Map<string, { until: number; texts: string[] }>();
+/** A cached answer keeps its fallback note, so the same text read again still says who translated it. */
+const cache = new Map<string, { until: number; texts: string[]; fallback?: AiOk["fallback"] }>();
 /** For tests: empties this isolate's cache. */
 export const clearTranslateCache = () => cache.clear();
 
@@ -52,7 +54,7 @@ export async function translateTexts(deps: Deps, actor: { orgId: string; userId:
 
   const key = await keyOf(actor.orgId, source ?? "", target, texts);
   const hit = cache.get(key);
-  if (hit && hit.until > deps.now().getTime()) return { texts: hit.texts, source, target, cached: true, same: false };
+  if (hit && hit.until > deps.now().getTime()) return { texts: hit.texts, source, target, cached: true, same: false, ...(hit.fallback ? { fallback: hit.fallback } : {}) };
 
   const store = new DbRateLimitStore(() => deps.db, () => deps.now().getTime());
   store.prefix = "rl:tr116:";
@@ -65,14 +67,19 @@ export async function translateTexts(deps: Deps, actor: { orgId: string; userId:
   const req: AiRequest = { task: "translate", texts, target, ...(source ? { source } : {}) };
   const r = await askAi(d, actor.orgId, req);
   if (!r.ok) {
+    // QUAL1 review: a refused workspace key answers 409 ai_key_refused with the fix link, never "try again".
+    const keyProblem = aiRefusalError(r);
+    if (keyProblem) throw keyProblem;
     if (r.reason === "limit" || r.reason === "workspace_limit") throw new HttpError(429, "ai_limit", r.message);
     if (r.reason === "too_big") throw new HttpError(413, "too_large", r.message);
     if (r.reason === "unavailable") throw new HttpError(r.message === AI_OFF_MESSAGE ? 409 : 503, r.message === AI_OFF_MESSAGE ? "ai_off" : "ai_unavailable", r.message);
+    // QUAL1 second review: the provider refused this text (too long, its content rules); a retry won't help.
+    if (r.refused) throw new HttpError(502, "ai_provider_error", r.message);
     throw new HttpError(502, "ai_failed", "The translation failed. Try again in a moment.");
   }
   // A string the model left empty keeps its original words.
   const out = texts.map((t, i) => (r.texts[i]?.trim() ? r.texts[i].trim() : t));
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
-  cache.set(key, { until: deps.now().getTime() + CACHE_TTL_MS, texts: out });
-  return { texts: out, source, target, cached: false, same: false };
+  cache.set(key, { until: deps.now().getTime() + CACHE_TTL_MS, texts: out, ...(r.fallback ? { fallback: r.fallback } : {}) });
+  return { texts: out, source, target, cached: false, same: false, ...(r.fallback ? { fallback: r.fallback } : {}) };
 }

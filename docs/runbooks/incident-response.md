@@ -18,7 +18,7 @@ data looking wrong, a security problem.
 
 - `/status` and `/api/status`: which component is red.
 - Sentry: new issues and the release they started in (each deploy is a release tied to its commit). Alerts arrive by email at the support mailbox; how to read them: [sentry-triage.md](sentry-triage.md).
-- `/api/config` and `/api/health`: which release is serving.
+- `/api/config`: which release is serving. `/api/health` says only whether the app and its database answer (`{ ok, db }`); the release, D1 writes and reads and the busiest workspaces are on `/api/admin/health` for platform operators, and the status page's 24 hour mail volume is on `/api/admin/status`.
 - Workers logs (Cloudflare dashboard, Workers, mymail, Logs): filter on `level:error` or a `requestId` from a customer report. Every response carries `x-request-id`.
 - Job queue: the operator console (`/app/admin`) shows queued, dead and failing jobs; outbound mail that cannot be sent waits there instead of being lost.
 - Provider status pages: Cloudflare, Resend, Stripe.

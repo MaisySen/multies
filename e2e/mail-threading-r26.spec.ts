@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { sign } from "../email-worker/src/index";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 26 (MB-80) end to end: a message sent from one mailbox gets an outside reply addressed to another
@@ -9,7 +10,7 @@ import { sign } from "../email-worker/src/index";
  */
 let visitor = 0;
 const ip = () => `10.126.${test.info().workerIndex % 200}.${++visitor}`;
-const SHOT = process.env.R26_SHOT ?? "/home/user/tab/files/multies-r26/r26-mail.png";
+const SHOT = process.env.R26_SHOT ?? `${SHOTS_ROOT}/multies-r26/r26-mail.png`;
 
 test("an outside reply sent to another mailbox of the workspace joins the thread in the shared inbox", async ({ page, context }) => {
   test.setTimeout(60_000);

@@ -39,7 +39,8 @@ function account(local: string) {
 
 /** 620 messages, oldest first: all but the last 5 dated two years ago. */
 async function fill(user: string, pass: string) {
-  const c = new ImapFlow({ host: imapHost, port: Number(imapPort), secure: false, doSTARTTLS: true, logger: false, auth: { user, pass }, tls: { rejectUnauthorized: false } });
+  // Semgrep (QUAL1): the local test mail server's self signed certificate (e2e only).
+  const c = new ImapFlow({ host: imapHost, port: Number(imapPort), secure: false, doSTARTTLS: true, logger: false, auth: { user, pass }, tls: { rejectUnauthorized: false } }); // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification
   await c.connect();
   try {
     const old = Date.now() - 730 * 86_400_000;

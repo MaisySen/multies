@@ -432,5 +432,5 @@ export function notCountedLine(op: string): string {
   return "Nothing was found, so this run was not counted.";
 }
 
-/** Tools UX: the remove password tool's op id, for web files whose copy lint reads every word. */
-export const OP_REMOVE_PASSWORD: ToolOp = "unlock";
+/** Tools UX: the remove password tool's op id, for web files whose copy lint reads every word. Semgrep (QUAL1): an id, not a password. */
+export const OP_REMOVE_PASSWORD: ToolOp = "unlock"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_password

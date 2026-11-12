@@ -57,7 +57,7 @@ const SAMPLE_INBOUND: { from: { address: string; name: string }; to: string; sub
 /** The host every sample connection points at. .example never resolves (RFC 2606), and sync skips it before any network call. */
 export const SAMPLE_CONNECTION_HOST = "imap.sample.example";
 /** Stored in place of an encrypted password on a sample connection: not a secret, and it never decrypts. */
-export const SAMPLE_CONNECTION_SECRET = "sample:none";
+export const SAMPLE_CONNECTION_SECRET = "sample:none"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
 
 /** True for the demo workspace's sample connected mailbox, which must never reach out to a provider. */
 export function isSampleConnection(c: { imapHost: string; secretEnc: string }) {
@@ -245,10 +245,14 @@ export async function createDemoWorkspace(deps: Deps, opts: { check?: boolean } 
   return { userId, orgId, headers: signup.headers };
 }
 
-/** Two agents at work: one on its own inbox chasing invoices, one triaging support@ beside the team. */
+/**
+ * Two agents at work: one on its own inbox chasing invoices, one triaging support@ beside the team. Both answer
+ * outside customers, so the seed (a person) picks "anyone" for them; a new agent otherwise mails only the
+ * workspace's own domains (AIS1, row 51).
+ */
 export async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: string; name: string }, now: number) {
   const support = (await listMailboxes(deps.db, auth.orgId)).find((m) => m.localPart === "support")!;
-  const [invoices, triage] = await Promise.all([createAgent(deps, auth, { name: "Invoice chaser", localPart: "accounts", domainId: domain.id, createKey: false, sendCapDaily: 40, allowedRecipients: null }), createAgent(deps, auth, { name: "Support triage", localPart: "triage", domainId: domain.id, createKey: false, approvalMode: "external", mailboxIds: [support.id] })]);
+  const [invoices, triage] = await Promise.all([createAgent(deps, auth, { name: "Invoice chaser", localPart: "accounts", domainId: domain.id, createKey: false, sendCapDaily: 40, allowedRecipients: null }), createAgent(deps, auth, { name: "Support triage", localPart: "triage", domainId: domain.id, createKey: false, approvalMode: "external", mailboxIds: [support.id], allowedRecipients: null })]);
   const inbound = async (to: string, from: { address: string; name: string }, subject: string, text: string, hoursAgo: number) => {
     const email: ParsedEmail = {
       messageId: `<${randomToken(9)}@${from.address.split("@")[1]}>`, from, to: [{ address: to }], cc: [], subject, text, date: new Date(now - hoursAgo * 3600_000),

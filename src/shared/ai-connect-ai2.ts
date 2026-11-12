@@ -146,3 +146,31 @@ export const AI2_RESULT_TEXT = {
   provider_error: "The provider had a problem. Try again in a minute.",
 } as const;
 export type Ai2ResultCode = keyof typeof AI2_RESULT_TEXT;
+
+/**
+ * QUAL1 (audit rows 12, 14): what is wrong with a saved key, as the provider last answered. It stays on the key until a
+ * call on it works, a connection test passes, or the key or model is changed, so every screen shows the real state.
+ */
+export const AI_KEY_PROBLEMS = ["key_refused", "no_credit", "model_unavailable"] as const;
+export type AiKeyProblem = (typeof AI_KEY_PROBLEMS)[number];
+export const isAiKeyProblem = (v: unknown): v is AiKeyProblem => typeof v === "string" && (AI_KEY_PROBLEMS as readonly string[]).includes(v);
+/** Where an admin fixes the key: Settings, AI. */
+export const AI_KEY_FIX_PATH = "/app/settings#ai";
+/** QUAL1 review: an API error code for a key problem (ai_key_refused, ai_no_credit, ai_model_unavailable), which gets the fix link. */
+export const isAiKeyProblemCode = (code: unknown): boolean => typeof code === "string" && code.startsWith("ai_") && isAiKeyProblem(code.slice(3));
+
+/** The one plain sentence for a key problem, wherever it shows (Settings, the mail assistant, Team AI, meeting notes, errors). */
+export function aiKeyProblemText(problem: AiKeyProblem, providerName: string | null | undefined): string {
+  const name = providerName || "Your AI provider";
+  if (problem === "key_refused") return `${name} refused your workspace's AI key. An admin can paste a new key in Settings, AI.`;
+  if (problem === "no_credit") return `Your ${providerName || "AI provider"} account has no credit left. Add credit there, then test the key in Settings, AI.`;
+  return `The saved model is not offered on your ${providerName || "AI provider"} key any more. Pick another model in Settings, AI.`;
+}
+
+/** The note on an answer that built-in AI wrote because the workspace's own key did not work. */
+export function aiFallbackText(problem: AiKeyProblem, providerName: string | null | undefined): string {
+  const why = problem === "key_refused" ? `${providerName || "Your AI provider"} refused your workspace's AI key`
+    : problem === "no_credit" ? `your ${providerName || "AI provider"} account has no credit left`
+    : `the saved ${providerName || "AI"} model is not offered any more`;
+  return `Built-in AI wrote this because ${why}. An admin can fix it in Settings, AI.`;
+}

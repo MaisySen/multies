@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { meter } from "./d1-meter";
 import { loadConfig } from "@/server/config";
@@ -72,9 +73,15 @@ describe("R32 D1 write budget: meter and alerts", () => {
     expect(b.outbound.sent.filter((m) => m.subject.includes("D1 writes"))).toHaveLength(0);
   });
 
-  it("/api/health shows today, percent, reset time and production vs staging, never database ids", async () => {
-    const { app } = await makeTestApp(env(), { fetch: analytics(62_000) });
-    const body = await (await app.request("/api/health", { headers: { host: "localhost" } })).json() as { writes: Record<string, unknown> };
+  it("/api/admin/health shows today, percent, reset time and production vs staging, never database ids", async () => {
+    const { app, db } = await makeTestApp(env(), { fetch: analytics(62_000) });
+    // QUAL1 (audit row 36): operators only; the public /api/health is { ok, db }.
+    const op = new Client(app);
+    await op.signup("ops@multies.si");
+    expect((await op.get("/api/admin/health")).status).toBe(403);
+    await db.run(sql`update users set role = 'admin' where email = 'ops@multies.si'`);
+    expect((await (await app.request("/api/health", { headers: { host: "localhost" } })).json())).toEqual({ ok: true, db: "ok" });
+    const body = (await op.get("/api/admin/health")).body as { writes: Record<string, unknown> };
     expect(body.writes).toMatchObject({ today: 62_000, budget: 100_000, level: "warn", pct: 62, warnAt: 60, shedAt: 85, byEnvironment: { production: 31_000, staging: 31_000 } });
     expect(String(body.writes.resetAt)).toMatch(/T00:00:00\.000Z$/);
     expect(JSON.stringify(body)).not.toContain(PROD);

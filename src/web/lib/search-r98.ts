@@ -177,7 +177,8 @@ export function instantHits(words: string, f: Filters, limit = 5, now = new Date
   if (!s || words.trim().length < SEARCH_MIN_CHARS) return [];
   const want = serverTypes(f.type);
   const r = dateRange(f, now);
-  const hits = s.mini.search(words.trim());
+  // Semgrep (QUAL1): MiniSearch's own search (tokens and a trie), not String.prototype.search, so no RegExp is built.
+  const hits = s.mini.search(words.trim()); // nosemgrep: ajinabraham.njsscan.dos.regex_injection.regex_injection_dos
   const out: IndexEntry[] = [];
   for (const h of hits) {
     const e = s.byKey.get(String(h.id));

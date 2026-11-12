@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Navigate } from "react-router";
+import { NotFound } from "@/web/pages/not-found"; // QUAL1
 import { useConfig } from "@/web/lib/queries";
 import { toast } from "sonner";
 import { IconCheckCircle, IconClock, IconLock, IconPlug, IconWarning } from "@/web/components/ui/icon";
@@ -106,11 +106,11 @@ function useEmbeddedSignup(status: ChannelsStatus | undefined, onConnected: (c: 
 
 /* ---------- The page ---------- */
 
-/** R59: with the server switch off (CHAT_CHANNELS) the pane does not exist: an old link lands on Settings. */
+/** R59: with the server switch off (CHAT_CHANNELS) the pane does not exist. QUAL1 (audit row 29): it says so (the not found page), never General in its place. */
 export function ChannelsSettings() {
   const config = useConfig();
   if (config.isPending) return <div className="space-y-4" data-testid="channels-settings"><Skeleton className="h-28 rounded-xl" /></div>;
-  if (!config.data?.chatChannels) return <Navigate to="/app/settings" replace />;
+  if (!config.data?.chatChannels) return <div className="fixed inset-0 z-[80] overflow-y-auto bg-bg" data-testid="channels-not-found"><NotFound embedded /></div>;
   return <ChannelsSettingsPane />;
 }
 

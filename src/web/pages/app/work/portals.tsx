@@ -303,8 +303,9 @@ function PickShared({ kind, portalId, onClose, refresh }: { kind: "doc" | "task"
     queryKey: ["portal-pick", kind, search],
     queryFn: async () => {
       if (kind === "doc") { const r = await api.get<{ docs?: { id: string; title: string }[] } | { id: string; title: string }[]>(`/docs`); const list = Array.isArray(r) ? r : r.docs ?? []; return list.map((x) => ({ id: x.id, title: x.title || "Untitled" })); }
-      const r = await api.get<{ tasks?: { id: string; title: string }[] } | { id: string; title: string }[]>(`/tasks?limit=100${search ? `&q=${encodeURIComponent(search)}` : ""}`);
-      return (Array.isArray(r) ? r : r.tasks ?? []).map((x) => ({ id: x.id, title: x.title }));
+      const r = await api.get<{ tasks?: { id: string; title: string; triage?: unknown }[] } | { id: string; title: string; triage?: unknown }[]>(`/tasks?limit=100${search ? `&q=${encodeURIComponent(search)}` : ""}`);
+      // AIS1 review: a search also finds items waiting in Triage; only accepted tasks are shared with a portal.
+      return (Array.isArray(r) ? r : r.tasks ?? []).filter((x) => !x.triage).map((x) => ({ id: x.id, title: x.title }));
     },
   });
   const list = (q.data ?? []).filter((x) => !search || x.title.toLowerCase().includes(search.toLowerCase())).slice(0, 30);

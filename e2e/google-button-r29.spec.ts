@@ -1,10 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /** R29: the Google sign in button follows Google's branding guidelines in light and dark, on sign in and sign up. */
 const BASE = `http://localhost:${process.env.E2E_IDP_PORT ?? "8790"}`;
 test.skip(!!process.env.E2E_BASE_URL, "needs the local fake identity provider");
-const SHOTS = "/home/user/tab/files/multies-r30";
+const SHOTS = `${SHOTS_ROOT}/multies-r30`;
 
 for (const scheme of ["light", "dark"] as const) {
   test(`Google button in ${scheme} mode: Google's G asset, Google's colours, 40 px`, async ({ browser }) => {

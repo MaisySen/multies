@@ -10,10 +10,12 @@ fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
 # 1. Health: database reachable and migrated, and the new release is the one serving.
 # A deploy takes a few seconds to reach every Cloudflare location, so the old release can
 # still answer at first: keep asking for up to two minutes until the expected one does.
+# QUAL1 (audit row 36): /api/health answers only { ok, db }; the release serving is on /api/config.
 HEALTH=""
+CONFIG=""
 for i in $(seq 1 24); do
   if HEALTH=$(curl -fsS "$BASE/api/health") && echo "$HEALTH" | grep -q '"ok":true' \
-     && { [ -z "$EXPECT_RELEASE" ] || echo "$HEALTH" | grep -q "\"release\":\"$EXPECT_RELEASE"; }; then
+     && { [ -z "$EXPECT_RELEASE" ] || { CONFIG=$(curl -fsS "$BASE/api/config") && echo "$CONFIG" | grep -q "\"release\":\"$EXPECT_RELEASE"; }; }; then
     break
   fi
   sleep 5
@@ -22,7 +24,7 @@ echo "health: ${HEALTH:-none}"
 echo "$HEALTH" | grep -q '"ok":true' || fail "health is not ok"
 echo "$HEALTH" | grep -q '"db":"ok"' || fail "database is not fully migrated (health says db is not ok)"
 if [ -n "$EXPECT_RELEASE" ]; then
-  echo "$HEALTH" | grep -q "\"release\":\"$EXPECT_RELEASE" || fail "expected release $EXPECT_RELEASE"
+  echo "$CONFIG" | grep -q "\"release\":\"$EXPECT_RELEASE" || fail "expected release $EXPECT_RELEASE (from /api/config)"
 fi
 
 # 2. The app shell renders with its security headers.

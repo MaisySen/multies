@@ -750,6 +750,12 @@ export const aiKeys = sqliteTable("ai_keys", {
   updatedByUserId: text("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+  /**
+   * QUAL1 (migration 0170): what the provider said the last time it refused this key or its model (key_refused,
+   * no_credit, model_unavailable) and when. Null while it works; a call that works or a passed test clears it.
+   */
+  problem: text("problem", { enum: ["key_refused", "no_credit", "model_unavailable"] }),
+  problemAt: ts("problem_at"),
 });
 
 /** AI2 (migration 0150): a workspace's live model list, read with its own key, kept 10 minutes. */

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R32: mail multi-select and bulk actions with Undo, in a demo workspace. X selects the open row, J moves,
@@ -72,7 +73,7 @@ test("select with X, archive with E, Undo restores; Shift+click range; bulk mark
   await rows.nth(0).getByTestId("mail-select").click();
   await rows.nth(n - 1).getByTestId("mail-select").click({ modifiers: ["Shift"] });
   await expect(page.getByTestId("bulk-count")).toHaveText(`${n} selected`);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r32/mail-bulk-bar.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r32/mail-bulk-bar.png` });
   await bar.getByRole("button", { name: "Mark read" }).click();
   await expect(page.getByText(`Marked ${n} conversations as read`)).toBeVisible();
   await expect.poll(async () => (await list(page, mb.id, "folder=inbox")).filter((m) => range.includes(m.id) && m.isRead).length, { timeout: 15_000 }).toBe(n);

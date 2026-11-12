@@ -1,6 +1,7 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 20 chat polish end to end: two people in one workspace, each in their own browser.
@@ -81,7 +82,7 @@ test("a call starts from the channel in one tap and the other person gets a join
   await expect(card).toBeVisible({ timeout: 8_000 });
   await expect(card).toContainText("Call started");
   await expect(card).toContainText("Ben Mate");
-  const shots = "/home/user/tab/files/multies-r20";
+  const shots = `${SHOTS_ROOT}/multies-r20`;
   mkdirSync(shots, { recursive: true });
   await a.screenshot({ path: `${shots}/chat-reactions.png` });
   await card.getByTestId("call-join").click();

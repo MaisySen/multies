@@ -4,8 +4,9 @@ import { suppressedAmong } from "../deliverability/suppressions";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { inIds } from "../../lib/sql-chunks";
 import type { AuthContext, Deps } from "../../context";
-import { domains, mailboxes, mailSchedules, messages } from "../../db/schema";
+import { agents, domains, mailboxes, mailSchedules, messages } from "../../db/schema";
 import { assertOpen, canOpen } from "../mail-access-priv1a";
+import { callerKind } from "../../lib/actor-kind";
 import type { DB } from "../../db";
 import { decide, externalSentToday, guardConfig, newSenderCap, nextUtcMidnight, providerSentToday, sendingOff, SENDING_OFF_MESSAGE } from "./send-guard-r34";
 import { newId } from "../../lib/crypto";
@@ -20,7 +21,8 @@ import { enqueue } from "../jobs";
 import type { DeliverJobPayload } from "./deliver-job";
 import "./deliver-job";
 import { countNewRecipients, maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_FLAG_AT, SPAM_HOLD_AT } from "../abuse";
-import type { ParsedAttachment } from "./mime";
+import { makeSnippet, type ParsedAttachment } from "./mime";
+import { storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
 
 /** Most recipients one message from a free address can have. */
 export const FREE_MAX_RECIPIENTS = 10;
@@ -50,6 +52,11 @@ export interface SendExtras {
   overrideCap?: boolean;
   /** R109: extra headers for bulk mail (List-Unsubscribe, List-Unsubscribe-Post). */
   headers?: Record<string, string>;
+  /**
+   * AIS1 (row 32): this message carries the platform's own mail (a mail rule forwarding an invite or a reset). Its
+   * Sent copy and every copy delivered inside the platform keep the mark, so agents, keys and apps get no text.
+   */
+  platformMail?: PlatformMark;
 }
 
 /** R34: holds a person's message until midnight UTC as a scheduled send that carries the reason. */
@@ -102,6 +109,24 @@ export async function assertSendLevel(db: DB, who: Pick<AuthContext, "userId" | 
   if (want.some((a) => !seen.has(a))) throw refuse();
 }
 
+/**
+ * AIS1: an agent's inbox sends through its agent (requestSend), so the agent's approval rule, daily cap and allowed
+ * recipients always apply. A workspace key or a connected AI app that names the inbox directly (v1 POST /messages
+ * with its mailboxId or from) is refused and pointed at the agent's own send. Checked before anything else, so a
+ * send can't slip through as a queued R34 send either. Allowed: the agent itself (extra.agentId, set by
+ * deliverAsAgent), a person writing from it in the app (their own decision, labelled as theirs), and system senders
+ * with no person behind them (a Supabase auth email hook set on the inbox: audit row 44 stops picking agent inboxes
+ * there, so working sign up mail doesn't stop here without warning).
+ */
+async function assertAgentInboxSend(db: DB, auth: AuthContext, mb: { id: string; kind: string; address: string }, extra: SendExtras) {
+  if (mb.kind !== "agent" || extra.agentId) return;
+  const kind = callerKind(auth);
+  if (kind === "person" || kind === "system") return;
+  const agent = await db.select({ id: agents.id }).from(agents).where(eq(agents.mailboxId, mb.id)).get();
+  const where = agent ? `POST /api/v1/agents/${agent.id}/send` : "POST /api/v1/agents/{id}/send";
+  throw new HttpError(403, "agent_inbox", `${mb.address} is an agent's inbox. Send as the agent instead (${where}, or send_email on MCP), so its approval rule, daily limit and allowed recipients apply.`);
+}
+
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */
 /** PRIV1b (P58): the refusal for a connected mailbox whose connection is gone (kept for a legal hold). */
 const connectionRemoved = (address: string) => new HttpError(409, "connection_removed", `${address} is no longer connected, so it can't send. Connect it again in Settings, Connections, Mail accounts.`);
@@ -110,6 +135,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const { db } = deps;
   const mb = await db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
   if (!mb) throw notFound("Mailbox");
+  await assertAgentInboxSend(db, auth, mb, extra); // AIS1
   // PRIV1a (MB-366): a personal mailbox sends only for its owner and the people it was shared with (a reply needs
   // Read and reply, new mail needs Send as). Every send path (app, phone, REST, MCP, schedules) comes through here.
   // PRIV1b (P10): a reply share answers the thread's own people only (assertSendLevel).
@@ -216,6 +242,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     orgId: auth.orgId, mailboxId: mb.id, folder: "sent", messageIdHeader, inReplyTo, references,
     from, to: toList, cc: ccList, bcc: bccList, replyTo, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true, attachments: atts,
     sentByAgentId: extra.agentId ?? null, sentByUserId: auth.userId || null, bodyStore: deps.bodyStore,
+    ...(extra.platformMail ? { authResults: storedAuth(undefined, extra.platformMail), snippet: makeSnippet(withoutSecrets(input.text)) } : {}), // AIS1 (row 32)
   });
   if (inReplyTo) {
     await db.update(messages).set({ isAnswered: true }).where(and(eq(messages.mailboxId, mb.id), eq(messages.messageIdHeader, inReplyTo)));
@@ -246,6 +273,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       rcptTo: rcpt,
       sizeBytes: input.text.length + (input.html?.length ?? 0) + 512,
       via: "internal",
+      ...(extra.platformMail ? { platformMail: extra.platformMail } : {}), // AIS1 (row 32): the forwarded copy stays marked
       email: {
         messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, replyTo, subject: input.subject,
         text: input.text, html: input.html, date: now, attachments: atts, authResults: senderAuth, headers: {},

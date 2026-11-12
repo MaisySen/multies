@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R58 (MB-253): a guest invite whose email did not go out shows Copy invite link in the dialog, and a guest who has
@@ -34,7 +35,7 @@ test("an invite that was not emailed can be shared by link, now or later", async
   await expect(dialog.getByTestId("guest-invite-not-sent")).toContainText(`The invite email to mia-${tag}@example.com didn't go out`);
   await dialog.getByRole("button", { name: "Copy invite link to clipboard" }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(invite.inviteUrl);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r58/guests-after-not-sent-copy-desktop-light.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r58/guests-after-not-sent-copy-desktop-light.png` });
 
   // Later: Get link on the guest's row makes a fresh link (no email) and the first one stops working.
   await dialog.getByRole("button", { name: `Get an invite link for mia-${tag}@example.com` }).click();

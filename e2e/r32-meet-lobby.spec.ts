@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 32: the meeting waiting room end to end. A guest opens the meeting link, gives a name on the
@@ -14,7 +15,7 @@ test.use({
 });
 test.describe.configure({ mode: "serial" });
 
-const SHOTS = "/home/user/tab/files/multies-r32";
+const SHOTS = `${SHOTS_ROOT}/multies-r32`;
 let visitor = 0;
 const ip = () => `10.132.${test.info().workerIndex % 200}.${++visitor}`;
 

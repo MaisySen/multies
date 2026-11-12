@@ -163,8 +163,8 @@ describe("thread notes in the app", () => {
 describe("notes never leave the team", () => {
   it("keeps note text out of replies, sends, quotes and thread reads", async () => {
     await owner.post(`/api/threads/${threadId}/comments`, { body: `${SECRET} @Maya Lopez` });
-    const wsKey = (await owner.post("/api/developer/keys", { name: "Agents" })).body.secret;
-    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Helper", mailboxIds: [supportId], approvalMode: "never" })).body;
+    // AIS1: only a person makes an agent that sends without approval or to anyone, so the owner makes it in the app.
+    const { agent, apiKey } = (await owner.post("/api/agents", { name: "Helper", mailboxIds: [supportId], approvalMode: "never", allowedRecipients: null })).body;
     // An agent reply in the thread (replyInThread, the reply quote and send.ts).
     const reply = await api(apiKey.secret, "POST", `/agents/${agent.id}/threads/${threadId}/reply`, { text: "Sorry about that. It ships today." });
     expect(reply.body.status).toBe("sent");

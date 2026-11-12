@@ -1,9 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R41 phone helper: phone Tasks cards and View picker, bottom sheet pickers, stat strips with full labels, rapid add
  * in a board column, the demo's invite message and sample mailbox Reconnect, and Start now on Meetings at 390 px.
- * SHOTS=before or SHOTS=after saves screenshots to /home/user/tab/files/multies-r41/ (before skips the new checks).
+ * SHOTS=before or SHOTS=after saves screenshots to SHOTS_ROOT/multies-r41/ (before skips the new checks).
  */
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
@@ -13,7 +14,7 @@ test.setTimeout(180_000);
 
 const SHOTS = process.env.SHOTS;
 const AFTER = SHOTS !== "before";
-const DIR = "/home/user/tab/files/multies-r41";
+const DIR = `${SHOTS_ROOT}/multies-r41`;
 const PHONE = { width: 390, height: 844 };
 const DESK = { width: 1280, height: 800 };
 

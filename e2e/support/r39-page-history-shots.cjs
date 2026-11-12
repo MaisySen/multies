@@ -1,6 +1,6 @@
 
 const { chromium } = require("playwright");
-const phase = process.argv[2]; const base = process.env.BASE || "http://localhost:8979"; const out = "/home/user/tab/files/multies-r39/";
+const phase = process.argv[2]; const base = process.env.BASE || "http://localhost:8979"; const out = (process.env.SHOTS_ROOT || "/home/user/tab/files") + "/multies-r39/";
 const fs = require("fs"); fs.mkdirSync(out, { recursive: true });
 const BODY = { type: "doc", content: [
   { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Launch plan" }] },

@@ -12,8 +12,8 @@ import { ConfirmButton } from "@/web/components/ui/confirm";
 import { timeAgo } from "@/web/lib/format";
 import type { Project } from "./data";
 
-interface Guest { id: string; email: string; name: string; status: "pending" | "active" | "revoked"; lastSeenAt: string | null; approvalId: string | null; approvalStatus: "pending" | "sent" | "rejected" | "failed" | "expired" | null; createdAt: string }
-interface InviteResult { guest: Guest; delivery: { status: "sent" | "pending_approval" | "not_sent"; detail?: string }; inviteUrl?: string }
+interface Guest { id: string; email: string; name: string; status: "pending" | "active" | "revoked"; lastSeenAt: string | null; approvalId: string | null; approvalStatus: "pending" | "sent" | "rejected" | "failed" | "expired" | null; createdAt: string; /** AIS1 */ awaitingConfirmation?: boolean }
+interface InviteResult { guest: Guest; delivery: { status: "sent" | "pending_approval" | "not_sent" | "awaiting_confirmation"; detail?: string }; inviteUrl?: string }
 
 export function GuestsDialog({ project, onClose }: { project: Project; onClose: () => void }) {
   const q = useQuery({ queryKey: ["guests", project.id], queryFn: async () => (await api.get<{ guests: Guest[] }>(`/guests?projectId=${project.id}`)).guests });
@@ -35,6 +35,12 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
   const getLink = async (g: Guest) => {
     setLinking(g.id);
     try { const r = await api.post<{ inviteUrl: string }>(`/guests/${g.id}/link`, {}); setLinks((m) => ({ ...m, [g.id]: r.inviteUrl })); }
+    catch (e) { showError(e as Error); } finally { setLinking(null); }
+  };
+  // AIS1 (audit row 1): an invite a key or a connected app made is sent only when a person here says so.
+  const confirmInvite = async (g: Guest) => {
+    setLinking(g.id);
+    try { const r = await api.post<InviteResult>(`/guests/${g.id}/confirm`, {}); setLast(r); await q.refetch(); }
     catch (e) { showError(e as Error); } finally { setLinking(null); }
   };
   const remove = async (g: Guest) => {
@@ -67,9 +73,10 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
               {g.name && <span className="block truncate text-[12px] text-muted">{g.email}</span>}
             </span>
             <Badge tone={g.status === "active" ? "ok" : g.approvalStatus === "rejected" || g.approvalStatus === "failed" || g.approvalStatus === "expired" ? "bad" : "neutral"}>
-              {g.status === "active" ? "Joined" : g.approvalStatus === "pending" ? "Waiting for approval" : g.approvalStatus && g.approvalStatus !== "sent" ? "Invite not sent" : "Invited"}
+              {g.status === "active" ? "Joined" : g.awaitingConfirmation ? "Needs you" : g.approvalStatus === "pending" ? "Waiting for approval" : g.approvalStatus && g.approvalStatus !== "sent" ? "Invite not sent" : "Invited"}
             </Badge>
             {g.lastSeenAt && <span className="hidden text-[11.5px] text-subtle sm:inline">seen {timeAgo(g.lastSeenAt)}</span>}
+            {g.awaitingConfirmation && <Button size="sm" loading={linking === g.id} onClick={() => void confirmInvite(g)} title="An API key or a connected app asked for this invite. Nothing was sent yet." aria-label={`Send the invite to ${g.email}`}>Send invite</Button>}
             {g.status === "pending" && !g.approvalId && (links[g.id]
               ? <CopyButton value={links[g.id]!} label="Copy link" toastText="Invite link copied" />
               : <Button size="sm" variant="secondary" loading={linking === g.id} onClick={() => void getLink(g)} title="A new link to share by hand. No email is sent and the old link stops working." aria-label={`Get an invite link for ${g.email}`}>Get link</Button>)}

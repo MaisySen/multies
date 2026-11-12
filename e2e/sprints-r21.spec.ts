@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 21 sprints end to end: plan a sprint in a project, move two backlog tasks into it, start it,
@@ -53,8 +54,8 @@ test("plan, fill, start and complete a sprint, carrying the unfinished task over
   await expect(page.getByText("5 of 8 done")).toBeVisible({ timeout: 10_000 });
   const chart = page.getByRole("img", { name: /^Burndown: 3 points left of 8/ });
   await expect(chart).toBeVisible();
-  mkdirSync("/home/user/tab/files/multies-r21", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r21/sprints.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r21`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r21/sprints.png` });
 
   await page.getByRole("button", { name: "Complete sprint" }).click();
   const done = page.getByRole("dialog", { name: "Complete Sprint 1" });

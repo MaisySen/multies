@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R58 prod checks of R56 items (run only with E2E_BASE_URL and --grep r58-prod): MB-223 hosted sign in copy,
  * MB-247 My Work meeting tile in the same zone as the list (demo workspace, browser in another zone).
  */
 const BASE = process.env.E2E_BASE_URL ?? "";
-const SHOTS = "/home/user/tab/files/multies-r58";
+const SHOTS = `${SHOTS_ROOT}/multies-r58`;
 
 test("r58-prod: MB-223 hosted sign in and sign up screens", async ({ page }) => {
   test.skip(!BASE, "prod only");

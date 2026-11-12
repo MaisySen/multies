@@ -15,6 +15,7 @@ import { forbidden, HttpError, notFound, planLimit } from "../lib/errors";
 import { audit } from "./audit";
 import { createApiKey, presentApiKey } from "./developer/api-keys";
 import { getPlan } from "./plans";
+import { agentInboxIdAt } from "./agents/agent-address";
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role"> & { agentId?: string | null; apiKeyId?: string };
 
@@ -36,6 +37,8 @@ export interface Person {
   agentId: string | null;
   name: string;
   email: string | null;
+  /** AIS1 (audit row 41): a person member whose address is an AI agent's inbox: an AI, whatever its kind says. */
+  agentInbox?: boolean;
   role: "owner" | "admin" | "member" | null;
   title: string | null;
   bio: string | null;
@@ -46,8 +49,9 @@ export interface Person {
 /** Everyone in the workspace: people first, then agent members, then mail agents. Reads only. */
 export async function listPeople(deps: Deps, orgId: string): Promise<Person[]> {
   const [rows, mailAgents] = await Promise.all([
-    deps.db.select({ userId: users.id, email: users.email, name: users.name, role: members.role, kind: members.kind, title: members.title, bio: members.bio, at: members.createdAt })
-      .from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
+    deps.db.select({ userId: users.id, email: users.email, name: users.name, role: members.role, kind: members.kind, title: members.title, bio: members.bio, at: members.createdAt, agentInboxId: agentInboxIdAt(users.email) })
+      .from(members).innerJoin(users, eq(users.id, members.userId))
+      .where(eq(members.organizationId, orgId)),
     deps.db.select({ id: agents.id, name: agents.name, description: agents.description, address: mailboxes.address, at: agents.createdAt })
       .from(agents).innerJoin(mailboxes, eq(mailboxes.id, agents.mailboxId)).where(eq(agents.orgId, orgId)),
   ]);
@@ -56,7 +60,7 @@ export async function listPeople(deps: Deps, orgId: string): Promise<Person[]> {
     .sort((a, b) => Number(a.kind === "agent") - Number(b.kind === "agent") || order[a.role] - order[b.role] || a.at.getTime() - b.at.getTime())
     .map((r) => ({
       id: r.userId, type: "member", kind: r.kind, userId: r.userId, agentId: null, name: r.name,
-      email: r.kind === "agent" ? null : r.email, role: r.role, title: r.title, bio: r.bio, inbox: null, joinedAt: r.at.toISOString(),
+      email: r.kind === "agent" ? null : r.email, ...(r.agentInboxId ? { agentInbox: true } : {}), role: r.role, title: r.title, bio: r.bio, inbox: null, joinedAt: r.at.toISOString(),
     }));
   for (const a of mailAgents.sort((x, y) => x.at.getTime() - y.at.getTime())) {
     people.push({ id: a.id, type: "mail_agent", kind: "agent", userId: null, agentId: a.id, name: a.name, email: null, role: null, title: "Mail agent", bio: a.description ?? null, inbox: a.address, joinedAt: a.at.toISOString() });
@@ -132,7 +136,7 @@ export async function createAgentMember(deps: Deps, actor: Actor, input: CreateA
     await deps.db.delete(users).where(eq(users.id, userId));
     throw e;
   }
-  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.created", targetType: "user", targetId: userId, metadata: { name, scope: input.scope ?? "full", via: actor.apiKeyId ? "api" : "app" } });
+  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.created", targetType: "user", targetId: userId, metadata: { name, scope: input.scope ?? "full", via: actor.apiKeyId ? "api" : "app", key: { id: key.apiKey.id, name: key.apiKey.name, prefix: key.apiKey.prefix } } });
   return { member: await getPerson(deps, actor.orgId, userId), apiKey: key.apiKey, secret: key.secret };
 }
 
@@ -153,17 +157,17 @@ export async function createAgentMemberKey(deps: Deps, actor: Actor, userId: str
   assertAdminActor(actor);
   const p = await agentRow(deps, actor.orgId, userId);
   const k = await createApiKey(deps, { orgId: actor.orgId, userId }, { name: clean(input.name, 80) ?? `${p.name} key`, scope: input.scope ?? "full" });
-  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { member: userId } });
+  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { member: userId, name: k.apiKey.name, prefix: k.apiKey.prefix } });
   return k;
 }
 
 export async function revokeAgentMemberKey(deps: Deps, actor: Actor, userId: string, keyId: string) {
   assertAdminActor(actor);
   await agentRow(deps, actor.orgId, userId);
-  const k = await deps.db.select({ id: apiKeys.id }).from(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.createdByUserId, userId))).get();
+  const k = await deps.db.select({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix }).from(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.createdByUserId, userId))).get();
   if (!k) throw notFound("API key");
   await deps.db.delete(apiKeys).where(eq(apiKeys.id, k.id));
-  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.key_revoked", targetType: "api_key", targetId: k.id, metadata: { member: userId } });
+  await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, action: "agent_member.key_revoked", targetType: "api_key", targetId: k.id, metadata: { member: userId, name: k.name, prefix: k.prefix } }); // AIS1: the row is hard deleted, the log keeps its name
 }
 
 /** Removes an agent member and its keys. What it wrote stays, under the name it had. */

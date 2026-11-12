@@ -1,11 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R38 dashboard shots: the same seeded dashboard and the add widget picker, desktop and phone, light
  * and dark. SHOT_PHASE=before or after names the files; the after phase also adds the R38 widgets.
  */
-const DIR = "/home/user/tab/files/multies-r38";
+const DIR = `${SHOTS_ROOT}/multies-r38`;
 const PHASE = process.env.SHOT_PHASE ?? "after";
 const DAY = 86_400_000;
 let visitor = 0;

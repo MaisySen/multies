@@ -16,9 +16,10 @@ import type { Deps } from "../../context";
 import { meetingRecordings, members, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { providerFor } from "../ai/keys";
-import { AI_PROVIDER_INFO, AiProviderError } from "../ai/providers";
+import { AI_PROVIDER_INFO, AiProviderError, keyProblemOf } from "../ai/providers";
+import { aiKeyProblemText } from "@/shared/ai-connect-ai2"; // QUAL1
 import { canTranscribe, MAX_CHUNK_BYTES, RECORDING_AI_OFF_MESSAGE, RECORDING_SETUP_MESSAGE, SETUP_CODES, setupError, transcribe, transcribeKeyFor } from "../ai/transcribe";
-import { aiKeyStatus } from "../ai/keys";
+import { aiKeyStatus, recordKeyProblem } from "../ai/keys";
 import { assertWritable, iso, sortableId, type SuiteActor } from "./common";
 import { getMeeting, type Meeting } from "./meetings";
 import { inIds } from "../../lib/sql-chunks";
@@ -71,10 +72,15 @@ export async function recordingSetup(deps: Deps, a: SuiteActor) {
   // PAR1: the workspace AI switch (TD1) comes first: off means no transcript, whatever key is saved.
   const on = await aiAllowed(deps, a.orgId);
   const ready = on && canTranscribe(k.provider);
+  // QUAL1 review (audit row 14): a key the provider refused (or with no credit) cannot transcribe. Recording still
+  // starts (only a call that works or a passed test clears the note, so blocking it would keep a fixed key stuck), but
+  // the room says why the transcript may not come. The transcribe model is fixed, so a model note does not apply.
+  const keyProblem = ready && (k.problem === "key_refused" || k.problem === "no_credit") ? k.problem : null;
   return {
     ready, provider: k.provider, providerName: k.providerName,
     code: ready ? null : !on ? SETUP_CODES.aiOff : k.provider ? SETUP_CODES.wrongProvider : SETUP_CODES.noKey,
-    message: ready ? null : !on ? RECORDING_AI_OFF_MESSAGE : RECORDING_SETUP_MESSAGE,
+    message: ready ? (keyProblem ? k.problemMessage ?? null : null) : !on ? RECORDING_AI_OFF_MESSAGE : RECORDING_SETUP_MESSAGE,
+    ...(keyProblem ? { keyProblem } : {}),
     /** Owners and admins change Settings > AI; others ask them. */
     canConfigure: a.role === "owner" || a.role === "admin",
   };
@@ -119,6 +125,9 @@ export async function startRecording(deps: Deps, a: SuiteActor, meetingId: strin
 
 function providerFailure(err: AiProviderError) {
   const name = AI_PROVIDER_INFO[err.provider].name;
+  // QUAL1 (audit row 14): the same plain sentence for a refused key, credit or model as Settings and the assistant.
+  const problem = keyProblemOf(err);
+  if (problem) return aiKeyProblemText(problem, name);
   return err.status === 401 || err.status === 403 ? `${name} did not accept the API key. Check it in Settings > AI.`
     : err.status === 429 ? `${name} says the key is over its rate limit or out of credit.`
     : err.status === 413 ? `${name} refused the audio chunk as too large.`
@@ -161,9 +170,14 @@ export async function appendChunk(deps: Deps, a: SuiteActor, meetingId: string, 
   let text: string;
   try {
     text = await transcribe(key.provider, key.apiKey, input.audio, input.mime, deps.fetch);
+    // QUAL1: the key worked, so a refusal noted earlier is over (the transcribe model is fixed, so not a model note).
+    if (key.problem === "key_refused" || key.problem === "no_credit") await recordKeyProblem(deps, a.orgId, key.version, null);
   } catch (err) {
     if (err instanceof AiProviderError) {
       deps.log?.warn("recording.transcribe_failed", { provider: err.provider, status: err.status });
+      // QUAL1 (audit row 14): a refused key or credit is noted on the key the moment it happens, here too.
+      const problem = keyProblemOf(err);
+      if ((problem === "key_refused" || problem === "no_credit") && problem !== key.problem) await recordKeyProblem(deps, a.orgId, key.version, problem);
       throw new HttpError(502, "ai_provider_error", providerFailure(err));
     }
     throw err;
