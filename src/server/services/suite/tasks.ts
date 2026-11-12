@@ -388,8 +388,14 @@ export interface TaskFilters {
   type?: TaskType;
   /** Round 21: tasks in this sprint, or null for the backlog (no sprint). */
   sprintId?: string | null;
-  /** R21: "pending" lists only items waiting in Triage; without it they are left out. */
+  /** R21: "pending" lists only items waiting in Triage; without it they are left out (except in a text search, below). */
   triage?: "pending";
+  /**
+   * AIS1 review: set by GET /api/tasks and GET /api/v1/tasks when q is given. A text search there also finds items
+   * waiting in Triage, each shown with its triage state, so a public form answer can be found the moment it arrives.
+   * Lists, boards and counts without a search still leave them out. Same workspace rules as every other task.
+   */
+  search?: boolean;
   /** R46 (MB-234): only these task ids (at most 100), still under every other filter. */
   ids?: string[];
   /** R26 (MB-86): conditions from a task query (services/suite/task-query.ts), ANDed with the rest. */
@@ -411,7 +417,8 @@ async function orderFor(deps: Deps, orgId: string, f: TaskFilters): Promise<SQL[
 
 async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise<(SQL | undefined)[]> {
   const conds: (SQL | undefined)[] = [eq(tasks.orgId, actor.orgId), isNull(tasks.deletedAt)];
-  conds.push(f.triage ? eq(tasks.triageState, f.triage) : isNull(tasks.triageState));
+  if (f.triage) conds.push(eq(tasks.triageState, f.triage));
+  else if (!f.search) conds.push(isNull(tasks.triageState));
   if (f.projectId) conds.push(eq(tasks.projectId, f.projectId));
   if (f.status) conds.push(eq(tasks.status, f.status));
   if (f.statusId) conds.push(eq(tasks.statusId, f.statusId));

@@ -97,7 +97,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
     strictTaskParams(c.req.query(), Object.keys(TaskPageQuery.shape));
     const { cursor, ...q } = c.req.valid("query");
     // ---- R26 (MB-86) task query: q is the query language (plain words still search title and notes); 400 bad_query with position.
-    const r26 = q.q ? { q: undefined, queryConds: applyTaskQuery(q.q, { deps: c.var.deps, actor: actor(c) }), includeSubtasks: q.includeSubtasks === "true" || wantsSubtasks(q.q) } : {};
+    const r26 = q.q ? { q: undefined, queryConds: applyTaskQuery(q.q, { deps: c.var.deps, actor: actor(c) }), search: !!q.q.trim(), includeSubtasks: q.includeSubtasks === "true" || wantsSubtasks(q.q) } : {};
     // ---- end R26 (MB-86)
     const page = await listTasksPage(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()), ...r26, cursor, noChangeCursor: true });
     return send(c, { tasks: page.tasks, next: page.next });

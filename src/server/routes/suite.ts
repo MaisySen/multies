@@ -87,7 +87,7 @@ export function taskRoutes() {
       const fieldFilters = parseFieldFilters(c.req.query());
       // R26 (MB-86): q is the task query language (plain words still search titles and notes).
       const queryConds = q.q ? applyTaskQuery(q.q, { deps: c.var.deps, actor: c.var.auth }) : undefined;
-      const filters = { ...q, q: undefined, queryConds, includeSubtasks: q.includeSubtasks === "true" || (!!q.q && wantsSubtasks(q.q)), fieldFilters, sprintId: q.sprintId === "none" ? null : q.sprintId };
+      const filters = { ...q, q: undefined, queryConds, search: !!q.q?.trim(), includeSubtasks: q.includeSubtasks === "true" || (!!q.q && wantsSubtasks(q.q)), fieldFilters, sprintId: q.sprintId === "none" ? null : q.sprintId };
       // R46 (MB-234): board, list and backlog read every page once (paged=1, then cursor), then refresh only the tasks
       // the change feed names (ids=a,b,c with the same filters).
       const pageMode = !!paged || ids !== undefined;
