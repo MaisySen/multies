@@ -147,6 +147,45 @@ last visit: `counts` (messages, replies, comments, edits, statusChanges, assigne
 minute per item. `POST /api/catchup/visit` (`{ type, id }`) marks the item caught up now. With the workspace's own AI key,
 `POST /api/catchup/summary` writes a short summary on that key (409 `ai_key_required` without one). MCP: `catchup_get`.
 
+## The workspace's own AI key: refusals and built-in AI (QUAL1)
+
+When the provider refuses the workspace's own key (401, or a 403 that names the key or a permission), says its account
+has no credit (402 or its own quota or balance code), or no longer offers the saved model, Multies notes it on the key
+with the time, on any AI call (the mail assistant, Tools, Team AI, meeting notes and recordings, catch-up, forms, the
+connection test and the model list). A call on the key that works, a passed `POST /api/ai/test`, a new key, or (for the
+model) a new model clears it. A provider turning down the request's own text (its moderation or a guardrail flags it,
+or it is too long) is never noted on the key and never goes to built-in AI: the answer is `502 ai_provider_error`
+saying the provider would not answer this request, on the mail assistant and on mail Translate and the document
+tools alike. Rate limits are not noted either: a 429 counts as no credit only when it names the credit itself (an
+`insufficient_quota` code), so a per minute limit (a 429 `RESOURCE_EXHAUSTED`) passes. A 402 is always no credit,
+also when its text mentions `max_tokens`. A saved key that can't be read (the app secret changed)
+answers 409 `ai_key_refused` asking an admin to paste it again, and goes to built-in AI only when the stand-in is on.
+
+- `GET /api/ai/status` adds `problem` (`key_refused`, `no_credit` or `model_unavailable`), `problemAt` (ISO time) and
+  `problemMessage` (the plain sentence the app shows) while the key is refused. They are absent while it works; `connected`
+  stays `true` because the key is still saved.
+- `POST /api/ai/summary`, `/api/ai/draft` and `/api/ai/triage` (and the meeting suggestions, the forms AI draft, the
+  live meeting summary, `POST /api/catchup/summary`, the mail Translate `POST /api/translate`, and the document tools'
+  `POST /api/tools/ai/ask` and `/api/tools/ai/translate`) answer **409** with the code `ai_key_refused`, `ai_no_credit`
+  or `ai_model_unavailable`, the same sentence, and `details.fix: "/app/settings#ai"`. A provider that is down or rate
+  limited is still `502 ai_provider_error`. A recording chunk the provider refuses stays `502 ai_provider_error` with the
+  same sentence (the web recorder tries it again, then names the reason at Stop; the phone app does not record). While
+  the key is noted refused or out of credit, `GET /api/meetings/:id/recordings` keeps `setup.ready: true` (a chunk that
+  works clears the note) with `setup.keyProblem` and the sentence in `setup.message`, which the meeting room shows.
+- Built-in AI answers in the key's place only where the deployment sets `AI_KEY_FALLBACK=on` (with AI2 on). It is off
+  by default: the workspace chose its own provider, so its text never goes to another processor unless the operator
+  turns this on (after the privacy policy says so). When it is on, `GET /api/ai-trust` lists built-in AI "In their
+  place if your provider refuses your key" before any refusal, and each answer it writes inside the free daily meter
+  carries `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). `POST /api/translate`
+  (also when served from its cache), the forms AI draft and the document tools' Ask and Translate answers carry the
+  same `fallback`, their invoice and contract readers put the sentence in `note`, and a Team AI run ends with that line.
+- `POST /api/ai/models` with a refused key answers the short list of common models with `live: false`,
+  `problem: "key_refused"` and a note saying so, and keeps no cached copy.
+- `GET /api/team-ai/state` shows `ai.keyProblem` and `ai.keyProblemMessage`; `ai.source` is `built_in` (or `none`)
+  while the key is refused, never `own_key`. An `@assistant` mention whose key is refused posts that sentence in the
+  thread (a fixed line, no AI call) and the run ends `failed` with the reason `key_refused`, `no_credit` or
+  `model_unavailable`.
+
 ## Repeating tasks
 
 A task's `repeat` field takes a rule: `{ freq: daily | weekly | monthly | yearly, interval?, weekdays?
@@ -1001,7 +1040,7 @@ R35: a board view may also store `lanes` (none, assignee, epic, priority or proj
 
 ## Round 25: fixes found by Haajir
 
-- `GET /health` and `GET /healthz` answer the same JSON as `/api/health` (MB-53).
+- `GET /health` and `GET /healthz` answer the same JSON as `/api/health` (MB-53). Since QUAL1 that is only `{ "ok": true, "db": "ok" }` (or `"degraded": true, "db": "migrations_pending"` during a deploy, or 503 `{ "ok": false, "db": "unreachable" }`); the release is on `/api/config`, and the detail (release, D1 writes and reads, budgets, the busiest workspaces) is on `GET /api/admin/health` for platform operators. The public `GET /api/status` shows component states and plain words but no mail volume; operators read the 24 hour volume on `GET /api/admin/status`.
 - `GET /api/v1/projects/{id}/tasks`: a project's tasks, the same filters as `GET /api/v1/tasks?projectId={id}` (MB-52).
 - Sprints: `startDate` and `endDate` are accepted as names for `startAt` and `endAt`. A date with no time (`2026-11-01`) is that calendar day in the workspace's time zone: a start is its first moment, an end its last, on create and on `PATCH` alike. A new sprint with no dates starts today (or the day after the last sprint) in that zone (MB-54, MB-55).
 - Every sprint object carries `url`, the page that opens that sprint (`/app/tasks?project=<id>&view=sprints&sprint=<id>`) (MB-62).

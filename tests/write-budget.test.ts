@@ -102,8 +102,10 @@ describe("D1 write budget", () => {
     expect(signup.status).toBe(503);
     expect(signup.body.error.code).toBe("read_only");
     expect((await c.get("/api/config")).status).toBe(200);
-    const health = await c.get("/api/health");
-    expect(health.body.writes).toMatchObject({ today: 60_000, budget: 100_000, level: "warn" });
+    // QUAL1 (audit row 36): the public health says only { ok, db }; the writes are on the operators' route.
+    expect((await c.get("/api/health")).body).toEqual({ ok: true, db: "ok" });
+    const { operatorHealth } = await import("@/server/services/health");
+    expect((await operatorHealth(ctx.deps)).body.writes).toMatchObject({ today: 60_000, budget: 100_000, level: "warn" });
     // Round 22: presence heartbeats write nothing, so the guard lets them through (here to the auth check).
     expect((await c.post("/api/threads/thr_1/presence", { clientId: "a", state: "viewing" })).status).toBe(401);
     expect((await c.post("/api/threads/thr_1/presence/leave", { clientId: "a" })).status).toBe(401);

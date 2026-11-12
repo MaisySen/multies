@@ -140,6 +140,6 @@ this org pass `--agent cto` (the config's key for Builder).
 
 ## Org setup writes (round 17, 25 Oct 2026)
 
-`scripts/dogfood/org-setup.ts` now estimates before it writes. `--dry-run` prints every call it would make and the database rows it would cost, against the server's daily write budget from `/api/health`; for a workspace that doesn't exist yet it plans everything from the config. `--max-writes N` (default 400) stops a live run before more create or update calls than that, and a re-run continues. `--skip docs,templates` leaves whole steps out. With ORG_SESSION_COOKIE and ORG_API_KEY a dry run writes nothing at all.
+`scripts/dogfood/org-setup.ts` now estimates before it writes. `--dry-run` prints every call it would make and the database rows it would cost, against the server's daily write budget from `/api/admin/health` (shown when the session is a platform operator's); for a workspace that doesn't exist yet it plans everything from the config. `--max-writes N` (default 400) stops a live run before more create or update calls than that, and a re-run continues. `--skip docs,templates` leaves whole steps out. With ORG_SESSION_COOKIE and ORG_API_KEY a dry run writes nothing at all.
 
 Local check with `example-org.json`: the dry run planned 64 calls; the live run made 64 calls and wrote 180 rows; a second dry run planned 0 calls and wrote 1 row (the password sign in's session). Run a dry run against production first and only run live when the estimate is well under what is left of the day's budget.

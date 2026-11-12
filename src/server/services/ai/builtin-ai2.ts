@@ -14,10 +14,11 @@ export const BUILTIN_LIMIT_MESSAGE = "Built-in AI has reached today's free limit
 export const BUILTIN_NAME = "Built-in AI";
 
 /** One completion on built-in AI. Throws a plain HttpError when the meter says no; never falls through to anything billed. */
-export async function askBuiltin(deps: Deps, orgId: string, req: AiCompletion): Promise<{ text: string | null; provider: string }> {
+export async function askBuiltin(deps: Deps, orgId: string, req: AiCompletion, opts: { skipOwnKey?: boolean } = {}): Promise<{ text: string | null; provider: string }> {
   await assertAiAllowed(deps, orgId); // TD1 switch off: no reservation and no binding call
   const { askAi } = await import("../tools/ai-meter");
-  const r = await askAi(deps, orgId, { task: "chat", system: req.system, user: req.user, maxTokens: req.maxTokens });
+  // QUAL1: standing in for a refused own key, the meter must not try that key again (skipOwnKey).
+  const r = await askAi(deps, orgId, { task: "chat", system: req.system, user: req.user, maxTokens: req.maxTokens }, opts);
   if (r.ok) return { text: r.text.trim() || null, provider: r.source === "own_key" ? "own_key" : "builtin" };
   if (r.reason === "limit" || r.reason === "workspace_limit") throw new HttpError(429, "builtin_ai_limit", BUILTIN_LIMIT_MESSAGE);
   if (r.reason === "too_big") throw new HttpError(413, "builtin_ai_too_big", "That is too long for built-in AI. Add your own key in Advanced for longer work.");

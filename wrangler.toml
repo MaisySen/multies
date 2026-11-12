@@ -213,6 +213,7 @@ MOBILE_WEB_LINK = "on" # MH1: app to web sign in handoff, verifier v27 PASS 05:1
 COURSES_R129 = "on" # R129: courses in Docs, verifier v21 PASS 20:14 UTC Nov 1
 HOME_WIDGETS_R131 = "on" # R131: Home widgets, verifier v21 PASS 20:47 UTC Nov 1
 AI_CONNECT_AI2 = "on" # AI2: connect AI properly (production after verifier v33 PASS on staging 8c04a1a887bc)
+# AI_KEY_FALLBACK stays unset (off): QUAL1, built-in AI in place of a refused own key. Turn on only after legal.ts and trust.ts say so.
 MEET_TD3 = "on" # TD3: meetings to tasks (production after verifier v34 PASS on staging e5ab558c7c08)
 BILL_TD4 = "on" # TD4: time to invoice (production after verifier v34 PASS on staging f35a064afd7f)
 AI_GLOBAL_DAILY_UNITS = "7000" # AI2: production's stop on the shared free Workers AI units (staging 1,000; both under 8,000 of the free 10,000)
@@ -397,6 +398,7 @@ SITES_R123 = "on" # R123: Sites in Docs (staging; prod after verifier PASS)
 COURSES_R129 = "on" # R129: courses in Docs (staging; prod after verifier PASS)
 HOME_WIDGETS_R131 = "on" # R131: Home widgets (staging; prod after verifier PASS)
 AI_CONNECT_AI2 = "on" # AI2: connect AI properly (staging; prod after verifier PASS)
+# AI_KEY_FALLBACK stays unset (off): QUAL1, built-in AI in place of a refused own key. Turn on only after legal.ts and trust.ts say so.
 AI_GLOBAL_DAILY_UNITS = "1000" # AI2: staging's stop on the shared free Workers AI units (production 7,000)
 MEET_TD3 = "on" # TD3: meetings to tasks (staging; prod after verifier PASS)
 POLISH_POL1 = "on" # POL1: tables and courses to the trash with restore (staging; prod after verifier PASS)

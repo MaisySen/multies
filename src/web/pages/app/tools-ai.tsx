@@ -113,9 +113,10 @@ function AskPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => void })
   const [job, setJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [summary, setSummary] = useState<{ bullets: string[]; pages: number[]; partial: boolean } | null>(null);
+  // QUAL1 review: `fallback` is set when built-in AI answered because the workspace's own key was refused; it is shown.
+  const [summary, setSummary] = useState<{ bullets: string[]; pages: number[]; partial: boolean; fallback?: { message: string } } | null>(null);
   const [q, setQ] = useState("");
-  const [answers, setAnswers] = useState<{ q: string; a: string; pages: number[] }[]>([]);
+  const [answers, setAnswers] = useState<{ q: string; a: string; pages: number[]; note?: string }[]>([]);
   useEffect(() => { setJob(null); setSummary(null); setAnswers([]); setErr(null); }, [src]);
   const ensure = async () => { if (job) return job; setBusy("Reading the document"); const j = await readSource("ask", src); setJob(j); return j; };
   const summarise = async () => {
@@ -127,7 +128,7 @@ function AskPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => void })
     const question = q.trim();
     if (!question) return;
     setErr(null);
-    try { const j = await ensure(); setBusy("Finding the answer"); const r = await api.post<{ answer: string; pages: number[] }>("/tools/ai/ask", { token: j.token, question }); setAnswers((a) => [{ q: question, a: r.answer, pages: r.pages }, ...a]); setQ(""); }
+    try { const j = await ensure(); setBusy("Finding the answer"); const r = await api.post<{ answer: string; pages: number[]; fallback?: { message: string } }>("/tools/ai/ask", { token: j.token, question }); setAnswers((a) => [{ q: question, a: r.answer, pages: r.pages, note: r.fallback?.message }, ...a]); setQ(""); }
     catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
   };
   const has = !!(src.file || src.attachment);
@@ -140,6 +141,7 @@ function AskPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => void })
           <h3 className="text-sm font-semibold">Summary</h3>
           <ul className="list-disc space-y-1 pl-5 text-sm">{summary.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>
           {summary.partial && <p className="text-xs text-muted">This is a long document, so the summary is based on parts of it spread through the whole file.</p>}
+          {summary.fallback && <p className="text-xs text-muted" data-testid="ai-fallback">{summary.fallback.message}</p>}
         </Card>
       )}
       <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); void ask(); }}>
@@ -153,6 +155,7 @@ function AskPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => void })
           <p className="text-sm font-medium">{a.q}</p>
           <p className="whitespace-pre-wrap text-sm">{a.a}</p>
           {a.pages.length > 0 && <p className="text-xs text-muted">Pages: {a.pages.join(", ")}</p>}
+          {a.note && <p className="text-xs text-muted" data-testid="ai-fallback">{a.note}</p>}
         </Card>
       ))}
     </div>
@@ -165,10 +168,12 @@ function TranslatePanel({ src, setSrc, languages, pageCap }: { src: Source; setS
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<Job | null>(null);
+  /** QUAL1 review: built-in AI translated in place of the workspace's refused key: said under the result. */
+  const [note, setNote] = useState<string | null>(null);
   const attach = useAttachToNewEmail();
-  useEffect(() => { setResult(null); setProgress(null); setErr(null); }, [src, target]);
+  useEffect(() => { setResult(null); setProgress(null); setErr(null); setNote(null); }, [src, target]);
   const run = async () => {
-    setErr(null); setResult(null);
+    setErr(null); setResult(null); setNote(null);
     try {
       setBusy("Reading the document");
       const seg = await readSource("translate", src);
@@ -176,8 +181,9 @@ function TranslatePanel({ src, setSrc, languages, pageCap }: { src: Source; setS
       const all: Record<string, string> = {};
       let offset: number | null = 0;
       while (offset !== null) {
-        const r: { translations: Record<string, string>; done: number; total: number; next: number | null } = await api.post("/tools/ai/translate", { token: seg.token, target, offset, count: 40 });
+        const r: { translations: Record<string, string>; done: number; total: number; next: number | null; fallback?: { message: string } } = await api.post("/tools/ai/translate", { token: seg.token, target, offset, count: 40 });
         Object.assign(all, r.translations);
+        if (r.fallback?.message) setNote(r.fallback.message);
         setProgress({ done: r.done, total: r.total });
         offset = r.next;
       }
@@ -215,6 +221,7 @@ function TranslatePanel({ src, setSrc, languages, pageCap }: { src: Source; setS
             </span>
           </div>
           {/\.pdf$/i.test(result.name) && <p className="text-xs text-muted" data-testid="ai-translate-hidden-note">{TRANSLATE_PDF_HIDDEN_NOTE}</p>}
+          {note && <p className="text-xs text-muted" data-testid="ai-fallback">{note}</p>}
         </Card>
       )}
       <p className="text-xs text-muted">{TRANSLATE_NOTE}</p>

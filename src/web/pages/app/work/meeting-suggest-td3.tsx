@@ -9,7 +9,7 @@ import { Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { IconCheck, IconCheckCircle, IconClose, IconListPlus, IconMailPlus, IconQuote, IconSparkle, IconUndo } from "@/web/components/ui/icon";
-import { api } from "@/web/lib/api";
+import { api, ApiError, errorMessage } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
@@ -17,6 +17,7 @@ import { Card, Skeleton } from "@/web/components/ui/misc";
 import { attachToNewEmail } from "@/web/lib/compose-files";
 import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 import { tr } from "@/web/i18n"; // R104B
+import { AI_KEY_FIX_PATH } from "@/shared/ai-connect-ai2"; // QUAL1
 import "@/web/i18n/w2/en-meetings"; // R104B
 
 interface Who { type: "member" | "agent"; id: string; name: string }
@@ -27,7 +28,7 @@ export interface Suggestion {
 interface View {
   suggestions: Suggestion[]; attendees: Who[]; people: Who[];
   sources: { recordings: { id: string; startedAt: string; status: string }[]; notes: boolean };
-  ai: { state: "ready" | "off" | "no_key"; message: string | null };
+  ai: { state: "ready" | "off" | "no_key" | "key_problem"; message: string | null };
 }
 
 const dayLabel = (d: string) => new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -54,6 +55,8 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
   const [showText, setShowText] = useState(false);
   const [adding, setAdding] = useState<{ title: string; quote: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // QUAL1 (audit row 12): a failed Suggest stays on the card in plain words with Retry, not only in a toast.
+  const [suggestErr, setSuggestErr] = useState<string | null>(null);
   // After a run that found nothing, say so plainly (until the source or text changes).
   const [noneFound, setNoneFound] = useState(false);
   useEffect(() => { setNoneFound(false); }, [src, pasted]);
@@ -89,13 +92,17 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
   const discarded = v.suggestions.filter((s) => s.status === "discarded");
   const aiReady = v.ai.state === "ready";
 
-  const doSuggest = () => run("suggest", async () => {
+  const doSuggest = () => { setSuggestErr(null); return run("suggest", async () => {
     const body = source === "notes" ? { source: "notes" } : source === "pasted" ? { source: "pasted", text: pasted } : { source: "recording", recordingId: source.slice(4) };
-    const r = await api.post<{ suggestions: Suggestion[]; added: number }>(`/meeting-td3/${meetingId}/suggest`, body);
+    let r: { suggestions: Suggestion[]; added: number; fallback?: { message: string } };
+    try { r = await api.post<{ suggestions: Suggestion[]; added: number; fallback?: { message: string } }>(`/meeting-td3/${meetingId}/suggest`, body); }
+    catch (e) { setSuggestErr(errorMessage(e)); if (e instanceof ApiError && e.code.startsWith("ai_")) void refresh(); return; }
     setList(r.suggestions);
     setNoneFound(!r.added);
     toast.success(r.added ? `${r.added} ${r.added === 1 ? "suggestion" : "suggestions"} ready to review` : tr("meetings.no_action_items_found_in_this_text"));
-  });
+    // QUAL1 second review: built-in AI stood in for the workspace's key; say so now, not after a reload.
+    if (r.fallback) { toast.message(r.fallback.message); void refresh(); }
+  }); };
   const accept = (s: Suggestion) => run(s.id, async () => {
     const r = await api.post<{ suggestion: Suggestion | null }>(`/meeting-td3/${meetingId}/suggestions/${s.id}/accept`, {});
     await refresh();
@@ -152,12 +159,19 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
             <option value="pasted">{tr("meetings.pasted_text")}</option>
           </Select>
         </label>
-        <Button size="sm" className="h-9" onClick={() => void doSuggest()} loading={busy === "suggest"} disabled={off || !aiReady || (source === "pasted" && !pasted.trim())} data-testid="meeting-suggest-run">
+        <Button size="sm" className="h-9" onClick={() => void doSuggest()} loading={busy === "suggest"} disabled={off || !(aiReady || v.ai.state === "key_problem") || (source === "pasted" && !pasted.trim())} data-testid="meeting-suggest-run">
           <IconSparkle className="h-4 w-4" />{open.length || accepted.length ? tr("meetings.suggest_again") : tr("meetings.suggest")}
         </Button>
         {source !== "pasted" && <Button size="sm" variant="ghost" className="h-9" onClick={() => setShowText((x) => !x)} aria-expanded={showText} data-testid="meeting-suggest-show-text">{showText ? tr("meetings.hide_text") : tr("meetings.show_text")}</Button>}
       </div>
-      {!aiReady && v.ai.message && <p className="mt-2 text-[12.5px] text-muted" data-testid="meeting-suggest-ai-note">{v.ai.message}</p>}
+      {/* QUAL1: a refused AI key shows its plain sentence even while built-in AI stands in, with the way to fix it. */}
+      {suggestErr && (
+        <div role="alert" data-testid="meeting-suggest-error" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-bad-soft px-3 py-2 text-[13px] text-bad">
+          <span>{suggestErr}</span>
+          <Button size="sm" variant="outline" onClick={() => void doSuggest()} loading={busy === "suggest"}>{tr("common.retry")}</Button>
+        </div>
+      )}
+      {v.ai.message && <p className="mt-2 text-[12.5px] text-muted" data-testid="meeting-suggest-ai-note">{v.ai.message}{v.ai.state === "key_problem" || v.ai.state === "ready" ? <> <Link to={AI_KEY_FIX_PATH} className="font-medium text-brand-hover underline-offset-2 hover:underline">{tr("ai.fix_key")}</Link></> : null}</p>}
 
       {source === "pasted" && (
         <Textarea className="mt-3 min-h-[120px] text-[13px]" aria-label={tr("meetings.paste_the_transcript_or_notes")} placeholder={tr("meetings.paste_the_transcript_or_notes_from_another_tool")}

@@ -21,6 +21,7 @@ import {
   REASON_TEXT, ROUTINE_TRIGGERS, TEAMAI_CAPS, TRIGGER_LABEL, WEEKDAYS, describeSchedule, whenInZone,
   type InstructionSet, type MemoryEntry, type Routine, type RoutineOutput, type RoutineTrigger, type RunEntry, type TeamAiState,
 } from "@/shared/teamai-td8";
+import { AI_KEY_FIX_PATH } from "@/shared/ai-connect-ai2"; // QUAL1
 
 const qk = {
   state: ["team-ai", "state"] as const,
@@ -83,12 +84,24 @@ export function TeamAiPage() {
   );
 }
 
-function AiStatus({ s }: { s: TeamAiState }) {
+export function AiStatus({ s }: { s: TeamAiState }) { // exported for tests (QUAL1)
   if (!s.ai.on) {
     return (
       <Card className="mb-4 border-warning/40 p-4" data-testid="teamai-off" role="status">
         <p className="text-[14px] font-semibold text-fg">AI is off for this workspace</p>
         <p className="mt-1 text-[13px] text-muted">Nothing is sent to an AI provider. Routines and chat answers pause and the run log says why. You can still keep notes and instruction sets{s.isAdmin ? ", and turn AI back on in Settings" : "; an admin can turn AI back on"}.</p>
+      </Card>
+    );
+  }
+  // QUAL1 (audit row 14): a key the provider refused is never "Ready on your key": say what is wrong and where to fix it.
+  if (s.ai.keyProblem) {
+    const standingIn = s.ai.source === "built_in";
+    return (
+      <Card className="mb-4 border-warning/40 p-4" data-testid="teamai-key-problem" role="status">
+        <p className="text-[14px] font-semibold text-fg">{standingIn ? `Your ${s.ai.provider ?? "AI"} key needs attention: built in AI is answering for now` : `Your ${s.ai.provider ?? "AI"} key needs attention: nothing can run`}</p>
+        <p className="mt-1 text-[13px] text-muted">{s.ai.keyProblemMessage}{standingIn ? ` Until then Team AI uses free built in AI, within ${Math.max(0, s.ai.freeLimit - s.ai.freeUsed)} of ${s.ai.freeLimit} free runs left ${s.ai.freePeriod === "week" ? "this week" : "today"}, and each answer says so.` : ""}</p>
+        {s.isAdmin ? <Link to={AI_KEY_FIX_PATH} className="mt-2 inline-flex min-h-9 items-center text-[13px] font-medium text-brand-hover hover:underline">Fix the key in Settings, AI</Link>
+          : <p className="mt-2 text-[13px] text-muted">Ask an admin to fix it.</p>}
       </Card>
     );
   }

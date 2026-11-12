@@ -13,6 +13,8 @@ import { createPortal } from "react-dom";
 import { RoomEvent, Track, type RemoteTrack } from "livekit-client";
 import { IconChecklist, IconCircle, IconDocs, IconDownload, IconKey, IconMic, IconPause, IconPlay, IconSquare, IconTrash, IconVideo } from "@/web/components/ui/icon";
 import { toast } from "sonner";
+import { Link } from "react-router";
+import { AI_KEY_FIX_PATH } from "@/shared/ai-connect-ai2"; // QUAL1 review
 import { api, ApiError } from "@/web/lib/api";
 import { useConfig, useMe } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
@@ -39,7 +41,8 @@ export interface Recording {
   startedBy: { id: string; name: string }; startedAt: string; endedAt: string | null; durationSec: number; chunks: number;
   transcript: string; truncated: boolean; summary: string | null; actionItems: ActionItem[]; provider: string | null; error: string | null;
 }
-export interface RecordingSetup { ready: boolean; provider: string | null; providerName: string | null; code: string | null; message: string | null; canConfigure: boolean }
+/** keyProblem (QUAL1 review): the saved key was refused or has no credit; recording still starts and `message` says why the transcript may not come. */
+export interface RecordingSetup { ready: boolean; provider: string | null; providerName: string | null; code: string | null; message: string | null; canConfigure: boolean; keyProblem?: "key_refused" | "no_credit" }
 interface RecordingList { recordings: Recording[]; setup: RecordingSetup }
 
 export const SETUP_TEXT = "Add your OpenAI or Groq key in Settings > AI to record and transcribe. Multies doesn't charge for this; your provider bills your key.";
@@ -207,6 +210,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   const startAudio = async (o: { quiet?: boolean } = {}): Promise<{ id: string; startedAt: string } | null> => {
     if (!meetingId) return null;
     if (setup && !setup.ready) { if (!o.quiet) setSetupOpen(true); return null; }
+    if (setup?.keyProblem && setup.message) toast.warning(setup.message); // QUAL1 review: say it before the chunks fail
     if (typeof MediaRecorder === "undefined" || typeof AudioContext === "undefined") { toast.error(tr("meetings.this_browser_can_t_record_audio_try_chrome_edge")); return null; }
     try {
       const { recording } = await api.post<{ recording: { id: string; startedAt: string; startedBy: { id: string } }; joined: boolean }>(`/meetings/${meetingId}/recordings`, {});
@@ -477,6 +481,11 @@ export function RecordingSection({ meetingId, title }: { meetingId: string; titl
       </div>
       {!data ? (q.error ? <LoadErrorInline onRetry={() => q.refetch()} className="mt-3" /> : <SkeletonRows rows={2} rowHeight={40} label={tr("meetings.loading_recording")} className="mt-2" />) : ( // POL1: a failed read says so
         <>
+          {data.setup.ready && data.setup.keyProblem && data.setup.message && (
+            <p className="mt-2 rounded-lg bg-bad-soft px-3 py-2 text-[13px] text-bad" role="status" data-testid="record-key-problem">
+              {data.setup.message}{data.setup.canConfigure && <>{" "}<Link to={AI_KEY_FIX_PATH} className="font-medium text-brand-hover underline-offset-2 hover:underline">{tr("ai.fix_key")}</Link></>}
+            </p>
+          )}
           {!data.recordings.length && (data.setup.ready
             ? <p className="mt-2 text-[13px] text-muted">{tr("meetings.no_recordings_yet_press_record_in_the_call_to_ge")}</p>
             : <div className="mt-3"><RecordSetupPrompt setup={data.setup} /></div>)}

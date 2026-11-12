@@ -1858,5 +1858,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- PRIV1b (P24): shares end when the person or the mailbox owner left the workspace before leaving ended them.\nDELETE FROM `mailbox_delegations` WHERE NOT EXISTS (SELECT 1 FROM `members` m WHERE m.`organization_id` = `mailbox_delegations`.`org_id` AND m.`user_id` = `mailbox_delegations`.`user_id`) OR NOT EXISTS (SELECT 1 FROM `mailboxes` b JOIN `members` m ON m.`organization_id` = b.`org_id` AND m.`user_id` = b.`owner_user_id` WHERE b.`id` = `mailbox_delegations`.`mailbox_id`);",
       "-- PRIV1b (P32): workspace deletion (cascade) and the retention prune find a workspace's rows without a scan.\nCREATE INDEX `mailbox_access_log_org_idx` ON `mailbox_access_log` (`org_id`,`created_at`);"
     ]
+  },
+  {
+    "name": "0170_ai_key_problem_qual1",
+    "statements": [
+      "-- QUAL1 (audit rows 12, 14): the provider's last refusal of a workspace's own AI key, so Settings, Team AI and the mail\n-- assistant show the real state. Both columns are null while the key works; old code never reads them.\nALTER TABLE `ai_keys` ADD `problem` text;",
+      "ALTER TABLE `ai_keys` ADD `problem_at` integer;"
+    ]
   }
 ];

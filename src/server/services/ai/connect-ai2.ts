@@ -15,9 +15,9 @@ import {
   AI2_CURATED_MODELS, AI2_RESULT_TEXT, cleanPastedKey, detectProvider, pickRecommended,
   type Ai2Model, type Ai2ProviderId, type Ai2ResultCode,
 } from "../../../shared/ai-connect-ai2";
-import { saveAiKey, savedKey } from "./keys";
+import { recordKeyProblem, saveAiKey, savedKey } from "./keys";
 import { assertAiAllowed } from "../ai-trust-td1"; // TD1 switch: AI off means no provider call on any AI2 path
-import { AiProviderError, OPENAI_COMPATIBLE_BASE, byoProvider, type AiProviderId } from "./providers";
+import { AiProviderError, OPENAI_COMPATIBLE_BASE, byoProvider, mapFailure, type AiProviderId } from "./providers";
 
 export const MODEL_CACHE_MS = 10 * 60_000;
 export const OAUTH_STATE_MS = 10 * 60_000;
@@ -31,22 +31,8 @@ export class Ai2Failure extends Error {
   constructor(public code: Ai2ResultCode, public status: number | null) { super(AI2_RESULT_TEXT[code]); }
 }
 
-/**
- * The plain result for a failed provider call. The body is only searched for a few words (credit, model) and is
- * never returned or logged.
- */
-export function mapFailure(status: number | null, body = ""): Ai2ResultCode {
-  const b = body.toLowerCase();
-  if (status === null) return "unreachable";
-  if (status === 401 || status === 403) return /credit|balance|billing|quota/.test(b) && status === 403 ? "no_credit" : "key_refused";
-  if (status === 402) return "no_credit";
-  if (/insufficient_quota|insufficient balance|insufficient credit|credit balance|out of credit|billing|payment required/.test(b)) return "no_credit";
-  if (status === 429) return "rate_limited";
-  if (status === 404) return "model_unavailable";
-  if ((status === 400 || status === 422) && /model/.test(b) && /not (found|exist|available|supported)|invalid|unknown|does not|decommission|no access|not allowed/.test(b)) return "model_unavailable";
-  if (status === 400 && /api key|api_key|apikey|authentication|unauthor/.test(b)) return "key_refused";
-  return "provider_error";
-}
+// QUAL1: mapFailure moved to ./providers (the key problem record in ./keys needs it without loading this file).
+export { mapFailure };
 
 // ---------- SSRF guard for a custom server's base address ----------
 
@@ -215,6 +201,8 @@ export interface ModelListView {
   live: boolean;
   current: string;
   note: string | null;
+  /** QUAL1: set when the list did not load because the provider refused the key. */
+  problem?: "key_refused" | "no_credit";
 }
 
 /** The saved key's model list: the cache when fresh (10 minutes), else a live read, else the curated list. */
@@ -233,20 +221,37 @@ export async function modelsForWorkspace(deps: Deps, orgId: string, opts: { refr
       try { models = JSON.parse(c.modelsJson) as Ai2Model[]; live = c.live; } catch { models = null; }
     }
   }
+  let refused: keyof typeof MODELS_REFUSED_NOTE | null = null;
   if (!models) {
     try { models = await listModels(deps.fetch, provider, k.apiKey, k.baseUrl); live = true; }
     catch (err) {
       deps.log?.warn("ai2.models_failed", { provider, status: err instanceof Ai2Failure ? err.status : null });
       models = AI2_CURATED_MODELS[provider]; live = false;
+      // QUAL1 (audit row 14): a list refused for the key is the key's problem: note it on the key, say so, and keep no
+      // cached copy, so the list loads as soon as the key is fixed.
+      if (err instanceof Ai2Failure && (err.code === "key_refused" || err.code === "no_credit")) {
+        refused = err.code;
+        if (k.problem !== err.code) await recordKeyProblem(deps, orgId, k.updatedAt, err.code);
+      }
     }
-    const values = { fingerprint: fp, modelsJson: JSON.stringify(models), live, fetchedAt: now };
-    await deps.db.insert(aiModelCache).values({ orgId, ...values }).onConflictDoUpdate({ target: aiModelCache.orgId, set: values });
+    if (refused) await deps.db.delete(aiModelCache).where(eq(aiModelCache.orgId, orgId));
+    else {
+      const values = { fingerprint: fp, modelsJson: JSON.stringify(models), live, fetchedAt: now };
+      await deps.db.insert(aiModelCache).values({ orgId, ...values }).onConflictDoUpdate({ target: aiModelCache.orgId, set: values });
+    }
   }
   return {
     provider, models, recommended: pickRecommended(provider, models), live, current: k.model,
-    note: live ? null : "Could not load the live list, showing common models.",
+    note: live ? null : refused ? `${MODELS_REFUSED_NOTE[refused]} Showing common models.` : "Could not load the live list, showing common models.",
+    ...(refused ? { problem: refused } : {}),
   };
 }
+
+/** QUAL1: why the live list did not load, when the key itself is the reason. */
+const MODELS_REFUSED_NOTE = {
+  key_refused: "Your provider refused this key, so the live list could not load. Paste a new key above.",
+  no_credit: "Your provider account has no credit, so the live list could not load.",
+} as const;
 
 export function assertModelId(model: string) {
   if (!MODEL_ID.test(model)) throw badRequest("That model name has characters a model id never uses.");
@@ -258,7 +263,8 @@ export async function setModel(deps: Deps, auth: AuthContext, model: string) {
   assertModelId(m);
   const k = await savedKey(deps, auth.orgId);
   if (!k) throw new HttpError(409, "ai_key_required", "Connect a provider first.");
-  await deps.db.update(aiKeys).set({ model: m, updatedByUserId: auth.userId || null, updatedAt: deps.now() }).where(eq(aiKeys.orgId, auth.orgId));
+  // QUAL1: a new model ends "the saved model is not offered"; a refused key stays refused until it works or is replaced.
+  await deps.db.update(aiKeys).set({ model: m, updatedByUserId: auth.userId || null, updatedAt: deps.now(), ...(k.problem === "model_unavailable" ? { problem: null, problemAt: null } : {}) }).where(eq(aiKeys.orgId, auth.orgId));
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "ai_key.model_changed", targetType: "ai_key", targetId: k.provider, metadata: { provider: k.provider, from: k.model, to: m } });
   return { model: m };
 }
@@ -283,6 +289,11 @@ export async function testConnection(deps: Deps, auth: AuthContext, model?: stri
     else code = "unreachable";
   }
   const ms = Date.now() - started;
+  // QUAL1 (audit row 14): a passed test clears the key's recorded problem; a refusal is noted on the key. A model
+  // other than the saved one that is not offered says nothing about the saved setup, so it is not noted.
+  const problem = code === "key_refused" || code === "no_credit" || (code === "model_unavailable" && m === k.model) ? code : null;
+  const clears = code === "ok" && k.problem !== null && (k.problem !== "model_unavailable" || m === k.model);
+  if (clears || (problem !== null && problem !== k.problem)) await recordKeyProblem(deps, auth.orgId, k.updatedAt, clears ? null : problem);
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "ai_key.tested", targetType: "ai_key", targetId: k.provider, metadata: { provider: k.provider, model: m, result: code, ...(status ? { status } : {}) } });
   const ok = code === "ok";
   return { ok, code, ms: ok ? ms : null, model: m, message: ok ? `Connected. Replies in ${ms < 100 ? "under 0.1" : (ms / 1000).toFixed(1)} s` : AI2_RESULT_TEXT[code] };
