@@ -1101,6 +1101,7 @@ the activity row, like any field.
   tasks, at most 50 rule runs per request. When any ran or were skipped the answer carries
   `automationRuns: { runs, skipped }` (skipped: over the cap, or paused while the daily write budget reads warn or shed).
 - A call started from chat that ends because the last person left runs `meeting_ended` automations once.
+- MEET fixes (12 Nov 2026): a room read empty ends its meeting only once it stayed empty for 45 seconds (a reload or a network switch leaves it open); the last person's Leave still ends it at once. An ended meeting answers `409 meeting_ended` to members joining too. A weekly series stays `scheduled`: its `endedAt` closes the link after each call until 15 minutes before the next meeting in the series. `GET /api/meetings/{id}` and `POST /api/meetings/{id}/join` for a meeting in another of the person's workspaces answer `404 meeting_in_other_workspace` with `details.workspace: { id, name }`. The guest's `POST /api/public/meeting-lobby/{token}` takes the `lobbyId` it already holds and answers the same request again (no second row).
 - MCP `create_custom_field` also takes `formula` (with `config: { expression }`) and `rollup` (with `config: { source, fn, field }`).
 
 ## Saved views (DF-20)

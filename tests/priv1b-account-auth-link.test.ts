@@ -47,7 +47,7 @@ describe("PRIV1b (P20): mobile web link login CSRF", () => {
     expect(await whoIs(t.app, sessionCookie(r2)!)).toBe(me);
   });
 
-  it("a browser signed in as someone else keeps its session and goes to /app", async () => {
+  it("a browser signed in as someone else keeps its session and opens the page marked account=kept", async () => {
     const t = await makeTestApp({ MOBILE_WEB_LINK: "on" });
     const attacker = new Client(t.app);
     await attacker.signup();
@@ -57,7 +57,8 @@ describe("PRIV1b (P20): mobile web link login CSRF", () => {
     const code = await mint(attacker);
     const res = await open(t.app, link(code), { cookie: victim.cookie });
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/app");
+    // MEET fixes (12 Nov 2026): the page is kept (it was /app, which lost a meeting link) and says this browser kept its account.
+    expect(res.headers.get("location")).toBe("/app/settings/apps/mail?account=kept");
     expect(sessionCookie(res)).toBeNull();
     expect(await whoIs(t.app, victim.cookie)).toBe(victimId);
     // The same person's code in their own signed in browser goes through.

@@ -28,10 +28,22 @@ interface LobbyList { meetingId: string; guestsWait: boolean; waiting: Waiting[]
 /** Page-local keys on a focused request row (listed in the command registry as local). */
 export const LOBBY_KEYS = { admit: "a", deny: "d" } as const;
 
-/** Asks to join from the guest link. */
-export function askToJoin(token: string, name: string) {
-  return api.post<LobbyAsk>(`/public/meeting-lobby/${token}`, { name });
+/**
+ * Asks to join from the guest link. MEET fixes (12 Nov 2026): the request this browser already made for the
+ * link rides along (kept for the tab's session), so asking again after a reload, a second tap or the quiet
+ * retry is the same request and the host sees one Admit, not two.
+ */
+export function askToJoin(token: string, name: string, s: Pick<Storage, "getItem" | "setItem"> | null = tabStore()) {
+  const key = lobbyKey(token);
+  let previous: string | null = null;
+  try { previous = s?.getItem(key) ?? null; } catch { /* private mode */ }
+  return api.post<LobbyAsk>(`/public/meeting-lobby/${token}`, { name, ...(previous ? { lobbyId: previous } : {}) }).then((r) => {
+    try { if (r.lobbyId) s?.setItem(key, r.lobbyId); } catch { /* private mode: asking again makes a new request */ }
+    return r;
+  });
 }
+export const lobbyKey = (token: string) => `multies.lobby.${token}`;
+const tabStore = () => { try { return typeof sessionStorage === "undefined" ? null : sessionStorage; } catch { return null; } };
 
 /** The guest waits here: their camera preview stays on, and the page checks every 3 seconds. */
 export function GuestLobby({ token, lobbyId, name, prefs, title, onAdmitted, onLeave, onAskAgain }: {
@@ -104,6 +116,7 @@ export function LobbyRequests({ meetingId, className }: { meetingId?: string; cl
   const decide = useMutation({
     mutationFn: (b: { lobbyId?: string; all?: boolean; decision: "admit" | "deny" }) => api.post<{ decided: number }>(`/meeting-lobby/${meetingId}/decide`, b),
     onMutate: async (b) => {
+      if (b.lobbyId) toast.dismiss(`lobby-${b.lobbyId}`); else for (const id of seen.current ?? []) toast.dismiss(`lobby-${id}`);
       const key = ["meeting-lobby", meetingId];
       const prev = qc.getQueryData<LobbyList>(key);
       if (prev) qc.setQueryData<LobbyList>(key, { ...prev, waiting: b.all ? [] : prev.waiting.filter((w) => w.id !== b.lobbyId) });
@@ -113,16 +126,19 @@ export function LobbyRequests({ meetingId, className }: { meetingId?: string; cl
     onSettled: () => void qc.invalidateQueries({ queryKey: ["meeting-lobby", meetingId] }),
   });
   const waiting = q.data?.waiting ?? [];
-  const decideRef = useRef(decide.mutate);
-  decideRef.current = decide.mutate;
   useEffect(() => {
     if (!q.data) return;
     if (!seen.current) { seen.current = new Set(); }
     for (const w of q.data.waiting) {
       if (seen.current.has(w.id)) continue;
       seen.current.add(w.id);
-      toast(tr("meetings.name_wants_to_join", { name: w.name }), { id: `lobby-${w.id}`, duration: 8000, action: { label: tr("meetings.admit"), onClick: () => decideRef.current({ lobbyId: w.id, decision: "admit" }) } });
+      // MEET fixes: the toast only tells; Admit lives on the guest's row. A toast with its own Admit was a second
+      // Admit button for the same guest, and it stayed up after the row's Admit had already let them in.
+      toast(tr("meetings.name_wants_to_join", { name: w.name }), { id: `lobby-${w.id}`, duration: 8000 });
     }
+    // A guest no longer waiting (admitted or denied here or by someone else) takes their toast with them.
+    const still = new Set(q.data.waiting.map((w) => w.id));
+    for (const id of seen.current) if (!still.has(id)) toast.dismiss(`lobby-${id}`);
   }, [q.data]);
   if (!waiting.length) return null;
   const onKey = (e: React.KeyboardEvent, id: string) => {
@@ -196,8 +212,8 @@ export function DockSoFar({ meetingId }: { meetingId: string }) {
   return (
     <>
       <button ref={btn} type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="dock-so-far" aria-haspopup="dialog"
-        className={cn("inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", open && "bg-hover text-fg")} data-testid="call-dock-so-far">
-        <IconClock className="h-3.5 w-3.5" aria-hidden />{tr("meetings.so_far")}
+        aria-label={tr("meetings.so_far")} className={cn("inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", open && "bg-hover text-fg")} data-testid="call-dock-so-far">
+        <IconClock className="h-3.5 w-3.5" aria-hidden /><span className="max-sm:hidden">{tr("meetings.so_far")}</span>
       </button>
       {open && (
         <div id="dock-so-far" ref={panel} tabIndex={-1} role="dialog" aria-label={tr("meetings.so_far_in_this_call")}

@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { meetings, notifications } from "@/server/db/schema";
-import { clearCallCache, CALL_NOTIFY_MAX_MEMBERS, type CallParticipant } from "@/server/services/suite/calls";
+import { CALL_EMPTY_GRACE_MS, clearCallCache, CALL_NOTIFY_MAX_MEMBERS, type CallParticipant } from "@/server/services/suite/calls";
 import { loadConfig } from "@/server/config";
 
 /** Round 23 (R23.3): calls in DMs and channels ring people once, show who is in the room, and end once. */
@@ -135,6 +135,10 @@ describe("in call presence", () => {
     rooms.set(room, []);
     p = (await sam.client.get(`/api/chat/channels/${dm.id}/call`)).body;
     expect(p.live).toBeNull();
+    // MEET fixes: one empty read is not the end (a reload or a network switch); still empty after the grace is.
+    expect(p.calls[0]).toMatchObject({ state: "waiting" });
+    tick = CALL_EMPTY_GRACE_MS;
+    p = (await sam.client.get(`/api/chat/channels/${dm.id}/call`)).body;
     expect(p.calls[0]).toMatchObject({ state: "ended" });
     expect(p.calls[0].durationMin).toBeGreaterThanOrEqual(1);
     const row = (await ctx.db.select().from(meetings).where(eq(meetings.id, call.meeting.id)).get())!;

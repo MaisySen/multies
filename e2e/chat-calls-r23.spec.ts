@@ -63,7 +63,7 @@ test("Ada calls Ben from a DM: Ben is rung and sees the card with Join", async (
 });
 
 test("the card and header show who is in the call, then Call ended", async () => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
   const meetingId = new URL(a.url()).pathname.split("/").pop()!;
   const set = async (names: string[]) => expect((await a.request.post(`/api/chat/calls/${meetingId}/test-room`, { data: { participants: names.map((name) => ({ name })) }, headers: headersA })).status()).toBe(200);
   await set(["Ada Owner", "Ben Mate"]);
@@ -80,7 +80,8 @@ test("the card and header show who is in the call, then Call ended", async () =>
   await b.screenshot({ path: `${shots}/calls.png` });
 
   await set([]);
-  await expect(card).toHaveAttribute("data-state", "ended", { timeout: 25_000 });
+  // MEET fixes: an empty room ends the call once it stayed empty for 45 s (a reload or a network switch keeps it).
+  await expect(card).toHaveAttribute("data-state", "ended", { timeout: 90_000 });
   await expect(card).toContainText(/Call ended, \d+ min/);
   await expect(card.getByTestId("call-join")).toHaveCount(0);
   await expect(header).toHaveCount(0);
