@@ -12,7 +12,7 @@ import { toolFilesAsAttachments } from "../services/tools/attach"; // Tools P2
 import { attachmentBytes, storeMessage } from "../services/mail/store";
 import { assertNotHeld } from "../services/mail/archive-r111"; // R111: legal holds
 import { deleteMessagesPermanently, getMessage, getThread, listMessages, mailboxOverview, presentMessage } from "../services/mail/mailbox-view";
-import { badRequest, notFound, tooMany } from "../lib/errors";
+import { badRequest, nothingToChange, notFound, tooMany } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
 import { COMPOSE_ATTACH_MAX_BYTES, COMPOSE_ATTACH_MAX_FILES, formatMb } from "@/shared/tools-automation";
 
@@ -195,6 +195,7 @@ export function mailRoutes() {
     })
     .patch("/messages/:id", async (c) => {
       const patch = await parseBody(c, updateMessageSchema);
+      if (!Object.values(patch).some((v) => v !== undefined)) throw nothingToChange(); // MB-368: not an empty update (500)
       const { db } = c.var.deps;
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
       await assertMailboxAccess(db, c.var.auth, m.mailboxId, "reply"); // PRIV1a: a read only share can't change mail
