@@ -65,23 +65,24 @@ beforeEach(async () => {
 });
 
 describe("Inbox tab counts stay cheap (R59 hotfix)", () => {
-  it("no correlated subquery scans messages: the first time sender set is built once per statement", () => {
+  it("no correlated subquery scans messages, and first time is a stored flag (MPLAT-108)", () => {
     const stmt = ctx.deps.db.select({ n: sql<number>`count(*)` }).from(messages)
       .where(sql`${messages.orgId} = ${"o"} and ${messages.folder} = 'inbox' and ${messages.isRead} = 0 and ${importantBaseCond("o")}`).toSQL();
     expect(stmt.sql).not.toMatch(/lower\(p\.from_address\)\s*=\s*lower\(/);
     const rows = plan(stmt);
-    // No per row subquery at all: each set (wrote to, Sent threads, teammates, contacts, first time) is read once.
+    // No per row subquery at all: each set (wrote to, Sent threads, teammates, contacts) is read once.
     expect(rows.filter((r) => /CORRELATED/.test(r.detail)).map((r) => r.detail)).toEqual([]);
-    // The first time set is an uncorrelated list subquery over the workspace's own rows (index on org_id).
-    expect(rows.some((r) => /^LIST SUBQUERY/.test(r.detail))).toBe(true);
-    expect(rows.filter((r) => /p\b/.test(r.detail) && r.up.some((u) => /LIST SUBQUERY/.test(u))).map((r) => r.detail).join(" ")).toMatch(/USING (COVERING )?INDEX messages_org/);
+    // MPLAT-108: first time is messages.first_of_sender (kept by triggers), so no set is built over received mail.
+    expect(stmt.sql).toContain(`"messages"."first_of_sender" = 1`);
+    expect(rows.some((r) => /^SEARCH p\b/.test(r.detail))).toBe(false);
   });
 
   it("the counts statement evaluates the Important rule once per row (Other is derived)", () => {
     const parts = splitCountParts("o", []);
     expect(parts.notClaimed).toBeNull();
     const stmt = ctx.deps.db.select({ n: sql<number>`coalesce(sum(case when ${parts.important} then 1 else 0 end), 0)` }).from(messages).toSQL();
-    expect(stmt.sql.match(/row_number\(\)/g)?.length).toBe(1);
+    expect(stmt.sql.match(/first_of_sender/g)?.length).toBe(1);
+    expect(stmt.sql).not.toMatch(/row_number\(\)/);
   });
 
   it("a reply in a thread this mailbox wrote in is Important (Sent threads set)", async () => {
