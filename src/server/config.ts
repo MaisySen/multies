@@ -293,10 +293,10 @@ export interface AppConfig {
    */
   integrations: { composio?: { apiKey: string; baseUrl: string; userPrefix: string } };
   /**
-   * R83: our own sign in for TikTok and Threads, beside the platform route. `tiktok` is set when a client key and
-   * secret are present (TIKTOK_MODE=sandbox picks the sandbox pair); `secrets` lists every client secret we hold, so
-   * a webhook signed by either app verifies. `threads` needs THREADS_APP_ID and THREADS_APP_SECRET. The base URLs
-   * point tests at a local stand in.
+   * R83: our own sign in for TikTok and Threads, beside the platform route. An explicit TIKTOK_MODE requires that
+   * app's complete key pair and accepts only that app's webhook secret. With no mode set, production still takes
+   * precedence and either configured app can sign webhooks. `threads` needs THREADS_APP_ID and THREADS_APP_SECRET.
+   * The base URLs point tests at a local stand in.
    */
   direct: {
     tiktok?: { clientKey: string; clientSecret: string; sandbox: boolean; secrets: string[]; apiBase: string; authUrl: string; /** TIKTOK_SCOPES: the scopes the app has (comma list); unset asks for all four. */ scopes?: string[] };
@@ -465,7 +465,7 @@ const EnvSchema = z.object({
   TIKTOK_CLIENT_SECRET: z.string().optional(),
   TIKTOK_SANDBOX_CLIENT_KEY: z.string().optional(),
   TIKTOK_SANDBOX_CLIENT_SECRET: z.string().optional(),
-  /** "sandbox" uses the sandbox keys even when production keys are set (until the network approves the app). */
+  /** An explicit mode uses only its own complete key pair; a missing pair leaves TikTok off. */
   TIKTOK_MODE: z.enum(["production", "sandbox"]).optional(),
   TIKTOK_SCOPES: z.string().optional(),
   TIKTOK_API_BASE: z.string().optional(),
@@ -747,12 +747,12 @@ function directConfig(env: z.infer<typeof EnvSchema>): AppConfig["direct"] {
   const out: AppConfig["direct"] = {};
   const prod = t(env.TIKTOK_CLIENT_KEY) && t(env.TIKTOK_CLIENT_SECRET) ? { key: t(env.TIKTOK_CLIENT_KEY)!, secret: t(env.TIKTOK_CLIENT_SECRET)! } : undefined;
   const sand = t(env.TIKTOK_SANDBOX_CLIENT_KEY) && t(env.TIKTOK_SANDBOX_CLIENT_SECRET) ? { key: t(env.TIKTOK_SANDBOX_CLIENT_KEY)!, secret: t(env.TIKTOK_SANDBOX_CLIENT_SECRET)! } : undefined;
-  const useSandbox = !prod || env.TIKTOK_MODE === "sandbox";
-  const pick = useSandbox ? (sand ?? prod) : prod;
+  const mode = env.TIKTOK_MODE;
+  const pick = mode === "production" ? prod : mode === "sandbox" ? sand : prod ?? sand;
   if (pick) {
     out.tiktok = {
       clientKey: pick.key, clientSecret: pick.secret, sandbox: pick === sand,
-      secrets: [prod?.secret, sand?.secret].filter((s): s is string => !!s),
+      secrets: mode ? [pick.secret] : [prod?.secret, sand?.secret].filter((s): s is string => !!s),
       apiBase: (t(env.TIKTOK_API_BASE) ?? "https://open.tiktokapis.com").replace(/\/$/, ""),
       authUrl: t(env.TIKTOK_AUTH_URL) ?? "https://www.tiktok.com/v2/auth/authorize/",
       ...(t(env.TIKTOK_SCOPES) ? { scopes: t(env.TIKTOK_SCOPES)!.split(/[ ,]+/).filter(Boolean) } : {}),
