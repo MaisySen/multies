@@ -99,13 +99,44 @@ describe("R83 TikTok", () => {
     for (const secret of ["tt-access", "tt-refresh", "cs_prod_test_never_shown", "cs_sbx_test_never_shown"]) expect(all).not.toContain(secret);
   });
 
-  it("TIKTOK_MODE=sandbox uses the sandbox key and says test mode", async () => {
-    const sb = await makeTestApp({ ...ENV, TIKTOK_MODE: "sandbox" }, { fetch: mockDirectFetch(async () => { throw new Error("x"); }, mock) });
-    const c = new Client(sb.app);
-    await c.signup("sbx-r83@acme.io");
-    const res = await sb.app.request("/api/connections/oauth/tiktok/start", { headers: { cookie: c.cookie, host: "localhost" } });
-    expect(new URL(res.headers.get("location")!).searchParams.get("client_key")).toBe("ck_sbx_test");
-    expect((await c.get("/api/direct/status")).body.accounts[0].testMode).toBe(true);
+  it.each([
+    ["production", ENV.TIKTOK_CLIENT_KEY, ENV.TIKTOK_CLIENT_SECRET, ENV.TIKTOK_SANDBOX_CLIENT_SECRET],
+    ["sandbox", ENV.TIKTOK_SANDBOX_CLIENT_KEY, ENV.TIKTOK_SANDBOX_CLIENT_SECRET, ENV.TIKTOK_CLIENT_SECRET],
+  ])("TIKTOK_MODE=%s uses only its own credentials", async (mode, key, secret, otherSecret) => {
+    const app = await makeTestApp({ ...ENV, TIKTOK_MODE: mode }, { fetch: mockDirectFetch(async () => { throw new Error("network disabled in tests"); }, mock) });
+    const c = new Client(app.app);
+    await c.signup("mode-r83@acme.io");
+    const res = await app.app.request("/api/connections/oauth/tiktok/start", { headers: { cookie: c.cookie, host: "localhost" } });
+    expect(res.status).toBe(302);
+    expect(new URL(res.headers.get("location")!).searchParams.get("client_key")).toBe(key);
+    expect((await c.get("/api/direct/status")).body.accounts[0]).toMatchObject({ available: true, testMode: mode === "sandbox" });
+
+    const body = JSON.stringify({ event: "something.new" });
+    const t = Math.floor(Date.now() / 1000);
+    const send = async (clientSecret: string) => {
+      const sig = `t=${t},s=${await hmacSha256Hex(clientSecret, `${t}.${body}`)}`;
+      return app.app.request("/api/connections/webhooks/tiktok", { method: "POST", headers: { "content-type": "application/json", "tiktok-signature": sig, host: "localhost" }, body });
+    };
+    expect((await send(secret)).status).toBe(200);
+    expect((await send(otherSecret)).status).toBe(401);
+  });
+
+  it.each([
+    ["production", { TIKTOK_CLIENT_KEY: undefined, TIKTOK_CLIENT_SECRET: undefined }],
+    ["production", { TIKTOK_CLIENT_SECRET: "   " }],
+    ["sandbox", { TIKTOK_SANDBOX_CLIENT_KEY: undefined, TIKTOK_SANDBOX_CLIENT_SECRET: undefined }],
+    ["sandbox", { TIKTOK_SANDBOX_CLIENT_KEY: "   " }],
+  ])("TIKTOK_MODE=%s is unavailable without its complete pair (%j)", async (mode, omit) => {
+    const app = await makeTestApp({ ...ENV, ...omit, TIKTOK_MODE: mode }, { fetch: async () => { throw new Error("network disabled in tests"); } });
+    const c = new Client(app.app);
+    await c.signup("mode-off-r83@acme.io");
+    const status = await c.get("/api/direct/status");
+    expect(status.body.accounts).toEqual([
+      expect.objectContaining({ provider: "tiktok", available: false }),
+      expect.objectContaining({ provider: "threads", available: true }),
+    ]);
+    const res = await c.get("/api/connections/oauth/tiktok/start");
+    expect(res.status).toBe(503);
   });
 
   it("refuses a state from someone else, a bad code, and a cancel, with plain words", async () => {
