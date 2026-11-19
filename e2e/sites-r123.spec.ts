@@ -99,7 +99,7 @@ test("admin builds, previews, publishes and schedules pages; visitors read and c
   await page.getByRole("menuitem", { name: "Page settings" }).click();
   await page.getByLabel("Title in search results").fill("Acme studio, calm websites");
   await page.getByLabel("Description").fill("Small studio in Sydney making calm websites for local teams.");
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
   await shot(page, "03-editor-1280-light");
