@@ -1,3 +1,4 @@
+import { attachPrivateConsoleVersion, privateConsoleVersion } from "./private-console-version";
 /**
  * Cloudflare Workers entry: API on /api/*, the built SPA from the ASSETS binding
  * for everything else, D1 as the database. Housekeeping runs opportunistically
@@ -469,7 +470,11 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const { app, deps } = await getReady(env);
     if (deps.config.firstOperatorCommand) {
       const { completeFirstOperatorRecovery } = await import("../server/auth/first-operator-command");
-      await completeFirstOperatorRecovery(deps, new URL(request.url).origin);
+      const recoveryUrl = new URL(request.url);
+      const protectedOrigin = envVar(env, "PRIVATE_CONSOLE_PROOF_ORIGIN");
+      const stageProbeOrigin = request.method === "GET" && recoveryUrl.pathname === "/api/account/providers" && !recoveryUrl.search
+        ? protectedOrigin : undefined;
+      await completeFirstOperatorRecovery(deps, recoveryUrl.origin, stageProbeOrigin);
     }
     // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
     // Production and staging have cron triggers and must not: every new isolate used to
@@ -479,7 +484,8 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
       ctx.waitUntil(runMaintenanceIfMigrated(deps).catch((e) => console.error("[maintenance]", e)));
     }
     // The execution context lets a route finish work after its response (c.executionCtx.waitUntil).
-    return app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
+    const response = await app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
+    return attachPrivateConsoleVersion(response, privateConsoleVersion(env, request, deps.config.appUrl.replace(/\/$/, "")));
   }
   // F13: no analytics beacon host (the page policy names only our own scripts).
   const cspBase = { appUrl: envVar(env, "APP_URL") ?? url.origin, livekitUrl: envVar(env, "LIVEKIT_URL") };

@@ -61,13 +61,20 @@ export async function firstOperatorNotBlocked(deps: Deps, userId: string): Promi
  * Only for a separate authorised deployment-owner recovery operation, with grant config no longer serving.
  * An audit lock is written before any revocation. Denial remains even when role/session cleanup needs retry.
  */
-export async function recordFirstOperatorCutoff(deps: Deps, p: FirstOperatorIdentity): Promise<"closed" | "eligible" | "already-recorded"> {
+export type PendingGrantRecovery = Readonly<{ priorOwner: string }>;
+
+export async function recordFirstOperatorCutoff(deps: Deps, p: FirstOperatorIdentity, pending?: PendingGrantRecovery): Promise<"closed" | "eligible" | "already-recorded"> {
   const now=deps.now();
   if (!firstOperatorWindow(p,now.getTime())) return "closed";
   const owner=await ownerKey(p);
   const initial=await rowsFor(deps);
   const grant=initial.find(r=>r.id===GRANT);
-  if (!grant || grant.owner !== owner || grant.target !== p.userId || grant.action !== "role_change" || grant.requested !== true) return "closed";
+  if (!grant || grant.target !== p.userId || grant.action !== "role_change" || grant.requested !== true) return "closed";
+  if (pending) {
+    // Fresh recovery may match the private audit fingerprint, never reconstruct or replay an expired grant.
+    if (grant.outcome !== "pending" || !/^release-owner:first-operator:[a-f0-9]{64}$/.test(pending.priorOwner) ||
+        pending.priorOwner !== grant.owner || owner === grant.owner) return "closed";
+  } else if (grant.owner !== owner) return "closed";
   const matches=(rows:typeof initial)=>{
     const cut=rows.find(r=>r.id===DISABLE), sessions=rows.find(r=>r.id===SESSIONS);
     return cut?.owner===owner && cut.target===p.userId && cut.action==="role_change" && cut.requested===false &&
