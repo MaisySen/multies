@@ -21,6 +21,10 @@ export type FirstOperatorDeployment = Readonly<{
 
 const BOUNDED_WINDOW_MS = 20 * 60 * 1000;
 const EMAIL = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+$/;
+// Auth0 can issue its own database subjects or linked Google subjects. This is
+// a namespace check only; the caller still verifies the pinned Auth0 issuer,
+// app audience, nonce and signature, and both sides of the exact app link.
+const AUTH0_LINKED_SUBJECT = /^(?:auth0|google-oauth2)\|[a-zA-Z0-9_-]{1,200}$/;
 const EXACT_HTTPS = /^https:\/\/[a-z0-9][a-z0-9.-]*[a-z0-9]$/;
 
 function exactOrigin(s: string): boolean {
@@ -46,7 +50,7 @@ export function firstOperatorIdentity(raw: unknown, deploy: FirstOperatorDeploym
     if (!Array.isArray(fields) || fields.length !== 10 || fields.some(x => typeof x !== "string")) return null;
     const [version, approvalId, userId, email, subject, origin, issuer, audience, start, end] = fields as string[];
     if (version !== "v1" || !/^[a-f0-9]{32,64}$/.test(approvalId) || !/^[a-zA-Z0-9_-]{1,128}$/.test(userId) ||
-        email.length > 254 || !EMAIL.test(email) || !/^auth0\|[a-zA-Z0-9_-]{1,200}$/.test(subject) ||
+        email.length > 254 || !EMAIL.test(email) || !AUTH0_LINKED_SUBJECT.test(subject) ||
         !exactOrigin(origin) || origin !== deploy.origin || !issuer.endsWith("/") || !exactOrigin(issuer.slice(0, -1)) ||
         issuer !== deploy.issuer || !/^[a-zA-Z0-9_-]{8,128}$/.test(audience) || audience !== deploy.audience) return null;
     const startsAt = instant(start), expiresAt = instant(end);
