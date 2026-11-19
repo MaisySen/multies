@@ -16,9 +16,13 @@ import { organization } from "better-auth/plugins/organization";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { admin } from "better-auth/plugins/admin";
 import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, getAuthoritativeSessionFromCtx } from "better-auth/api";
 import { lastLoginMethod } from "better-auth/plugins";
-import { idpPlugins, socialProviders } from "./providers";
+import { IDP_ID, idpPlugins, socialProviders } from "./providers";
+import { readFirstOperatorCommand } from "./first-operator-command";
+import { firstOperatorNotBlocked } from "./first-operator-ledger";
+import { applyFirstOperatorGrant } from "./first-operator-transition";
+import { beginOperatorAccessAudit, finishOperatorAccessAudit, hasOperatorRole, operatorAccessAction, type OperatorAccessAttempt } from "./operator-access-audit";
 import { instanceRateLimitStore, loginMethodFor, resolveLoginMethod, sessionOptions, cookieOptions } from "./session";
 import { accountLinkingOptions, afterAccountLinked } from "./linking";
 import { localPasswordEnabled } from "./config";
@@ -37,6 +41,8 @@ import { beforeUserDelete } from "../services/privacy";
 import { HttpError } from "../lib/errors";
 import { getPlan } from "../services/plans";
 import { inIds } from "../lib/sql-chunks";
+
+const operatorAccessAttempts = new WeakMap<Headers, OperatorAccessAttempt>();
 
 /** Better Auth endpoints whose success is a security event worth an audit entry. */
 const SECURITY_EVENTS: Record<string, string> = {
@@ -89,6 +95,15 @@ export function authOptions(deps: Deps) {
   const { config, db } = deps;
   const prod = config.mode === "production";
   const localPassword = localPasswordEnabled(config);
+  // This auth object may be built at Worker startup before the request clock is available.
+  let cachedApproval: NonNullable<ReturnType<typeof readFirstOperatorCommand>>["identity"] | undefined;
+  const activeApproval = () => {
+    const now = deps.now().getTime();
+    if (cachedApproval) return now >= cachedApproval.startsAt && now < cachedApproval.expiresAt ? cachedApproval : undefined;
+    const first = readFirstOperatorCommand(config, now);
+    if (first?.mode === "grant") cachedApproval = first.identity;
+    return cachedApproval;
+  };
 
   return {
     appName: config.appName,
@@ -188,6 +203,32 @@ export function authOptions(deps: Deps) {
     hooks: {
       // Account lockout (services/lockout.ts): checked before a password sign-in.
       before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path?.startsWith("/admin/")) {
+          const authenticated = await getAuthoritativeSessionFromCtx(ctx);
+          if (authenticated && ((hasOperatorRole(authenticated.user.role) && !await firstOperatorNotBlocked(deps, authenticated.user.id)) ||
+            (authenticated.session.impersonatedBy && !await firstOperatorNotBlocked(deps, String(authenticated.session.impersonatedBy))))) {
+            throw new APIError("FORBIDDEN", { message: "Platform Operator access is unavailable." });
+          }
+        }
+        const operatorAction = operatorAccessAction(ctx.path);
+        if (operatorAction) {
+          const actor = await getAuthoritativeSessionFromCtx(ctx);
+          if (!actor) throw new APIError("UNAUTHORIZED", { message: "Sign in to manage Operator access." });
+          if (!hasOperatorRole((actor.user as { role?: unknown }).role)) {
+            throw new APIError("FORBIDDEN", { message: "Only platform operators can do that." });
+          }
+          if (!ctx.headers || typeof ctx.body?.userId !== "string" || !ctx.body.userId) {
+            throw new APIError("BAD_REQUEST", { message: "An app user ID is required." });
+          }
+          const attempt = await beginOperatorAccessAudit(deps, actor.user.id, ctx.body.userId, operatorAction, ctx.body.role)
+            .catch(() => {
+              deps.log?.error("operator.access_audit.intent_unavailable");
+              throw new APIError("SERVICE_UNAVAILABLE", { message: "Operator access changes are unavailable while auditing is offline." });
+            });
+          if (!attempt) throw new APIError("NOT_FOUND", { message: "User not found." });
+          operatorAccessAttempts.set(ctx.headers, attempt);
+          return;
+        }
         if (ctx.path !== "/sign-in/email") return;
         const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
         if (!email) return;
@@ -201,6 +242,22 @@ export function authOptions(deps: Deps) {
         }
       }),
       after: createAuthMiddleware(async (ctx) => {
+        if (operatorAccessAction(ctx.path)) {
+          const attempt = ctx.headers && operatorAccessAttempts.get(ctx.headers);
+          if (attempt && ctx.headers) {
+            operatorAccessAttempts.delete(ctx.headers);
+            await finishOperatorAccessAudit(deps, attempt, ctx.context.returned).catch(() => {
+              deps.log?.error("operator.access_audit.outcome_unavailable", { auditId: attempt.id });
+            });
+          }
+          return;
+        }
+        const approval = ctx.path === "/callback/:id" && ctx.params?.id === IDP_ID ? activeApproval() : undefined;
+        if (approval && ctx.path === "/callback/:id" && ctx.method === "GET" && ctx.params?.id === IDP_ID && ctx.context.newSession &&
+            ctx.request && new URL(ctx.request.url).origin === approval.origin) {
+          const outcome = await applyFirstOperatorGrant(deps, approval, ctx.context.newSession, ctx.context.internalAdapter);
+          if (outcome !== "closed") deps.log?.info("operator.first_grant", { outcome });
+        }
         // Security events on the account go to the audit log of the person's workspace.
         const securityAction = SECURITY_EVENTS[ctx.path];
         if (securityAction) {
@@ -378,7 +435,7 @@ export function authOptions(deps: Deps) {
         beforeStoreCookie: () => false,
         customResolveMethod: resolveLoginMethod,
       }),
-      ...idpPlugins(config),
+      ...idpPlugins(config, config.firstOperatorCommand ? activeApproval : undefined, () => deps.now().getTime()),
       multiesAuthPlugin(deps),
       ...(config.auth.breachCheck && localPassword ? [haveIBeenPwned({ customPasswordCompromisedMessage: "This password has appeared in a data breach. Please choose a different one." })] : []),
     ],

@@ -1865,5 +1865,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- QUAL1 (audit rows 12, 14): the provider's last refusal of a workspace's own AI key, so Settings, Team AI and the mail\n-- assistant show the real state. Both columns are null while the key works; old code never reads them.\nALTER TABLE `ai_keys` ADD `problem` text;",
       "ALTER TABLE `ai_keys` ADD `problem_at` integer;"
     ]
+  },
+  {
+    "name": "0171_operator_access_audit",
+    "statements": [
+      "CREATE TABLE IF NOT EXISTS `operator_access_audit` (\n  `id` text PRIMARY KEY NOT NULL,\n  `action` text NOT NULL CHECK (`action` IN ('role_change', 'sessions_revoked')),\n  `actor_id` text NOT NULL,\n  `target_id` text NOT NULL,\n  `observed_operator` integer NOT NULL,\n  `requested_operator` integer,\n  `requested_at` integer NOT NULL,\n  `outcome` text NOT NULL DEFAULT 'pending' CHECK (`outcome` IN ('pending', 'applied', 'unconfirmed')),\n  `finished_at` integer\n);",
+      "CREATE INDEX IF NOT EXISTS `operator_access_audit_target_at_idx` ON `operator_access_audit` (`target_id`, `requested_at`);"
+    ]
   }
 ];

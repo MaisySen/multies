@@ -131,6 +131,20 @@ export const sessions = sqliteTable("sessions", {
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [uniqueIndex("sessions_token_uq").on(t.token), index("sessions_user_idx").on(t.userId)]);
 
+
+/** Platform-only intent and receipt for supported Operator role and session administration. */
+export const operatorAccessAudit = sqliteTable("operator_access_audit", {
+  id: text("id").primaryKey(),
+  action: text("action", { enum: ["role_change", "sessions_revoked"] }).notNull(),
+  actorId: text("actor_id").notNull(),
+  targetId: text("target_id").notNull(),
+  observedOperator: integer("observed_operator", { mode: "boolean" }).notNull(),
+  requestedOperator: integer("requested_operator", { mode: "boolean" }),
+  requestedAt: ts("requested_at").notNull(),
+  outcome: text("outcome", { enum: ["pending", "applied", "unconfirmed"] }).notNull().default("pending"),
+  finishedAt: ts("finished_at"),
+}, (t) => [index("operator_access_audit_target_at_idx").on(t.targetId, t.requestedAt)]);
+
 /** Sign-in methods: a password ("credential") or a linked OAuth/OIDC identity. */
 export const accounts = sqliteTable("accounts", {
   id: text("id").primaryKey(),

@@ -1,5 +1,7 @@
 import { genericOAuth, auth0 } from "better-auth/plugins/generic-oauth";
 import type { AppConfig } from "../config";
+import { captureFirstOperatorBrowserProof } from "./first-operator-browser-proof";
+import type { FirstOperatorIdentity } from "./first-operator-identity";
 import { providerEmailVerified } from "./social-connections";
 
 /** The provider id; it is also the last segment of the callback path /api/auth/callback/auth0. */
@@ -32,9 +34,19 @@ export function idpProviderConfig(config: Pick<AppConfig, "auth">) {
   };
 }
 
-export function idpPlugins(config: Pick<AppConfig, "auth">) {
+export function idpPlugins(config: Pick<AppConfig, "auth">, activeApproval?: () => FirstOperatorIdentity | undefined, now = Date.now) {
   const c = idpProviderConfig(config);
-  return c ? [genericOAuth({ config: [c] })] : [];
+  if (!c) return [];
+  return [genericOAuth({ config: activeApproval ? [{
+    ...c,
+    // Keep Better Auth's normal account resolution and verified authorization-code exchange.
+    accountSubject: async ({ tokens, profile }) => {
+      const subject = profile.sub ?? "";
+      const approval = activeApproval();
+      if (approval) await captureFirstOperatorBrowserProof(approval, tokens.idToken, subject, now).catch(() => undefined);
+      return subject;
+    },
+  }] : [c] })];
 }
 
 /** Direct social sign in for deployments without the identity provider (self host). */

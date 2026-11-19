@@ -226,6 +226,8 @@ export interface AppConfig {
   billingGraceDays: number;
   /** User ids or verified emails that get platform admin (operator console) on sign-in. */
   platformAdmins: string[];
+  /** Private release owner binding; parsed strictly by the auth layer, never returned by the API. */
+  firstOperatorCommand?: string;
   /** Demo workspaces the daily purge keeps (the fixed App Review account). KEEP_DEMO_ORG_IDS. */
   keepDemoOrgIds: string[];
   /** New demo workspaces allowed per rolling 24 hours, platform wide (DEMO_DAILY_LIMIT); 0 means no cap. */
@@ -584,6 +586,7 @@ const EnvSchema = z.object({
   SENTRY_DSN_WEB: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
   PLATFORM_ADMIN_EMAILS: z.string().optional(),
+  FIRST_OPERATOR_COMMAND: z.string().optional(),
   KEEP_DEMO_ORG_IDS: z.string().optional(),
   DEMO_DAILY_LIMIT: z.string().optional(),
   DEMO_PER_IP_DAILY: z.string().optional(),
@@ -929,6 +932,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     monitorUrls: csv(env.MONITOR_URLS).filter((u) => /^https?:\/\//.test(u)),
     billingGraceDays: Math.max(0, Math.min(60, Number(env.BILLING_GRACE_DAYS ?? 7) || 7)),
     platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
+    firstOperatorCommand: env.FIRST_OPERATOR_COMMAND,
     keepDemoOrgIds: csv(env.KEEP_DEMO_ORG_IDS),
     demoDailyLimit: Math.max(0, Number.parseInt(env.DEMO_DAILY_LIMIT ?? "0", 10) || 0),
     demoPerIpDaily: Math.max(0, Number.parseInt(env.DEMO_PER_IP_DAILY ?? "10", 10) || 0),

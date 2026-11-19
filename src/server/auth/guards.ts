@@ -10,6 +10,7 @@ import { invitations, members, organizations, sessions, users } from "../db/sche
 import { newId } from "../lib/crypto";
 import { audit } from "../services/audit";
 import { authFor } from "./options";
+import { firstOperatorNotBlocked } from "./first-operator-ledger";
 import { ssoBlocks } from "./session";
 import { workspaceMark } from "./workspace-mark";
 import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
@@ -103,7 +104,9 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   // (an unverified address proves nothing; anyone could have signed up with it).
   const listed = deps.config.platformAdmins.includes(s.user.id.toLowerCase())
     || (s.user.emailVerified && deps.config.platformAdmins.includes(s.user.email.toLowerCase()));
-  if (platformRole !== "admin" && listed) {
+  const cutoff = (platformRole.split(",").includes("admin") || listed) && !await firstOperatorNotBlocked(deps, s.user.id);
+  if (cutoff) platformRole = "user";
+  if (!cutoff && platformRole !== "admin" && listed) {
     await db.update(users).set({ role: "admin" }).where(eq(users.id, s.user.id));
     platformRole = "admin";
   }
@@ -221,7 +224,7 @@ export async function resolveAuthCached(deps: Deps, headers: Headers, method: st
   const mark = workspaceMark(headers);
   if (read) {
     const hit = authCache.get(key);
-    if (hit && hit.until > now && hit.mark === mark && (!me || (hit.auth.emailVerified && !hit.auth.ssoBlocked))) return hit.auth;
+    if (hit && hit.auth.platformRole !== "admin" && hit.until > now && hit.mark === mark && (!me || (hit.auth.emailVerified && !hit.auth.ssoBlocked))) return hit.auth;
     // /me that does not use the copy also drops it, as it did when /me always read afresh (it is the app's refresh).
     if (me) authCache.delete(key);
   } else {
