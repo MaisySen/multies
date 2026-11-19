@@ -9,6 +9,7 @@ import { useOffline } from "@/lib/offline";
 import { displayName, longDate, shortDate } from "@/lib/format";
 import { previewLine, splitQuoted } from "@/lib/quote";
 import { bodyText } from "@/lib/mail-body";
+import { canRenderThreadView } from "@/lib/thread-view-check";
 import { LinkedText } from "@/components/linked-text";
 import { firstLink, openQuickActions } from "@/lib/quick-actions";
 import { animateList } from "@/lib/motion";
@@ -34,8 +35,10 @@ export default function Thread() {
   const tasks = useTaskMutations();
   const offline = useOffline();
   const insets = useSafeAreaInsets();
-  const msg = q.data?.message;
-  const thread = q.data?.thread ?? [];
+  // Cached or partial data is not rendered as a message or exposed in the failure UI.
+  const data = !q.error && canRenderThreadView(q.data) ? q.data : undefined;
+  const msg = data?.message;
+  const thread = data?.thread ?? [];
   const last = thread[thread.length - 1] ?? msg;
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -81,8 +84,16 @@ export default function Thread() {
         ) : null,
       }} />
       {offline ? <Banner text={tr("m.thread.offline_this_is_the_copy_saved_on_your_phone")} /> : null}
-      {q.isPending ? <Loading variant="chat" label={tr("m.thread.loading_conversation")} rows={4} /> : q.error ? (
-        <EmptyState icon="alert-circle" title={tr("m.thread.couldn_t_open_this_message")} body={q.error.message} action={<Button label={tr("m.thread.try_again")} variant="secondary" onPress={() => q.refetch()} />} />
+      {q.isPending ? <Loading variant="chat" label={tr("m.thread.loading_conversation")} rows={4} /> : !data ? (
+        <EmptyState icon="alert-circle" title={tr("m.thread.couldn_t_open_this_message")} action={(
+          <View style={{ gap: space.sm }}>
+            <Button label={tr("m.thread.try_again")} variant="secondary" onPress={() => q.refetch()} />
+            <Button label={tr(router.canGoBack() ? "m.common.back" : "m.inbox.back_to_inbox")} variant="secondary" onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace("/inbox");
+            }} />
+          </View>
+        )} />
       ) : (
         <ScrollView contentContainerStyle={{ paddingTop: space.md, paddingBottom: 64 + insets.bottom + space.xxl }}>
           <View style={{ paddingHorizontal: space.lg, gap: 6, marginBottom: space.md }}>
