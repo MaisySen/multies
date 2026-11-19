@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import type { Deps } from "../context";
 import { operatorAccessAudit as audit } from "../db/schema";
 import { firstOperatorWindow, type FirstOperatorIdentity } from "./first-operator-identity";
@@ -17,7 +17,7 @@ async function ownerKey(p: FirstOperatorIdentity): Promise<string> {
 
 async function rowsFor(deps: Deps) {
   return await deps.db.select({id:audit.id, owner:audit.actorId, target:audit.targetId, action:audit.action,
-    requested:audit.requestedOperator, outcome:audit.outcome}).from(audit)
+    requested:audit.requestedOperator, outcome:audit.outcome, at:audit.requestedAt}).from(audit)
     .where(inArray(audit.id,[GRANT,DISABLE,SESSIONS])).all();
 }
 
@@ -57,46 +57,54 @@ export async function firstOperatorNotBlocked(deps: Deps, userId: string): Promi
   } catch { return false; }
 }
 
-/**
- * Only for a separate authorised deployment-owner recovery operation, with grant config no longer serving.
- * An audit lock is written before any revocation. Denial remains even when role/session cleanup needs retry.
- */
-export type PendingGrantRecovery = Readonly<{ priorOwner: string }>;
+/** Only the deployment owner command can authorise a first cutoff or a separately audited recovery. */
+export type FreshGrantRevocation = Readonly<{ priorOwner: string; expectedGrantOutcome?: "pending" | "applied";
+  resume?: Readonly<{ cutoffOwner: string; cutoffAtMs: number }> }>;
+type FirstCutoff = Readonly<{ auditOwner: string; cutoff: Date; resume?: Readonly<{ id: string; owner: string }> }>;
+const FINGERPRINT = /^release-owner:first-operator:[a-f0-9]{64}$/;
 
-export async function recordFirstOperatorCutoff(deps: Deps, p: FirstOperatorIdentity, pending?: PendingGrantRecovery): Promise<"closed" | "eligible" | "already-recorded"> {
+export async function recordFirstOperatorCutoff(deps: Deps, p: FirstOperatorIdentity, recovery?: FreshGrantRevocation): Promise<FirstCutoff | null> {
   const now=deps.now();
-  if (!firstOperatorWindow(p,now.getTime())) return "closed";
-  const owner=await ownerKey(p);
-  const initial=await rowsFor(deps);
+  if (!firstOperatorWindow(p,now.getTime())) return null;
+  const owner=await ownerKey(p), initial=await rowsFor(deps);
   const grant=initial.find(r=>r.id===GRANT);
-  if (!grant || grant.target !== p.userId || grant.action !== "role_change" || grant.requested !== true) return "closed";
-  if (pending) {
-    // Fresh recovery may match the private audit fingerprint, never reconstruct or replay an expired grant.
-    if (grant.outcome !== "pending" || !/^release-owner:first-operator:[a-f0-9]{64}$/.test(pending.priorOwner) ||
-        pending.priorOwner !== grant.owner || owner === grant.owner) return "closed";
-  } else if (grant.owner !== owner) return "closed";
-  const matches=(rows:typeof initial)=>{
-    const cut=rows.find(r=>r.id===DISABLE), sessions=rows.find(r=>r.id===SESSIONS);
-    return cut?.owner===owner && cut.target===p.userId && cut.action==="role_change" && cut.requested===false &&
-      sessions?.owner===owner && sessions.target===p.userId && sessions.action==="sessions_revoked" && sessions.requested===null;
+  if (!grant || grant.target !== p.userId || grant.action !== "role_change" || grant.requested !== true) return null;
+  if (recovery) {
+    if (grant.outcome !== (recovery.expectedGrantOutcome ?? "pending") || !FINGERPRINT.test(recovery.priorOwner) ||
+        recovery.priorOwner !== grant.owner || owner === grant.owner) return null;
+  } else if (grant.owner !== owner) return null;
+  const pair=(rows:typeof initial, auditOwner:string, at:number)=>{
+    const cut=rows.find(r=>r.id===DISABLE), rev=rows.find(r=>r.id===SESSIONS);
+    return cut?.owner===auditOwner && cut.target===p.userId && cut.action==="role_change" && cut.requested===false && cut.outcome==="pending" && cut.at.getTime()===at &&
+      rev?.owner===auditOwner && rev.target===p.userId && rev.action==="sessions_revoked" && rev.requested===null && rev.outcome==="pending" && rev.at.getTime()===at;
   };
-  if (initial.length!==1) return matches(initial) ? "already-recorded" : "closed";
+  if (recovery?.resume) {
+    const {cutoffOwner,cutoffAtMs}=recovery.resume;
+    if (!FINGERPRINT.test(cutoffOwner) || owner===cutoffOwner || !Number.isSafeInteger(cutoffAtMs) || cutoffAtMs<=0 ||
+        cutoffAtMs >= p.startsAt || initial.length!==3 || !pair(initial,cutoffOwner,cutoffAtMs)) return null;
+    const id="first_operator_v1_resume:"+owner.slice(-64);
+    const inserted=await deps.db.insert(audit).values({id,actorId:owner,targetId:p.userId,action:"sessions_revoked",
+      observedOperator:grant.outcome==="applied",requestedOperator:null,requestedAt:now,outcome:"pending"}).onConflictDoNothing().returning({id:audit.id}).all();
+    // Fresh window is single-use. It never broadens the original session cutoff or replaces any original audit.
+    if (inserted.length!==1 || !pair(await rowsFor(deps),cutoffOwner,cutoffAtMs)) return null;
+    return {auditOwner:cutoffOwner,cutoff:new Date(cutoffAtMs),resume:{id,owner}};
+  }
+  if (initial.length!==1) return null;
   const added=await deps.db.insert(audit).values([
     {id:DISABLE,actorId:owner,targetId:p.userId,action:"role_change",observedOperator:grant.outcome==="applied",requestedOperator:false,requestedAt:now,outcome:"pending"},
     {id:SESSIONS,actorId:owner,targetId:p.userId,action:"sessions_revoked",observedOperator:grant.outcome==="applied",requestedOperator:null,requestedAt:now,outcome:"pending"},
   ]).onConflictDoNothing().returning({id:audit.id}).all();
-  if (!matches(await rowsFor(deps))) return "closed";
-  return added.length === 2 ? "eligible" : "already-recorded";
+  return added.length===2 && pair(await rowsFor(deps),owner,now.getTime()) ? {auditOwner:owner,cutoff:now} : null;
 }
 
-/** Marks only this approval after authoritative confirmation of role and session cleanup. */
-export async function finishFirstOperatorCutoff(deps: Deps, p: FirstOperatorIdentity): Promise<boolean> {
+/** Finalise only after authoritative role and bounded session absence checks. */
+export async function finishFirstOperatorCutoff(deps: Deps, p: FirstOperatorIdentity, scope:FirstCutoff): Promise<boolean> {
   const now=deps.now();
   if (!firstOperatorWindow(p,now.getTime())) return false;
-  const owner=await ownerKey(p);
-  await deps.db.update(audit).set({outcome:"applied",finishedAt:now}).where(and(
-    inArray(audit.id,[DISABLE,SESSIONS]),eq(audit.actorId,owner),eq(audit.targetId,p.userId),eq(audit.outcome,"pending"),
-  ));
-  const rows=(await rowsFor(deps)).filter(r=>r.id!==GRANT);
-  return rows.length===2 && rows.every(r=>r.owner===owner && r.target===p.userId && r.outcome==="applied");
+  const original=and(inArray(audit.id,[DISABLE,SESSIONS]),eq(audit.actorId,scope.auditOwner),eq(audit.requestedAt,scope.cutoff));
+  const resume=scope.resume && and(eq(audit.id,scope.resume.id),eq(audit.actorId,scope.resume.owner));
+  const rows=await deps.db.update(audit).set({outcome:"applied",finishedAt:now}).where(and(
+    resume ? or(original,resume) : original,eq(audit.targetId,p.userId),eq(audit.outcome,"pending"),
+  )).returning({id:audit.id}).all();
+  return rows.length===(scope.resume?3:2) && rows.some(r=>r.id===DISABLE) && rows.some(r=>r.id===SESSIONS) && (!scope.resume || rows.some(r=>r.id===scope.resume?.id));
 }

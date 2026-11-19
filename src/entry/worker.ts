@@ -601,8 +601,14 @@ const handler = {
     return withNoindex(request, envVar(env, "NOINDEX") === "true", () => withAuthRequestState(() => serve(request, env, ctx)));
   },
 
-  async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
+  async scheduled(event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
     const { deps } = await getReady(env);
+    const authenticatedPeer = env.PEER as Fetcher | undefined;
+    if (deps.config.firstOperatorCommand && typeof authenticatedPeer?.fetch === "function") {
+      ctx.waitUntil(import("../server/auth/first-operator-command")
+        .then(m => m.completeScheduledOwnerRevocation(deps, event, true))
+        .catch(() => deps.log?.warn("operator.first_recovery_unconfirmed")));
+    }
     // R43: what the maintenance run reports is sent before the run ends.
     // R50 (CPU limit): the cron pass rotates its hourly housekeeping across the four passes of each hour.
     ctx.waitUntil(runMaintenanceIfMigrated(deps, { rotate: true }).finally(() => flushReporting()));

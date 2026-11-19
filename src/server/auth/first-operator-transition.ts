@@ -1,15 +1,14 @@
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, lte, or, sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import { accounts, sessions, users } from "../db/schema";
 import { verifyFirstOperatorBrowserProof } from "./first-operator-browser-proof";
 import { firstOperatorWindow, type FirstOperatorIdentity } from "./first-operator-identity";
-import { claimFirstOperatorGrant, finishFirstOperatorGrant, recordFirstOperatorCutoff, finishFirstOperatorCutoff, type PendingGrantRecovery } from "./first-operator-ledger";
+import { claimFirstOperatorGrant, finishFirstOperatorGrant, recordFirstOperatorCutoff, finishFirstOperatorCutoff, type FreshGrantRevocation } from "./first-operator-ledger";
 import { idpIssuer } from "./config";
 
 /** The supported Better Auth identity adapter. No direct database update of a user or its sessions. */
 type IdentityWriter = Readonly<{
   updateUser(id: string, fields: {role:"admin"|"user"}): Promise<unknown>;
-  deleteUserSessions(id: string): Promise<unknown>;
   deleteSession(token: string): Promise<unknown>;
 }>;
 type Issued = Parameters<typeof verifyFirstOperatorBrowserProof>[2];
@@ -51,22 +50,25 @@ export async function applyFirstOperatorGrant(deps: Deps, p: FirstOperatorIdenti
 }
 
 /** The caller is a separate deployment-owner command, never an HTTP route, browser or app Operator. */
-export async function applyFirstOperatorRecovery(deps: Deps, p: FirstOperatorIdentity, writer: IdentityWriter, pending?: PendingGrantRecovery): Promise<Outcome> {
+export async function applyFirstOperatorRecovery(deps: Deps, p: FirstOperatorIdentity, writer: IdentityWriter, recovery?: FreshGrantRevocation): Promise<Outcome> {
   try {
     if (!approvedDeployment(deps,p)) return "closed";
     const before=await exactRole(deps,p);
     if (before!=="admin" && before!=="user") return "closed";
-    // The single winning recovery may mutate; a duplicate request must never sign fresh sessions out.
-    if (await recordFirstOperatorCutoff(deps,p,pending)!=="eligible") return "closed";
+    const scope=await recordFirstOperatorCutoff(deps,p,recovery);
+    if (!scope) return "closed";
     if (!approvedDeployment(deps,p) || await exactRole(deps,p)!==before) return "unconfirmed";
     if (before==="admin") await writer.updateUser(p.userId,{role:"user"});
     if (await exactRole(deps,p)!=="user") return "unconfirmed";
-    await writer.deleteUserSessions(p.userId);
-    // Also revoke sessions this exact Operator impersonated; never touch other people's regular sessions.
-    // A large or interrupted set remains denied and can be reconciled by a new authorised recovery window.
-    const outstanding=await deps.db.select({token:sessions.token}).from(sessions).where(eq(sessions.impersonatedBy,p.userId)).limit(32).all();
-    for (const s of outstanding) await writer.deleteSession(s.token);
-    if (await deps.db.select({id:sessions.id}).from(sessions).where(or(eq(sessions.userId,p.userId),eq(sessions.impersonatedBy,p.userId))).get()) return "unconfirmed";
-    return await finishFirstOperatorCutoff(deps,p) ? "applied" : "unconfirmed";
+    // Use the original audit cutoff on both the first attempt and a later approved resume.
+    // Later ordinary logins and unrelated accounts survive; all impersonation by this exact Operator ends.
+    const oldScope=or(and(eq(sessions.userId,p.userId),lte(sessions.createdAt,scope.cutoff)),eq(sessions.impersonatedBy,p.userId));
+    const outstanding=await deps.db.select({token:sessions.token}).from(sessions).where(oldScope).limit(32).all();
+    for (const s of outstanding) {
+      if (!approvedDeployment(deps,p)) return "unconfirmed";
+      await writer.deleteSession(s.token);
+    }
+    if (await deps.db.select({id:sessions.id}).from(sessions).where(oldScope).get() || await exactRole(deps,p)!=="user") return "unconfirmed";
+    return await finishFirstOperatorCutoff(deps,p,scope) ? "applied" : "unconfirmed";
   } catch { return "unconfirmed"; }
 }
