@@ -19,7 +19,8 @@ export function MnetAuthorizePage() {
   const qs = params.toString();
   const [workspaceId, setWorkspaceId] = useState("");
   const [cancelled, setCancelled] = useState(false);
-  const info = useQuery({ queryKey: ["mnet-authorize", qs], queryFn: () => api.get<LaunchInfo>(`/mnet/authorize?${qs}`), retry: false });
+  const [readId] = useState(() => crypto.randomUUID());
+  const info = useQuery({ queryKey: ["mnet-authorize", qs, readId], gcTime: 0, queryFn: () => api.get<LaunchInfo>(`/mnet/authorize?${qs}`), retry: false });
   useEffect(() => {
     if (info.error instanceof ApiError && info.error.status === 401) navigate(`/login?next=${encodeURIComponent(`/mnet/authorize?${qs}`)}`, { replace: true });
   }, [info.error, navigate, qs]);
@@ -31,7 +32,7 @@ export function MnetAuthorizePage() {
     onSuccess: (r) => { window.location.assign(r.redirectTo); },
   });
   const card = (children: React.ReactNode) => <section className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">{children}</section>;
-  if (info.isPending || (info.error instanceof ApiError && info.error.status === 401)) return card(<p role="status">Checking Multies sign in...</p>);
+  if (info.isPending || info.fetchStatus !== "idle" || (info.error instanceof ApiError && info.error.status === 401)) return card(<p role="status">Checking Multies sign in...</p>);
   if (info.error) return card(<><h1 className="text-xl font-semibold">Mnet sign in is unavailable</h1><p role="alert" className="mt-3 text-sm text-muted">{info.error.message}</p><p className="mt-3 text-sm text-muted">Return to Mnet and start sign in again. Nothing was approved.</p></>);
   if (cancelled) return card(<><h1 className="text-xl font-semibold">Device not approved</h1><p className="mt-3 text-sm text-muted">You can close this tab. Mnet has no access from this request.</p></>);
   const d = info.data;
