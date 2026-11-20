@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { parseMnetObject } from "../services/mnet-json";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { HttpError } from "../lib/errors";
@@ -21,7 +22,7 @@ async function body<T>(c: { req: { raw: Request } }, schema: z.ZodType<T>): Prom
     const bytes = new Uint8Array(size);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return schema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
+    return schema.parse(parseMnetObject(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
   } catch { throw new HttpError(400, "invalid_request", "Mnet request is invalid."); }
   finally { reader.releaseLock(); }
 }
