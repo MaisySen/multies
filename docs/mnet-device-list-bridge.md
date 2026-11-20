@@ -76,3 +76,21 @@ The signed-out browser journey also goes through the real local Multies login
 form, then returns to the exact approval request. Only `/mnet/authorize?` and
 exact `/mnet/devices` were added to the existing safe post-login destinations;
 other Mnet paths and external origins remain excluded.
+
+## Browser read freshness
+
+The authorization and approved-device pages use a new query identity for each
+mount and discard it on unmount. They do not render an earlier mount's cached
+person, workspace or device rows before a new authenticated read. Device rows
+also disappear during refresh, while revoke is pending, or after a refused
+refresh. Check again performs a new read; it does not reuse approval evidence.
+Revoke settles by checking the server again, including after a failed response.
+
+Two failing-first rendered-page regressions reproduce the former shared-cache
+behavior and pass with private mount keys. A local real-browser check approves
+and exchanges normally, then injects a refused approved-device refresh. During
+the request and after refusal no old rows or revoke buttons remain. Restoring
+the server and choosing Check again restores the current rows, and actual
+revocation still denies the old native credential. Desktop and390pxphone denied
+and recovered states were inspected. This is local fixture evidence, not a live
+account disclosure or a production deployment.
