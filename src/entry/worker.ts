@@ -1,4 +1,5 @@
 import { attachPrivateConsoleVersion, privateConsoleVersion } from "./private-console-version";
+import { WorkerReadyBindings } from "./worker-ready-bindings";
 /**
  * Cloudflare Workers entry: API on /api/*, the built SPA from the ASSETS binding
  * for everything else, D1 as the database. Housekeeping runs opportunistically
@@ -103,7 +104,7 @@ function loginCardFor(env: WorkerEnv): LoginVariantOf | null {
   return loginCard;
 }
 
-let ready: Promise<{ app: ReturnType<typeof createApp>; deps: Deps }> | null = null;
+const ready = new WorkerReadyBindings<Awaited<ReturnType<typeof boot>>>();
 let lastMaintenance = 0;
 
 async function boot(env: WorkerEnv) {
@@ -294,9 +295,18 @@ let pageHeaders: { csp: string; hsts: boolean } | null = null;
 let formPageHeaders: { csp: string; hsts: boolean } | null = null;
 let privatePageHeaders: { csp: string; hsts: boolean } | null = null; // R112
 
+/** Binding snapshots are in-memory only; never log a command or use version metadata as authority. */
+function readyStamp(env: WorkerEnv) {
+  const metadata = env.CF_VERSION_METADATA;
+  const version = metadata && typeof metadata === "object" && "id" in metadata && typeof metadata.id === "string"
+    ? metadata.id : undefined;
+  return [version, envVar(env, "PRIVATE_CONSOLE_VERSION"), envVar(env, "FIRST_OPERATOR_COMMAND"), envVar(env, "PRIVATE_CONSOLE_PROOF_ORIGIN"),
+    envVar(env, "APP_URL"), envVar(env, "AUTH0_DOMAIN"), envVar(env, "AUTH0_CLIENT_ID"),
+    envVar(env, "PLATFORM_ADMIN_EMAILS"), envVar(env, "RELEASE"), envVar(env, "SENTRY_RELEASE")];
+}
+
 function getReady(env: WorkerEnv) {
-  ready ??= boot(env).catch((err) => { ready = null; throw err; });
-  return ready;
+  return ready.get(readyStamp(env), () => boot(env));
 }
 
 /*
@@ -309,7 +319,7 @@ function getReady(env: WorkerEnv) {
  */
 export function startupBoot(env: WorkerEnv | undefined): boolean {
   try {
-    if (!env || !env.DB || ready) return false;
+    if (!env || !env.DB || ready.primed) return false;
     const vars = envVars(env);
     if (!vars.APP_SECRET) return false;
     const db = drizzle(withWriteMeter(withReadRetry(env.DB)) as never, { schema }) as unknown as DB;
@@ -324,12 +334,12 @@ export function startupBoot(env: WorkerEnv | undefined): boolean {
     // R45 (MB-199): and the public API (about 150 OpenAPI routes, 12 to 34 ms locally), which the first /api/v1 request
     // of every new isolate used to build. STARTUP_V1=off moves it back to the first request.
     if (vars.STARTUP_V1 !== "off") { try { appPrebuild.get(built.app)?.(); v1BuiltAtStartup = true; } catch { /* built on first use instead */ } }
-    ready = Promise.resolve(built);
+    ready.setBooted(readyStamp(env), built);
     if (vars.STARTUP_BOOT_LOG === "1") console.log("[startup] app built before the first request");
     if (vars.STARTUP_WARM !== "off") startupWarm(env, vars);
     return true;
   } catch (err) {
-    ready = null;
+    ready.clear();
     console.warn("[startup] app build moved to the first request:", err instanceof Error ? err.message : String(err));
     return false;
   }
