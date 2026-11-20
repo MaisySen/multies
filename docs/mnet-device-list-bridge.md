@@ -71,3 +71,8 @@ normal installed GUI journey or a deployed production flow.
 
 No merge, release, production/staging migration, deployment, signing, TestFlight,
 account change or paid infrastructure is covered by these local checks.
+
+The signed-out browser journey also goes through the real local Multies login
+form, then returns to the exact approval request. Only `/mnet/authorize?` and
+exact `/mnet/devices` were added to the existing safe post-login destinations;
+other Mnet paths and external origins remain excluded.

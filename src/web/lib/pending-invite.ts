@@ -34,7 +34,7 @@ export function pendingInviteToken(now = Date.now()): string | null {
 
 /** Where sign in should land: the page the person asked for, else the remembered invite, else My Work. */
 export function signInDestination(next: string | null, home: string): string {
-  const ok = (n: string | null) => !!n && (n.startsWith("/app") || n.startsWith("/invite/") || n.startsWith("/oauth/authorize?"));
+  const ok = (n: string | null) => !!n && (n.startsWith("/app") || n.startsWith("/invite/") || n.startsWith("/oauth/authorize?") || n.startsWith("/mnet/authorize?") || n === "/mnet/devices");
   if (ok(next)) return next!;
   const token = pendingInviteToken();
   return token ? `/invite/${token}` : home;
