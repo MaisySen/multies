@@ -4872,3 +4872,15 @@ export const userPrefsTd10 = sqliteTable("user_prefs_td10", {
   shortcutsOff: integer("shortcuts_off", { mode: "boolean" }).notNull().default(false),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 }, (t) => [primaryKey({ columns: [t.userId, t.orgId] })]);
+
+/** Mnet-only approval/exchange records. Never browser or MCP credentials. */
+export const mnetDevices = sqliteTable("mnet_devices", {
+ id: text("id").primaryKey(),
+ userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ sessionId: text("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+ workspaceId: text("workspace_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+ deviceKey: text("device_key").notNull(), challenge: text("challenge").notNull(), state: text("state").notNull(), platform: text("platform").notNull(),
+  redirectUri: text("redirect_uri").notNull(),
+ status: text("status", { enum: ["pending", "approved", "declined", "active", "revoked"] }).notNull(),
+ codeHash: text("code_hash"), credentialHash: text("credential_hash"), expiresAt: ts("expires_at").notNull(), credentialExpiresAt: ts("credential_expires_at"),
+}, (t) => [uniqueIndex("mnet_code_uq").on(t.codeHash), uniqueIndex("mnet_credential_uq").on(t.credentialHash), index("mnet_owner_idx").on(t.userId,t.workspaceId)]);

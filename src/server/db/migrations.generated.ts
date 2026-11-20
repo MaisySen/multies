@@ -1865,5 +1865,14 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- QUAL1 (audit rows 12, 14): the provider's last refusal of a workspace's own AI key, so Settings, Team AI and the mail\n-- assistant show the real state. Both columns are null while the key works; old code never reads them.\nALTER TABLE `ai_keys` ADD `problem` text;",
       "ALTER TABLE `ai_keys` ADD `problem_at` integer;"
     ]
+  },
+  {
+    "name": "0171_mnet_device_bridge",
+    "statements": [
+      "CREATE TABLE mnet_devices (\n id text PRIMARY KEY NOT NULL,\n user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n session_id text NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,\n workspace_id text NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,\n device_key text NOT NULL, challenge text NOT NULL, state text NOT NULL, platform text NOT NULL, redirect_uri text NOT NULL,\n status text NOT NULL, code_hash text, credential_hash text, expires_at integer NOT NULL, credential_expires_at integer\n);",
+      "CREATE UNIQUE INDEX mnet_code_uq ON mnet_devices(code_hash);",
+      "CREATE UNIQUE INDEX mnet_credential_uq ON mnet_devices(credential_hash);",
+      "CREATE INDEX mnet_owner_idx ON mnet_devices(user_id,workspace_id);"
+    ]
   }
 ];

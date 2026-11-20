@@ -318,6 +318,8 @@ export interface AppConfig {
   navP2R121?: boolean;
   /** MH1: app to web sign in handoff, POST /api/auth/mobile/web-link and GET /auth/mobile/web (MOBILE_WEB_LINK=on). Off unless set (both answer 404). */
   mobileWebLink?: boolean;
+  /** Isolated Mnet bridge branch only; off unless explicitly enabled. */
+  mnetDeviceBridge?: boolean;
   /** R99: calendar and contacts sync, CalDAV and CardDAV at /dav with app passwords (DAV_SYNC_R99=on). Off unless set. */
   davSync?: boolean;
   /** R103: Docs plus (link library, web clipper, doc comments, spell check), DOCS_PLUS_R103=on. */
@@ -490,6 +492,7 @@ const EnvSchema = z.object({
   BLOG_R124: z.string().optional(), // R124
   MEET_TD3: z.string().optional(), // TD3
   NAV_P2_R121: z.string().optional(), // R121
+  MNET_DEVICE_BRIDGE: z.string().optional(),
   MOBILE_WEB_LINK: z.string().optional(), // MH1
   DAV_SYNC_R99: z.string().optional(),
   DOCS_PLUS_R103: z.string().optional(),
@@ -978,6 +981,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     sitesExclude: env.SITES_EXCLUDE ?? "",
     blogR124: ["on", "true", "1"].includes(String(env.BLOG_R124 ?? "").toLowerCase()) && ["on", "true", "1"].includes(String(env.SITES_R123 ?? "").toLowerCase()), // R124
     navP2R121: ["on", "true", "1"].includes(String(env.NAV_P2_R121 ?? "").toLowerCase()), // R121
+    mnetDeviceBridge: env.MNET_DEVICE_BRIDGE === "on",
     mobileWebLink: ["on", "true", "1"].includes(String(env.MOBILE_WEB_LINK ?? "").toLowerCase()), // MH1
     davSync: ["on", "true", "1"].includes(String(env.DAV_SYNC_R99 ?? "").toLowerCase()),
     docsPlus: ["on", "true", "1"].includes(String(env.DOCS_PLUS_R103 ?? "").toLowerCase()),

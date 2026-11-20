@@ -14,6 +14,6 @@ export const authProvidersQuery = {
 };
 
 /** Pages under the auth layout, whose first paint waits for the providers read. */
-export const AUTH_LAYOUT_PATHS = /^\/(?:(?:login|signup|forgot-password|reset-password|email-verified|oauth\/authorize)(?:\/|$)|invite\/)/;
+export const AUTH_LAYOUT_PATHS = /^\/(?:(?:login|signup|forgot-password|reset-password|email-verified|oauth\/authorize|mnet\/(?:authorize|devices))(?:\/|$)|invite\/)/;
 
 export const isAuthLayoutPath = (pathname: string) => AUTH_LAYOUT_PATHS.test(pathname);
