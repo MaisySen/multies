@@ -83,6 +83,8 @@ function ForgotPasswordPage() {
 }
 const ResetPasswordPage = lazyPage(() => authPages(), "ResetPasswordPage");
 const EmailVerifiedPage = lazyPage(() => authPages(), "EmailVerifiedPage");
+const MnetDevicesPage = lazyPage(() => import("./pages/mnet-devices"), "MnetDevicesPage");
+const MnetAuthorizePage = lazyPage(() => import("./pages/mnet-authorize"), "MnetAuthorizePage");
 const OAuthAuthorizePage = lazyPage(() => import("./pages/oauth-authorize"), "OAuthAuthorizePage");
 const AppLayout = lazyPage(() => import("./layouts/app"), "AppLayout");
 const ModerationPage = lazyPage(() => import("./pages/app/admin-moderation-r35"), "ModerationPage"); // R35
@@ -292,6 +294,8 @@ export const router = createBrowserRouter([
       { path: "/forgot-password", element: <ForgotPasswordPage /> },
       { path: "/reset-password", element: <ResetPasswordPage /> },
       { path: "/email-verified", element: <EmailVerifiedPage /> },
+      { path: "/mnet/devices", element: <MnetDevicesPage /> },
+      { path: "/mnet/authorize", element: <MnetAuthorizePage /> },
       { path: "/oauth/authorize", element: <OAuthAuthorizePage /> },
     ],
   },

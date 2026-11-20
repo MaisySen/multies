@@ -1,3 +1,4 @@
+import { mnetRoutes } from "./routes/mnet";
 import { productAnalyticsRoutes } from "./routes/product-analytics";
 import { productAnalyticsActions } from "./services/product-analytics";
 import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, MCP_TOOLS_MD_PATH, versionJson } from "./routes/web-meta-r32";
@@ -551,6 +552,7 @@ export function createApp(deps: Deps) {
 
   // ANALYTICS-PH: a successful key action (send mail, new task, invite...) is recorded after the response (off unless ANALYTICS_PH).
   app.use("/api/*", productAnalyticsActions);
+  app.route("/api/mnet", mnetRoutes());
   app.route("/api/account", accountRoutes());
   app.route("/api/contact", contactFormRoutes());
   app.route("/api/admin/app-config", adminAppConfigRoutes()); // R29b: mobile remote config
