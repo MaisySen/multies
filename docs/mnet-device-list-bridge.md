@@ -94,3 +94,27 @@ the server and choosing Check again restores the current rows, and actual
 revocation still denies the old native credential. Desktop and390pxphone denied
 and recovered states were inspected. This is local fixture evidence, not a live
 account disclosure or a production deployment.
+
+## Dedicated request JSON ambiguity guard
+
+The isolated bridge now rejects duplicate decoded JSON keys before the strict
+request schema and before preparation, decision or token consumption. This
+includes escaped aliases, such as a key containing a Unicode escape which
+decodes to an earlier key. JSON.parse alone silently kept the final value; two
+failing-first actual route tests reproduced both an ambiguous approval decision
+being accepted and an ambiguous authorization request creating a record.
+
+The dedicated scanner is limited to this bridge. It checks object shape,
+decoded-key uniqueness at every nesting level and a 16-level depth bound before
+using the platform parser for final grammar and values. The route's existing
+8192-byte streaming limit, fatal UTF-8 decode, strict purpose schema, browser
+session checks and one-use state transitions remain. No capability, schema
+field, audience or endpoint was added. The normal browser/native JSON remains
+unchanged.
+
+Route regressions require ambiguous approval to leave its row pending,
+ambiguous token exchange to leave the valid code usable, and ambiguous or
+nonobject preparation to create no row. Parser tests cover nested/escaped keys,
+malformed/trailing tokens, string escapes, huge depth, 2000 deterministic valid
+objects against platform values and deterministic token mutations. These are
+bounded regression/property checks, not a security review or fuzzing claim.

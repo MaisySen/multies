@@ -26,6 +26,27 @@ beforeEach(async()=>{
  request={workspaceId:member!.organizationId,deviceKey:await hash("exact native key"),challenge:await hash(verifier),state:await hash("native state"),platform:"linux",redirectUri:"http://127.0.0.1:32145/mnet/callback"};
 });
 describe("isolated Mnet device bridge",()=>{
+ it("rejects duplicate decision and binding fields without deciding or consuming a handoff",async()=>{
+  const raw=async(path:string,body:string,cookie=true)=>ctx.app.request(path,{method:"POST",headers:{host:"localhost","content-type":"application/json",...(cookie?{cookie:c.cookie}:{})},body});
+  const pending=await c.post("/api/mnet/authorizations",request);expect(pending.status).toBe(201);
+  for(const body of ['{"decision":"decline","decision":"allow"}','{"decision":"decline","dec\\u0069sion":"allow"}']) {
+   expect((await raw(`/api/mnet/authorizations/${pending.body.id}/decision`,body)).status).toBe(400);
+   expect((await ctx.db.select().from(mnetDevices).where(eq(mnetDevices.id,pending.body.id)).get())!.status).toBe("pending");
+  }
+  const allowed=await c.post(`/api/mnet/authorizations/${pending.body.id}/decision`,{decision:"allow"});expect(allowed.status).toBe(200);
+  const proof=JSON.stringify({...request,code:allowed.body.code,verifier});
+  const duplicate=proof.slice(0,-1)+',"code":'+JSON.stringify(allowed.body.code)+'}';
+  expect((await raw("/api/mnet/token",duplicate,false)).status).toBe(400);
+  expect((await exchange(allowed.body.code)).status).toBe(200);
+ });
+ it("rejects ambiguous authorization keys, nonobjects and excessive nesting before creating records",async()=>{
+  const raw=async(body:string)=>ctx.app.request("/api/mnet/authorizations",{method:"POST",headers:{host:"localhost","content-type":"application/json",cookie:c.cookie},body});
+  const original=JSON.stringify(request);
+  for(const body of [original.slice(0,-1)+',"workspaceId":'+JSON.stringify(request.workspaceId)+'}',original.replace('"workspaceId":','"workspac\\u0065Id":"foreign","workspaceId":'),original.slice(0,-1)+',"platform":"linux"}',"null","[]",'"text"',"[".repeat(40)+"0"+"]".repeat(40)]) {
+   expect((await raw(body)).status).toBe(400);
+   expect(await ctx.db.select().from(mnetDevices)).toHaveLength(0);
+  }
+ });
  it("caps concurrent handoffs without evicting another current request",async()=>{
   const headers=new Headers({host:"localhost",cookie:c.cookie});
   const results=await Promise.allSettled(Array.from({length:21},()=>prepareMnet(ctx.deps,headers,request)));
