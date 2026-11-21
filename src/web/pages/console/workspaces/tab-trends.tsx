@@ -22,7 +22,7 @@ export function WorkspaceTrendsTab({ orgId }: { orgId: string }) {
   const common = { loading: q.isPending, error: q.error ?? undefined, onRetry: () => void q.refetch() };
 
   const mail = mailView === "outbound"
-    ? [{ label: "Sent", rows: pointsOf(data, "deliveries_sent") }, { label: "Failed", rows: pointsOf(data, "deliveries_failed"), tone: "bad" as const }]
+    ? [{ label: "Sent", rows: pointsOf(data, "deliveries_sent") }, { label: "Failed or bounced", rows: pointsOf(data, "deliveries_failed"), tone: "bad" as const }]
     : [{ label: "Received", rows: pointsOf(data, "deliveries_received") }];
   const aiRows = pointsOf(data, aiView === "calls" ? "ai_calls" : "ai_units");
   const aiNote = data?.ai.partial && data.ai.from

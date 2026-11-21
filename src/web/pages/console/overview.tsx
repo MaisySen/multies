@@ -1,7 +1,9 @@
 /**
- * OPS1: the console's Overview. What needs attention now comes first, then the platform numbers, the write budget,
+ * OPS1: the console's Overview. What needs attention now comes first, then the trends (loaded on demand, so the charts
+ * stay out of the console's first chunk), then the platform numbers, the write budget,
  * integrations, abuse signals, the job queue and the newest workspaces with their controls (moved from /app/admin).
  */
+import { Suspense } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -17,7 +19,10 @@ import { Section } from "../app/settings";
 import { AbuseQueue, INTEGRATION_LABEL, JobQueue, TenantControls } from "../app/admin";
 import { WriteBudgetMeter } from "../app/admin-write-budget";
 import { ModerationLink } from "../app/admin-moderation-r35";
+import { lazyPage } from "@/web/components/lazy-page";
 import { PermissionGate } from "./guard";
+
+const OverviewTrends = lazyPage(() => import("./overview-trends"), "OverviewTrends");
 
 function Attention() {
   const q = useQuery({ queryKey: consoleKeys.overview, queryFn: consoleApi.overview });
@@ -92,6 +97,9 @@ export function ConsoleOverviewPage() {
       {header}
       <Attention />
       <PermissionGate permission="moderation.read"><ModerationLink /></PermissionGate>
+      <PermissionGate permission="metrics.read">
+        <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}><OverviewTrends /></Suspense>
+      </PermissionGate>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => <StatTile key={t.label} label={t.label} value={fmt.format(t.value)} icon={t.icon} tone={t.tone} />)}
       </div>
