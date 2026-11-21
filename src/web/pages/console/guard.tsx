@@ -68,7 +68,7 @@ export function ConsoleGuard({ children }: { children: ReactNode }) {
   const q = useConsoleMeQuery();
   if (q.isPending) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4 px-4 pt-10" aria-busy="true" aria-label="Loading the operator console">
+      <div className="mx-auto max-w-5xl space-y-4 px-4 pt-10" role="status" aria-busy="true" aria-label="Loading the operator console">
         <Skeleton className="h-9 w-64" />
         <Skeleton className="h-28 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
