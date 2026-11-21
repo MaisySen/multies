@@ -141,6 +141,9 @@ describe("/api/console/flags", () => {
     expect((await readonly.get("/api/console/flags/noSuchFlag")).status).toBe(404);
     const listed = await readonly.get("/api/console/flags?state=workspaces");
     expect(listed.body.items.map((r: { key: string }) => r.key)).toEqual([WS_FLAG]);
+    // "Changed from default" (the page's default view) includes a flag changed only for some workspaces.
+    const modified = await readonly.get("/api/console/flags?state=modified");
+    expect(modified.body.items.map((r: { key: string }) => r.key)).toEqual([WS_FLAG]);
 
     // Clear: reason required, support refused, then removed and audited; clearing again is a 404.
     expect((await del(opsAdmin, path, {})).status).toBe(422);
@@ -185,6 +188,7 @@ describe("/api/console/flags", () => {
     const listed = (await readonly.get("/api/console/flags?state=changed")).body.items;
     expect(listed.map((r: { key: string }) => r.key)).toEqual([WS_FLAG]);
     expect(listed[0]).toMatchObject({ globalOverride: { value: false, locked: true, note: "Incident", updatedByEmail: "own@ops.test" }, effective: false });
+    expect((await readonly.get("/api/console/flags?state=modified")).body.items.map((r: { key: string }) => r.key)).toEqual([WS_FLAG]);
     const a = await readonly.get(`/api/console/flags/workspaces/${orgA}?limit=200`);
     expect(a.body.items.find((r: { key: string }) => r.key === WS_FLAG)).toMatchObject({ effective: false, source: "locked", blocked: "locked", workspaceOverride: { value: true, applies: false } });
     const detail = await readonly.get(`/api/console/flags/${WS_FLAG}`);

@@ -1,57 +1,56 @@
 /**
- * OPS1: the Flags tab of a workspace's console page. Every flag with its value in this workspace and where that comes
- * from (default, changed for everyone, locked for everyone, this workspace). Ops admins and owners can turn a flag on
- * or off for this workspace or put it back to the default; flags with one setting for the whole platform, flags locked
- * for everyone and flags set at deploy say why they cannot be changed here.
+ * OPS1: the Flags tab of a workspace's console page. It opens on the flags this workspace has its own setting for
+ * ("Has own setting"), with "Show all flags" one click away. Each flag shows its value in this workspace and where that
+ * comes from (default, changed for everyone, locked for everyone, this workspace). Ops admins and owners can turn a
+ * flag on or off for this workspace or put it back to the default. Flags that cannot be changed for one workspace show a
+ * small tag instead ("Platform only", "Locked", "Set at deploy") with the reason in its title; which ones is the
+ * server's `blocked` field, never a list kept here.
  */
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { Button } from "@/web/components/ui/button";
 import { IconFlag } from "@/web/components/ui/icon";
 import { DataTable } from "../components/data-table";
 import type { FilterDef } from "../components/filter-bar";
 import { useOperatorAction } from "../components/reason-dialog";
 import { usePermission } from "../guard";
-import { GROUP_FILTER, flagsApi, type FlagBlocked, type WorkspaceFlagRow } from "../flags-api";
-import { DeployNote, FlagState, PropagationNote } from "../flags-parts";
+import { GROUP_FILTER, flagsApi, type WorkspaceFlagRow } from "../flags-api";
+import { BlockedTag, DeployNote, FlagState, PropagationNote } from "../flags-parts";
 
 const STATE_FILTER: FilterDef = {
-  key: "state", label: "Show", initial: "",
+  key: "state", label: "Show", initial: "own",
   options: [
-    { value: "", label: "All flags" },
-    { value: "own", label: "Own setting" },
+    { value: "own", label: "Has own setting" },
     { value: "differs", label: "Differs from everyone" },
+    { value: "all", label: "All flags" },
   ],
 };
 const FILTERS: FilterDef[] = [GROUP_FILTER, STATE_FILTER];
 
-const BLOCKED_TEXT: Record<Exclude<FlagBlocked, null>, string> = {
-  deploy: "Set at deploy, so it cannot be changed here.",
-  global_only: "One setting for the whole platform. Change it on the Feature flags page.",
-  locked: "Locked for everyone, so workspaces cannot differ. An owner can change that on the Feature flags page.",
-};
-
 function Actions({ row, onSet, onReset }: { row: WorkspaceFlagRow; onSet: (r: WorkspaceFlagRow, value: boolean) => void; onReset: (r: WorkspaceFlagRow) => void }) {
   const turnOn = !row.effective;
-  const label = turnOn ? "Turn on for this workspace" : "Turn off for this workspace";
   if (row.blocked) {
     return (
-      <span className="flex flex-col items-end gap-1">
-        <Button size="sm" variant="secondary" disabled aria-describedby={`flag-blocked-${row.key}`}>{label}</Button>
-        <span id={`flag-blocked-${row.key}`} className="max-w-[16rem] text-right text-xs text-subtle">{BLOCKED_TEXT[row.blocked]}</span>
-        {row.blocked === "locked" && row.workspaceOverride && <Button size="sm" variant="ghost" onClick={() => onReset(row)}>Use the default</Button>}
+      <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+        <BlockedTag blocked={row.blocked} bootReason={row.bootReason} testId={`console-flags-ws-blocked-${row.key}`} />
+        {row.blocked === "locked" && row.workspaceOverride && <Button size="sm" variant="ghost" onClick={() => onReset(row)} data-testid={`console-flags-ws-reset-${row.key}`}>Use the default</Button>}
       </span>
     );
   }
   return (
     <span className="inline-flex flex-wrap justify-end gap-1.5">
-      <Button size="sm" variant="secondary" onClick={() => onSet(row, turnOn)} data-testid={`console-flags-ws-set-${row.key}`}>{label}</Button>
-      {row.workspaceOverride && <Button size="sm" variant="ghost" onClick={() => onReset(row)} data-testid={`console-flags-ws-reset-${row.key}`}>Use the default</Button>}
+      <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => onSet(row, turnOn)} data-testid={`console-flags-ws-set-${row.key}`}>{turnOn ? "Turn on" : "Turn off"}</Button>
+      {row.workspaceOverride && <Button size="sm" variant="ghost" className="whitespace-nowrap" onClick={() => onReset(row)} data-testid={`console-flags-ws-reset-${row.key}`}>Use the default</Button>}
     </span>
   );
 }
 
 export function WorkspaceFlagsTab({ orgId }: { orgId: string }) {
   const canChange = usePermission("flags.workspace");
+  const [params, setParams] = useSearchParams();
+  const state = params.get("state") ?? STATE_FILTER.initial;
+  const plainDefault = state === "own" && !params.get("q") && !params.get("group");
+  const showAll = () => setParams((prev) => { const next = new URLSearchParams(prev); next.set("state", "all"); return next; }, { replace: true });
+  const showAllButton = <Button size="sm" variant="secondary" onClick={showAll} data-testid="console-flags-ws-show-all">Show all flags</Button>;
   const set = useOperatorAction<{ row: WorkspaceFlagRow; value: boolean }>({
     title: ({ row, value }) => `Turn ${value ? "on" : "off"} ${row.label} for this workspace?`,
     description: ({ row, value }) => `This workspace gets ${value ? "On" : "Off"} whatever the setting for everyone is (${row.platformValue ? "On" : "Off"} now), until you choose Use the default.`,
@@ -71,21 +70,24 @@ export function WorkspaceFlagsTab({ orgId }: { orgId: string }) {
     <div data-testid="console-workspace-flags">
       <PropagationNote />
       <DataTable<WorkspaceFlagRow>
-        label="Flags for this workspace" path={`/flags/workspaces/${encodeURIComponent(orgId)}`} pageSize={200}
+        label="Flags for this workspace" path={`/flags/workspaces/${encodeURIComponent(orgId)}`} pageSize={200} minWidth={600}
         search={{ placeholder: "Search flags" }} filters={FILTERS}
+        actions={state !== "all" ? showAllButton : undefined}
         rowKey={(r) => r.key}
-        empty={{ icon: <IconFlag />, title: "No flags match", body: "Try another search or group." }}
+        empty={plainDefault
+          ? { icon: <IconFlag />, title: "No own settings", body: <>This workspace uses the default for every flag.<span className="mt-4 flex justify-center">{showAllButton}</span></> }
+          : { icon: <IconFlag />, title: "No flags match", body: "Try another search, group or Show choice." }}
         columns={[
-          { key: "flag", header: "Flag", className: "min-w-[14rem]", cell: (r) => (
+          { key: "flag", header: "Flag", className: "min-w-[11rem] sm:min-w-[14rem]", cell: (r) => (
             <span className="flex flex-col">
-              <Link to={`/console/flags?flag=${encodeURIComponent(r.key)}`} className="font-medium hover:underline">{r.label}</Link>
+              <Link to={`/console/flags?flag=${encodeURIComponent(r.key)}`} title={r.key} className="font-medium hover:underline">{r.label}</Link>
               <span className="line-clamp-1 text-xs text-muted" title={r.description}>{r.description}</span>
             </span>
           ) },
           { key: "value", header: "In this workspace", cell: (r) => (
             <span className="flex flex-col items-start gap-1">
               <FlagState on={r.effective} source={r.source} testId={`console-flags-ws-state-${r.key}`} />
-              {!r.runtime && <DeployNote reason={r.bootReason} />}
+              {!canChange && !r.runtime && <DeployNote reason={r.bootReason} />}
               {r.workspaceOverride && !r.workspaceOverride.applies && <span className="text-xs text-subtle">Own setting ({r.workspaceOverride.value ? "On" : "Off"}) kept but has no effect</span>}
             </span>
           ) },

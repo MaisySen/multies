@@ -7,11 +7,10 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
+import { Badge, Card, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
-import { IconBuilding, IconInfo, IconWarning } from "@/web/components/ui/icon";
-import { errorMessage } from "@/web/lib/api";
-import { fullDate, timeAgo } from "@/web/lib/format";
+import { IconBuilding, IconInfo } from "@/web/components/ui/icon";
+import { EmptyRow, LoadError, PersonLink, RelTime } from "./components/format";
 import { KvList } from "./components/kv-list";
 import { useOperatorAction } from "./components/reason-dialog";
 import { PermissionGate, usePermission } from "./guard";
@@ -72,21 +71,21 @@ function Overrides({ flag, pages, hasMore, loadingMore, loadMore }: {
     run: (o, reason) => flagsApi.clearWorkspace(flag.key, o.orgId, reason),
     success: "Workspace setting removed",
   });
-  if (flag.scope === "global") return <p className="text-sm text-muted">This flag has one setting for the whole platform. Workspaces cannot have their own.</p>;
-  if (!pages.length) return <p className="text-sm text-muted" data-testid="console-flags-no-overrides">No workspace has its own setting. To give one a setting, open the workspace and its Flags tab.</p>;
+  if (flag.scope === "global") return <EmptyRow>This flag has one setting for the whole platform. Workspaces cannot have their own.</EmptyRow>;
+  if (!pages.length) return <EmptyRow testId="console-flags-no-overrides">No workspace has its own setting. To give one a setting, open the workspace and its Flags tab.</EmptyRow>;
   return (
     <div>
       <ul className="divide-y divide-line rounded-xl border border-line" data-testid="console-flags-overrides">
         {pages.map((o) => (
           <li key={o.orgId} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-sm">
             <span className="min-w-0 flex-1">
-              <Link to={`/console/workspaces/${encodeURIComponent(o.orgId)}/flags`} className="font-medium hover:underline">{o.workspaceName ?? o.orgId}</Link>
-              <span className="block text-xs text-subtle" title={fullDate(o.updatedAt)}>
-                {timeAgo(o.updatedAt)}{o.updatedByEmail ? ` by ${o.updatedByEmail}` : ""}{o.note ? `. ${o.note}` : ""}
+              <Link to={`/console/workspaces/${encodeURIComponent(o.orgId)}/flags`} title={o.orgId} className="font-medium hover:underline">{o.workspaceName ?? "Deleted workspace"}</Link>
+              <span className="block text-xs text-subtle">
+                <RelTime at={o.updatedAt} />{o.updatedByEmail ? ` by ${o.updatedByEmail}` : ""}{o.note ? `. ${o.note}` : ""}
               </span>
             </span>
             <Badge tone={o.value ? "ok" : "neutral"} dot>{onOff(o.value)}</Badge>
-            {!o.applies && <Badge tone="warn">No effect while locked</Badge>}
+            {!o.applies && <Badge tone="warn" className="whitespace-nowrap">No effect while locked</Badge>}
             {canRemove && <Button size="sm" variant="ghost" onClick={() => remove.open(o)}>Remove</Button>}
           </li>
         ))}
@@ -112,7 +111,7 @@ function Body({ flagKey }: { flagKey: string }) {
     return <div className="space-y-3" role="status" aria-busy="true" aria-label="Loading the flag"><Skeleton className="h-32 rounded-xl" /><Skeleton className="h-9 w-72" /><Skeleton className="h-16 rounded-xl" /></div>;
   }
   if (q.error) {
-    return <EmptyState icon={<IconWarning />} title="Couldn't load this flag" body={errorMessage(q.error)} action={<Button variant="secondary" onClick={() => void q.refetch()}>Try again</Button>} />;
+    return <LoadError error={q.error} what="this flag" retry={() => void q.refetch()} />;
   }
   const flag = q.data.pages[0].flag;
   const g = flag.globalOverride;
@@ -124,7 +123,12 @@ function Body({ flagKey }: { flagKey: string }) {
         { label: "Default from deploy settings", value: onOff(flag.envDefault), hint: <>Set by <span className="font-mono">{flag.env}</span></> },
         { label: "Applies to", value: flag.scope === "workspace" ? "Each workspace can have its own setting" : "The whole platform (one setting)" },
         { label: "Group", value: flag.group },
-        ...(g ? [{ label: "Last changed", value: <span title={fullDate(g.updatedAt)}>{timeAgo(g.updatedAt)}{g.updatedByEmail ? ` by ${g.updatedByEmail}` : ""}</span>, hint: g.note ?? undefined }] : []),
+        ...(g ? [{ label: "Last changed", value: (
+          <span className="inline-flex flex-wrap items-baseline gap-x-1">
+            <RelTime at={g.updatedAt} />
+            {g.updatedByEmail && <>by <PersonLink id={null} email={g.updatedByEmail} /></>}
+          </span>
+        ), hint: g.note ?? undefined }] : []),
       ]} />
 
       <section>

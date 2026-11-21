@@ -1,7 +1,8 @@
 /** OPS1: small pieces shared by the Feature flags page, its detail and a workspace's Flags tab. */
+import type { ReactNode } from "react";
 import { Badge } from "@/web/components/ui/misc";
-import { IconClock, IconInfo, IconLock } from "@/web/components/ui/icon";
-import type { FlagSource } from "./flags-api";
+import { IconClock, IconLock } from "@/web/components/ui/icon";
+import type { FlagBlocked, FlagSource } from "./flags-api";
 
 const SOURCE_TEXT: Record<FlagSource, string> = {
   default: "default",
@@ -14,7 +15,7 @@ const SOURCE_TEXT: Record<FlagSource, string> = {
 export function FlagState({ on, source, testId }: { on: boolean; source: FlagSource; testId?: string }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5" data-testid={testId}>
-      <Badge tone={on ? "ok" : "neutral"} dot>{on ? "On" : "Off"}</Badge>
+      <Badge tone={on ? "ok" : "neutral"} dot className="whitespace-nowrap">{on ? "On" : "Off"}</Badge>
       <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-muted">
         {source === "locked" && <IconLock className="h-3 w-3" aria-hidden />}
         {SOURCE_TEXT[source]}
@@ -23,15 +24,37 @@ export function FlagState({ on, source, testId }: { on: boolean; source: FlagSou
   );
 }
 
-/** A muted "Set at deploy" with the reason in a tooltip (and for screen readers). */
-export function DeployNote({ reason }: { reason: string | null }) {
-  const why = reason ?? "This flag is read when the server starts, so a change needs a deploy.";
+/**
+ * A small grey tag for something that cannot be changed from where it shows ("Platform only", "Locked", "Set at
+ * deploy"). The why is in the title (and read out with the tag), so the row stays one line.
+ */
+export function FlagTag({ children, why, testId }: { children: ReactNode; why: string; testId?: string }) {
   return (
-    <span className="inline-flex cursor-help items-center gap-1 whitespace-nowrap text-xs text-subtle" title={why} tabIndex={0} aria-label={`Set at deploy. ${why}`} data-testid="console-flags-deploy-note">
-      <IconInfo className="h-3 w-3" aria-hidden />
-      Set at deploy
+    <span className="inline-flex cursor-help whitespace-nowrap rounded-full border border-line bg-fill px-2 py-0.5 text-[11.5px] font-medium leading-4 text-muted"
+      title={why} tabIndex={0} aria-label={`${String(children)}. ${why}`} data-testid={testId}>
+      {children}
     </span>
   );
+}
+
+const DEPLOY_WHY = "This flag is read when the server starts, so a change needs a deploy.";
+
+/** "Set at deploy" with the reason in the title. */
+export function DeployNote({ reason }: { reason: string | null }) {
+  return <FlagTag why={reason ?? DEPLOY_WHY} testId="console-flags-deploy-note">Set at deploy</FlagTag>;
+}
+
+export const PLATFORM_ONLY_WHY = "This flag has one setting for the whole platform. Workspaces cannot have their own.";
+
+/** The tag a workspace row shows instead of a change button, from the server's `blocked` field. */
+export function BlockedTag({ blocked, bootReason, testId }: { blocked: Exclude<FlagBlocked, null>; bootReason: string | null; testId?: string }) {
+  if (blocked === "deploy") {
+    return <FlagTag why={`${bootReason ?? DEPLOY_WHY} It cannot be changed for one workspace.`} testId={testId}>Set at deploy</FlagTag>;
+  }
+  if (blocked === "global_only") {
+    return <FlagTag why={`${PLATFORM_ONLY_WHY} Change it on the Feature flags page.`} testId={testId}>Platform only</FlagTag>;
+  }
+  return <FlagTag why="Locked for everyone, so workspaces cannot differ. An owner can remove the lock on the Feature flags page." testId={testId}>Locked</FlagTag>;
 }
 
 /** The always visible note that a change is not instant everywhere. */

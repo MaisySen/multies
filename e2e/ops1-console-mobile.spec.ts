@@ -24,7 +24,8 @@ const fields = [
 
 function config(build: number | null, updatedAt: string | null) {
   return {
-    stored: build === null ? {} : { min_supported: { ios: { build } } },
+    // A stored interval below the allowed range: phones get the built in 30 instead, so the page says so.
+    stored: { ...(build === null ? {} : { min_supported: { ios: { build } } }), ota: { check_interval_minutes: 2 } },
     effective: {
       min_supported: { ios: { build, version: null }, android: { build: null, version: null } },
       store_url: { ios: "https://apps.apple.com/app/id1", android: "https://play.google.com/store/apps/details?id=x" },
@@ -59,8 +60,12 @@ test("an operator changes a setting, reviews the diff with a warning, and saves 
   await expect(page.getByTestId("console-mobile-section-minimum")).toBeVisible();
   await expect(page.getByTestId("console-mobile-section-updates")).toBeVisible();
   await expect(page.getByTestId("console-mobile-section-message")).toBeVisible();
-  await expect(page.getByTestId("console-mobile-field-min_supported.ios.build-now")).toHaveText("Any build");
+  // "Phones get now" only shows where it is not what the box shows; otherwise a small Default or Set here hint.
+  await expect(page.getByTestId("console-mobile-field-min_supported.ios.build-now")).toHaveCount(0);
+  await expect(page.getByTestId("console-mobile-field-min_supported.ios.build-source")).toHaveText("Default");
+  await expect(page.getByTestId("console-mobile-field-ota.check_interval_minutes-source")).toHaveText("Set here");
   await expect(page.getByTestId("console-mobile-field-ota.check_interval_minutes-now")).toHaveText("30");
+  await expect(page.getByTestId("console-mobile-field-message-now")).toHaveCount(0);
 
   const review = page.getByTestId("console-mobile-review");
   await expect(review).toBeDisabled();
@@ -74,6 +79,8 @@ test("an operator changes a setting, reviews the diff with a warning, and saves 
 
   await page.getByTestId("console-mobile-field-min_supported.ios.build").fill("50");
   await expect(page.getByTestId("console-mobile-status")).toHaveText("1 change not saved yet.");
+  // While edited, the row says what phones get until it is saved.
+  await expect(page.getByTestId("console-mobile-field-min_supported.ios.build-now")).toHaveText("Any build");
   await expect(review).toBeEnabled();
   await review.click();
 
@@ -86,7 +93,9 @@ test("an operator changes a setting, reviews the diff with a warning, and saves 
 
   await expect.poll(() => sent.length).toBe(1);
   expect(sent[0]).toEqual({ patch: { min_supported: { ios: { build: 50 } } }, reason: "Login fix needs build 50" });
-  await expect(page.getByTestId("console-mobile-field-min_supported.ios.build-now")).toHaveText("50");
+  await expect(page.getByTestId("console-mobile-field-min_supported.ios.build")).toHaveValue("50");
+  await expect(page.getByTestId("console-mobile-field-min_supported.ios.build-source")).toHaveText("Set here");
+  await expect(page.getByTestId("console-mobile-field-min_supported.ios.build-now")).toHaveCount(0);
   await expect(page.getByTestId("console-mobile-updated")).toContainText("olive@example.com");
   await expect(review).toBeDisabled();
 });

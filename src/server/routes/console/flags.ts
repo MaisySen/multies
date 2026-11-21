@@ -3,7 +3,8 @@
  * default, platform wide override (optionally locked) and per workspace overrides (services/console/flags.ts).
  *
  * GET    /api/console/flags                          { items, nextCursor } (flags.read)
- *          ?q= (label, description, key, env, group) &group=<registry group> &state=changed|workspaces|deploy
+ *          ?q= (label, description, key, env, group) &group=<registry group> &state=modified|changed|workspaces|deploy
+ *          (modified: changed for everyone or with at least one workspace setting; changed: changed for everyone)
  *          &sort=group|label|workspaces:asc|desc (default group:asc; anything else is a 400) &limit= &cursor=
  * GET    /api/console/flags/workspaces/:orgId        { workspace, items, nextCursor }: every flag for one workspace with
  *          its value there and where it comes from (default, global, workspace, locked) (flags.read); 404 unknown workspace
@@ -63,7 +64,7 @@ const groupSchema = z.string().max(60).optional().transform((v, ctx) => {
 const ListQuery = z.object({
   q: z.string().max(200).optional(),
   group: groupSchema,
-  state: z.enum(["all", "changed", "workspaces", "deploy"]).optional(),
+  state: z.enum(["all", "modified", "changed", "workspaces", "deploy"]).optional(),
   sort: sortSchema,
 }).passthrough();
 
@@ -165,7 +166,7 @@ export function flagsRoutes() {
       let rows = await listFlagsForConsole(deps);
       rows = rows.filter((r) => matches(f.q ?? "", r.label, r.description, r.key, r.env, r.group)
         && (!f.group || r.group === f.group)
-        && (f.state === "changed" ? !!r.globalOverride : f.state === "workspaces" ? r.workspaceOverrideCount > 0 : f.state === "deploy" ? !r.runtime : true));
+        && (f.state === "modified" ? !!r.globalOverride || r.workspaceOverrideCount > 0 : f.state === "changed" ? !!r.globalOverride : f.state === "workspaces" ? r.workspaceOverrideCount > 0 : f.state === "deploy" ? !r.runtime : true));
       const page = pageOf(sortRows(rows, f.sort.field, f.sort.dir), (r) => r.key, c.req.query());
       const emails = await emailsOf(deps.db, page.items.map((r) => r.globalOverride?.updatedBy ?? null));
       return c.json({

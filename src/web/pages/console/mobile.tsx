@@ -1,19 +1,19 @@
 /**
  * OPS1: the phone app's remote settings in the operator console (GET/PUT /api/console/mobile). A form built from the
- * server's field list, in three sections. Each field shows what phones get now and whether it was set here or is the
- * built in default. "Review changes" opens the reason dialog with a before and after table; raising a minimum
+ * server's field list, in three sections. Each field says in a small hint whether it was set here or is the built in
+ * default; "Phones get now" shows only when that differs from the stored value (or from the unsaved edit). "Review changes" opens the reason dialog with a before and after table; raising a minimum
  * version gets a plain warning there and on the page. Read only roles see the same form without the save bar.
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, errorMessage } from "@/web/lib/api";
-import { consoleKeys } from "@/web/lib/console-api";
-import { fullDate, timeAgo } from "@/web/lib/format";
-import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { api } from "@/web/lib/api";
+import { consoleGet, consoleKeys } from "@/web/lib/console-api";
+import { Card, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { IconWarning } from "@/web/components/ui/icon";
 import { JsonDiff } from "./components/json-diff";
+import { LoadError, PersonLink, RelTime } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { PermissionGate, usePermission } from "./guard";
 import { draftsOf, getPath, raisedMinimums, reviewOf, sectionsOf, showValue, type Drafts, type MobileChange, type MobileConfigResponse, type MobileField } from "./mobile-form";
@@ -27,7 +27,7 @@ function RaiseWarning({ changes }: { changes: MobileChange[] }) {
       <div className="min-w-0 space-y-1">
         <p className="font-medium">This forces people on older builds to update.</p>
         <p className="text-muted">
-          Phones below the new minimum ({changes.map((c) => `${c.field.label.toLowerCase()} ${showValue(c.field, c.after)}`).join(", ")}) see
+          Phones below the new minimum ({changes.map((c) => `${c.field.label}: ${showValue(c.field, c.after)}`).join("; ")}) see
           a screen asking them to update from the store, and can't use the app until they do. Check the new build is live in the store first.
         </p>
       </div>
@@ -35,18 +35,26 @@ function RaiseWarning({ changes }: { changes: MobileChange[] }) {
   );
 }
 
-function FieldRow({ field, data, value, onChange, error, readOnly }: {
-  field: MobileField; data: MobileConfigResponse; value: string; onChange: (v: string) => void; error?: string; readOnly: boolean;
+/** An example update id for the placeholder of the update id lists. */
+const EXAMPLE_UPDATE_ID = "3c1f9a2e-7b4d-4e8a-9f61-0d2c5b7e8a14";
+
+function FieldRow({ field, data, value, onChange, error, readOnly, touched }: {
+  field: MobileField; data: MobileConfigResponse; value: string; onChange: (v: string) => void; error?: string; readOnly: boolean; touched: boolean;
 }) {
   const now = getPath(data.effective, field.path);
-  const setHere = getPath(data.stored, field.path) !== undefined;
+  const stored = getPath(data.stored, field.path);
+  const setHere = stored !== undefined;
+  // What phones get is worth a line only when it is not what the box shows: the stored value is not the one in use,
+  // or the box holds an unsaved edit.
+  const nowText = showValue(field, now);
+  const showNow = touched || (setHere && showValue(field, stored) !== nowText);
   const testId = `console-mobile-field-${field.path}`;
   return (
-    <div className="grid gap-2 py-4 first:pt-0 last:pb-0 md:grid-cols-[minmax(0,1fr)_minmax(0,220px)] md:gap-6">
+    <div className="grid gap-2 py-4 first:pt-0 last:pb-0 md:grid-cols-[minmax(0,1fr)_minmax(0,11rem)] md:gap-6">
       <Field label={field.label} hint={field.help} error={error}>
         {(p) => field.type === "update_ids" || field.type === "text" ? (
-          <Textarea {...p} rows={field.type === "text" ? 2 : 3} value={value} disabled={readOnly} data-testid={testId}
-            placeholder={field.type === "update_ids" ? "One update id per line" : "No message"}
+          <Textarea {...p} rows={field.type === "text" ? 2 : 4} value={value} disabled={readOnly} data-testid={testId}
+            placeholder={field.type === "update_ids" ? `One update id per line, for example\n${EXAMPLE_UPDATE_ID}` : "No message"}
             className={field.type === "update_ids" ? "font-mono text-[13px]" : undefined}
             onChange={(e) => onChange(e.target.value)} />
         ) : (
@@ -55,10 +63,13 @@ function FieldRow({ field, data, value, onChange, error, readOnly }: {
             onChange={(e) => onChange(e.target.value)} />
         )}
       </Field>
-      <div className="min-w-0 text-xs md:pt-6">
-        <p className="text-subtle">Phones get now</p>
-        <p className="mt-0.5 font-mono text-[13px] text-fg [overflow-wrap:anywhere]" data-testid={`${testId}-now`}>{showValue(field, now)}</p>
-        <p className="mt-1.5">{setHere ? <Badge tone="brand">Set here</Badge> : <Badge>Default</Badge>}</p>
+      <div className="min-w-0 text-xs md:pt-7">
+        <p className="text-subtle" data-testid={`${testId}-source`} title={setHere ? "Saved on this page" : "Nothing saved here, so phones use the value built into the app"}>{setHere ? "Set here" : "Default"}</p>
+        {showNow && (
+          <p className="mt-1.5 text-muted">
+            Phones get now <span className="block truncate font-mono text-[13px] text-fg" title={nowText} data-testid={`${testId}-now`}>{nowText}</span>
+          </p>
+        )}
       </div>
     </div>
   );
@@ -84,6 +95,7 @@ function MobileForm({ data }: { data: MobileConfigResponse }) {
         <JsonDiff
           before={Object.fromEntries(review.changes.map((c) => [label(c), showValue(c.field, c.before)]))}
           after={Object.fromEntries(review.changes.map((c) => [label(c), showValue(c.field, c.after)]))}
+          label={(k) => k}
         />
         {raised.length > 0 && <RaiseWarning changes={raised} />}
       </div>
@@ -97,7 +109,7 @@ function MobileForm({ data }: { data: MobileConfigResponse }) {
     <div className="space-y-4">
       <p className="text-sm text-muted" data-testid="console-mobile-updated">
         {data.updatedAt
-          ? <>Last changed <span title={fullDate(data.updatedAt)}>{timeAgo(data.updatedAt)}</span>{data.updatedByEmail ? ` by ${data.updatedByEmail}` : data.updatedBy === "token" ? " by a release script" : ""}.</>
+          ? <span className="inline-flex flex-wrap items-baseline gap-x-1">Last changed <RelTime at={data.updatedAt} />{data.updatedByEmail ? <>by <PersonLink id={null} email={data.updatedByEmail} /></> : data.updatedBy === "token" ? " by a release script" : null}</span>
           : "Nothing has been changed here yet. Phones use the built in defaults."}
       </p>
       {sectionsOf(data.fields).map((s) => (
@@ -113,7 +125,7 @@ function MobileForm({ data }: { data: MobileConfigResponse }) {
           <div className="mt-4 divide-y divide-line">
             {s.fields.map((f) => (
               <FieldRow key={f.path} field={f} data={data} value={drafts[f.path] ?? ""} readOnly={!canSave}
-                error={touched(f.path) ? review.errors[f.path] : undefined}
+                error={touched(f.path) ? review.errors[f.path] : undefined} touched={touched(f.path)}
                 onChange={(v) => setDrafts((d) => ({ ...d, [f.path]: v }))} />
             ))}
           </div>
@@ -136,7 +148,7 @@ function MobileForm({ data }: { data: MobileConfigResponse }) {
 }
 
 export function ConsoleMobilePage() {
-  const q = useQuery({ queryKey: mobileKey, queryFn: () => api.get<MobileConfigResponse>("/console/mobile") });
+  const q = useQuery({ queryKey: mobileKey, queryFn: () => consoleGet<MobileConfigResponse>("/console/mobile") });
   const header = <PageHeader eyebrow="Product" title="Mobile app" description="The phone app's remote settings: the oldest version allowed, urgent updates and the update screen message." />;
   if (q.isPending) return (
     <div className="space-y-4" aria-busy="true">
@@ -149,7 +161,7 @@ export function ConsoleMobilePage() {
   if (q.error) return (
     <div className="space-y-4">
       {header}
-      <Card className="p-0"><EmptyState icon={<IconWarning />} title="Couldn't load the mobile app settings" body={errorMessage(q.error)} action={<Button variant="secondary" onClick={() => void q.refetch()}>Try again</Button>} /></Card>
+      <LoadError error={q.error} what="the mobile app settings" retry={() => void q.refetch()} />
     </div>
   );
   return (

@@ -1,6 +1,6 @@
 /** OPS1: types and calls for the Feature flags section (/api/console/flags; routes/console/flags.ts on the server). */
 import { api } from "@/web/lib/api";
-import { listQuery, type Page } from "@/web/lib/console-api";
+import { consoleGet, listQuery, type Page } from "@/web/lib/console-api";
 import { FEATURE_FLAGS, type FlagDef, type FlagGroup, type FlagScope } from "@/shared/feature-flags";
 
 export interface FlagGlobal { value: boolean; locked: boolean; note: string | null; updatedBy: string | null; updatedByEmail: string | null; updatedAt: string }
@@ -40,7 +40,9 @@ export const GROUP_FILTER = {
 const enc = encodeURIComponent;
 
 export const flagsApi = {
-  detail: (key: string, cursor?: string | null) => api.get<FlagDetail>(`/console/flags/${enc(key)}${listQuery({ cursor })}`),
+  detail: (key: string, cursor?: string | null) => consoleGet<FlagDetail>(`/console/flags/${enc(key)}${listQuery({ cursor })}`),
+  /** Whether any flag differs from its default (for everyone or for a workspace): picks the page's default filter. */
+  anyChanged: async () => (await consoleGet<Page<ConsoleFlag>>("/console/flags?state=modified&limit=1")).items.length > 0,
   setGlobal: (key: string, body: { value: boolean; locked: boolean; reason: string }) => api.put<{ ok: true }>(`/console/flags/${enc(key)}/global`, body),
   clearGlobal: (key: string, reason: string) => api.del<{ ok: true }>(`/console/flags/${enc(key)}/global`, { reason }),
   setWorkspace: (key: string, orgId: string, body: { value: boolean; reason: string }) => api.put<{ ok: true }>(`/console/flags/${enc(key)}/workspaces/${enc(orgId)}`, body),
@@ -49,4 +51,5 @@ export const flagsApi = {
 
 export const flagKeys = {
   detail: (key: string) => ["console", "flag", key] as const,
+  anyChanged: ["console", "flags", "any-changed"] as const,
 };

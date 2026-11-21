@@ -1,22 +1,23 @@
 /**
  * OPS1: the Announcements form: text with a live count, tone, audience, an optional link, an optional window in the
- * operator's local time, and whether people can close it. Beside it a live preview draws the real
+ * operator's local time (the app's DateInput and TimeInput, so the day reads in the operator's own order, never a
+ * fixed mm/dd/yyyy), and whether people can close it. Beside it a live preview draws the real
  * AnnouncementBanner exactly as customers will see it, and a plain sentence says who sees it and when.
  * Validation is the server's own (announcementInput from shared/announcement.ts).
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { api } from "@/web/lib/api";
-import { fullDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Card } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
-import { Field, Input, Textarea } from "@/web/components/ui/input";
+import { DateInput, Field, Input, Textarea, TimeInput } from "@/web/components/ui/input";
 import { Switch } from "@/web/components/ui/misc";
 import { AnnouncementBanner } from "@/web/components/announcement-banner";
 import {
   ANNOUNCEMENT_LINK_LABEL_MAX, ANNOUNCEMENT_TEXT_MAX, announcementInput, type Announcement, type AnnouncementAudience, type AnnouncementTone, type PublicAnnouncement,
 } from "@/shared/announcement";
 import { useOperatorAction } from "./components/reason-dialog";
+import { formatDateTime } from "./components/format";
 
 export interface AnnouncementState {
   announcement: Announcement | null;
@@ -37,8 +38,13 @@ export const AUDIENCES: { value: AnnouncementAudience; label: string; hint: stri
 
 export interface AnnouncementDraft {
   text: string; tone: AnnouncementTone; audience: AnnouncementAudience; linkLabel: string; linkUrl: string;
-  /** datetime-local values in the operator's own time zone ("" = not set). */
-  startsAt: string; endsAt: string; dismissible: boolean;
+  /** The day (yyyy-mm-dd) and time (HH:mm) in the operator's own time zone ("" = not set). */
+  startsDate: string; startsTime: string; endsDate: string; endsTime: string; dismissible: boolean;
+}
+
+/** A day and time as a datetime-local value: no day is "" (not set); a day without a time is midnight. */
+export function joinLocal(date: string, time: string): string {
+  return date ? `${date}T${time || "00:00"}` : "";
 }
 
 /** An instant as a datetime-local value in this browser's time zone. */
@@ -57,10 +63,12 @@ export function fromLocalInput(v: string): string | null {
 }
 
 export function draftFrom(a: Announcement | null): AnnouncementDraft {
+  const starts = toLocalInput(a?.startsAt ?? null), ends = toLocalInput(a?.endsAt ?? null);
   return {
     text: a?.text ?? "", tone: a?.tone ?? "info", audience: a?.audience ?? "all",
     linkLabel: a?.linkLabel ?? "", linkUrl: a?.linkUrl ?? "",
-    startsAt: toLocalInput(a?.startsAt ?? null), endsAt: toLocalInput(a?.endsAt ?? null), dismissible: a?.dismissible ?? true,
+    startsDate: starts.slice(0, 10), startsTime: starts.slice(11, 16), endsDate: ends.slice(0, 10), endsTime: ends.slice(11, 16),
+    dismissible: a?.dismissible ?? true,
   };
 }
 
@@ -69,15 +77,17 @@ export function bodyOf(d: AnnouncementDraft) {
   return {
     text: d.text, tone: d.tone, audience: d.audience,
     linkLabel: d.linkLabel.trim() || null, linkUrl: d.linkUrl.trim() || null,
-    startsAt: fromLocalInput(d.startsAt), endsAt: fromLocalInput(d.endsAt), dismissible: d.dismissible,
+    startsAt: fromLocalInput(joinLocal(d.startsDate, d.startsTime)), endsAt: fromLocalInput(joinLocal(d.endsDate, d.endsTime)), dismissible: d.dismissible,
   };
 }
 
 /** Field to message, from the same rules the server applies. */
 export function problemsOf(d: AnnouncementDraft): Record<string, string> {
-  const r = announcementInput.safeParse(bodyOf(d));
-  if (r.success) return {};
   const out: Record<string, string> = {};
+  if (d.startsTime && !d.startsDate) out.startsAt = "Pick a day for this time.";
+  if (d.endsTime && !d.endsDate) out.endsAt = "Pick a day for this time.";
+  const r = announcementInput.safeParse(bodyOf(d));
+  if (r.success) return out;
   for (const i of r.error.issues) {
     const k = String(i.path[0] ?? "text");
     if (!out[k]) out[k] = i.message;
@@ -88,9 +98,9 @@ export function problemsOf(d: AnnouncementDraft): Record<string, string> {
 /** "Everyone signed in to Multies sees it from ... until you remove it." */
 export function whoAndWhen(d: AnnouncementDraft): string {
   const who = d.audience === "admins" ? "Owners and admins of every workspace see it" : "Everyone signed in to Multies sees it";
-  const start = fromLocalInput(d.startsAt), end = fromLocalInput(d.endsAt);
-  const from = start && Date.parse(start) > Date.now() ? `from ${fullDate(start)}` : "as soon as you publish";
-  const until = end ? `until ${fullDate(end)}` : "until you remove it";
+  const start = fromLocalInput(joinLocal(d.startsDate, d.startsTime)), end = fromLocalInput(joinLocal(d.endsDate, d.endsTime));
+  const from = start && Date.parse(start) > Date.now() ? `from ${formatDateTime(start)}` : "as soon as you publish";
+  const until = end ? `until ${formatDateTime(end)}` : "until you remove it";
   return `${who} ${from}, ${until}.`;
 }
 
@@ -135,6 +145,11 @@ export function AnnouncementForm({ current }: { current: Announcement | null }) 
   const valid = Object.keys(problems).length === 0;
   // Show a field's problem once it has something in it, or after a publish attempt.
   const shown = (k: keyof AnnouncementDraft) => (tried || (typeof d[k] === "string" && d[k] !== "") ? problems[k] : undefined);
+  // The window's problems are filed under the server's names (startsAt, endsAt); show them once either half is filled.
+  const windowProblem = (k: "startsAt" | "endsAt") => {
+    const filled = k === "startsAt" ? d.startsDate || d.startsTime : d.endsDate || d.endsTime;
+    return tried || filled ? problems[k] : undefined;
+  };
   const count = d.text.trim().length;
   const preview: PublicAnnouncement = {
     id: "preview", text: d.text.trim() || "Your announcement text shows here.", tone: d.tone, audience: d.audience,
@@ -172,12 +187,22 @@ export function AnnouncementForm({ current }: { current: Announcement | null }) 
             {(p) => <Input {...p} type="url" value={d.linkUrl} onChange={(e) => set("linkUrl", e.target.value)} data-testid="console-announcements-link-url" placeholder="https://" autoComplete="off" />}
           </Field>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Starts (optional)" error={shown("startsAt")} hint={`Your local time (${zoneName()}). Empty starts at once.`}>
-            {(p) => <Input {...p} type="datetime-local" value={d.startsAt} onChange={(e) => set("startsAt", e.target.value)} data-testid="console-announcements-starts" />}
+        <div className="grid gap-4">
+          <Field label="Starts (optional)" error={windowProblem("startsAt")} hint={`Your local time (${zoneName()}). Empty starts at once.`}>
+            {(p) => (
+              <span className="grid grid-cols-[minmax(0,1fr)_minmax(0,8.5rem)] sm:grid-cols-[minmax(0,13rem)_minmax(0,9rem)] gap-2">
+                <DateInput {...p} value={d.startsDate} onChange={(e) => set("startsDate", e.target.value)} data-testid="console-announcements-starts" />
+                <span className="relative min-w-0"><TimeInput aria-label="Start time" aria-invalid={p["aria-invalid"]} value={d.startsTime} onChange={(e) => set("startsTime", e.target.value)} data-testid="console-announcements-starts-time" /></span>
+              </span>
+            )}
           </Field>
-          <Field label="Ends (optional)" error={shown("endsAt")} hint="Empty keeps it up until you remove it.">
-            {(p) => <Input {...p} type="datetime-local" value={d.endsAt} onChange={(e) => set("endsAt", e.target.value)} data-testid="console-announcements-ends" />}
+          <Field label="Ends (optional)" error={windowProblem("endsAt")} hint="Empty keeps it up until you remove it.">
+            {(p) => (
+              <span className="grid grid-cols-[minmax(0,1fr)_minmax(0,8.5rem)] sm:grid-cols-[minmax(0,13rem)_minmax(0,9rem)] gap-2">
+                <DateInput {...p} value={d.endsDate} onChange={(e) => set("endsDate", e.target.value)} data-testid="console-announcements-ends" />
+                <span className="relative min-w-0"><TimeInput aria-label="End time" aria-invalid={p["aria-invalid"]} value={d.endsTime} onChange={(e) => set("endsTime", e.target.value)} data-testid="console-announcements-ends-time" /></span>
+              </span>
+            )}
           </Field>
         </div>
         <div className="flex items-center justify-between gap-4 rounded-lg border border-line px-3 py-2.5">

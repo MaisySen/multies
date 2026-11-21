@@ -73,17 +73,28 @@ test("an operator writes an announcement, sees the live preview, publishes and r
   await page.getByTestId("console-announcements-link-label").fill("Status page");
   await expect(banner.getByTestId("announcement-link")).toHaveText("Status page");
 
+  // The window uses the app's own date field (the operator's day order, not a fixed mm/dd/yyyy) and a time field.
+  const startDay = page.getByTestId("console-announcements-starts");
+  await expect(startDay).toHaveAttribute("type", "text");
+  await page.getByTestId("console-announcements-starts-time").fill("09:30");
+  await expect(page.getByText("Pick a day for this time.")).toBeVisible();
+  await startDay.fill("2099-03-04");
+  await startDay.blur();
+  await expect(startDay).not.toHaveValue("2099-03-04");
+  await expect(page.getByTestId("console-announcements-who")).toContainText("from 4 Mar 2099");
+  const startsAt = await page.evaluate(() => new Date("2099-03-04T09:30").toISOString());
+
   await page.getByTestId("console-announcements-publish").click();
   const dialog = page.getByTestId("reason-dialog");
   await expect(dialog).toBeVisible();
-  await expect(page.getByRole("dialog")).toContainText("Owners and admins of every workspace see it");
+  await expect(page.getByRole("dialog")).toContainText("Owners and admins of every workspace see it from 4 Mar 2099");
   await dialog.getByLabel("Reason").fill("Planned database work");
   await dialog.getByRole("button", { name: "Publish" }).click();
 
   await expect.poll(() => sent.length).toBe(1);
   expect(sent[0]).toEqual({ method: "PUT", body: {
     text, tone: "warning", audience: "admins", linkLabel: "Status page", linkUrl: "https://status.example.com/",
-    startsAt: null, endsAt: null, dismissible: true, reason: "Planned database work",
+    startsAt, endsAt: null, dismissible: true, reason: "Planned database work",
   } });
   const current = page.getByTestId("console-announcements-current");
   await expect(current).toContainText(text);
