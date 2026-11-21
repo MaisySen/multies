@@ -1,6 +1,7 @@
 import type { Plan, PlanId } from "@/shared/plans";
 import type { DnsCheckReport, ExpectedRecord } from "@/shared/dns";
 import type { Address, AuthResults, Folder } from "@/shared/mail";
+import type { PublicAnnouncement } from "@/shared/announcement";
 
 export type { Plan, PlanId, DnsCheckReport, ExpectedRecord, Address, Folder };
 
@@ -20,6 +21,8 @@ export interface Me {
   pendingInvites?: { token: string; organization: { name: string }; role: "admin" | "member"; invitedBy: string | null }[];
   /** OPS1 feature flags: the /api/config flag booleans whose value differs for this workspace (useConfig merges them). */
   flags?: Record<string, boolean>;
+  /** OPS1 announcements: the active one for this person (an "admins" one only for owners and admins), or null. */
+  announcement?: PublicAnnouncement | null;
 }
 
 export interface PublicConfig {
@@ -142,6 +145,8 @@ export interface PublicConfig {
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;
+  /** OPS1 announcements: the active audience "all" announcement (null when none). */
+  announcement?: PublicAnnouncement | null;
 }
 
 export interface Domain {

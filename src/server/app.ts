@@ -29,6 +29,7 @@ import { forgetProjectCounts } from "./services/suite/tasks";
 import { forgetOrgCache } from "./services/plans";
 import { clientFlags, featureOn, featureVariesByWorkspace, loadFlagOverridesSafe } from "./services/console/flags"; // OPS1 feature flags
 import { flagOn, formsPlusAnywhere, formsPlusForEmbed } from "./services/console/flag-gate";
+import { publicAnnouncement } from "./services/console/announcements"; // OPS1 announcements
 import { forgetUserCaches } from "./lib/isolate-cache";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
@@ -462,8 +463,10 @@ export function createApp(deps: Deps) {
   // OPS1 feature flags: each switch in src/shared/feature-flags.ts answers the flag engine's platform wide value (env
   // default, then a global override). This endpoint is public, so no workspace override applies here; signed in people
   // get their workspace's differences on /api/account/me (flags), which useConfig merges over this.
-  app.get("/api/config", (c) => {
+  app.get("/api/config", async (c) => {
     const cf = clientFlags(deps);
+    // The wall clock, not deps.now: this path must not consume a stepping clock (tests), as before.
+    const announcement = await publicAnnouncement(deps, new Date()).catch(() => null);
     return c.json({
       appName: deps.config.appName,
       mode: deps.config.mode,
@@ -566,6 +569,9 @@ export function createApp(deps: Deps) {
       sentry: deps.config.sentry.dsnWeb
         ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment, release: deps.config.release, tracesSampleRate: deps.config.sentry.tracesSampleRate }
         : null,
+      // OPS1 announcements: the console's in-app banner, only an audience "all" one inside its window (30 s per isolate
+      // cache, never a write). An "admins" one is never here; signed in owners and admins get it on /api/account/me.
+      announcement,
     });
   });
 

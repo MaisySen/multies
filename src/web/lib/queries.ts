@@ -34,6 +34,8 @@ export const useSession = () => useQuery({
 });
 export const useSignedIn = () => !!useSession().data?.user;
 
+/** OPS1 announcements: how often an open, visible session reads /me again (announcements, flags). */
+export const ME_POLL_MS = 5 * 60_000;
 /**
  * R40 (MB-200): the account check retries with backoff on a dropped request or an empty 5xx, starts from the
  * last good copy (so the shell paints at once and refreshes behind it), and keeps polling calmly while
@@ -56,7 +58,9 @@ export const useMe = () => useQuery({
   retry: meRetry,
   retryDelay: meRetryDelay,
   staleTime: 60_000,
-  refetchInterval: (query) => (query.state.status === "error" && !isSignedOut(query.state.error) ? 15_000 : false),
+  // OPS1 announcements: a healthy session reads /me again every 5 minutes while the tab is visible (TanStack pauses it
+  // in the background; a refocus refetches once it is a minute old), so an announcement shows in open sessions.
+  refetchInterval: (query) => (query.state.status === "error" ? (isSignedOut(query.state.error) ? false : 15_000) : query.state.status === "success" ? ME_POLL_MS : false),
 });
 /**
  * OPS1 feature flags: the workspace's flag differences from a fetched /account/me (an operator's workspace override),

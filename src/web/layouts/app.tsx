@@ -38,6 +38,7 @@ import { clearOfflineData } from "@/web/lib/sw-client"; // R32
 import { scopeOf, setOfflineScope } from "@/web/lib/offline-lists"; // R33
 import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
 import { ImpersonationBanner } from "@/web/components/impersonation-banner"; // OPS1 impersonation
+import { AnnouncementBanner } from "@/web/components/announcement-banner"; // OPS1 announcements
 import { useAnnounceWorkspace, WorkspaceSwitchedBanner } from "@/web/components/workspace-switched-banner-r58"; // R58 (MB-245)
 import { workspaceTabs } from "@/web/lib/workspace-tabs-r58"; // R58 (MB-245)
 import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"; // R39 (MB-202)
@@ -348,6 +349,12 @@ export function AppLayout() {
   );
   const content = (
     <div className="flex h-full min-w-0 flex-1 flex-col">
+        {/* OPS1 announcements: the console's banner, the first row of the page column under the impersonation bar (the
+            shell's own height is fixed, so it is not put above it). /me's answer wins once it has the field (it adds
+            "admins" ones for owners and admins, and null once cleared); else the public config's. */}
+        <div className="shrink-0">
+          <AnnouncementBanner announcement={me.data && "announcement" in me.data ? me.data.announcement : config.data?.announcement} role={me.data?.organization?.role} />
+        </div>
         {desktop && (
           <header className="@container hairline-b flex h-12 shrink-0 items-center gap-3 px-4" data-desktop-topbar>
             <Breadcrumbs projectName={projectName} />

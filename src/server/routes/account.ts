@@ -25,6 +25,7 @@ import { markWorkspace } from "../auth/workspace-mark";
 import { cleanLocale, isCountry, isTimeZone } from "@/shared/locale";
 import { autoWorkspaceName } from "@/shared/person-name";
 import { clientFlagDiff } from "../services/console/flags"; // OPS1 feature flags
+import { accountAnnouncement } from "../services/console/announcements"; // OPS1 announcements
 
 /**
  * Product-level account endpoints. Sign-up, sign-in, sessions, 2FA, password reset
@@ -237,9 +238,12 @@ export function accountRoutes() {
       // isolate copy (services/plans.ts); one that is not yet onboarded is always read fresh, so finishing
       // onboarding in another isolate can never show the onboarding again.
       const cachedOrg = peekOrgCached(auth.orgId);
-      const [org, extras] = await Promise.all([
+      const [org, extras, announcement] = await Promise.all([
         cachedOrg && readOrgMeta(cachedOrg.metadata).onboardedAt ? cachedOrg : c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get(),
         meExtras(c.var.deps, auth),
+        // OPS1 announcements: "all" ones, plus "admins" ones for this workspace's owners and admins (30 s per isolate
+        // cache, never a write). The wall clock, so this path does not consume a stepping deps.now (tests).
+        accountAnnouncement(c.var.deps, new Date(), auth.role).catch(() => null),
       ]);
       const prefs = extras.prefs;
       const onboardedAt = readOrgMeta(org?.metadata).onboardedAt;
@@ -268,6 +272,7 @@ export function accountRoutes() {
         // OPS1 feature flags: only the /api/config flags whose value for this workspace differs from the platform wide
         // one (an operator's workspace override); the web app's useConfig merges them over /api/config.
         flags: clientFlagDiff(c.var.deps, auth.orgId),
+        announcement,
       });
     })
     .post("/onboarding", async (c) => {
