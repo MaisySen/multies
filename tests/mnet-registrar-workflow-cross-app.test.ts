@@ -13,7 +13,7 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
-(repo?it:it.skip).each(["success","history-recovery","history-finalize","source-denied"])("actual Multies approval/source to atomic registrar workflow %s",async(mode)=>{
+(repo?it:it.skip).each(["success","history-recovery","history-finalize","prepared-finalize","prepared-history-finalize","source-denied"])("actual Multies approval/source to atomic registrar workflow %s",async(mode)=>{
  const dir=await mkdtemp(join(tmpdir(),"mnet-workflow-cross-"));await chmod(dir,0o700);
  const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;
  const key=join(dir,"key.pem"),cert=join(dir,"cert.pem");
@@ -66,7 +66,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   expect(exchangeCalls).toBe(mode!=="source-denied"?3:1);expect(reserveCalls).toBe(mode!=="source-denied"?3:1);expect(reserveStatus).toBe(mode!=="source-denied"?200:403);expect(outcome.inputAuthorized).toBe(false);
   const row=await e.db.select().from(journal).where(eq(journal.id,prepared.body.id)).get();
   if(mode!=="source-denied"){
-   expect(outcome).toMatchObject({sourceDenied:false,nodeCreated:true,nodeDeleted:true,currentMapBeforeDelete:true,legacyTokenCreated:false,bidirectionalActualPeers:true,journalWorkflowReceiptPinned:true,nativeOwnedKeyConfirmed:mode!=="history-recovery"&&mode!=="history-finalize",threeActualPeers:true,nativeProofStateUnchanged:true,nativeStateFinalized:mode!=="history-recovery",nativeCurrentPeers:mode==="history-recovery"?0:2,nativeHistoryRecovered:mode==="history-recovery"||mode==="history-finalize"});
+   expect(outcome).toMatchObject({sourceDenied:false,nodeCreated:true,nodeDeleted:true,currentMapBeforeDelete:true,legacyTokenCreated:false,bidirectionalActualPeers:true,journalWorkflowReceiptPinned:true,nativeOwnedKeyConfirmed:mode!=="history-recovery"&&mode!=="history-finalize"&&mode!=="prepared-finalize"&&mode!=="prepared-history-finalize",threeActualPeers:true,nativeProofStateUnchanged:true,nativeStateFinalized:mode!=="history-recovery",nativeCurrentPeers:mode==="history-recovery"?0:2,nativeHistoryRecovered:mode==="history-recovery"||mode==="history-finalize"||mode==="prepared-finalize"||mode==="prepared-history-finalize"});
    expect(row!.status).toBe("reserved");expect(row!.reserveId).toBe(outcome.reserveId);expect(row!.descriptorDigest).toBe(outcome.descriptorDigest);expect(row!.devicePublicKey).toBe(publicInput.launch.devicePublicKey);expect(JSON.parse(row!.events)).toHaveLength(1);
    // No fabricated source acknowledgement: real Store receipt is separate and
    // source remains reserved. Bookkeeping/ack does not create network authority.
