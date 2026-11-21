@@ -104,7 +104,7 @@ it("executes migration rebuild, reserve and historical status/ack SQL on local M
   // Isolated SQL fixture, not the full app migration chain (which fails on a
   // historical0073 entry in this emulator, cause unresolved and recorded separately).
   const {MIGRATIONS}=await import("@/server/db/migrations.generated");
-  await applyMigrations(migrationDriver(raw),MIGRATIONS.filter(m=>/^017[345]_/.test(m.name)));
+  await applyMigrations(migrationDriver(raw),MIGRATIONS.filter(m=>/^017[3456]_/.test(m.name)));
   const indexes=await raw.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='mnet_enrollment_handoffs'").all();
   for(const name of ['mnet_handoff_attempt_uq','mnet_handoff_code_uq','mnet_handoff_ticket_uq','mnet_handoff_reserve_uq','mnet_handoff_owner_idx','mnet_handoff_retention_idx'])expect(indexes.results.map((r:{name:unknown})=>r.name)).toContain(name);
   for(const ddl of ["CREATE TABLE users(id text PRIMARY KEY,banned integer,email_verified integer)","CREATE TABLE organizations(id text PRIMARY KEY,is_demo integer,suspended_at integer,require_sso integer)","CREATE TABLE members(user_id text,organization_id text,kind text,disabled_at integer,role text)","CREATE TABLE sessions(id text PRIMARY KEY,user_id text,expires_at integer,impersonated_by text,login_method text)"])await raw.prepare(ddl).run();

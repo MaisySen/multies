@@ -92,7 +92,7 @@ it.each(["valid-reserve","bad-sequence"])("migration0175 preserves or atomically
   if(mode==="bad-sequence"){
    await expect(applyMigrations(driver,next)).rejects.toThrow();const rows=await db.all(sql`SELECT * FROM mnet_enrollment_handoffs`);expect(rows).toHaveLength(1);expect(rows[0].events).toBe(event);expect(rows[0]).not.toHaveProperty("event_seq");
   }else{
-   await applyMigrations(driver,next);const row=await db.select().from(journal).get();expect(row).toMatchObject({status:"reserved",eventSeq:1,descriptorEncodingVersion:1,events:event,receiptId:null,receiptDigest:null});
+   await applyMigrations(driver,next);const row=(await db.all(sql`SELECT status,event_seq AS eventSeq,descriptor_encoding_version AS descriptorEncodingVersion,events,receipt_id AS receiptId,receipt_digest AS receiptDigest FROM mnet_enrollment_handoffs`))[0];expect(row).toMatchObject({status:"reserved",eventSeq:1,descriptorEncodingVersion:1,events:event,receiptId:null,receiptDigest:null});
    expect(()=>db.run(sql`UPDATE mnet_enrollment_handoffs SET event_seq=2`)).toThrow();
   }
  }finally{client.close();}

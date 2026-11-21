@@ -36,7 +36,7 @@ export async function sweepHandoffs(d: Deps) {
  const { policy } = handoffConfig(d), at = d.now();
  await d.db.update(journal).set({ status: "expired", terminalAt: at, codeHash: null, ticketHash: null }).where(sql`(${journal.status}='pending' AND ${journal.expiresAt}<=${at.getTime()}) OR (${journal.status}='approved' AND ${journal.codeExpiresAt}<=${at.getTime()}) OR (${journal.status}='issued' AND ${journal.ticketExpiresAt}<=${at.getTime()})`);
  await d.db.update(journal).set({ status: "withdrawn", terminalAt: at, codeHash: null, ticketHash: null }).where(and(sql`${journal.status} IN ('pending','approved','issued')`, sql`NOT ${liveEligibility(d, journal.userId, journal.workspaceId, journal.sessionId)}`));
- await d.db.update(journal).set({ userId: null, sessionId: null, workspaceId: null, attemptId: null, devicePublicKey: null, credentialDigest: null, issuer: null, registrarOrigin: null, audience: null, networkId: null, mappingRevision: null, challenge: null, state: null, platform: null, redirectUri: null, codeHash: null, ticketHash: null, scrubbedAt: at }).where(and(isNull(journal.scrubbedAt), sql`${journal.status} IN ('declined','expired','withdrawn')`, sql`${journal.terminalAt}<=${at.getTime() - policy.fullRowRetentionMs}`));
+ await d.db.update(journal).set({ principalAuthority:null,principalNamespace:null,sessionBinding:null, userId: null, sessionId: null, workspaceId: null, attemptId: null, devicePublicKey: null, credentialDigest: null, issuer: null, registrarOrigin: null, audience: null, networkId: null, mappingRevision: null, challenge: null, state: null, platform: null, redirectUri: null, codeHash: null, ticketHash: null, scrubbedAt: at }).where(and(isNull(journal.scrubbedAt), sql`${journal.status} IN ('declined','expired','withdrawn')`, sql`${journal.terminalAt}<=${at.getTime() - policy.fullRowRetentionMs}`));
 }
 async function validateCurrentRow(d: Deps, r: Row) {
  try {
@@ -70,11 +70,13 @@ export async function prepareHandoff(d: Deps, headers: Headers, request: z.infer
  await eligible(d, person.userId, request.workspaceId, person.id);
  await sweepHandoffs(d);
  const id = randomToken(), attemptHash = await hash(request.attemptId), at = d.now().getTime();
+ const provenanceConfig=handoffConfig(d).operator.provenance;
+ const sessionBinding=provenanceConfig ? randomToken():null;
  // Compare current config again after async work. Config is server-owned input.
  if (!tupleEqual(selected.displayed, binding(d, request.workspaceId, person.userId).displayed)) throw denied();
  await d.db.run(sql`INSERT INTO mnet_enrollment_handoffs
- (id,attempt_hash,version,purpose,user_id,session_id,workspace_id,attempt_id,device_public_key,credential_digest,issuer,registrar_origin,audience,network_id,mapping_revision,challenge,state,platform,redirect_uri,status,created_at,expires_at)
- SELECT ${id},${attemptHash},1,'mnet-enrollment',${person.userId},${person.id},${request.workspaceId},${request.attemptId},${request.devicePublicKey},${request.credentialDigest},${selected.displayed.issuer},${selected.displayed.registrarOrigin},${selected.displayed.audience},${selected.displayed.networkId},${selected.displayed.mappingRevision},${request.challenge},${request.state},${request.platform},${request.redirectUri},'pending',${at},${at + selected.policy.consentMs}
+ (id,attempt_hash,version,purpose,session_binding,principal_authority,principal_namespace,user_id,session_id,workspace_id,attempt_id,device_public_key,credential_digest,issuer,registrar_origin,audience,network_id,mapping_revision,challenge,state,platform,redirect_uri,status,created_at,expires_at)
+ SELECT ${id},${attemptHash},1,'mnet-enrollment',${sessionBinding},${provenanceConfig?.principalAuthority??null},${provenanceConfig?.principalNamespace??null},${person.userId},${person.id},${request.workspaceId},${request.attemptId},${request.devicePublicKey},${request.credentialDigest},${selected.displayed.issuer},${selected.displayed.registrarOrigin},${selected.displayed.audience},${selected.displayed.networkId},${selected.displayed.mappingRevision},${request.challenge},${request.state},${request.platform},${request.redirectUri},'pending',${at},${at + selected.policy.consentMs}
  WHERE (SELECT COUNT(*) FROM mnet_enrollment_handoffs WHERE user_id=${person.userId} AND status IN ('pending','approved','issued'))<${selected.policy.capacity}
  AND (SELECT COUNT(*) FROM mnet_enrollment_handoffs)<${selected.policy.maxRows}
  AND ${liveEligibility(d, person.userId, request.workspaceId, person.id)}
@@ -95,15 +97,29 @@ export async function decideHandoff(d: Deps, headers: Headers, id: string, allow
  if (code) redirect.searchParams.set("code", code); else redirect.searchParams.set("error", "access_denied");
  return { redirectTo: redirect.href, purpose: "mnet-enrollment", registrarConnected: false, enrolled: false, inputAuthorized: false };
 }
-export async function exchangeHandoff(d: Deps, proof: z.infer<typeof handoffExchange>) {
+export async function exchangeHandoff(d: Deps, proof: z.infer<typeof handoffExchange>,responseVersion?:2) {
  handoffConfig(d); await sweepHandoffs(d);
  const codeHash = await hash(proof.code), r = await d.db.select().from(journal).where(and(eq(journal.codeHash, codeHash), eq(journal.status, "approved"))).get();
  // No wrong tuple/verifier may consume another native intent's valid code.
  if (!r || r.version !== proof.version || r.purpose !== proof.purpose || r.attemptId !== proof.attemptId || r.devicePublicKey !== proof.devicePublicKey || r.credentialDigest !== proof.credentialDigest || r.challenge !== proof.challenge || r.state !== proof.state || r.platform !== proof.platform || r.redirectUri !== proof.redirectUri || r.challenge !== await hash(proof.verifier)) throw denied();
+ const provenance=responseVersion===2?handoffProvenance(d,r):undefined;
  const selected = await validateCurrentRow(d, r), ticket = randomToken(), ticketHash = await hash(ticket), at = d.now();
  if (!tupleEqual(rowTuple(r), binding(d, r.workspaceId!, r.userId!).displayed)) throw denied();
+ if(responseVersion===2)handoffProvenance(d,r);
  const expires = new Date(at.getTime() + selected.policy.ticketMs);
  const won = await d.db.update(journal).set({ status: "issued", codeHash: null, ticketHash, ticketExpiresAt: expires }).where(and(eq(journal.id, r.id), eq(journal.status, "approved"), eq(journal.codeHash, codeHash), isNull(journal.ticketHash), gt(journal.expiresAt, at), gt(journal.codeExpiresAt, at), liveEligibility(d, r.userId!, r.workspaceId!, r.sessionId!))).returning({ id: journal.id }).get();
  if (!won) throw denied();
- return { ticket, id: r.id, expiresAt: expires, binding: { workspaceId: r.workspaceId!, ...rowTuple(r) }, purpose: "mnet-enrollment", registrarConnected: false, enrolled: false, inputAuthorized: false };
+ if(responseVersion===2)handoffProvenance(d,r);
+ return { ...(provenance?{responseVersion:2,provenance,launch:proofLaunch(proof)}:{}),ticket, id: r.id, expiresAt: expires, binding: { workspaceId: r.workspaceId!, ...rowTuple(r) }, purpose: "mnet-enrollment", registrarConnected: false, enrolled: false, inputAuthorized: false };
+}
+
+// Source identity is explicitly local to configured Multies authority, never an
+// external OIDC subject. No raw session ID/token leaves this source boundary.
+export function handoffProvenance(d:Deps,r:Row){
+ const config=handoffConfig(d).operator.provenance;
+ if(!config||r.principalAuthority!==config.principalAuthority||r.principalNamespace!==config.principalNamespace||!r.userId||!r.sessionId||!r.sessionBinding||!handoffLaunch.shape.attemptId.safeParse(r.sessionBinding).success)throw denied();
+ return {principalAuthority:config.principalAuthority,principalNamespace:config.principalNamespace,principalId:r.userId,sessionBinding:r.sessionBinding};
+}
+function proofLaunch(proof:z.infer<typeof handoffExchange>){
+ const {code:_code,verifier:_verifier,...launch}=proof;return launch;
 }

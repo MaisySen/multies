@@ -5,7 +5,7 @@ import { mnetEnrollmentHandoffs as journal } from "../db/schema";
 import { randomToken, safeEqual } from "../lib/crypto";
 import { HttpError } from "../lib/errors";
 import { hash, liveEligibility } from "./mnet";
-import { handoffConfig, handoffLaunch } from "./mnet-enrollment-handoff";
+import { handoffConfig, handoffLaunch, handoffProvenance } from "./mnet-enrollment-handoff";
 import { enrollmentRequest } from "./mnet-enrollment";
 import { serviceFixtureSchema } from "./mnet-enrollment-service-config";
 
@@ -68,4 +68,20 @@ export async function reserveEnrollment(d:Deps,service:Service,p:z.infer<typeof 
   return {handoffId:r.id,reserveId:winner.reserveId,descriptorDigest:winner.descriptorDigest,deadline:winner.reserveDeadline,status:"reserved",enrolled:false};
  }
  return {handoffId:r.id,reserveId:p.reserveId,descriptorDigest,deadline,status:"reserved",enrolled:false};
+}
+
+// Authenticated SAME live reserve, never historical status. No new reserve,
+// deadline extension, access grant or proof permit is created by this response.
+export async function reserveEnrollmentEvidence(d:Deps,service:Service,p:z.infer<typeof reserveRequest>){
+ // Refuse old/provenance-disabled rows BEFORE changing reservation state.
+ const ticketHash=await hash(p.ticket);
+ const original=await d.db.select().from(journal).where(and(eq(journal.id,p.handoffId),eq(journal.ticketHash,ticketHash))).get();
+ if(!original)throw denied();handoffProvenance(d,original);
+ const reserved=await reserveEnrollment(d,service,p);
+ const at=d.now();
+ const row=await d.db.select().from(journal).where(and(eq(journal.id,p.handoffId),eq(journal.status,"reserved"),eq(journal.userId,original.userId!),eq(journal.sessionId,original.sessionId!),eq(journal.sessionBinding,original.sessionBinding!),eq(journal.principalAuthority,original.principalAuthority!),eq(journal.principalNamespace,original.principalNamespace!),eq(journal.serviceId,service.serviceId),eq(journal.reserveId,p.reserveId),eq(journal.descriptorDigest,reserved.descriptorDigest),gt(journal.reserveDeadline,at),liveEligibility(d,original.userId!,original.workspaceId!,original.sessionId!))).get();
+ if(!row)throw denied();currentBinding(d,row,service);
+ const provenance=handoffProvenance(d,row);
+ if(!row.reserveDeadline||row.reserveDeadline.getTime()<=d.now().getTime())throw denied();
+ return {...reserved,responseVersion:2,provenance,launch:p.launch,binding:p.binding,serviceId:service.serviceId,checkedAt:at,descriptorEncodingVersion:1,authorityGranted:false};
 }

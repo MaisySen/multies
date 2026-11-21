@@ -29,6 +29,10 @@ export function mnetEnrollmentHandoffRoutes() {
   if (c.req.header("cookie") || c.req.header("origin") || c.req.header("authorization")) throw new HttpError(403, "mnet_enrollment_denied", "Computer joining handoff is unavailable.");
   return c.json(await exchangeHandoff(c.var.deps, await body(c, handoffExchange)));
  });
- // No registrar/service/proof/consume/status/ack/recovery route exists.
+ r.post("/exchange-v2",async(c)=>{
+  if(c.req.header("cookie")||c.req.header("origin")||c.req.header("authorization"))throw new HttpError(403,"mnet_enrollment_denied","Computer joining handoff is unavailable.");
+  return c.json(await exchangeHandoff(c.var.deps,await body(c,handoffExchange),2));
+ });
+ // No proof/consume/native-recovery/node route exists.
  return r;
 }

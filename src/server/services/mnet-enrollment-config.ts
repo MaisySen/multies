@@ -7,6 +7,7 @@ const exactUrl = (origin: boolean) => z.string().max(2048).refine((s) => {
 const id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/);
 const principal = z.string().min(1).max(256).refine((s) => s.trim() === s && !/[\s\p{Cc}]/u.test(s));
 export const enrollmentOperatorSchema = z.object({
+  provenance: z.object({version:z.literal(2),principalAuthority:exactUrl(true),principalNamespace:z.literal("multies-local-user-v1")}).strict().optional(),
   revision: id, issuer: exactUrl(false), registrarOrigin: exactUrl(true), audience: principal,
   bindings: z.array(z.object({ workspaceId: id, networkId: id, principals: z.array(principal).min(1).max(100) }).strict()).min(1).max(20),
 }).strict().superRefine((c, ctx) => {
@@ -14,7 +15,7 @@ export const enrollmentOperatorSchema = z.object({
 });
 export type EnrollmentOperatorConfig = z.infer<typeof enrollmentOperatorSchema>;
 // Explicit branch-only operator input, no default origins or inferred members.
-// User IDs are the immutable local subjects for this configured issuer.
+// Principal IDs are local Multies user IDs, NOT inferred external OIDC subjects.
 export function enrollmentOperatorConfig(raw?: string): EnrollmentOperatorConfig | undefined {
   if (!raw) return undefined;
   if (raw.length > 65536) throw new Error("Invalid Mnet enrollment operator configuration");

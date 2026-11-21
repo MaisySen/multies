@@ -4904,7 +4904,7 @@ export const mnetEnrollmentDecisions = sqliteTable("mnet_enrollment_decisions", 
 export const mnetEnrollmentHandoffs = sqliteTable("mnet_enrollment_handoffs", {
  id: text("id").primaryKey(), attemptHash: text("attempt_hash").notNull(),
  version: integer("version").notNull(), purpose: text("purpose").notNull(),
- userId: text("user_id"), sessionId: text("session_id"), workspaceId: text("workspace_id"),
+ principalAuthority:text("principal_authority"),principalNamespace:text("principal_namespace"),sessionBinding:text("session_binding"), userId: text("user_id"), sessionId: text("session_id"), workspaceId: text("workspace_id"),
  attemptId: text("attempt_id"), devicePublicKey: text("device_public_key"), credentialDigest: text("credential_digest"),
  issuer: text("issuer"), registrarOrigin: text("registrar_origin"), audience: text("audience"), networkId: text("network_id"), mappingRevision: text("mapping_revision"),
  challenge: text("challenge"), state: text("state"), platform: text("platform"), redirectUri: text("redirect_uri"),

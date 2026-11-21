@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../context";
 import { DbRateLimitStore } from "../lib/rate-limit";
 import { body } from "./mnet";
-import { authenticateEnrollmentService, enrollmentServiceConfig, reserveEnrollment, reserveRequest } from "../services/mnet-enrollment-reserve";
+import { authenticateEnrollmentService, enrollmentServiceConfig, reserveEnrollmentEvidence, reserveEnrollment, reserveRequest } from "../services/mnet-enrollment-reserve";
 export function mnetEnrollmentReserveRoutes(){
  const r=new Hono<AppEnv>();
  r.use("*",async(c,next)=>{
@@ -31,6 +31,7 @@ export function mnetEnrollmentReserveRoutes(){
   const p=await body(c,reserveRequest);
   return c.json(await reserveEnrollment(c.var.deps,service,p));
  });
+ r.post("/reserve-evidence-v2",async(c)=>{const service=await authenticated(c,"reserve");return c.json(await reserveEnrollmentEvidence(c.var.deps,service,await body(c,reserveRequest)));});
  r.post("/status",async(c)=>{const service=await authenticated(c,"status");return c.json(await statusEnrollment(c.var.deps,service,await body(c,serviceRecordRequest)));});
  r.post("/ack",async(c)=>{const service=await authenticated(c,"ack");return c.json(await acknowledgeEnrollment(c.var.deps,service,await body(c,serviceAckRequest)));});
  // Historical service bookkeeping only, no consume/native-recovery/node path.

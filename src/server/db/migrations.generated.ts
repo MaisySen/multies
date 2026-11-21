@@ -1926,5 +1926,14 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX mnet_handoff_retention_idx ON mnet_enrollment_handoffs(terminal_at,scrubbed_at);",
       "CREATE UNIQUE INDEX mnet_handoff_reserve_uq ON mnet_enrollment_handoffs(reserve_id);"
     ]
+  },
+  {
+    "name": "0176_mnet_enrollment_session_binding",
+    "statements": [
+      "-- Opaque independent per-handoff session pseudonym. Existing rows stay NULL and\n-- cannot produce version2 provenance. No session ID/token hashing or backfill.\nALTER TABLE mnet_enrollment_handoffs ADD COLUMN session_binding text;",
+      "ALTER TABLE mnet_enrollment_handoffs ADD COLUMN principal_authority text;",
+      "ALTER TABLE mnet_enrollment_handoffs ADD COLUMN principal_namespace text;",
+      "CREATE UNIQUE INDEX mnet_handoff_session_binding_uq ON mnet_enrollment_handoffs(session_binding);"
+    ]
   }
 ];
