@@ -4,14 +4,14 @@
  * two-step sign in, the password lockout, and operator notes. The tab is kept in the address (?tab=) so a link opens it.
  */
 import type { ReactNode } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError, errorMessage } from "@/web/lib/api";
 import { Card, CopyButton, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button, buttonClass } from "@/web/components/ui/button";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { IconArrowLeft, IconMore, IconUserX, IconWarning } from "@/web/components/ui/icon";
-import { cn } from "@/web/lib/cn";
+import { QueryTabs, TabPanel, useQueryTab } from "../components/detail-tabs";
 import { NotesPanel } from "../notes-panel";
 import { ImpersonateButton } from "../impersonate-button";
 import { useUserActions } from "./users-actions";
@@ -31,43 +31,11 @@ type TabId = (typeof TABS)[number]["id"];
 
 const backLink = <Link to="/console/users" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"><IconArrowLeft className="h-4 w-4" aria-hidden />All users</Link>;
 
-function useTab(): [TabId, (t: TabId) => string] {
-  const [params] = useSearchParams();
-  const raw = params.get("tab");
-  const tab = (TABS.find((t) => t.id === raw)?.id ?? "profile") as TabId;
-  const href = (t: TabId) => {
-    const next = new URLSearchParams(params);
-    // Each tab's list keeps its own address state; switching tab starts it clean.
-    for (const k of ["q", "sort", "cursor"]) next.delete(k);
-    if (t === "profile") next.delete("tab"); else next.set("tab", t);
-    const s = next.toString();
-    return s ? `?${s}` : "?";
-  };
-  return [tab, href];
-}
-
-function Tabs({ current, href, counts }: { current: TabId; href: (t: TabId) => string; counts: Partial<Record<TabId, number>> }) {
-  return (
-    <nav aria-label="Sections" className="mb-5 overflow-x-auto border-b border-line">
-      <ul className="flex min-w-max gap-1">
-        {TABS.map((t) => (
-          <li key={t.id}>
-            <Link to={href(t.id)} replace aria-current={current === t.id ? "page" : undefined} data-testid={`console-users-tab-${t.id}`}
-              className={cn("-mb-px inline-flex h-10 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors", current === t.id ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg")}>
-              {t.label}
-              {counts[t.id] !== undefined && <span className="rounded-full bg-fill px-1.5 text-[11px] tabular-nums text-muted">{counts[t.id]}</span>}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}
-
 function Header({ d }: { d: ConsoleUserDetail }) {
   const p = d.profile;
   const a = useUserActions(p);
-  const [tab, href] = useTab();
+  const tab: TabId = useQueryTab(TABS);
+  const counts: Partial<Record<TabId, number>> = { workspaces: d.memberships.length, sessions: d.activeSessions };
   const more: ReactNode[] = [];
   if (a.can.clearLockout && (d.lockout.locked || d.lockout.failures > 0)) more.push(<MenuItem key="clearLockout" onSelect={() => a.clearLockout.open()}>Clear lockout</MenuItem>);
   if (a.can.verify && !p.emailVerified) more.push(<MenuItem key="verify" onSelect={() => a.verify.open()}>Mark email verified</MenuItem>);
@@ -103,13 +71,16 @@ function Header({ d }: { d: ConsoleUserDetail }) {
           {a.self ? "This is your own account. Change it from your account settings." : "This person is a platform operator. Ban, delete and sign out are managed on the Operators page."}
         </p>
       )}
-      <Tabs current={tab} href={href} counts={{ workspaces: d.memberships.length, sessions: d.activeSessions }} />
+      <QueryTabs tabs={TABS.map((t) => counts[t.id] === undefined ? t : { ...t, badge: <span className="rounded-full bg-fill px-1.5 text-[11px] tabular-nums text-muted">{counts[t.id]}</span> })}
+        label="Account sections" testIdPrefix="console-users-tab" className="mb-5" />
+      <TabPanel testIdPrefix="console-users-tab" current={tab}>
       {tab === "profile" && <UserProfileTab d={d} />}
       {tab === "workspaces" && <UserWorkspacesTab d={d} />}
       {tab === "sessions" && <UserSessionsTab d={d} actions={a} />}
       {tab === "signin" && <UserSignInTab d={d} />}
       {tab === "lockout" && <UserLockoutTab d={d} actions={a} />}
       {tab === "notes" && <NotesPanel targetType="user" targetId={p.id} />}
+      </TabPanel>
       {a.dialogs}
     </>
   );
