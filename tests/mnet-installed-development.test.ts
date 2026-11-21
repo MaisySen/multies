@@ -15,6 +15,7 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const installed=process.env.MNET_DEVELOPMENT_SETUP_BINARY;
 const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
+const dashboard=process.env.MNET_DEVELOPMENT_DASHBOARD==="1";
 const networkCase=variant.startsWith("network-tcp");
 const networkStopped=variant==="network-tcp-cancel"||variant==="network-tcp-expiry";
 const displayUnavailable=["result-preexisting","result-write-failure","result-open-failure"].includes(variant);
@@ -122,7 +123,22 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    await resultPage.getByRole("heading",{name:variant==="success"||networkCase?"Joining saved. Not connected.":variant==="decline"?"Computer not approved":"Setup did not finish",exact:true}).waitFor();
    await resultPage.screenshot({path:`/downloads/mnet-development-installed-final-${variant}.png`,fullPage:true});
    }else await waitFile(join(dir,"installed-output-ended"),()=>done);
-   if(networkCase&&(!networkStopped||variant==="network-tcp-expiry")){
+   if(dashboard){
+    let live;
+    for(let i=0;i<200&&!live;i++){for(const p of context.pages()){if(await p.title().catch(()=>"")==="Mnet disposable network"){live=p;break;}}if(!live)await sleep(25);}
+    if(!live){console.log("PAGES",await Promise.all(context.pages().map(async p=>({title:await p.title().catch(()=>""),body:(await p.locator("body").innerText().catch(()=>"")).slice(0,500)}))));throw new Error("actual native live dashboard did not open; native="+output);}
+    await live.getByRole("heading",{name:"Network active",exact:true}).waitFor();
+    await live.getByText("Joining saved. This is separate",{exact:false}).waitFor();
+    expect(await live.locator("#peers li").count()).toBeGreaterThan(0);
+    await live.screenshot({path:`/downloads/mnet-live-dashboard-active-${variant}.png`,fullPage:true});
+    if(variant==="network-tcp-cancel")await live.getByRole("button",{name:"Stop network",exact:true}).click();
+    await live.getByRole("heading",{name:"Network ended",exact:true}).waitFor({timeout:20000});
+    expect(await live.locator("#peers li").count()).toBe(0);
+    expect(await live.getByRole("button",{name:"Stop network",exact:true}).isDisabled()).toBe(true);
+    if(variant==="network-tcp-expiry")await live.getByText("The original approved peer lease ended.",{exact:false}).waitFor();
+    await live.screenshot({path:`/downloads/mnet-live-dashboard-ended-${variant}.png`,fullPage:true});
+   }
+   if(!dashboard&&networkCase&&(!networkStopped||variant==="network-tcp-expiry")){
     let networkResult;
     for(let i=0;i<(variant==="network-tcp-expiry"?500:200)&&!networkResult;i++){networkResult=context.pages().find(p=>p.url().endsWith("/network-result.html"));if(!networkResult)await sleep(50);}
     if(!networkResult)throw new Error("actual ended TCP result did not open");
