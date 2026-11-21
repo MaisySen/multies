@@ -78,7 +78,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
      expect(await target.locator("button,a,input,form").count()).toBe(0);
      await target.screenshot({path:`/downloads/mnet-bookkeeping-${suffix}.png`,fullPage:true});
     }
-   }finally{try{await(await browser.newBrowserCDPSession()).send("Browser.close");}catch{/* Isolated profile only. */}await browser.close();}
+   }finally{console.log("REGISTRAR CHILD OUTPUT",output);try{await(await browser.newBrowserCDPSession()).send("Browser.close");}catch{/* Isolated profile only. */}await browser.close();}
   }
   if(process.env.MNET_DEVELOPMENT_BOOKKEEPING_FIXTURE==="1"&&process.env.MNET_BOOKKEEPING_EXPIRED==="1"){
    expect(bookkeepingSourceHTTP).toBe(0);expect(mode).toBe("success");expect(outcome).toMatchObject({bookkeepingExpired:true,bookkeepingCompleted:true,historyRequests:0,networkVerified:false,nodeDeleted:true,inputAuthorized:false});
@@ -95,7 +95,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    const state=JSON.parse(await readFile(join(dir,"control","state.json"),"utf8"));const records=Object.values(state.registrar_state.records) as {receipt_id:string;receipt_digest:string;phase:string}[];
    expect(records).toHaveLength(3);expect(records.every(r=>r.phase==="revoked")).toBe(true);expect(records.find(r=>r.receipt_id===outcome.receiptId)).toMatchObject({receipt_id:outcome.receiptId,receipt_digest:outcome.receiptDigest,phase:"revoked"});expect(Object.keys(state.nodes)).toHaveLength(0);expect(Object.keys(state.node_tokens)).toHaveLength(0);
   }else{expect(outcome).toMatchObject({sourceDenied:true,nodeCreated:false});expect(row!.status).toBe("issued");}
- }finally{
+ }finally{console.log("REGISTRAR CHILD OUTPUT",output);
   if(child&&!done){child.kill("SIGKILL");await new Promise<void>(resolve=>child!.once("close",()=>resolve()));}
   server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));
   (e.db as unknown as {$client:{close():void}}).$client.close();if(e.indexDb)(e.indexDb as unknown as {$client:{close():void}}).$client.close();await rm(dir,{recursive:true,force:true});
