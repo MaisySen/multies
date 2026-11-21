@@ -261,6 +261,13 @@ describe("view mode", () => {
     expect(impersonationBlock("view", "POST", "/api/console/impersonation/stop")).toBeNull();
     expect(impersonationBlock("act", "GET", "/api/auth/get-session")).toBeNull();
     expect(impersonationBlock("act", "GET", "/api/vault/state")).toBe("always");
+    // Mail leaving the workspace: writes refused in both modes, reads and removals stay open in act mode.
+    for (const [m, p] of [["POST", "/api/mail/rules"], ["PATCH", "/api/mail/rules/r1"], ["POST", "/api/mail/rules/r1/run-recent"], ["POST", "/api/aliases"],
+      ["PATCH", "/api/aliases/a1"], ["PUT", "/api/mailboxes/m1/sharing/u1"], ["PATCH", "/api/mailboxes/m1"]]) {
+      expect(impersonationBlock("act", m, p), `${m} ${p}`).toBe("always");
+    }
+    for (const p of ["/api/mail/rules", "/api/mail/rules/r1", "/api/aliases", "/api/mailboxes", "/api/mailboxes/m1/sharing"]) expect(impersonationBlock("act", "GET", p), p).toBeNull();
+    for (const p of ["/api/mail/rules/r1", "/api/aliases/a1", "/api/mailboxes/m1/sharing/u1"]) expect(impersonationBlock("act", "DELETE", p), p).toBeNull();
   });
 });
 

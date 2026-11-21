@@ -134,6 +134,21 @@ export const IMPERSONATION_ALWAYS_BLOCKED: readonly BlockedRule[] = [
   { group: "outside accounts", methods: ALL, pattern: /^\/api\/ai\/(connect|oauth)(\/|$)/, example: { method: "POST", path: "/api/ai/connect" }, enforcedBy: "requireAuth" },
   { group: "outside accounts", methods: ALL, pattern: /^\/api\/integrations\/xero\/(connect|callback)$/, example: { method: "GET", path: "/api/integrations/xero/connect" }, enforcedBy: "requireAuth" },
   { group: "outside accounts", methods: ["POST"], pattern: /^\/api\/calendar\/sources\/?$/, example: { method: "POST", path: "/api/calendar/sources" }, enforcedBy: "requireAuth" },
+  // Mail leaves the workspace after the session ends. Reads stay open; removing a rule, an alias or a share stays open.
+  // - Mail rules: forward and auto_reply are actions inside the rule body, so creating or editing ANY rule is refused
+  //   (the path cannot tell a label rule from a forward), and so is running a rule over recent mail.
+  // - Aliases: their destinations can be outside addresses; creating or editing any alias is refused.
+  // - Mailbox sharing (delegation): granting someone read, reply or send as. Member mailbox grants go through
+  //   PATCH /api/team/members and invites, refused above under workspace control.
+  // - Mailbox settings: the default Reply-To sends replies to any address and shares the PATCH with the display name,
+  //   so the whole PATCH is refused. There is no separate auto forward or vacation setting (auto reply is a rule action).
+  { group: "mail leaves the workspace", methods: ["POST"], pattern: /^\/api\/mail\/rules\/?$/, example: { method: "POST", path: "/api/mail/rules" }, enforcedBy: "requireAuth" },
+  { group: "mail leaves the workspace", methods: ["PATCH"], pattern: /^\/api\/mail\/rules\/[^/]+$/, example: { method: "PATCH", path: "/api/mail/rules/x" }, enforcedBy: "requireAuth" },
+  { group: "mail leaves the workspace", methods: ["POST"], pattern: /^\/api\/mail\/rules\/[^/]+\/run-recent$/, example: { method: "POST", path: "/api/mail/rules/x/run-recent" }, enforcedBy: "requireAuth" },
+  { group: "mail leaves the workspace", methods: ["POST"], pattern: /^\/api\/aliases\/?$/, example: { method: "POST", path: "/api/aliases" }, enforcedBy: "requireAuth" },
+  { group: "mail leaves the workspace", methods: ["PATCH"], pattern: /^\/api\/aliases\/[^/]+$/, example: { method: "PATCH", path: "/api/aliases/x" }, enforcedBy: "requireAuth" },
+  { group: "mail leaves the workspace", methods: ["PUT"], pattern: /^\/api\/mailboxes\/[^/]+\/sharing\/[^/]+$/, example: { method: "PUT", path: "/api/mailboxes/x/sharing/y" }, enforcedBy: "requireAuth" },
+  { group: "mail leaves the workspace", methods: ["PATCH"], pattern: /^\/api\/mailboxes\/[^/]+$/, example: { method: "PATCH", path: "/api/mailboxes/x" }, enforcedBy: "requireAuth" },
 ];
 
 /**
