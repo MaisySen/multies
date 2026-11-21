@@ -35,7 +35,7 @@ describe('isolated authenticated consent DATA composition',()=>{
   const before=await s.own.all({sql:'SELECT * FROM rel_approvals'});await s.raw('GET');await s.raw('GET','/api/consents?before=invalid');expect(await s.own.all({sql:'SELECT * FROM rel_approvals'})).toEqual(before);
   await expect(s.own.batch([{sql:"UPDATE rel_approvals SET device_key_digest='bad'"}])).rejects.toThrow();
  });
- it('real rate limiter counts reads and denies request21',async()=>{const s=await setup();for(let i=0;i<20;i++)expect((await s.raw('GET')).status).toBe(200);expect((await s.raw('GET')).status).toBe(429);});
+ it('rig-wide rate limit cannot be evaded with rotating untrusted IP headers',async()=>{const s=await setup();for(let i=0;i<20;i++)expect((await s.raw('GET','/api/consents',undefined,{'cf-connecting-ip':`203.0.113.${i}`,'x-real-ip':`192.0.2.${i}`,'x-forwarded-for':`198.51.100.${i}`})).status).toBe(200);expect((await s.raw('GET','/api/consents',undefined,{'cf-connecting-ip':'127.0.0.1','x-real-ip':'new','x-forwarded-for':'different'})).status).toBe(429);});
  it('foreign/missing revoke indistinguishable; membership loss still lists and revokes',async()=>{
   const s=await setup(),a=await s.approve(),other=new Client(s.normal);await other.signup('other-consent@example.test');
   const r=await s.raw('DELETE','/api/consents/'+a.body.record.id,undefined,{cookie:other.cookie}),missing=await s.raw('DELETE','/api/consents/'+'x'.repeat(43),undefined,{cookie:other.cookie});expect(r.status).toBe(403);expect(r.body).toEqual(missing.body);
@@ -93,6 +93,11 @@ describe('isolated authenticated consent DATA composition',()=>{
    expect((await s.raw('DELETE','/api/consents/'+id)).body.record.recordedStatus).toBe('revoked');release();const result=await pending;s.own.batch=realBatch;
    if(duplicate){expect(result.status).toBe(409);expect(result.body.error.code).toBe('consent_not_recorded');}else{expect(result.body.result).toBe('inserted-at-read');expect(result.body.record.recordedStatus).toBe('revoked');expect(result.body.statusAtRead).toBe(true);}
   }
+ });
+ it('403 readback can follow committed revoke when actor is lost before response',async()=>{
+  const s=await setup(),a=await s.approve(),realBatch=s.own.batch.bind(s.own);let once=true;
+  s.own.batch=async statements=>{await realBatch(statements);if(once&&statements.some(q=>q.sql.startsWith("UPDATE rel_approvals SET status='revoked'"))){once=false;await realBatch([{sql:'DELETE FROM sessions WHERE id=?',values:[s.row.sid]}]);}};
+  const result=await s.raw('DELETE','/api/consents/'+a.body.record.id);expect(result.status).toBe(403);expect((await s.own.all({sql:'SELECT status FROM rel_approvals WHERE id=?',values:[a.body.record.id]}))[0].status).toBe('revoked');s.own.batch=realBatch;
  });
  it('atomic marker install fails without residual rel objects; unknown version and app/store mismatch refuse',async()=>{
   const own=await ownedNode();resources.push(own);const {installationStatements}=await import('../experiments/mnet-consent-records/owned-store');

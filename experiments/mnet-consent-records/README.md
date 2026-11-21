@@ -47,7 +47,12 @@ actorId or sessionId cannot select an actor. Each SQL operation also correlates
 the authenticated session and DB-clock unexpired/nonimpersonated actor.
 
 The real csrfGuard is mounted explicitly, followed by the existing handoff rate
-limiter, keyed by IP and counting reads:20 requests/minute in this candidate.
+limiter, keyed by a fixed owned-disposable-rig identity and counting reads:20
+requests/minute for the entire rig, NOT per-IP. app.request has no authenticated
+transport peer. All cf-connecting-ip/x-real-ip/x-forwarded-for headers are ignored
+for this identity. Rotating those headers cannot create a fresh budget. This
+harness claims no client-IP trust; production reuse needs an actual authenticated
+transport/deployment trust boundary, not a request-header copy.
 Bad Origin and Origin-less cross-site fetch are denied. Header-less nonbrowser
 requests remain allowed by that existing guard, requiring actual cookie and strict
 bounded JSON for mutation. IP trust normalization beyond this isolated harness
@@ -64,8 +69,10 @@ not reused. Atomic initialize+INSERT SELECT rechecks original session/current
 eligibility/SSO/fence. No app-side eligibility pre-read authorizes a write.
 
 At most4 approved records and8 lifetime historical records per user, checked
-inside INSERT. No purge/reset/retention job. Reaching history cap denies new
-recording; that intentionally makes this small experiment finite. A partial UNIQUE
+inside INSERT. No purge/reset/retention job. Reaching history cap PERMANENTLY exhausts new
+recording in this disposable proof, including after eight approve/revoke cycles.
+This is knowingly finite proof capacity, NOT a shippable product cap or recovery
+policy. No tombstone purge is introduced to hide the exhaustion. A partial UNIQUE
 index enforces one approved tuple per exact user/workspace/digest. Conflict uses
 ON CONFLICT(user_id,workspace_id,device_key_digest) WHERE status='approved' DO NOTHING,
 never parses exceptions. An approved but ineffective record still occupies its
@@ -83,14 +90,17 @@ can be reconciled with own list, not a bearer recovery secret.
 
 GET lists only that actor's records, even after membership loss. It returns4 records
 per page with a43-character exact-ID cursor; history is bounded8. Pages are current
-reads, not a consistent multi-page snapshot. Derived validity distinguishes revoked,
+reads, not a consistent multi-page snapshot. IDs are random tokens, so descending
+ID is a stable total order, NOT chronology or newest-first. Derived validity distinguishes revoked,
 original-session-ended, security-fence-changed, current-eligibility-unmet, sso-blocked
 and currently-valid-session-bound-data. No generation/session ID/password/hash
 internals are exposed. Query failures are503 unavailable, not fabricated revocation.
 Recorded approved status and effective validity are deliberately separate.
 
 DELETE rechecks exact own-user actor in the conditional UPDATE and then own-scoped
-readback. Membership not required; repeated own revocation is idempotent. Missing
+readback. If the actor session disappears after the UPDATE commits but before
+readback, the endpoint can return403 even though revocation committed. A failure
+response is NOT rollback evidence; after fresh sign-in, list to reconcile. Membership not required; repeated own revocation is idempotent. Missing
 and foreign IDs have the same controlled refusal, with no admin cross-member power.
 List remains available to discover/revoke records after membership loss.
 
@@ -166,3 +176,14 @@ Full check needing more memory, currently unverified:
 Independent exact-artifact review before further integration. Production schema,
 route registration, migration, operator enablement, real consent and actual networking
 are all held. This is useful authenticated consent DATA, not background connectivity.
+
+
+## Compact transport-identity correction
+
+The initial b6ef172 rig copied cf-connecting-ip into its limiter identity. This
+delta removes that trust entirely: one fixed rig-wide budget, rotated-header
+adversarial test, and an explicit committed-revoke/403-readback case. No new
+consent experiment, store mechanics or API expansion. Full app integration
+typecheck remains unverified; no further memory-exhausting retries or stub-based
+claims have been made. New-code interfaces/stubs, if added later, would check only
+those interfaces, never establish actual auth/app integration type correctness.

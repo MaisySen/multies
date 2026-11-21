@@ -17,8 +17,10 @@ export async function consentApp(deps:Deps,store:OwnedStore){
  await verify(store);
  if(store.appDb!==deps.db)throw new Error('auth database and owned consent store must be identical');
  const app=new Hono<AppEnv>();
- app.use('*',async(c,next)=>{c.set('deps',deps);c.set('ip',c.req.header('cf-connecting-ip')??'unknown');c.set('log',deps.log!);c.header('Cache-Control','no-store');c.header('Referrer-Policy','no-referrer');await next();});
+ app.use('*',async(c,next)=>{c.set('deps',deps);c.set('ip','owned-disposable-rig');c.set('log',deps.log!);c.header('Cache-Control','no-store');c.header('Referrer-Policy','no-referrer');await next();});
  app.use('/api/*',csrfGuard);
+ // No transport peer is available in app.request. This harness uses ONE fixed
+ // rig-wide budget, not caller headers or a claim of trusted client IP.
  app.use('/api/*',rateLimit('handoff',c=>`consent:${c.var.ip}`,{countReads:true}));
  const session=async(headers:Headers)=>{const s=await mnetPerson(deps,headers);if(!(await store.all({sql:actorSql,values:[s.id,s.userId]})).length)throw new HttpError(401,'consent_sign_in','Sign in to view consent records.');return s;};
  const listOwn=async(id:string,where:string,values:(string|number)[])=>store.all<Row>({sql:selectSql+where,values:[id,...values]});
