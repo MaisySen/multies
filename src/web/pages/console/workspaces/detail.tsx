@@ -106,7 +106,7 @@ export function ConsoleWorkspaceDetailPage() {
   const tab = useDetailTab(TABS);
   if (q.isPending) {
     return (
-      <div className="space-y-4" aria-busy="true" aria-label="Loading the workspace">
+      <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading the workspace">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-64 rounded-xl" />

@@ -2,7 +2,7 @@
  * OPS1 Trends: the light half of the console charts. Pure helpers (day filling, number and date wording, chart
  * summaries), the KPI tile, an SVG sparkline, the range chips and the chart card. Nothing here imports recharts, so
  * the console shell and the Overview can import this module statically; the recharts charts live in ./charts and load
- * on demand through LazyTrendLine and LazyTrendBars below (or `React.lazy(() => import("./charts"))` style imports).
+ * on demand through LazyTrendLine and LazyTrendBars below (made with lazyPage, like every lazily loaded module).
  *
  * Data shape everywhere: `{ day: "YYYY-MM-DD", value: number | null }[]`. A null value means "no data for that day"
  * and is never drawn as zero: lines break, bars are left out, sparklines skip it.
@@ -15,12 +15,13 @@
  *     <LazyTrendLine label="Deliveries" series={[{ label: "Sent", rows: sent }, { label: "Failed", rows: failed, tone: "bad" }]} />
  *   </ChartCard>
  */
-import { lazy, Suspense, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Link } from "react-router";
 import { IconAlertCircle, IconArrowDown, IconArrowUp, IconMinus } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
+import { lazyPage } from "@/web/components/lazy-page";
 
 // ---------------------------------------------------------------- types
 
@@ -438,6 +439,7 @@ export function KpiTile({ label, value, previous, higherIsBetter = true, format 
 // ---------------------------------------------------------------- lazy charts
 
 /** The recharts charts, loaded on first render so recharts stays out of the console shell chunk. Put them inside a
- *  ChartCard (which supplies the Suspense skeleton) or your own Suspense. */
-export const LazyTrendLine = lazy(() => import("./charts").then((m) => ({ default: m.TrendLine })));
-export const LazyTrendBars = lazy(() => import("./charts").then((m) => ({ default: m.TrendBars })));
+ *  ChartCard (which supplies the Suspense skeleton) or your own Suspense. Made with lazyPage (R73: one retry, named
+ *  export check); quiet, so a chart whose code could not load leaves its card empty instead of a page sized note. */
+export const LazyTrendLine = lazyPage(() => import("./charts"), "TrendLine", { quiet: true });
+export const LazyTrendBars = lazyPage(() => import("./charts"), "TrendBars", { quiet: true });

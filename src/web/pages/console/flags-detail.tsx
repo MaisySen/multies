@@ -109,7 +109,7 @@ function Body({ flagKey }: { flagKey: string }) {
     getNextPageParam: (last) => last.overrides.nextCursor,
   });
   if (q.isPending) {
-    return <div className="space-y-3" aria-busy="true" aria-label="Loading the flag"><Skeleton className="h-32 rounded-xl" /><Skeleton className="h-9 w-72" /><Skeleton className="h-16 rounded-xl" /></div>;
+    return <div className="space-y-3" role="status" aria-busy="true" aria-label="Loading the flag"><Skeleton className="h-32 rounded-xl" /><Skeleton className="h-9 w-72" /><Skeleton className="h-16 rounded-xl" /></div>;
   }
   if (q.error) {
     return <EmptyState icon={<IconWarning />} title="Couldn't load this flag" body={errorMessage(q.error)} action={<Button variant="secondary" onClick={() => void q.refetch()}>Try again</Button>} />;

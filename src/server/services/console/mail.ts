@@ -10,7 +10,7 @@
  *
  * The small keyset helpers below are shared with `./developer.ts`.
  */
-import { and, asc, desc, eq, gte, inArray, lt, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { deliveries, domains, importJobs, mailboxes, mailConnections, mailSchedules, organizations, suppressions } from "../../db/schema";
 import { badRequest, notFound } from "../../lib/errors";
@@ -233,7 +233,7 @@ export async function listDomains(deps: Deps, filters: DomainFilters, page: Page
     .leftJoin(organizations, eq(organizations.id, domains.orgId))
     .where(and(
       filters.orgId ? eq(domains.orgId, filters.orgId) : undefined,
-      filters.status?.length ? inArray(domains.status, filters.status) : undefined,
+      filters.status?.length ? inIds(domains.status, filters.status) : undefined,
       q ? containsAny([domains.name], q) : undefined,
       keysetAfter(spec, domains.id, page.sort.dir, page.cursor),
     ))
@@ -304,7 +304,7 @@ export async function listSuppressions(deps: Deps, filters: SuppressionFilters, 
     .where(and(
       filters.orgId ? eq(suppressions.orgId, filters.orgId) : undefined,
       w ? and(gte(suppressions.createdAt, w.from), lt(suppressions.createdAt, w.to)) : undefined,
-      filters.reason?.length ? inArray(suppressions.reason, filters.reason) : undefined,
+      filters.reason?.length ? inIds(suppressions.reason, filters.reason) : undefined,
       q ? containsAny([suppressions.address], q) : undefined,
       keysetAfter(spec, suppressions.id, page.sort.dir, page.cursor),
     ))
@@ -438,7 +438,7 @@ export async function listMailConnections(deps: Deps, filters: MailConnectionFil
   }).from(c)
     .leftJoin(organizations, eq(organizations.id, c.orgId))
     .where(and(
-      filters.status?.length ? inArray(c.status, filters.status) : undefined,
+      filters.status?.length ? inIds(c.status, filters.status) : undefined,
       filters.orgId ? eq(c.orgId, filters.orgId) : undefined,
       q ? containsAny([c.email], q) : undefined,
       keysetAfter(spec, c.id, page.sort.dir, page.cursor),
@@ -482,7 +482,7 @@ export async function listImportJobs(deps: Deps, filters: ImportJobFilters, page
   }).from(j)
     .leftJoin(organizations, eq(organizations.id, j.orgId))
     .where(and(
-      filters.status?.length ? inArray(j.status, filters.status) : undefined,
+      filters.status?.length ? inIds(j.status, filters.status) : undefined,
       filters.orgId ? eq(j.orgId, filters.orgId) : undefined,
       w ? and(gte(j.createdAt, w.from), lt(j.createdAt, w.to)) : undefined,
       keysetAfter(spec, j.id, page.sort.dir, page.cursor),

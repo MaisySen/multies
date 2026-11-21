@@ -120,7 +120,7 @@ export function ConsoleUserDetailPage() {
   const q = useQuery({ queryKey: userKey(id), queryFn: () => usersApi.detail(id), enabled: !!id });
   if (q.isPending) {
     return (
-      <div className="space-y-4" aria-busy="true" aria-label="Loading the account">
+      <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading the account">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-9 w-72" />
         <Skeleton className="h-10 w-full" />
