@@ -253,6 +253,11 @@ function failing(lastCheck: string | null): string[] {
   } catch { return []; }
 }
 
+/** A domain's id, workspace, name and state (never its keys or token), or a 404. */
+export async function getDomainRef(deps: Deps, id: string): Promise<{ id: string; orgId: string; name: string; status: DomainStatus }> {
+  return found(await deps.db.select({ id: domains.id, orgId: domains.orgId, name: domains.name, status: domains.status }).from(domains).where(eq(domains.id, id)).get(), "Domain");
+}
+
 export interface RecheckDomainResult { id: string; orgId: string; name: string; before: DomainStatus; status: DomainStatus; changed: boolean; verified: boolean; failingRecords: string[] }
 
 /** Runs the same live DNS check the workspace's "Check DNS" button runs (services/domains.ts verifyDomain). */
@@ -310,9 +315,15 @@ export async function listSuppressions(deps: Deps, filters: SuppressionFilters, 
 
 export interface RemovedSuppression { id: string; orgId: string; address: string; reason: SuppressionReason }
 
+/** One suppression by id (the route needs its workspace for the audit row before it changes anything), or a 404. */
+export async function getSuppression(deps: Deps, id: string): Promise<RemovedSuppression> {
+  return found(await deps.db.select({ id: suppressions.id, orgId: suppressions.orgId, address: suppressions.address, reason: suppressions.reason })
+    .from(suppressions).where(eq(suppressions.id, id)).get(), "Suppressed address");
+}
+
 /** Lets mail go to the address again (the workspace's own unsuppress). */
 export async function removeSuppression(deps: Deps, id: string): Promise<RemovedSuppression> {
-  const s = found(await deps.db.select({ orgId: suppressions.orgId }).from(suppressions).where(eq(suppressions.id, id)).get(), "Suppressed address");
+  const s = await getSuppression(deps, id);
   const row = await unsuppress(deps.db, s.orgId, id);
   return { id: row.id, orgId: row.orgId, address: row.address, reason: row.reason };
 }
@@ -364,6 +375,12 @@ export async function listQueuedSendsAll(deps: Deps, filters: QueuedSendFilters,
       recipients: i ? (i.to?.length ?? 0) + (i.cc?.length ?? 0) + (i.bcc?.length ?? 0) : 0, forced: !!p.force, dueAt: r.dueAt, createdAt: r.createdAt,
     };
   }, ({ r }) => ({ v: ms(page.sort.field === "createdAt" ? r.createdAt : r.dueAt), id: r.id }));
+}
+
+/** A queued send's id, workspace and state (no payload), or a 404. */
+export async function getQueuedSendRef(deps: Deps, id: string): Promise<{ id: string; orgId: string; status: string; dueAt: Date }> {
+  return found(await deps.db.select({ id: mailSchedules.id, orgId: mailSchedules.orgId, status: mailSchedules.status, dueAt: mailSchedules.dueAt })
+    .from(mailSchedules).where(and(eq(mailSchedules.id, id), eq(mailSchedules.kind, "send"))).get(), "Queued message");
 }
 
 /** "Send anyway": the existing operator action (services/mail/send-queue-r34.ts). Sends past limits, never past the kill switch. */
