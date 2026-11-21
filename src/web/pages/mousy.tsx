@@ -4,7 +4,7 @@ import { ButtonLink, buttonClass } from "@/web/components/ui/button";
 import { IconDownload, IconMonitor } from "@/web/components/ui/icon";
 
 export const MOUSY_DOWNLOAD_URL = "/downloads/Mousy.app.zip";
-export const MOUSY_SHA256 = "3385330f1ea4fdf6ecf4ff3214becad1942857205eadbc5e97ee532bfa8a7fb0";
+export const MOUSY_SHA256 = "f40aca73a37b57be1523c3067fe369bbc750bb4233b22ba53e404eb02ba123ac";
 
 export function MousyDownload({ compact = false }: { compact?: boolean }) {
   // Keep SSR neutral. A phone or Windows visitor should not mistake this for a web feature.
@@ -74,7 +74,7 @@ export function MousyPage() {
         <h2 id="mousy-limits" className="text-lg font-semibold">What this build does, and what still needs testing</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-muted">
           <li>The downloadable build passed its automated Mac build and unit tests, including telemetry-privacy tests, plus signing, launch and guided-tour checks on macOS CI. Real head tracking still needs testing with physical headphones on a Mac.</li>
-          <li>This download processes motion on your Mac. Its optional crash-reporting and usage-diagnostics code (Sentry and PostHog) ships with no server configured and is off by default, so as delivered it makes no network requests. Head-motion data, screen content and keystrokes are never collected. Automatic updates are off.</li>
+          <li>This download processes motion on your Mac. Its optional crash reporting and usage diagnostics (Sentry and PostHog, the existing Multies projects) are off by default behind separate toggles in the app's Settings, so nothing is sent unless you opt in. Head-motion data, screen content and keystrokes are never collected. Automatic updates are off.</li>
           <li>When replacing this ad-hoc signed app, you may need to remove the old Accessibility entry and grant permission again.</li>
         </ul>
         <details className="mt-5 border-t border-line pt-4 text-sm"><summary className="cursor-pointer font-medium">Verify your download</summary><p className="mt-3 text-muted">SHA-256 of Mousy.app.zip</p><code className="mt-2 block break-all text-xs leading-relaxed text-muted">{MOUSY_SHA256}</code></details>
