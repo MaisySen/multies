@@ -4900,7 +4900,7 @@ export const mnetEnrollmentDecisions = sqliteTable("mnet_enrollment_decisions", 
 
 // Versioned local enrollment journal. Provenance is not a cascading entitlement.
 // Retention strips pre-reservation tuples; attempt hash tombstones refuse reuse.
-// Reserve/event fields are local-only; no receipt/status/ack state exists.
+// Service receipts/events are local historical bookkeeping, never node authority.
 export const mnetEnrollmentHandoffs = sqliteTable("mnet_enrollment_handoffs", {
  id: text("id").primaryKey(), attemptHash: text("attempt_hash").notNull(),
  version: integer("version").notNull(), purpose: text("purpose").notNull(),
@@ -4908,8 +4908,8 @@ export const mnetEnrollmentHandoffs = sqliteTable("mnet_enrollment_handoffs", {
  attemptId: text("attempt_id"), devicePublicKey: text("device_public_key"), credentialDigest: text("credential_digest"),
  issuer: text("issuer"), registrarOrigin: text("registrar_origin"), audience: text("audience"), networkId: text("network_id"), mappingRevision: text("mapping_revision"),
  challenge: text("challenge"), state: text("state"), platform: text("platform"), redirectUri: text("redirect_uri"),
- status: text("status", { enum: ["pending", "approved", "declined", "issued", "expired", "withdrawn", "reserved"] }).notNull(),
- serviceId: text("service_id"), reserveId: text("reserve_id"), descriptorDigest: text("descriptor_digest"), reserveDeadline: ts("reserve_deadline"), events: text("events").notNull().default("[]"),
+ status: text("status", { enum: ["pending", "approved", "declined", "issued", "expired", "withdrawn", "reserved", "uncertain", "consumed"] }).notNull(),
+ serviceId: text("service_id"), reserveId: text("reserve_id"), descriptorDigest: text("descriptor_digest"), reserveDeadline: ts("reserve_deadline"), eventSeq: integer("event_seq").notNull().default(0), receiptId: text("receipt_id"), receiptDigest: text("receipt_digest"), descriptorEncodingVersion: integer("descriptor_encoding_version"), events: text("events").notNull().default("[]"),
  codeHash: text("code_hash"), ticketHash: text("ticket_hash"),
  createdAt: ts("created_at").notNull(), expiresAt: ts("expires_at").notNull(), codeExpiresAt: ts("code_expires_at"), ticketExpiresAt: ts("ticket_expires_at"),
  terminalAt: ts("terminal_at"), scrubbedAt: ts("scrubbed_at"),

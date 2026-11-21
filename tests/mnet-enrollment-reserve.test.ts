@@ -10,7 +10,7 @@ const handoffPolicy={consentMs:600000,codeMs:60000,ticketMs:120000,fullRowRetent
 const path="/api/mnet-enrollment-service-v1/reserve";
 async function setup(){
  const secret=randomToken();
- const fixture={reserveMs:30000,eventCapacity:2,requestsPerMinute:100,keys:[{keyId:"fixture-key",serviceId:"fixture-registrar",active:true,digest:await hash(secret),registrarOrigin:"https://registrar.test",issuer:"https://issuer.test/path",audience:"fixture-enrollment"}]};
+ const fixture={reserveMs:30000,eventCapacity:3,serviceBudgets:{reserve:100,status:100,ack:100},requestsPerMinute:100,keys:[{keyId:"fixture-key",serviceId:"fixture-registrar",active:true,digest:await hash(secret),registrarOrigin:"https://registrar.test",issuer:"https://issuer.test/path",audience:"fixture-enrollment"}]};
  const e=await makeTestApp({MNET_ENROLLMENT_HANDOFF:"on",MNET_ENROLLMENT_HANDOFF_FIXTURE:JSON.stringify(handoffPolicy),MNET_ENROLLMENT_SERVICE:"on",MNET_ENROLLMENT_SERVICE_FIXTURE:JSON.stringify(fixture)});
  const person=new Client(e.app);await person.signup();const user=await e.db.select().from(users).where(eq(users.email,person.email!)).get();await e.db.update(users).set({emailVerified:true}).where(eq(users.id,user!.id));const member=await e.db.select().from(members).where(eq(members.userId,user!.id)).get();
  e.deps.config.mnetEnrollmentOperator={revision:"fixture-r1",issuer:fixture.keys[0].issuer,registrarOrigin:fixture.keys[0].registrarOrigin,audience:fixture.keys[0].audience,bindings:[{workspaceId:member!.organizationId,networkId:"fixture-net",principals:[user!.id]}]};
@@ -75,7 +75,7 @@ it.each(["tuple","scope","mapping","membership","deadline","events"])("refuses r
  if(mode==="mapping")e.deps.config.mnetEnrollmentOperator!.revision="changed";
  if(mode==="membership")await e.db.update(members).set({disabledAt:new Date()}).where(eq(members.userId,e.user.id));
  if(mode==="deadline"){const row=await e.db.select().from(journal).get();e.deps.now=()=>row!.ticketExpiresAt!;}
- if(mode==="events")await e.db.update(journal).set({events:JSON.stringify([{id:"fixture-1"},{id:"fixture-2"}])});
+ if(mode==="events")await e.db.update(journal).set({eventSeq:2,events:JSON.stringify([{id:"fixture-1"},{id:"fixture-2"}])});
  expect((await e.send(p)).status).toBe(403);const row=await e.db.select().from(journal).get();expect(row!.status).toBe("issued");expect(row!.reserveId).toBeNull();expect(JSON.parse(row!.events)).toHaveLength(mode==="events"?2:0);
 });
 it("uses dedicated service budget while inherited app limiter still stacks",async()=>{
@@ -96,7 +96,7 @@ it("allows active-key rotation only for the same service scope and never extends
  e.deps.config.mnetEnrollmentServiceFixture!.keys[1].serviceId="other-service";expect((await e.send(e.request,{authorization:`Bearer rotated.${next}`})).status).toBe(403);
 });
 
-it("executes migration rebuild and reserve/event SQL on local Miniflare D1, not deployed D1",async()=>{
+it("executes migration rebuild, reserve and historical status/ack SQL on local Miniflare D1, not deployed D1",async()=>{
  const {Miniflare,convertV4MiniflareOptions}=await import("miniflare"),{drizzle}=await import("drizzle-orm/d1"),{applyMigrations,migrationDriver}=await import("@/server/db"),schema=await import("@/server/db/schema"),{authenticateEnrollmentService,reserveEnrollment}=await import("@/server/services/mnet-enrollment-reserve");
  const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:"export default { fetch() { return new Response('fixture'); } }",compatibilityDate:"2026-10-26",d1Databases:["DB"]}));
  try{
@@ -104,7 +104,9 @@ it("executes migration rebuild and reserve/event SQL on local Miniflare D1, not 
   // Isolated SQL fixture, not the full app migration chain (which fails on a
   // historical0073 entry in this emulator, cause unresolved and recorded separately).
   const {MIGRATIONS}=await import("@/server/db/migrations.generated");
-  await applyMigrations(migrationDriver(raw),MIGRATIONS.filter(m=>/^017[34]_/.test(m.name)));
+  await applyMigrations(migrationDriver(raw),MIGRATIONS.filter(m=>/^017[345]_/.test(m.name)));
+  const indexes=await raw.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='mnet_enrollment_handoffs'").all();
+  for(const name of ['mnet_handoff_attempt_uq','mnet_handoff_code_uq','mnet_handoff_ticket_uq','mnet_handoff_reserve_uq','mnet_handoff_owner_idx','mnet_handoff_retention_idx'])expect(indexes.results.map((r:{name:unknown})=>r.name)).toContain(name);
   for(const ddl of ["CREATE TABLE users(id text PRIMARY KEY,banned integer,email_verified integer)","CREATE TABLE organizations(id text PRIMARY KEY,is_demo integer,suspended_at integer,require_sso integer)","CREATE TABLE members(user_id text,organization_id text,kind text,disabled_at integer,role text)","CREATE TABLE sessions(id text PRIMARY KEY,user_id text,expires_at integer,impersonated_by text,login_method text)"])await raw.prepare(ddl).run();
   const e=await setup(),db=drizzle(raw,{schema});
   // Minimal source-matching eligibility columns only. The actual reserve
@@ -120,6 +122,15 @@ it("executes migration rebuild and reserve/event SQL on local Miniflare D1, not 
   expect(await reserveEnrollment(deps,service,e.request)).toEqual(first);
   const row=await db.select().from(journal).get();expect(row!.status).toBe("reserved");expect(JSON.parse(row!.events)).toHaveLength(1);
   await sweepHandoffs({...deps,now:()=>new Date(Date.now()+86400000)});expect(await db.select().from(journal).get()).toEqual(row);
+  const {statusEnrollment,acknowledgeEnrollment}=await import("@/server/services/mnet-enrollment-bookkeeping");
+  const late={...deps,now:()=>new Date(first.deadline)},proof={handoffId:first.handoffId,attemptId:e.request.launch.attemptId,reserveId:first.reserveId!,descriptorDigest:first.descriptorDigest!};
+  await raw.prepare("CREATE TRIGGER fixture_d1_append_abort BEFORE UPDATE OF events ON mnet_enrollment_handoffs BEGIN SELECT RAISE(ABORT,'fixture d1 append fail'); END").run();
+  await expect(statusEnrollment(late,service,proof)).rejects.toThrow();expect((await db.select().from(journal).get())!.status).toBe("reserved");expect((await db.select().from(journal).get())!.eventSeq).toBe(1);
+  await raw.prepare("DROP TRIGGER fixture_d1_append_abort").run();
+  expect((await statusEnrollment(late,service,proof)).status).toBe("uncertain");
+  const receipt={...proof,receiptId:randomToken(),receiptDigest:randomToken()},ack=await acknowledgeEnrollment(late,service,receipt);
+  expect(ack.status).toBe("consumed");expect(await acknowledgeEnrollment(late,service,receipt)).toEqual(ack);expect((await db.select().from(journal).get())!.eventSeq).toBe(3);
+
  }finally{await mf.dispose();}
 },30000);
 
@@ -132,7 +143,7 @@ it("preserves existing rows/indexes across CHECK rebuild and rolls migration fai
   expect(()=>db.run(sql`UPDATE mnet_enrollment_handoffs SET status='reserved'`)).toThrow();
   await expect(applyMigrations(driver,[{name:"fixture_rebuild_fault",statements:[...next[0].statements,"INSERT INTO deliberately_missing_table VALUES(1)"]}])).rejects.toThrow();
   const afterFault=await db.all(sql`SELECT * FROM mnet_enrollment_handoffs`);expect(afterFault).toHaveLength(1);expect(afterFault[0].status).toBe("issued");expect(afterFault[0]).not.toHaveProperty("reserve_id");
-  await applyMigrations(driver,next);const row=await db.select().from(journal).get();expect(row).toMatchObject({id:"fixture-old",attemptHash:"fixture-attempt",status:"issued",reserveId:null,events:"[]"});
+  await applyMigrations(driver,next);const row=(await db.all(sql`SELECT * FROM mnet_enrollment_handoffs`))[0];expect(row).toMatchObject({id:"fixture-old",attempt_hash:"fixture-attempt",status:"issued",reserve_id:null,events:"[]"});
   const indexes=await db.all(sql`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='mnet_enrollment_handoffs'`);expect(indexes.map(r=>r.name)).toContain("mnet_handoff_reserve_uq");
  }finally{client.close();}
 });
@@ -156,9 +167,9 @@ it("rejects duplicate Authorization on actual local HTTP ingress before ticket m
   expect(status).toBe(403);expect((await e.db.select().from(journal).get())!.status).toBe("issued");
  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
-it("refuses valid-config production startup/runtime and provides no status/ack consumers",async()=>{
+it("refuses valid-config production startup/runtime and provides no native recovery/consume consumers",async()=>{
  const e=await setup();expect(()=>loadConfig({APP_SECRET:"t".repeat(40),APP_MODE:"production",MNET_ENROLLMENT_SERVICE:"on",MNET_ENROLLMENT_SERVICE_FIXTURE:JSON.stringify(e.deps.config.mnetEnrollmentServiceFixture)})).toThrow();
- for(const endpoint of ["/status","/ack","/recover","/consume"])expect((await e.app.request("/api/mnet-enrollment-service-v1"+endpoint,{method:"POST",headers:{host:"localhost","content-type":"application/json",authorization:e.authorization},body:"{}"})).status).toBe(404);
+ for(const endpoint of ["/recover","/consume"])expect((await e.app.request("/api/mnet-enrollment-service-v1"+endpoint,{method:"POST",headers:{host:"localhost","content-type":"application/json",authorization:e.authorization},body:"{}"})).status).toBe(404);
  e.deps.config.mode="production";expect((await e.send()).status).toBe(404);expect((await e.db.select().from(journal).get())!.status).toBe("issued");
 });
 it("does not look up a ticket when service auth fails",async()=>{
@@ -169,7 +180,7 @@ it("does not look up a ticket when service auth fails",async()=>{
 });
 it("a reserve ID claimed for another handoff gives controlled refusal with no second event",async()=>{
  const e=await setup();expect((await e.send()).status).toBe(200);const original=(await e.db.select().from(journal).get())!,ticket=randomToken(),attemptId=randomToken(),id=randomToken();
- await e.db.insert(journal).values({...original,id,attemptHash:await hash(attemptId),attemptId,ticketHash:await hash(ticket),status:"issued",reserveId:null,serviceId:null,descriptorDigest:null,reserveDeadline:null,events:"[]"});
+ await e.db.insert(journal).values({...original,id,attemptHash:await hash(attemptId),attemptId,ticketHash:await hash(ticket),status:"issued",reserveId:null,serviceId:null,descriptorDigest:null,reserveDeadline:null,eventSeq:0,descriptorEncodingVersion:null,events:"[]"});
  expect((await e.send({...e.request,handoffId:id,ticket,launch:{...e.request.launch,attemptId}})).status).toBe(403);
  expect(await e.db.select().from(journal).where(eq(journal.id,id)).get()).toMatchObject({status:"issued",events:"[]",reserveId:null});
 });

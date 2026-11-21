@@ -28,7 +28,7 @@ export async function authenticateEnrollmentService(d:Deps,headers:Headers){
  if(!key||!key.active||!safeEqual(actual,key.digest))throw denied();
  return {...key,config};
 }
-type Service=Awaited<ReturnType<typeof authenticateEnrollmentService>>;
+export type Service=Awaited<ReturnType<typeof authenticateEnrollmentService>>;
 function currentBinding(d:Deps,r:typeof journal.$inferSelect,service:Service){
  const {operator}=handoffConfig(d),b=operator.bindings.find(b=>b.workspaceId===r.workspaceId&&b.principals.includes(r.userId!));
  // No pre-reservation withdrawal helper: reserved history is never destroyed.
@@ -56,7 +56,7 @@ export async function reserveEnrollment(d:Deps,service:Service,p:z.infer<typeof 
  const deadline=new Date(at+service.config.reserveMs),eventId=randomToken();
  const event=JSON.stringify({version:1,seq:1,id:eventId,kind:"reserve",serviceId:service.serviceId,handoffId:r.id,reserveId:p.reserveId,descriptorDigest,mappingRevision:r.mappingRevision,at});
  currentBinding(d,r,service);
- const won=await d.db.update(journal).set({status:"reserved",serviceId:service.serviceId,reserveId:p.reserveId,descriptorDigest,reserveDeadline:deadline,events:sql`json_insert(${journal.events},'$[#]',json(${event}))`}).where(and(eq(journal.id,r.id),eq(journal.status,"issued"),eq(journal.ticketHash,ticketHash),gt(journal.ticketExpiresAt,new Date(at)),sql`NOT EXISTS (SELECT 1 FROM mnet_enrollment_handoffs other WHERE other.reserve_id=${p.reserveId})`,sql`json_array_length(${journal.events})=0`,sql`json_array_length(${journal.events})<${service.config.eventCapacity}`,liveEligibility(d,r.userId!,r.workspaceId!,r.sessionId!))).returning({id:journal.id}).get();
+ const won=await d.db.update(journal).set({status:"reserved",serviceId:service.serviceId,reserveId:p.reserveId,descriptorDigest,reserveDeadline:deadline,eventSeq:1,descriptorEncodingVersion:1,events:sql`json_insert(${journal.events},'$[#]',json(${event}))`}).where(and(eq(journal.id,r.id),eq(journal.status,"issued"),eq(journal.ticketHash,ticketHash),gt(journal.ticketExpiresAt,new Date(at)),sql`NOT EXISTS (SELECT 1 FROM mnet_enrollment_handoffs other WHERE other.reserve_id=${p.reserveId})`,sql`json_array_length(${journal.events})=0`,sql`json_array_length(${journal.events})<${service.config.eventCapacity}`,liveEligibility(d,r.userId!,r.workspaceId!,r.sessionId!))).returning({id:journal.id}).get();
  if(!won){
   // A concurrent identical request can lose its UPDATE but observe the one
   // immutable winner. Conflicting IDs/digests never get a fresh reservation.

@@ -1,3 +1,6 @@
+import type { Context } from "hono";
+import { HttpError } from "../lib/errors";
+import { serviceRecordRequest, serviceAckRequest, statusEnrollment, acknowledgeEnrollment } from "../services/mnet-enrollment-bookkeeping";
 import { Hono } from "hono";
 import type { AppEnv } from "../context";
 import { DbRateLimitStore } from "../lib/rate-limit";
@@ -15,12 +18,21 @@ export function mnetEnrollmentReserveRoutes(){
   if(count.totalHits>config.requestsPerMinute){c.header("Retry-After","60");return c.json({error:{code:"rate_limited",message:"Too many requests."}},429);}
   await next();
  });
- r.post("/reserve",async(c)=>{
+ async function authenticated(c:Context<AppEnv>,operation:"reserve"|"status"|"ack"){
   const service=await authenticateEnrollmentService(c.var.deps,c.req.raw.headers);
+  const store=new DbRateLimitStore(()=>c.var.deps.db,()=>c.var.deps.now().getTime());
+  const count=await store.increment(`enrollment-auth-service:${service.serviceId}:${operation}`);
+  if(count.totalHits>service.config.serviceBudgets[operation])throw new HttpError(429,"rate_limited","Too many requests.");
+  return service;
+ }
+ r.post("/reserve",async(c)=>{
+  const service=await authenticated(c,"reserve");
   // Auth precedes reading/parsing body, ticket lookup and reservation mutation.
   const p=await body(c,reserveRequest);
   return c.json(await reserveEnrollment(c.var.deps,service,p));
  });
- // No status/ack/consume/reconciliation/native-recovery path.
+ r.post("/status",async(c)=>{const service=await authenticated(c,"status");return c.json(await statusEnrollment(c.var.deps,service,await body(c,serviceRecordRequest)));});
+ r.post("/ack",async(c)=>{const service=await authenticated(c,"ack");return c.json(await acknowledgeEnrollment(c.var.deps,service,await body(c,serviceAckRequest)));});
+ // Historical service bookkeeping only, no consume/native-recovery/node path.
  return r;
 }
