@@ -12,7 +12,8 @@ Update [the handover](release-handover.md) after a milestone changes. Record wha
 
 1. Include app icons, splash and other required assets in the actual source archive. Exclude signing material and environment files. Run typecheck, tests, native prebuild and bundling on the exact candidate.
 2. Compare iOS update fingerprints on the submitted and build-host inputs. Keep the existing update channel and runtime policy. Use a normal dependency layout inside the project so paths do not differ between build hosts.
-3. Verify the built app identity, Store provisioning, main app signature and update channel on the actual output. Submission to a test track and installation on the test device are separate checkpoints. Record each separately.
+3. For App Store Connect, use Xcode 26 or later and iOS SDK 26 or later. Verify the actual SDK, app identity, Store provisioning, main app signature, update channel and runtime in the signed output. Submission to a test track and installation on the test device are separate checkpoints. Record each separately.
+4. Match the update to the installed test build’s embedded runtime and channel. Do not use OTA to introduce or change app features or bypass App Review; put feature and native changes through a new signed build and review.
 
 ## Wallet and integrations
 
