@@ -15,6 +15,8 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const installed=process.env.MNET_DEVELOPMENT_SETUP_BINARY;
 const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
+const networkCase=variant.startsWith("network-tcp");
+const networkStopped=variant==="network-tcp-cancel"||variant==="network-tcp-expiry";
 const displayUnavailable=["result-preexisting","result-write-failure","result-open-failure"].includes(variant);
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
@@ -59,10 +61,13 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   const workflow={version:1,mode:"development",revision:"workflow-fixture-r1",source_id:"fixture",policy,challenge_ms:10000,max_lease_ms:15000,max_observation_age_ms:20000,clock_uncertainty_ms:1,max_live_per_principal:4,max_proof_attempts:4,max_live:4,max_attempts:8,max_records:8,max_state_bytes:1048576};
   await writeFile(join(dir,"coordinator.tmp"),JSON.stringify({mode,code:new URL(choice.body.redirectTo).searchParams.get("code"),sources,workflow}),{mode:0o600});await rename(join(dir,"coordinator.tmp"),join(dir,"coordinator.json"));
   if(mode!=="source-denied"){
+   const approveDisposableCounterpart=async()=>{
    const peerLaunch=JSON.parse(await waitFile(join(dir,"peer-launch.json"),()=>done));
    const peerPrepared=await e.person.post("/api/mnet-enrollment-v1/authorizations",{...peerLaunch,workspaceId,displayed});expect(peerPrepared.status).toBe(201);
    const peerChoice=await e.person.post(`/api/mnet-enrollment-v1/authorizations/${peerPrepared.body.id}/decision`,{decision:"allow"});expect(peerChoice.status).toBe(200);
    await writeFile(join(dir,"peer-code.tmp"),JSON.stringify({code:new URL(peerChoice.body.redirectTo).searchParams.get("code")}),{mode:0o600});await rename(join(dir,"peer-code.tmp"),join(dir,"peer-code.json"));
+   };
+   if(!networkCase)await approveDisposableCounterpart();
    const nativeLaunch=JSON.parse(await waitFile(join(dir,"native-launch.json"),()=>done));
    // The installed native command opens the system browser. CDP drives that
    // actual opened page, not an API shortcut or a separately invented URL.
@@ -91,6 +96,11 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    expect(await page.getByTestId("mnet-handoff-key").textContent()).toBe(nativeLaunch.devicePublicKey);
    await page.getByRole("combobox").selectOption(workspaceId);
    await page.screenshot({path:"/downloads/mnet-development-installed-consent.png",fullPage:true});
+   if(networkCase){
+    await writeFile(join(dir,"installed-consent-ready"),"actual owned browser login and workspace selection completed",{mode:0o600});
+    await approveDisposableCounterpart();
+    await waitFile(join(dir,"installed-peers-ready"),()=>done);
+   }
    if(variant==="result-write-failure")await chmod(join(dir,"installed-setup"),0o500);
    if(variant==="cancel")await writeFile(join(dir,"installed-cancel-request"),"cancel only this disposable process");
    if(variant==="changed-policy"){const path=join(dir,"installed-setup","native","enrollment-policy-v2.json");const data=JSON.parse(await readFile(path,"utf8"));data.revision+="-changed";await writeFile(path,JSON.stringify(data));}
@@ -109,9 +119,17 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    let resultPage;
    for(let i=0;i<100&&!resultPage;i++){resultPage=context.pages().find(p=>p.url().endsWith("/setup-result.html"));if(!resultPage)await sleep(50);}
    if(!resultPage)throw new Error("actual native result page did not open");
-   await resultPage.getByRole("heading",{name:variant==="success"?"Joining saved. Not connected.":variant==="decline"?"Computer not approved":"Setup did not finish",exact:true}).waitFor();
+   await resultPage.getByRole("heading",{name:variant==="success"||networkCase?"Joining saved. Not connected.":variant==="decline"?"Computer not approved":"Setup did not finish",exact:true}).waitFor();
    await resultPage.screenshot({path:`/downloads/mnet-development-installed-final-${variant}.png`,fullPage:true});
    }else await waitFile(join(dir,"installed-output-ended"),()=>done);
+   if(networkCase&&(!networkStopped||variant==="network-tcp-expiry")){
+    let networkResult;
+    for(let i=0;i<200&&!networkResult;i++){networkResult=context.pages().find(p=>p.url().endsWith("/network-result.html"));if(!networkResult)await sleep(50);}
+    if(!networkResult)throw new Error("actual ended TCP result did not open");
+    await networkResult.getByRole("heading",{name:"Encrypted TCP verified. Session ended.",exact:true}).waitFor();
+    if(variant==="network-tcp-expiry")await networkResult.getByText("That peer's original approved lease ended.",{exact:false}).waitFor();
+    await networkResult.screenshot({path:variant==="network-tcp-expiry"?"/downloads/mnet-development-installed-network-tcp-expiry.png":"/downloads/mnet-development-installed-network-tcp.png",fullPage:true});
+   }
    const late=new URL(nativeLaunch.redirectUri);late.searchParams.set("state",nativeLaunch.state);late.searchParams.set("attemptId",nativeLaunch.attemptId);late.searchParams.set("code","A".repeat(43));
    let callbackClosed=false;try{await context.request.get(late.href,{timeout:1000});}catch{callbackClosed=true;}
    expect(callbackClosed,"ended setup still owns callback listener").toBe(true);
@@ -121,7 +139,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
 
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
-  if(variant!=="success"&&!displayUnavailable){
+  if(variant!=="success"&&!networkCase&&!displayUnavailable){
     const committed=variant==="lost-response"||variant==="map-failure";
     expect(outcome).toMatchObject({developmentStopped:true,noNativeCredential:variant!=="map-failure",noRegistrarNode:!committed,inputAuthorized:false});
     expect(exchangeCalls).toBe(committed?3:2);expect(reserveCalls).toBe(committed?3:2);
@@ -129,9 +147,11 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     if(variant==="map-failure")expect(outcome.nativeSavedBeforeFailure).toBe(true);
     console.log("PASS stopped actual installed browser",variant);return;
   }
+  if(networkStopped){expect(outcome).toMatchObject({developmentInstalled:true,networkTCPVerified:true,networkStopped:true,nativeSavedBeforeFailure:true,inputAuthorized:false});expect(exchangeCalls).toBe(3);expect(reserveCalls).toBe(3);console.log("PASS installed network active stop",variant);return;}
   expect(outcome).toMatchObject({developmentInstalled:true,nativeOwnedKeyConfirmed:true,nativeProofStateUnchanged:true,nativeStateFinalized:true,nodeDeleted:true,inputAuthorized:false});
   expect(outcome.nativeCurrentPeers).toBeGreaterThanOrEqual(0);
   expect(exchangeCalls).toBe(3);expect(reserveCalls).toBe(3);expect(reserveStatus).toBe(200);
+  if(networkCase)expect(outcome).toMatchObject({networkTCPVerified:true,networkStopped:true});
   console.log("PASS installed development browser/owned native finalization/current map; actual peer count",outcome.nativeCurrentPeers);
 
  }finally{
