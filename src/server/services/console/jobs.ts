@@ -278,6 +278,26 @@ export async function replayJobsByIds(deps: Deps, ids: readonly string[]): Promi
   return { requested: list.length, replayed: await replayJobs(deps, list) };
 }
 
+/**
+ * Replays every dead job, as POST /api/admin/jobs/replay does for a list (services/jobs.ts replayJobs), in batches of
+ * REPLAY_MAX ids. D1: one read of dead ids over jobs_due_idx (status, run_at), then one update per batch; the dead set
+ * stays small because pruneJobs drops dead jobs after 30 days.
+ */
+export async function replayAllDead(deps: Deps): Promise<ReplayResult> {
+  const rows = await deps.db.select({ id: jobs.id }).from(jobs).where(eq(jobs.status, "dead"));
+  const ids = rows.map((r) => r.id);
+  let replayed = 0;
+  for (let i = 0; i < ids.length; i += REPLAY_MAX) replayed += await replayJobs(deps, ids.slice(i, i + REPLAY_MAX));
+  return { requested: ids.length, replayed };
+}
+
+/** What an operator change on one job needs before it runs: its workspace (for the audit rows) and state. Null when no such job. */
+export async function jobTarget(deps: Deps, id: string): Promise<{ id: string; type: string; status: JobStatus; orgId: string | null; attempts: number } | null> {
+  if (!id || id.length > 64) return null;
+  const row = await deps.db.select({ id: jobs.id, type: jobs.type, status: jobs.status, orgId: jobs.orgId, attempts: jobs.attempts }).from(jobs).where(eq(jobs.id, id)).get();
+  return row ?? null;
+}
+
 export const MARKED_DEAD_ERROR = "Stopped by a platform operator.";
 
 /**
