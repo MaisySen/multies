@@ -57,7 +57,7 @@ describe("P1 Settings", () => {
   });
   it("lists Activity and Operator in its own list", () => {
     const admin = SETTINGS_GROUPS.find((g) => g.label === "Admin")!;
-    expect(admin.items.map((i) => i.to)).toEqual(["/app/activity", "/app/settings/data-requests", "/app/admin"]); // R112: Data requests, shown only with REPORTING_R112
+    expect(admin.items.map((i) => i.to)).toEqual(["/app/activity", "/app/settings/data-requests", "/console"]); // R112: Data requests, shown only with REPORTING_R112; OPS1: Operator opens /console
   });
   it("Connections has no Social posts tab", () => {
     expect(CONNECTION_TABS.map((t) => t.label)).toEqual(["Apps", "Mail accounts", "Webhooks"]);
