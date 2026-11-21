@@ -19,9 +19,9 @@ export function createPublicEvidence(dir:string){
  const snapshot=(phase:string,roots:string[])=>event({kind:"owner-summaries",phase,owners:roots.map(publicOwnerSummary)});
  const track=(child:ChildProcess,label:string,publicStdout:boolean)=>{
   const spawnMS=Date.now();event({kind:"process-spawn",label,pid:child.pid??null,spawn_ms:spawnMS});let stderr="",partial="",stderrBytes=0;
-  child.stderr?.on("data",b=>{const text=String(b);stderrBytes+=Buffer.byteLength(text);stderr=(stderr+text).slice(0,16384);writeFileSync(join(dir,label+".stderr.txt"),stderr,{mode:0o600});});
+  child.stderr?.on("data",b=>{const text=String(b);stderrBytes+=Buffer.byteLength(text);if(publicStdout){stderr=(stderr+text).slice(0,16384);writeFileSync(join(dir,label+".stderr.txt"),stderr,{mode:0o600});}});
   if(publicStdout)child.stdout?.on("data",b=>{partial+=String(b);for(;;){const at=partial.indexOf("\n");if(at<0)break;const line=partial.slice(0,at);partial=partial.slice(at+1);try{const e=JSON.parse(line);event({kind:"public-native-event",label,event:e,spawn_to_stage_ms:Number(e.at_ms)-spawnMS});}catch{event({kind:"invalid-public-event",label});}}});
-  child.once("error",e=>event({kind:"process-error",label,error:e.message}));child.once("close",(code,signal)=>event({kind:"process-exit",label,code,signal,stderr,stderr_bytes_seen:stderrBytes,stderr_truncated:stderrBytes>16384,elapsed_ms:Date.now()-spawnMS}));
+  child.once("error",e=>event({kind:"process-error",label,error:publicStdout?e.message:"process-error-detail-not-retained"}));child.once("close",(code,signal)=>event({kind:"process-exit",label,code,signal,stderr,stderr_bytes_seen:stderrBytes,stderr_truncated:stderrBytes>16384,elapsed_ms:Date.now()-spawnMS}));
  };
  return {event,snapshot,track};
 }
