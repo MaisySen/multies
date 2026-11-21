@@ -11,7 +11,7 @@ import {members} from "@/server/db/schema";
 import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 
 // Opt-in real Multies approval/PKCE/SQLite/source -> private Go crypto/atomic
-// Store workflow. No registered registrar ingress, native State or real device.
+// Store workflow and tagged native State. No production ingress or real device.
 const repo=process.env.MNET_NATIVE_REPO;
 const installed=process.env.MNET_DEVELOPMENT_SETUP_BINARY;
 const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
@@ -107,9 +107,11 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
   if(variant!=="success"){
-    expect(outcome).toMatchObject({developmentStopped:true,noNativeCredential:true,noRegistrarNode:variant!=="lost-response",inputAuthorized:false});
-    expect(exchangeCalls).toBe(variant==="lost-response"?3:2);expect(reserveCalls).toBe(variant==="lost-response"?3:2);
-    if(variant==="lost-response")expect(outcome.remoteCommitted).toBe(true);
+    const committed=variant==="lost-response"||variant==="map-failure";
+    expect(outcome).toMatchObject({developmentStopped:true,noNativeCredential:variant!=="map-failure",noRegistrarNode:!committed,inputAuthorized:false});
+    expect(exchangeCalls).toBe(committed?3:2);expect(reserveCalls).toBe(committed?3:2);
+    if(committed)expect(outcome.remoteCommitted).toBe(true);
+    if(variant==="map-failure")expect(outcome.nativeSavedBeforeFailure).toBe(true);
     console.log("PASS stopped actual installed browser",variant);return;
   }
   expect(outcome).toMatchObject({developmentInstalled:true,nativeOwnedKeyConfirmed:true,nativeProofStateUnchanged:true,nativeStateFinalized:true,nodeDeleted:true,inputAuthorized:false});
