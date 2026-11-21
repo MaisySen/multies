@@ -10,7 +10,8 @@
  * With billing off or Stripe not configured, reads still answer (no invoices) and actions that need Stripe throw
  * `billing_unavailable` (409). Comp and grace changes are local and work either way.
  *
- * OPS1-0174: the comp end date and note, and the event summary, go through ../billing/ops1-0174.ts.
+ * The comp end date and note (organizations.compUntil / compNote) and the event summary (billingEvents.summary) came
+ * with migration 0174.
  */
 import { and, eq, getTableColumns, isNotNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { alias, type SQLiteColumn } from "drizzle-orm/sqlite-core";
@@ -28,7 +29,7 @@ import {
 } from "../billing";
 import { sendingPausedForPayment } from "../billing/dunning";
 import { isStripeError } from "../billing/stripe-lazy";
-import { OPS1_0174, compExpiryFields, compUntilColumn, eventSummaryColumn, readCompExpiry } from "../billing/ops1-0174";
+import { compExpiryFields, readCompExpiry } from "../billing/ops1-0174";
 
 type Org = typeof organizations.$inferSelect;
 const DAY = 86_400_000;
@@ -164,7 +165,7 @@ function dunningOf(org: Org, now: Date) {
 
 export type SubscriptionItem = {
   orgId: string; name: string; plan: PlanId; effectivePlan: PlanId;
-  comp: boolean; compUntil: string | null;
+  comp: boolean; compUntil: string | null; compNote: string | null;
   status: string | null; interval: "month" | "year" | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean;
   pastDue: boolean; stripeCustomerId: string | null; stripeSubscriptionId: string | null; createdAt: string;
 };
@@ -172,7 +173,7 @@ export type SubscriptionItem = {
 function subscriptionItem(org: Org): SubscriptionItem {
   return {
     orgId: org.id, name: org.name, plan: org.plan, effectivePlan: effectivePlanId(org),
-    comp: org.compPlan, compUntil: iso(readCompExpiry(org).compUntil),
+    comp: org.compPlan, compUntil: iso(org.compUntil), compNote: org.compNote,
     status: org.subscriptionStatus, interval: org.billingInterval ?? null, currentPeriodEnd: iso(org.currentPeriodEnd), cancelAtPeriodEnd: org.cancelAtPeriodEnd,
     pastDue: !!org.pastDueSince, stripeCustomerId: org.stripeCustomerId, stripeSubscriptionId: org.stripeSubscriptionId, createdAt: org.createdAt.toISOString(),
   };
@@ -241,10 +242,9 @@ export async function listBillingEvents(deps: Deps, input: { orgId?: string | nu
     if (!/^[a-z0-9_.]{1,80}$/.test(input.type)) throw badRequest("Unknown event type.");
     conds.push(eq(billingEvents.type, input.type));
   }
-  const summaryCol = eventSummaryColumn(); // OPS1-0174
   const rows = await deps.db.select({
     id: billingEvents.id, type: billingEvents.type, orgId: billingEvents.orgId, createdAt: billingEvents.createdAt, orgName: organizations.name,
-    summary: summaryCol ? sql<string | null>`${summaryCol}` : sql<string | null>`null`,
+    summary: billingEvents.summary,
     _k: sql<string | number>`${ks.key}`, _id: billingEvents.id,
   }).from(billingEvents).leftJoin(organizations, eq(organizations.id, billingEvents.orgId))
     .where(and(...conds)).orderBy(...ks.order).limit(ks.limit + 1);
@@ -314,7 +314,7 @@ export async function getWorkspaceBilling(deps: Deps, orgId: string) {
     orgId: org.id, name: org.name,
     billing: { enabled: deps.config.billing.enabled && !!deps.config.billing.stripeSecretKey, testMode: deps.config.billing.testMode },
     plan: org.plan, effectivePlan: effective,
-    comp: { on: org.compPlan, until: iso(comp.compUntil), note: comp.compNote, expirySupported: OPS1_0174.comp },
+    comp: { on: org.compPlan, until: iso(comp.compUntil), note: comp.compNote, expirySupported: true },
     stripe: { customerId: org.stripeCustomerId, subscriptionId: org.stripeSubscriptionId },
     subscription: { status: org.subscriptionStatus, interval: org.billingInterval ?? null, currentPeriodEnd: iso(org.currentPeriodEnd), cancelAtPeriodEnd: org.cancelAtPeriodEnd },
     dunning: dunningOf(org, now),
@@ -384,7 +384,7 @@ export async function opsChangePlan(deps: Deps, target: BillingTarget, plan: Pla
 
 /**
  * Turns an internal comp on (`plan` "business": a comp workspace is treated as Business everywhere, see
- * `effectivePlanId`) or off (`plan` null). `until` (an end date, needs 0174) and `note` are kept with the comp.
+ * `effectivePlanId`) or off (`plan` null). `until` (an end date) and `note` are kept with the comp.
  * Comp on does not cancel a live Stripe subscription: `warnings` says so, and the operator cancels it separately.
  */
 export async function opsSetComp(
@@ -400,14 +400,12 @@ export async function opsSetComp(
     const now = deps.now().getTime();
     if (until.getTime() <= now) throw badRequest("The comp end date must be in the future.");
     if (until.getTime() > now + COMP_MAX_DAYS * DAY) throw badRequest(`The comp can end at most ${COMP_MAX_DAYS} days from now.`);
-    // OPS1-0174: without comp_until a dated comp would silently never end, so it is refused until the column exists.
-    if (!OPS1_0174.comp) throw new HttpError(409, "comp_expiry_unavailable", "Comp end dates need migration 0174. Set the comp without an end date.");
     end = until;
   }
   const cleanNoteValue = on ? cleanNote(note, false) : null;
   const before = await snapshot(deps, target.orgId);
   await deps.db.update(organizations)
-    .set({ compPlan: on, ...compExpiryFields(end, cleanNoteValue) }) // OPS1-0174: until and note are written once the columns exist
+    .set({ compPlan: on, ...compExpiryFields(end, cleanNoteValue) })
     .where(eq(organizations.id, target.orgId));
   forgetOrgCache(target.orgId);
   const after = await snapshot(deps, target.orgId);
@@ -522,14 +520,12 @@ export const EXPIRE_COMPS_BATCH = 100;
 
 /**
  * Ends comps whose end date has passed: comp off, end date and note cleared, one workspace audit row each
- * (`billing.comp_expired`). Up to EXPIRE_COMPS_BATCH workspaces a run. Before 0174 there are no end dates, so it does
- * nothing and says so.
+ * (`billing.comp_expired`). Up to EXPIRE_COMPS_BATCH workspaces a run. `available` is always true (kept for callers
+ * written before 0174).
  */
 export async function expireComps(deps: Deps, now: Date = deps.now()): Promise<{ available: boolean; expired: string[] }> {
-  const col = compUntilColumn(); // OPS1-0174
-  if (!col) return { available: false, expired: [] };
   const due = await deps.db.select({ ...getTableColumns(organizations) }).from(organizations)
-    .where(and(eq(organizations.compPlan, true), isNotNull(col), lte(col, now)))
+    .where(and(eq(organizations.compPlan, true), isNotNull(organizations.compUntil), lte(organizations.compUntil, now)))
     .limit(EXPIRE_COMPS_BATCH);
   const expired: string[] = [];
   for (const org of due) {

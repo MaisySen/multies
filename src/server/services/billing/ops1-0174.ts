@@ -1,56 +1,33 @@
 /**
- * OPS1-0174: the one place that knows about migration 0174 (organizations.comp_until, organizations.comp_note,
- * billing_events.summary). Everything that reads or writes those columns goes through the helpers below.
+ * OPS1-0174: helpers for the columns migration 0174 added (organizations.comp_until, organizations.comp_note,
+ * billing_events.summary), and the plain summary of a Stripe event stored in billing_events.summary.
  *
- * Before 0174 is in the schema the helpers write nothing (Drizzle ignores keys that are not columns of the table),
- * read null and report `OPS1_0174.comp` / `OPS1_0174.eventSummary` as false. Once the columns are in schema.ts they
- * switch on by themselves, because the checks look at the Drizzle table objects. After the merge the integrator may
- * replace the untyped lookups with `organizations.compUntil`, `organizations.compNote` and `billingEvents.summary`.
+ * The migration is in, so these use the typed columns. `OPS1_0174` stays as a constant (both true) for callers and
+ * tests written before the merge.
  */
-import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { billingEvents, organizations } from "../../db/schema";
 import { formatCents } from "@/shared/money";
 
-type OrgInsert = typeof organizations.$inferInsert;
-type EventInsert = typeof billingEvents.$inferInsert;
+type Org = typeof organizations.$inferSelect;
+type OrgUpdate = Pick<typeof organizations.$inferInsert, "compUntil" | "compNote">;
+type EventInsert = Pick<typeof billingEvents.$inferInsert, "summary">;
 
-// OPS1-0174: untyped column lookups, so this file compiles with or without the 0174 columns in schema.ts.
-const orgColumns = organizations as unknown as Record<string, SQLiteColumn | undefined>;
-const eventColumns = billingEvents as unknown as Record<string, SQLiteColumn | undefined>;
+/** Whether the 0174 columns are in the schema (they are). */
+export const OPS1_0174: { readonly comp: boolean; readonly eventSummary: boolean } = { comp: true, eventSummary: true };
 
-/** Whether the 0174 columns are in the schema. */
-export const OPS1_0174: { readonly comp: boolean; readonly eventSummary: boolean } = {
-  comp: !!orgColumns.compUntil && !!orgColumns.compNote,
-  eventSummary: !!eventColumns.summary,
-};
-
-/** organizations.comp_until, or null before 0174. */
-export function compUntilColumn(): SQLiteColumn | null {
-  return OPS1_0174.comp ? orgColumns.compUntil ?? null : null;
+/** The comp end date and note to spread into an organizations insert or update. */
+export function compExpiryFields(until: Date | null, note: string | null): OrgUpdate {
+  return { compUntil: until, compNote: note };
 }
 
-/** billing_events.summary, or null before 0174. */
-export function eventSummaryColumn(): SQLiteColumn | null {
-  return OPS1_0174.eventSummary ? eventColumns.summary ?? null : null;
+/** The comp end date and note of a workspace row. */
+export function readCompExpiry(org: Pick<Org, "compUntil" | "compNote">): { compUntil: Date | null; compNote: string | null } {
+  return { compUntil: org.compUntil ?? null, compNote: org.compNote ?? null };
 }
 
-/** The comp end date and note to spread into an organizations insert or update. Empty before 0174. */
-export function compExpiryFields(until: Date | null, note: string | null): Partial<OrgInsert> {
-  if (!OPS1_0174.comp) return {};
-  return { compUntil: until, compNote: note } as unknown as Partial<OrgInsert>;
-}
-
-/** The comp end date and note of a workspace row; null before 0174. */
-export function readCompExpiry(org: object): { compUntil: Date | null; compNote: string | null } {
-  if (!OPS1_0174.comp) return { compUntil: null, compNote: null };
-  const o = org as { compUntil?: Date | null; compNote?: string | null };
-  return { compUntil: o.compUntil ?? null, compNote: o.compNote ?? null };
-}
-
-/** The summary to spread into a billing_events insert. Empty before 0174. */
-export function billingEventSummaryField(summary: string | null): Partial<EventInsert> {
-  if (!OPS1_0174.eventSummary || !summary) return {};
-  return { summary } as unknown as Partial<EventInsert>;
+/** The summary to spread into a billing_events insert (nothing when there is no summary). */
+export function billingEventSummaryField(summary: string | null): EventInsert {
+  return summary ? { summary } : {};
 }
 
 const SUMMARY_MAX = 200;

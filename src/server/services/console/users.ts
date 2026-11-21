@@ -1,6 +1,6 @@
 /**
- * OPS1 Phase 1: the operator console's read model for user accounts, plus two plain data actions (clear a sign-in
- * lockout, mark an address verified). No routes and no guards: the route layer (routes/console/users.ts) adds
+ * OPS1 Phase 1: the operator console's read model for user accounts, plus its data actions (clear a sign-in lockout,
+ * mark an address verified, ban and unban, end sessions). No routes and no guards: the route layer (routes/console/users.ts) adds
  * requireOperator, the reason prompt and the platform audit, and drops any cached auth for the person.
  *
  * Never returned: password hashes, OAuth access, refresh or id tokens, session tokens, TOTP secrets or backup codes.
@@ -8,19 +8,17 @@
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { accounts, loginThrottle, members, organizations, sessions, twoFactors, users } from "../../db/schema";
-import { notFound } from "../../lib/errors";
+import { HttpError, notFound } from "../../lib/errors";
 import { containsAny, normalizeQuery } from "../../lib/like-search";
 import { clearFailures, lockedUntil } from "../lockout";
 import { effectivePlanId } from "../plans";
 import { iso, keysetPage, pageOut, type PageRequest, type Paged, type SortColumn } from "./workspaces";
 import type { PlanId } from "@/shared/plans";
+import { OPERATOR_ROLES, isOperatorRole } from "@/shared/operator-permissions";
 
-/**
- * The platform operator roles stored in users.role (plan: Operator roles). Phase 0 adds the shared list in
- * src/shared/operator-permissions.ts; this filter should use its OPERATOR_ROLES once that lands.
- */
-export const CONSOLE_OPERATOR_ROLES = ["admin", "ops_admin", "ops_billing", "ops_support", "ops_readonly"] as const;
-const OPERATOR_ROLE_SQL = sql.raw(`(${CONSOLE_OPERATOR_ROLES.map((r) => `'${r}'`).join(", ")})`);
+/** The platform operator roles stored in users.role (the shared list in src/shared/operator-permissions.ts). */
+export const CONSOLE_OPERATOR_ROLES = OPERATOR_ROLES;
+const OPERATOR_ROLE_SQL = sql.raw(`(${OPERATOR_ROLES.map((r) => `'${r}'`).join(", ")})`);
 
 /** The most sessions listSessions returns for one person (newest first). */
 export const USER_SESSIONS_CAP = 100;
@@ -65,7 +63,6 @@ export interface UserListItem {
   createdAt: string;
 }
 
-const isOperatorRole = (role: string | null | undefined) => !!role && (CONSOLE_OPERATOR_ROLES as readonly string[]).includes(role);
 const searchText = (q: string | undefined) => normalizeQuery(q ?? "").slice(0, 100);
 
 /** Accounts matching a search (address, name, id) and filters, one page at a time. */
@@ -239,4 +236,74 @@ export async function markEmailVerified(deps: Pick<Deps, "db">, userId: string):
   if (!u) throw notFound("User");
   if (!u.emailVerified) await deps.db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
   return { userId: u.id, email: u.email, alreadyVerified: !!u.emailVerified };
+}
+
+// ---- ban, sessions and delete (OPS1 Phase 1 routes) --------------------------------------------------------------
+//
+// Why not auth.api.banUser / revokeUserSession(s): Better Auth's admin plugin is set up with adminRoles ["admin"]
+// (src/server/auth/options.ts), so it refuses every lower operator tier (ops_admin, ops_support) that holds users.ban
+// or users.sessions. These do what the plugin does (users.banned, ban_reason, ban_expires; delete the sessions) plus
+// what options.ts runs after /admin/ban-user and /revoke-sessions (end the person's app grants, close live sockets),
+// the same path reports-r35.ts uses to suspend a person. The plugin's session hook still refuses a banned person's
+// next sign in, and lifts a ban whose expiry has passed.
+
+export interface UserTarget { id: string; email: string; role: string | null; operator: boolean }
+
+/** The account an operator acts on (404 when it does not exist). */
+export async function getUserTarget(deps: Pick<Deps, "db">, userId: string): Promise<UserTarget> {
+  const u = await deps.db.select({ id: users.id, email: users.email, role: users.role }).from(users).where(eq(users.id, userId)).get();
+  if (!u) throw notFound("User");
+  return { ...u, operator: isOperatorRole(u.role) };
+}
+
+export interface BanState { banned: boolean; banReason: string | null; banExpires: string | null }
+const banState = (u: { banned: boolean | null; banReason: string | null; banExpires: Date | null }): BanState => ({ banned: !!u.banned, banReason: u.banReason, banExpires: iso(u.banExpires) });
+
+async function readBan(deps: Pick<Deps, "db">, userId: string): Promise<BanState> {
+  const u = await deps.db.select({ banned: users.banned, banReason: users.banReason, banExpires: users.banExpires }).from(users).where(eq(users.id, userId)).get();
+  if (!u) throw notFound("User");
+  return banState(u);
+}
+
+async function endAppsAndSockets(deps: Deps, userId: string) {
+  await (await import("../developer/oauth")).revokeUserGrants(deps, userId);
+  await (await import("../../realtime/publish")).closeUserSockets(deps, userId);
+}
+
+export const BAN_MAX_DAYS = 3650;
+
+/** Bans the account (sign in refused), optionally until `expiresInDays` from now, and ends its sessions and apps. */
+export async function banUser(deps: Deps, userId: string, input: { reason: string; expiresInDays?: number | null }): Promise<{ before: BanState; after: BanState; sessionsEnded: number }> {
+  const before = await readBan(deps, userId);
+  const days = input.expiresInDays ?? null;
+  if (days !== null && (!Number.isInteger(days) || days < 1 || days > BAN_MAX_DAYS)) throw new HttpError(422, "validation_failed", `A ban lasts 1 to ${BAN_MAX_DAYS} days, or leave it open ended.`);
+  const banExpires = days ? new Date(deps.now().getTime() + days * 86_400_000) : null;
+  await deps.db.update(users).set({ banned: true, banReason: input.reason, banExpires }).where(eq(users.id, userId));
+  const ended = await deps.db.delete(sessions).where(eq(sessions.userId, userId)).returning({ id: sessions.id });
+  await endAppsAndSockets(deps, userId);
+  return { before, after: await readBan(deps, userId), sessionsEnded: ended.length };
+}
+
+/** Lifts a ban. Idempotent. */
+export async function unbanUser(deps: Pick<Deps, "db">, userId: string): Promise<{ before: BanState; after: BanState }> {
+  const before = await readBan(deps, userId);
+  if (before.banned || before.banReason || before.banExpires) await deps.db.update(users).set({ banned: false, banReason: null, banExpires: null }).where(eq(users.id, userId));
+  return { before, after: await readBan(deps, userId) };
+}
+
+/** Ends one of the account's sessions (404 when it is not theirs). */
+export async function revokeUserSession(deps: Pick<Deps, "db">, userId: string, sessionId: string): Promise<{ sessionId: string; ipAddress: string | null; userAgent: string | null }> {
+  const s = await deps.db.select({ id: sessions.id, ipAddress: sessions.ipAddress, userAgent: sessions.userAgent }).from(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId))).get();
+  if (!s) throw notFound("Session");
+  await deps.db.delete(sessions).where(and(eq(sessions.id, s.id), eq(sessions.userId, userId)));
+  return { sessionId: s.id, ipAddress: s.ipAddress, userAgent: s.userAgent };
+}
+
+/** Signs the account out everywhere: every session ends, and (as on the person's own "sign out everywhere") their apps' access and live sockets end too. */
+export async function revokeAllUserSessions(deps: Deps, userId: string): Promise<{ sessionsEnded: number }> {
+  await getUserTarget(deps, userId);
+  const ended = await deps.db.delete(sessions).where(eq(sessions.userId, userId)).returning({ id: sessions.id });
+  await endAppsAndSockets(deps, userId);
+  return { sessionsEnded: ended.length };
 }

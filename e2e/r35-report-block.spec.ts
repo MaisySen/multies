@@ -93,6 +93,11 @@ test("report a message, block the person, DM refused, operator dismisses", async
   await expect(card).toContainText("Third time this week");
   await ops.page.screenshot({ path: `${SHOTS}/admin-after-moderation-queue.png` });
   await card.getByTestId("report-dismiss").click();
+  // OPS1: every console action asks for a reason (kept in the audit log and as the report's note).
+  const dismiss = ops.page.getByRole("dialog", { name: "Dismiss this report?" });
+  await dismiss.getByLabel("Reason").fill("Reviewed, no action needed");
+  await dismiss.getByRole("button", { name: "Dismiss report" }).click();
+  await expect(dismiss).toBeHidden();
   await expect(ops.page.getByTestId("moderation-report").filter({ hasText: "You are all useless" })).toHaveCount(0);
 
   // Settings lists the block with Unblock.
