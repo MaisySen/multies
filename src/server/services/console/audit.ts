@@ -23,8 +23,10 @@ import { and, eq, gte, lt, or, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { AppEnv } from "../../context";
 import type { DB } from "../../db";
-import { platformAuditLogs } from "../../db/schema";
+import { organizations, platformAuditLogs, users } from "../../db/schema";
 import { newId } from "../../lib/crypto";
+import { inIds } from "../../lib/sql-chunks";
+import { flagDef } from "@/shared/feature-flags";
 import { containsAny, startsWithText } from "../../lib/like-search";
 import { audit, redactAuditRow } from "../audit";
 import { listParams } from "./listing";
@@ -184,4 +186,41 @@ export async function listPlatformAudit(db: DB, query: Record<string, string | u
     nextCursor: page.nextCursor,
     items: page.items.map((r) => redactAuditRow({ ...r, before: parse(r.before), after: parse(r.after), metadata: parse(r.metadata) as Record<string, unknown> | null })),
   };
+}
+
+export type NamedAuditRow = PlatformAuditRow & {
+  /** The target's name: a workspace's name, a person's email, a flag's label. Null when unknown or gone. */
+  targetLabel: string | null;
+  /** The name of the workspace in orgId, when it still exists. */
+  orgName: string | null;
+};
+
+/**
+ * Names for a page of audit rows, for the list: two batched reads at most (workspaces by id, people by id; inIds
+ * keeps each one bound variable over 20 ids, so the D1 variable limit is never near) and flag labels from the
+ * registry in code. Never one read per row.
+ */
+export async function withAuditNames(db: DB, rows: PlatformAuditRow[]): Promise<NamedAuditRow[]> {
+  const orgIds = new Set<string>();
+  const userIds = new Set<string>();
+  for (const r of rows) {
+    if (r.orgId) orgIds.add(r.orgId);
+    if (r.targetId && r.targetType === "workspace") orgIds.add(r.targetId);
+    if (r.targetId && r.targetType === "user") userIds.add(r.targetId);
+  }
+  const [orgRows, userRows] = await Promise.all([
+    orgIds.size ? db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(inIds(organizations.id, [...orgIds])).all() : [],
+    userIds.size ? db.select({ id: users.id, email: users.email }).from(users).where(inIds(users.id, [...userIds])).all() : [],
+  ]);
+  const orgName = new Map(orgRows.map((o) => [o.id, o.name]));
+  const userEmail = new Map(userRows.map((u) => [u.id, u.email]));
+  return rows.map((r) => {
+    let targetLabel: string | null = null;
+    if (r.targetId) {
+      if (r.targetType === "workspace") targetLabel = orgName.get(r.targetId) ?? null;
+      else if (r.targetType === "user") targetLabel = userEmail.get(r.targetId) ?? null;
+      else if (r.targetType === "flag") targetLabel = flagDef(r.targetId)?.label ?? null;
+    }
+    return { ...r, targetLabel, orgName: r.orgId ? orgName.get(r.orgId) ?? null : null };
+  });
 }

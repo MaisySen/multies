@@ -2,6 +2,8 @@
  * OPS1: the platform audit log.
  * GET /api/console/audit: { items, nextCursor }, newest first. Filters: actor (email contains, or a user id), action
  *   (prefix), targetType, targetId, orgId, from and to (ISO dates), plus the list convention (q, limit, cursor).
+ *   Each item also carries targetLabel (a workspace's name, a person's email, a flag's label) and orgName, read in
+ *   batches for the page (withAuditNames), never per row.
  * GET /api/console/audit/export: the same filters as CSV, up to 5,000 rows (owners only; the export is audited).
  */
 import { Hono, type Context } from "hono";
@@ -9,7 +11,7 @@ import { z } from "zod";
 import type { AppEnv } from "../../context";
 import { parseQuery } from "../../middleware";
 import { operatorSession, requireOperator } from "../../auth/operator";
-import { auditActor, listPlatformAudit, platformAudit, type PlatformAuditFilter, type PlatformAuditRow } from "../../services/console/audit";
+import { auditActor, listPlatformAudit, platformAudit, withAuditNames, type PlatformAuditFilter, type PlatformAuditRow } from "../../services/console/audit";
 
 const date = z.string().max(40).optional().transform((v, ctx) => {
   if (!v) return undefined;
@@ -47,7 +49,8 @@ export function auditRoutes() {
     .use("*", operatorSession)
     .get("/", requireOperator("audit.read"), async (c) => {
       c.header("cache-control", "no-store");
-      return c.json(await listPlatformAudit(c.var.deps.db, c.req.query(), filterOf(c)));
+      const page = await listPlatformAudit(c.var.deps.db, c.req.query(), filterOf(c));
+      return c.json({ items: await withAuditNames(c.var.deps.db, page.items), nextCursor: page.nextCursor });
     })
     .get("/export", requireOperator("audit.export"), async (c) => {
       const filter = filterOf(c);

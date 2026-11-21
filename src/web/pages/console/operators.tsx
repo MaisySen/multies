@@ -1,33 +1,46 @@
 /**
  * OPS1: platform operators. Owners grant, change and remove operator roles (each asks for a reason and a recent sign
  * in); everyone else with access sees the list. Operators set on the server (PLATFORM_ADMIN_EMAILS) can't be changed here.
+ * A role without operators.read (support, billing, read only) opening this address sees the calm "no access" card.
  */
 import { useState } from "react";
 import { Link } from "react-router";
 import { Badge, PageHeader } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Select } from "@/web/components/ui/input";
-import { IconUserCog } from "@/web/components/ui/icon";
+import { IconChevronDown, IconUserCog } from "@/web/components/ui/icon";
 import { consoleApi, type ConsoleOperator } from "@/web/lib/console-api";
-import { fullDate, timeAgo } from "@/web/lib/format";
 import { OPERATOR_ROLES, OPERATOR_ROLE_HINTS, OPERATOR_ROLE_LABELS, type OperatorRole } from "@/shared/operator-permissions";
 import { DataTable } from "./components/data-table";
+import { OperatorRoleBadge, RelTime, TwoStepBadge, personHref } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
-import { PermissionGate, useConsoleMe, usePermission } from "./guard";
+import { PermissionGate, RequirePermission, useConsoleMe, usePermission } from "./guard";
 
 function RolePicker({ value, onChange, label = "Role" }: { value: OperatorRole; onChange: (r: OperatorRole) => void; label?: string }) {
   return (
     <Field label={label} hint={OPERATOR_ROLE_HINTS[value]}>
       {(p) => (
-        <Select {...p} value={value} onChange={(e) => onChange(e.target.value as OperatorRole)}>
-          {OPERATOR_ROLES.map((r) => <option key={r} value={r}>{OPERATOR_ROLE_LABELS[r]}</option>)}
-        </Select>
+        <div className="relative">
+          <Select {...p} value={value} onChange={(e) => onChange(e.target.value as OperatorRole)} data-testid="console-operator-role">
+            {OPERATOR_ROLES.map((r) => <option key={r} value={r}>{OPERATOR_ROLE_LABELS[r]}</option>)}
+          </Select>
+          {/* The chevron that says this is a list (phones get the app's own picker button instead). */}
+          <IconChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle max-sm:hidden" aria-hidden />
+        </div>
       )}
     </Field>
   );
 }
 
 export function ConsoleOperatorsPage() {
+  return (
+    <RequirePermission permission="operators.read">
+      <OperatorsList />
+    </RequirePermission>
+  );
+}
+
+function OperatorsList() {
   const me = useConsoleMe();
   const canManage = usePermission("operators.manage");
   const [email, setEmail] = useState("");
@@ -73,19 +86,19 @@ export function ConsoleOperatorsPage() {
       <PageHeader eyebrow="Access" title="Operators" description="The people who can open this console, and what each role allows."
         actions={<PermissionGate permission="operators.manage"><Button onClick={() => grant.open()} data-testid="add-operator">Add operator</Button></PermissionGate>} />
       <DataTable<ConsoleOperator>
-        label="Operators" path="/operators" search={{ placeholder: "Search by name or email" }} defaultSort="email:asc"
+        label="Operators" path="/operators" search={{ placeholder: "Search operators" }} defaultSort="email:asc"
         rowKey={(o) => o.id}
         empty={{ icon: <IconUserCog />, title: "No operators found", body: "Try another search." }}
         columns={[
           { key: "who", header: "Operator", sort: "email", cell: (o) => (
             <span className="flex flex-col">
-              <span className="font-medium"><Link to={`/console/users/${encodeURIComponent(o.id)}`} className="hover:underline">{o.name}</Link>{o.id === me.user.id && <span className="ml-1.5 text-xs font-normal text-subtle">(you)</span>}</span>
+              <span className="font-medium"><Link to={personHref(o.id)} className="hover:underline">{o.name}</Link>{o.id === me.user.id && <span className="ml-1.5 text-xs font-normal text-subtle">(you)</span>}</span>
               <span className="text-xs text-muted">{o.email}</span>
             </span>
           ) },
-          { key: "role", header: "Role", cell: (o) => <span className="flex flex-wrap items-center gap-1.5"><Badge tone={o.role === "admin" ? "brand" : "neutral"}>{o.roleLabel}</Badge>{o.envManaged && <span title="Set in PLATFORM_ADMIN_EMAILS on the server"><Badge>Set on the server</Badge></span>}</span> },
-          { key: "2fa", header: "Two-step sign in", cell: (o) => (o.twoFactor ? <Badge tone="ok" dot>On</Badge> : <Badge tone="warn" dot>Off</Badge>) },
-          { key: "last", header: "Last sign in", cell: (o) => <span className="whitespace-nowrap text-muted" title={o.lastSignInAt ? fullDate(o.lastSignInAt) : undefined}>{o.lastSignInAt ? timeAgo(o.lastSignInAt) : "Never"}</span> },
+          { key: "role", header: "Role", cell: (o) => <span className="flex flex-wrap items-center gap-1.5"><OperatorRoleBadge role={o.role} />{o.envManaged && <span title="Set in PLATFORM_ADMIN_EMAILS on the server"><Badge className="whitespace-nowrap">Set on the server</Badge></span>}</span> },
+          { key: "2fa", header: "Two-step sign in", cell: (o) => <TwoStepBadge on={o.twoFactor} /> },
+          { key: "last", header: "Last sign in", secondary: true, cell: (o) => <RelTime at={o.lastSignInAt} empty="No sign in yet" className="text-muted" /> },
           { key: "actions", header: "", align: "right", cell: (o) => (canManage && !o.envManaged ? (
             <span className="inline-flex gap-1.5">
               <Button size="sm" variant="ghost" onClick={() => { setNewRole(o.role); change.open(o); }}>Change role</Button>

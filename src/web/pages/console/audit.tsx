@@ -1,6 +1,8 @@
 /**
  * OPS1: the platform audit log. Every operator change with who, their role, the reason and what changed.
  * Filters: action (prefix), actor, workspace id, date range. Owners can download the filtered log as CSV.
+ * Actions and changed fields read in plain words (components/format), targets by name (the server resolves them in
+ * batches), and a note needs no reason, so it shows no "No reason" badge.
  */
 import { useState } from "react";
 import { Link } from "react-router";
@@ -9,9 +11,9 @@ import { Button, buttonClass } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { IconActivity, IconDownload } from "@/web/components/ui/icon";
 import { consoleApi, type PlatformAuditEntry } from "@/web/lib/console-api";
-import { fullDate, timeAgo } from "@/web/lib/format";
 import { operatorRoleLabel } from "@/shared/operator-permissions";
 import { DataTable } from "./components/data-table";
+import { AUDIT_ACTIONS_WITHOUT_REASON, Empty, PersonLink, RelTime, auditActionLabel, formatDateTime, humanize, personHref, workspaceHref } from "./components/format";
 import { useUrlParams, type FilterDef } from "./components/filter-bar";
 import { KvList } from "./components/kv-list";
 import { JsonDiff } from "./components/json-diff";
@@ -51,30 +53,45 @@ const WINDOWS: FilterDef = {
 };
 const FILTERS = [AREAS, WINDOWS];
 
-/** A workspace or user target links to its console page; anything else shows its id. */
-function Target({ type, id }: { type: string | null; id: string | null }) {
-  if (!id) return <span className="text-subtle">None</span>;
-  const to = type === "workspace" ? `/console/workspaces/${encodeURIComponent(id)}` : type === "user" ? `/console/users/${encodeURIComponent(id)}` : null;
-  return to ? <Link to={to} className="font-mono text-xs hover:underline">{id}</Link> : <span className="font-mono text-xs">{id}</span>;
+/** Where a target opens in the console, when it has a page. */
+function targetHref(type: string | null, id: string): string | null {
+  if (type === "workspace") return workspaceHref(id);
+  if (type === "user") return personHref(id);
+  if (type === "flag") return `/console/flags?flag=${encodeURIComponent(id)}`;
+  return null;
 }
 
-/** "workspace.send_cap_changed" reads as "Workspace send cap changed". */
-export const actionLabel = (a: string) => {
-  const s = a.replace(/[._]/g, " ").trim();
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
+/**
+ * The target by name (a workspace's name, a person's email, a flag's label), linked to its console page, with the
+ * raw id in the title. Without a name it reads as its kind ("Note", "Job") with the id in the title.
+ */
+function Target({ row }: { row: Pick<PlatformAuditEntry, "targetType" | "targetId" | "targetLabel"> }) {
+  const { targetType: type, targetId: id } = row;
+  if (!id) return <Empty />;
+  const to = targetHref(type, id);
+  const label = row.targetLabel || (type === "workspace" ? "Deleted workspace" : type === "user" ? "Deleted user" : humanize(type ?? "item"));
+  const title = `${type ?? "item"} ${id}`;
+  return to
+    ? <Link to={to} title={id} className="block max-w-[14rem] truncate hover:underline">{label}</Link>
+    : <span title={title} className="block max-w-[14rem] truncate">{label}</span>;
+}
+
+/** Re-exported for older imports: the plain label of an action. */
+export const actionLabel = auditActionLabel;
+
+const needsNoReason = (action: string) => AUDIT_ACTIONS_WITHOUT_REASON.has(action);
 
 function Detail({ row, onClose }: { row: PlatformAuditEntry | null; onClose: () => void }) {
   return (
-    <Dialog open={!!row} onClose={onClose} title={row ? actionLabel(row.action) : ""} description={row ? fullDate(row.createdAt) : undefined}>
+    <Dialog open={!!row} onClose={onClose} title={row ? auditActionLabel(row.action) : ""} description={row ? formatDateTime(row.createdAt) : undefined}>
       {row && (
-        <div className="space-y-4 px-1 pb-2 text-left">
+        <div className="space-y-4 px-1 pb-2 text-left" data-testid="console-audit-detail">
           <KvList items={[
-            { label: "Operator", value: row.actorEmail },
+            { label: "Operator", value: row.actorUserId || row.actorEmail ? <PersonLink id={row.actorUserId} email={row.actorEmail} /> : "System" },
             { label: "Role", value: row.actorRole ? operatorRoleLabel(row.actorRole) : null },
-            { label: "Reason", value: row.reason },
-            { label: "Target", value: row.targetId ? `${row.targetType ?? "item"} ${row.targetId}` : null, mono: true },
-            { label: "Workspace", value: row.orgId, mono: true, copy: true },
+            ...(needsNoReason(row.action) && !row.reason ? [] : [{ label: "Reason", value: row.reason }]),
+            { label: "Target", value: row.targetId ? <Target row={row} /> : null, hint: row.targetId ? <span className="font-mono">{row.targetId}</span> : undefined },
+            { label: "Workspace", value: row.orgId ? <Link to={workspaceHref(row.orgId)} className="hover:underline">{row.orgName || "Deleted workspace"}</Link> : null, hint: row.orgId ? <span className="font-mono">{row.orgId}</span> : undefined },
             { label: "From", value: row.ip, mono: true },
             { label: "Request", value: row.requestId, mono: true },
           ]} />
@@ -106,7 +123,7 @@ export function ConsoleAuditPage() {
       <PageHeader eyebrow="Access" title="Audit log" description="Every change an operator made, newest first, with the reason they gave." />
       <DataTable<PlatformAuditEntry>
         label="Audit log" path="/audit"
-        filters={FILTERS} search={{ placeholder: "Search action, operator, target or reason" }}
+        filters={FILTERS} search={{ placeholder: "Search audit log" }}
         params={from ? { from } : undefined}
         rowKey={(r) => r.id}
         actions={
@@ -118,12 +135,19 @@ export function ConsoleAuditPage() {
         }
         empty={{ icon: <IconActivity />, title: "No operator activity yet", body: "Changes made in the console show here with who made them and why." }}
         columns={[
-          { key: "when", header: "When", cell: (r) => <span className="whitespace-nowrap text-muted" title={fullDate(r.createdAt)}>{timeAgo(r.createdAt)}</span> },
-          { key: "action", header: "Action", cell: (r) => <span className="font-medium">{actionLabel(r.action)}</span> },
-          { key: "actor", header: "Operator", cell: (r) => <span className="flex flex-col"><span>{r.actorUserId ? <Link to={`/console/users/${encodeURIComponent(r.actorUserId)}`} className="hover:underline">{r.actorEmail ?? r.actorUserId}</Link> : r.actorEmail ?? "System"}</span>{r.actorRole && <span className="text-xs text-subtle">{operatorRoleLabel(r.actorRole)}</span>}</span> },
-          { key: "target", header: "Target", cell: (r) => <Target type={r.targetType} id={r.targetId} /> },
-          { key: "reason", header: "Reason", cell: (r) => (r.reason ? <span className="line-clamp-2 max-w-xs">{r.reason}</span> : <Badge>No reason</Badge>) },
-          { key: "open", header: "", align: "right", cell: (r) => <Button size="sm" variant="ghost" onClick={() => setOpen(r)}>Details</Button> },
+          { key: "when", header: "When", cell: (r) => <RelTime at={r.createdAt} className="text-muted" /> },
+          { key: "action", header: "Action", cell: (r) => <span className="font-medium" title={r.action}>{auditActionLabel(r.action)}</span> },
+          { key: "actor", header: "Operator", secondary: true, cell: (r) => (
+            <span className="flex min-w-0 flex-col">
+              {r.actorUserId || r.actorEmail ? <PersonLink id={r.actorUserId} email={r.actorEmail} className="whitespace-nowrap" /> : <span>System</span>}
+              {r.actorRole && <span className="text-xs text-subtle">{operatorRoleLabel(r.actorRole)}</span>}
+            </span>
+          ) },
+          { key: "target", header: "Target", cell: (r) => <Target row={r} /> },
+          { key: "reason", header: "Reason", secondary: true, cell: (r) => (r.reason
+            ? <span className="line-clamp-2 max-w-xs">{r.reason}</span>
+            : needsNoReason(r.action) ? null : <Badge className="whitespace-nowrap">No reason</Badge>) },
+          { key: "open", header: "", align: "right", cell: (r) => <Button size="sm" variant="ghost" onClick={() => setOpen(r)} data-testid="console-audit-details">Details</Button> },
         ]}
       />
       <Detail row={open} onClose={() => setOpen(null)} />
