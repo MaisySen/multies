@@ -86,6 +86,12 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    await page.getByRole("button",{name:"Return to Mnet",exact:true}).click();
    await page.getByText("Approval returned to Mnet.",{exact:false}).waitFor();
    await page.screenshot({path:"/downloads/mnet-development-installed-callback.png",fullPage:true});
+   let resultPage;
+   for(let i=0;i<100&&!resultPage;i++){resultPage=context.pages().find(p=>p.url().endsWith("/setup-result.html"));if(!resultPage)await sleep(50);}
+   if(!resultPage)throw new Error("actual native result page did not open");
+   await resultPage.getByRole("heading",{name:"Joining saved. Not connected.",exact:true}).waitFor();
+   await resultPage.screenshot({path:"/downloads/mnet-development-installed-final.png",fullPage:true});
+
 
 
   }
