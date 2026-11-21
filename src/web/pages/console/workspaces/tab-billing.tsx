@@ -118,8 +118,8 @@ function Invoices({ b }: { b: WorkspaceBilling }) {
         <tbody className={T.body}>
           {b.invoices.map((i) => (
             <tr key={i.id} className={T.row}>
-              <td className={T.td}>{i.number ?? "Draft"}</td>
-              <td className={T.td}><When at={i.createdAt} /></td>
+              <td className={`${T.td} whitespace-nowrap`}>{i.number ?? "Draft"}</td>
+              <td className={`${T.td} whitespace-nowrap`}><When at={i.createdAt} /></td>
               <td className={T.td}><Badge tone={i.status === "paid" ? "ok" : i.status === "open" ? "warn" : i.status === "uncollectible" ? "bad" : "neutral"} dot>{i.status ?? "Unknown"}</Badge></td>
               <td className={`${T.td} text-right tabular-nums`}>{formatCents(i.total, i.currency)}</td>
               <td className={T.td}><IdCell id={i.id} label="invoice id" /></td>
@@ -174,12 +174,8 @@ function Loaded({ b }: { b: WorkspaceBilling }) {
   return (
     <div className="space-y-6" data-testid="console-billing-workspace">
       <BillingNotConnected />
-      {canManage ? (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-          <Section title="Billing"><Summary b={b} /></Section>
-          <WorkspaceBillingActions b={b} />
-        </div>
-      ) : <Section title="Billing"><Summary b={b} /></Section>}
+      <Section title="Billing"><Summary b={b} /></Section>
+      {canManage && <WorkspaceBillingActions b={b} />}
       <Section title="Add-ons"><Addons b={b} /></Section>
       <Section title="Usage against limits"><Usage b={b} /></Section>
       <Section title="Recent invoices" testId="console-billing-invoices"><Invoices b={b} /></Section>

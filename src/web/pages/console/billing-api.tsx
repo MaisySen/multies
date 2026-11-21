@@ -89,7 +89,7 @@ const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "neu
 export function StatusBadge({ status }: { status: string | null }) {
   if (!status) return <Badge>No subscription</Badge>;
   const s = STATUS[status] ?? { label: status.replace(/_/g, " "), tone: "neutral" as const };
-  return <Badge tone={s.tone} dot>{s.label}</Badge>;
+  return <Badge tone={s.tone} dot className="whitespace-nowrap">{s.label}</Badge>;
 }
 
 export const STAGE: Record<DunningStage, { label: string; tone: "warn" | "bad" | "neutral" }> = {
@@ -104,13 +104,13 @@ export function When({ at, empty = "Not set" }: { at: string | null | undefined;
   return <span className="whitespace-nowrap" title={fullDate(at)}>{timeAgo(at)}</span>;
 }
 
-/** A Stripe or Multies id in mono with a copy button. Never a whole object. */
+/** A Stripe or Multies id in mono with a short Copy button (`label` names it for the hover title). Never a whole object. */
 export function IdCell({ id, label }: { id: string | null | undefined; label: string }) {
   if (!id) return <span className="text-subtle">None</span>;
   return (
     <span className="inline-flex max-w-full items-center gap-1">
-      <span className="truncate font-mono text-xs" title={id}>{id}</span>
-      <CopyButton value={id} label={`Copy ${label}`} />
+      <span className="truncate font-mono text-xs" title={`${label}: ${id}`}>{id}</span>
+      <CopyButton value={id} label="Copy" />
     </span>
   );
 }

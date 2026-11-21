@@ -55,7 +55,22 @@ async function mockBilling(page: Page, opts: { enabled: boolean }) {
   await page.route(/\/api\/console\/billing\/events(\?|$)/, (r) => r.fulfill({ json: page1(workspaceBilling.recentEvents) }));
   await page.route(/\/api\/console\/billing\/referrals(\?|$)/, (r) => r.fulfill({ json: page1([]) }));
   await page.route(/\/api\/console\/billing\/workspaces\/org_e2e_acme$/, (r) => r.fulfill({ json: workspaceBilling }));
+  // The Workspaces detail page reads the workspace before it shows any tab.
+  await page.route(/\/api\/console\/workspaces\/org_e2e_acme$/, (r) => r.fulfill({ json: workspaceOverview }));
 }
+
+const workspaceOverview = {
+  org: {
+    id: "org_e2e_acme", name: "Acme Studio", slug: null, plan: "pro", effectivePlan: "pro", compPlan: false, isDemo: false, timezone: "UTC", country: "AU",
+    createdAt: iso(now - 90 * DAY), stripeCustomerId: "cus_e2e_acme", stripeSubscriptionId: "sub_e2e_acme", subscriptionStatus: "active", billingInterval: "month",
+    currentPeriodEnd: iso(now + 20 * DAY), cancelAtPeriodEnd: false, pastDueSince: null, graceEndsAt: null, requireSso: false, suspendedAt: null, suspendedReason: null,
+    sendCapDaily: null, meetingMinutesCap: null, channelsEnabled: true, legacyStorageMb: null,
+  },
+  limits: workspaceBilling.limits, addons: workspaceBilling.addons,
+  usage: { domains: 1, mailboxes: 4, agentInboxes: 0, aliases: 2, seats: 3, storageMb: 512, agentMessages: 10 },
+  counts: { members: 3, agentMembers: 0, pendingInvites: 0, agents: 0, apiKeys: 0, webhookEndpoints: 0, webhookEndpointsDisabled: 0, activeOauthGrants: 0, sendsToday: 12, meetingMinutesThisMonth: 0 },
+  writeBudget: { used: 100, budget: 50000, level: "ok", resetAt: iso(now + DAY) },
+};
 
 test("the billing page opens on Past due, says when billing is not connected, and a filter goes into the address", async ({ page }) => {
   await signUp(page, "Bea Billing");

@@ -19,16 +19,14 @@ type Res<K extends keyof typeof billingApi> = Awaited<ReturnType<(typeof billing
 
 const LIVE = ["active", "trialing", "past_due"];
 
+/** One action: the button, then one line on what it does (or why it is off). No repeated title. */
 function ActionRow({ label, hint, onClick, disabled, disabledWhy, testId, tone = "secondary" }: {
   label: string; hint: string; onClick: () => void; disabled?: boolean; disabledWhy?: string; testId: string; tone?: "secondary" | "danger";
 }) {
   return (
-    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <div className="min-w-0 text-sm">
-        <p className="font-medium">{label}</p>
-        <p className="text-xs text-subtle">{disabled && disabledWhy ? disabledWhy : hint}</p>
-      </div>
-      <Button size="sm" variant={tone} onClick={onClick} disabled={disabled} data-testid={testId} className="shrink-0 self-start sm:self-auto">{label}</Button>
+    <div className="flex flex-col gap-1.5 py-3 sm:grid sm:grid-cols-[13rem_minmax(0,1fr)] sm:items-center sm:gap-4">
+      <Button size="sm" variant={tone} onClick={onClick} disabled={disabled} data-testid={testId} className="self-start sm:w-full">{label}</Button>
+      <p className="text-[13px] text-muted">{disabled && disabledWhy ? disabledWhy : hint}</p>
     </div>
   );
 }
@@ -185,9 +183,9 @@ export function WorkspaceBillingActions({ b }: { b: WorkspaceBilling }) {
 
   return (
     <PermissionGate permission="billing.manage">
-      <Card className="px-4 py-1" data-testid="console-billing-actions">
-        <h2 className="pt-3 text-sm font-semibold">Actions</h2>
-        <div className="divide-y divide-line">
+      <section className="space-y-2" data-testid="console-billing-actions">
+        <h2 className="text-sm font-semibold">Actions</h2>
+        <Card className="divide-y divide-line px-4 py-1">
           <ActionRow label="Change plan" hint="Move the paid subscription to another plan in Stripe." onClick={() => changePlan.open()} testId="console-billing-action-plan"
             disabled={stripeOff || b.comp.on} disabledWhy={stripeOff ? offWhy : "End the free Business plan first."} />
           {b.comp.on ? (
@@ -206,8 +204,8 @@ export function WorkspaceBillingActions({ b }: { b: WorkspaceBilling }) {
           <ActionRow label={ending ? "Keep subscription" : "Cancel at period end"} hint={ending ? `It ends on ${periodEnd}. Undo that.` : "End the subscription when the current period ends."}
             onClick={() => cancel.open()} testId="console-billing-action-cancel" tone={ending ? "secondary" : "danger"}
             disabled={stripeOff || !live || b.comp.on} disabledWhy={stripeOff ? offWhy : b.comp.on ? "End the free Business plan first." : "They have no live subscription."} />
-        </div>
-      </Card>
+        </Card>
+      </section>
       {changePlan.dialog}{giveComp.dialog}{endComp.dialog}{credit.dialog}{trial.dialog}{grace.dialog}{resync.dialog}{cancel.dialog}
     </PermissionGate>
   );

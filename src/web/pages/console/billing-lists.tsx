@@ -43,10 +43,10 @@ export function PastDueList() {
       empty={{ icon: <IconCreditCard />, title: "Nobody is behind on payment", body: "Workspaces with a failed payment show here with how long they have before sending is paused." }}
       columns={[
         { key: "name", header: "Workspace", sort: "name", cell: (r) => <WorkspaceLink id={r.orgId} name={r.name} /> },
-        { key: "stage", header: "Stage", cell: (r) => <Badge tone={STAGE[r.stage].tone} dot>{STAGE[r.stage].label}</Badge> },
+        { key: "stage", header: "Stage", cell: (r) => <Badge tone={STAGE[r.stage].tone} dot className="whitespace-nowrap">{STAGE[r.stage].label}</Badge> },
         { key: "days", header: "Days past due", sort: "pastDueSince", align: "right", cell: (r) => <span className="tabular-nums">{r.daysPastDue}</span> },
         { key: "grace", header: "Grace ends", sort: "graceEndsAt", cell: (r) => <When at={r.graceEndsAt} /> },
-        { key: "sending", header: "Sending", cell: (r) => (r.sendingPaused ? <Badge tone="bad" dot>Paused</Badge> : <Badge tone="ok" dot>On</Badge>) },
+        { key: "sending", header: "Sending", cell: (r) => (r.sendingPaused ? <Badge tone="bad" dot className="whitespace-nowrap">Paused</Badge> : <Badge tone="ok" dot className="whitespace-nowrap">On</Badge>) },
         { key: "plan", header: "Plan", cell: (r) => <PlanCell plan={r.plan} effectivePlan={r.effectivePlan} comp={r.comp} /> },
       ]}
     />
@@ -72,7 +72,7 @@ export function SubscriptionsList() {
         { key: "name", header: "Workspace", sort: "name", cell: (r) => <WorkspaceLink id={r.orgId} name={r.name} /> },
         { key: "plan", header: "Plan", cell: (r) => <PlanCell plan={r.plan} effectivePlan={r.effectivePlan} comp={r.comp} /> },
         { key: "status", header: "Status", cell: (r) => (
-          <span className="flex flex-wrap items-center gap-1.5"><StatusBadge status={r.status} />{r.cancelAtPeriodEnd && <Badge tone="warn">Ends at period end</Badge>}</span>
+          <span className="flex flex-wrap items-center gap-1.5"><StatusBadge status={r.status} />{r.cancelAtPeriodEnd && <Badge tone="warn" className="whitespace-nowrap">Ends at period end</Badge>}</span>
         ) },
         { key: "period", header: "Period ends", sort: "currentPeriodEnd", cell: (r) => <When at={r.currentPeriodEnd} empty="None" /> },
         { key: "customer", header: "Stripe customer", cell: (r) => <IdCell id={r.stripeCustomerId} label="Stripe customer id" /> },
