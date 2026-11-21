@@ -131,7 +131,7 @@ export function impersonationRoutes() {
       if (orgId) {
         await audit(deps.db, {
           orgId, actorUserId: auth.impersonatedBy, actorEmail: operator?.email ?? row?.operatorEmail ?? null, action: "support.session_ended",
-          targetType: "user", targetId: auth.userId, metadata: { by: "operator", mode: row?.mode ?? null, endedReason: reason }, ip: c.var.ip,
+          targetType: "user", targetId: auth.userId, metadata: { by: "operator", email: auth.email, mode: row?.mode ?? null, endedReason: reason }, ip: c.var.ip,
         });
       }
       forgetCachedAuth(c.req.raw.headers);
@@ -194,7 +194,7 @@ export function impersonationRoutes() {
       // The customer's own activity log says support opened their account, when, by whom, how and why.
       await audit(deps.db, {
         orgId, actorUserId: op.userId, actorEmail: op.email, action: "support.session_started", targetType: "user", targetId: target.id,
-        metadata: { by: "operator", mode: body.mode, expiresAt: expiresAt.toISOString(), reason: body.reason }, ip: c.var.ip,
+        metadata: { by: "operator", email: target.email, mode: body.mode, expiresAt: expiresAt.toISOString(), reason: body.reason }, ip: c.var.ip,
       });
       // Every cookie Better Auth set: the operator's session moves to admin_session, the new session cookie, and
       // dont_remember (without it the 30 minute session would roll forward to 30 days).
@@ -212,7 +212,7 @@ export function impersonationRoutes() {
       await operatorAction(c, {
         action: "impersonation.ended", targetType: "user", targetId: row.targetUserId, orgId: row.targetOrgId, reason,
         before: { mode: row.mode, operatorUserId: row.operatorUserId, expiresAt: row.expiresAt.toISOString() }, after: { endedReason: "revoked" },
-        metadata: { impersonationId: row.id }, workspaceAudit: { action: "support.session_ended", metadata: { endedReason: "revoked" } },
+        metadata: { impersonationId: row.id }, workspaceAudit: { action: "support.session_ended", metadata: { endedReason: "revoked", email: (await deps.db.select({ email: users.email }).from(users).where(eq(users.id, row.targetUserId)).get())?.email ?? null } },
       }, async () => {
         if (row.sessionId) await deps.db.delete(sessions).where(and(eq(sessions.id, row.sessionId), eq(sessions.userId, row.targetUserId)));
         await endImpersonationRow(deps.db, row.id, "revoked", now);

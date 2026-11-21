@@ -4,7 +4,7 @@
  * audience (see hub.ts), so private channels and DMs only ever reach their members.
  */
 import type { Deps } from "../context";
-import { resolveAuth } from "../middleware";
+import { resolveAuthFor } from "../middleware";
 
 export type ChatLiveAccess = { ok: true; userId: string; orgId: string } | { ok: false; status: number; message: string };
 
@@ -25,7 +25,9 @@ export async function chatLiveAccess(deps: Deps, request: Request): Promise<Chat
     const v = request.headers.get(name);
     if (v) headers.set(name, v);
   }
-  const auth = await resolveAuth(deps, headers).catch(() => null);
+  // OPS1 impersonation: through the shared check. The socket only ever receives (the hub answers pings and nothing else),
+  // so view and act sessions both may listen; typing and presence are HTTP writes that requireAuth refuses in view mode.
+  const auth = await resolveAuthFor(deps, headers, { method: "GET", path: "/api/chat/live" }).catch(() => null);
   if (!auth?.userId || !auth.orgId || !auth.sessionId || auth.ssoBlocked) return { ok: false, status: 401, message: "Sign in first." };
   return { ok: true, userId: auth.userId, orgId: auth.orgId };
 }

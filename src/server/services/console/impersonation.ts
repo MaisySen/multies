@@ -103,6 +103,37 @@ export const IMPERSONATION_ALWAYS_BLOCKED: readonly BlockedRule[] = [
   // App passwords for a mailbox (IMAP and SMTP) and for calendar and contacts sync, and the profile that carries one.
   { group: "app passwords", methods: ALL, pattern: /^\/api\/mail-access\/(mailboxes\/[^/]+\/)?app-passwords(\/|$)/, example: { method: "POST", path: "/api/mail-access/mailboxes/x/app-passwords" }, enforcedBy: "requireAuth" },
   { group: "app passwords", methods: ALL, pattern: /^\/api\/dav\/(passwords|profile\.mobileconfig)(\/|$)/, example: { method: "GET", path: "/api/dav/passwords" }, enforcedBy: "requireAuth" },
+  // Long lived ways in that would outlive the session: public share links, secret links, file request links, dashboard
+  // links, client portal magic links, a fresh calendar feed address, outbound webhooks, and push to a new device or browser.
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/share-links\/?$/, example: { method: "POST", path: "/api/share-links" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/tools\/share(\/from)?\/?$/, example: { method: "POST", path: "/api/tools/share/from" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/tools\/(secrets|requests)\/?$/, example: { method: "POST", path: "/api/tools/secrets" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/dashboards-plus\/[^/]+\/shares$/, example: { method: "POST", path: "/api/dashboards-plus/x/shares" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/portals\/[^/]+\/people\/[^/]+\/(link|invite)$/, example: { method: "POST", path: "/api/portals/x/people/y/link" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST", "PATCH"], pattern: /^\/api\/calendar\/feed$/, example: { method: "POST", path: "/api/calendar/feed" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST", "PATCH"], pattern: /^\/api\/developer\/webhooks(\/[^/]+)?$/, example: { method: "POST", path: "/api/developer/webhooks" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/push\/(web|devices)\/?$/, example: { method: "POST", path: "/api/push/devices" }, enforcedBy: "requireAuth" },
+  // Who controls the workspace: ownership transfer, member roles, removing or disabling members (people and AI agent
+  // members), invites (the invite body carries the role and requireAuth does not read bodies, so every invite action is
+  // refused, member invites included), joining a workspace from an invite, and the workspace's SSO rule and plan.
+  { group: "workspace control", methods: ["POST"], pattern: /^\/api\/team\/transfer$/, example: { method: "POST", path: "/api/team/transfer" }, enforcedBy: "requireAuth" },
+  { group: "workspace control", methods: ["PATCH", "DELETE"], pattern: /^\/api\/team\/members\/[^/]+$/, example: { method: "PATCH", path: "/api/team/members/x" }, enforcedBy: "requireAuth" },
+  { group: "workspace control", methods: ["POST", "PATCH", "DELETE"], pattern: /^\/api\/team\/agents(\/[^/]+)?$/, example: { method: "POST", path: "/api/team/agents" }, enforcedBy: "requireAuth" },
+  { group: "workspace control", methods: ["POST", "DELETE"], pattern: /^\/api\/team\/invites(\/|$)/, example: { method: "POST", path: "/api/team/invites" }, enforcedBy: "requireAuth" },
+  { group: "workspace control", methods: ["POST"], pattern: /^\/api\/invites\/[^/]+\/accept$/, example: { method: "POST", path: "/api/invites/x/accept" }, enforcedBy: "requireAuth" },
+  { group: "workspace control", methods: ["PUT"], pattern: /^\/api\/org\/sso$/, example: { method: "PUT", path: "/api/org/sso" }, enforcedBy: "requireAuth" },
+  { group: "workspace control", methods: ["POST"], pattern: /^\/api\/org\/plan$/, example: { method: "POST", path: "/api/org/plan" }, enforcedBy: "requireAuth" },
+  { group: "workspace control", methods: ["PUT"], pattern: /^\/api\/share-links\/settings$/, example: { method: "PUT", path: "/api/share-links/settings" }, enforcedBy: "requireAuth" },
+  // Attaching outside accounts in the person's name: mail (Google, Microsoft, IMAP) and TikTok and Threads (all under /api/connections), the Connections
+  // hub, WhatsApp channels, AI providers, Xero, and outside calendars. Start, callback and credential changes.
+  { group: "outside accounts", methods: ALL, pattern: /^\/api\/connections\/oauth(\/|$)/, example: { method: "GET", path: "/api/connections/oauth/google/start" }, enforcedBy: "requireAuth" },
+  { group: "outside accounts", methods: ["POST"], pattern: /^\/api\/connections\/?$/, example: { method: "POST", path: "/api/connections" }, enforcedBy: "requireAuth" },
+  { group: "outside accounts", methods: ["PUT"], pattern: /^\/api\/connections\/[^/]+$/, example: { method: "PUT", path: "/api/connections/x" }, enforcedBy: "requireAuth" },
+  { group: "outside accounts", methods: ["POST"], pattern: /^\/api\/apps\/(connect|accounts\/[^/]+\/(confirm|reconnect))$/, example: { method: "POST", path: "/api/apps/connect" }, enforcedBy: "requireAuth" },
+  { group: "outside accounts", methods: ["POST"], pattern: /^\/api\/channels\/connect(-mock)?$/, example: { method: "POST", path: "/api/channels/connect" }, enforcedBy: "requireAuth" },
+  { group: "outside accounts", methods: ALL, pattern: /^\/api\/ai\/(connect|oauth)(\/|$)/, example: { method: "POST", path: "/api/ai/connect" }, enforcedBy: "requireAuth" },
+  { group: "outside accounts", methods: ALL, pattern: /^\/api\/integrations\/xero\/(connect|callback)$/, example: { method: "GET", path: "/api/integrations/xero/connect" }, enforcedBy: "requireAuth" },
+  { group: "outside accounts", methods: ["POST"], pattern: /^\/api\/calendar\/sources\/?$/, example: { method: "POST", path: "/api/calendar/sources" }, enforcedBy: "requireAuth" },
 ];
 
 /**

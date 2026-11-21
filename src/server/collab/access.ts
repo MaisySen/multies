@@ -4,14 +4,16 @@
  * same session, workspace and guest rules as the docs routes.
  */
 import type { Deps } from "../context";
-import { resolveAuth } from "../middleware";
+import { receiveOnly, resolveAuthFor } from "../middleware";
+import { HttpError } from "../lib/errors";
 
 type FetchApp = { fetch(request: Request): Response | Promise<Response> };
 
 /** Roles that may change a doc. Anyone else who can read it joins read-only. */
 const EDITORS = new Set(["owner", "admin", "member"]);
 
-export type CollabAccess = { ok: true; readOnly: boolean } | { ok: false; status: number; message: string };
+/** silent: the connection's presence (cursor, name) is never shown to others (an operator viewing as someone). */
+export type CollabAccess = { ok: true; readOnly: boolean; silent?: boolean } | { ok: false; status: number; message: string };
 
 export async function collabAccess(app: FetchApp, deps: Deps, request: Request, docId: string): Promise<CollabAccess> {
   if (request.method !== "GET" || (request.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") {
@@ -31,9 +33,17 @@ export async function collabAccess(app: FetchApp, deps: Deps, request: Request, 
   }
   const probe = await app.fetch(new Request(new URL(`/api/docs/${encodeURIComponent(docId)}`, url).toString(), { headers }));
   if (probe.status !== 200) return { ok: false, status: probe.status === 401 ? 401 : probe.status === 403 ? 403 : 404, message: "No access to that doc." };
-  const auth = await resolveAuth(deps, headers);
+  // OPS1 impersonation: through the shared check. View mode joins read only and silent (no edits, no presence as the person).
+  let auth;
+  try {
+    auth = await resolveAuthFor(deps, headers, { method: "GET", path: `/api/docs/${docId}/collab` });
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, status: err.status === 401 ? 401 : 403, message: err.message };
+    throw err;
+  }
   if (!auth) return { ok: false, status: 401, message: "Sign in first." };
-  return { ok: true, readOnly: !EDITORS.has(String(auth.role)) };
+  const viewOnly = receiveOnly(auth);
+  return { ok: true, readOnly: !EDITORS.has(String(auth.role)) || viewOnly, ...(viewOnly ? { silent: true } : {}) };
 }
 
 function sameHost(origin: string, host: string) {

@@ -68,7 +68,7 @@ describe("start and stop", () => {
     expect(p).toMatchObject({ actorUserId: op.id, actorRole: "ops_support", targetType: "user", targetId: target.id, orgId, reason: REASON, impersonationId: imp.id });
     const w = (await ctx.db.select().from(auditLogs).where(and(eq(auditLogs.orgId, orgId), eq(auditLogs.action, "support.session_started"))).get())!;
     expect(w.actorUserId).toBe(op.id);
-    expect(JSON.parse(w.metadata!)).toMatchObject({ by: "operator", mode: "view", reason: REASON });
+    expect(JSON.parse(w.metadata!)).toMatchObject({ by: "operator", email: "tara@example.com", mode: "view", reason: REASON });
     // The customer sees it in their own activity log.
     const log = await target.c.get("/api/org/audit");
     expect(JSON.stringify(log.body)).toContain("support.session_started");
@@ -286,7 +286,7 @@ describe("always blocked, both modes (walks IMPERSONATION_ALWAYS_BLOCKED)", () =
   for (const mode of ["view", "act"] as const) {
     it(`${mode} mode`, async () => {
       // Flagged routes on, so the request reaches the route's own guard (MOBILE_WEB_LINK answers 404 while off).
-      const { ctx, op, target } = await world(mode === "act" ? "ops_admin" : "ops_support", { MOBILE_WEB_LINK: "on", PASSKEY_DES1: "on", VAULT_R128: "on", MAIL_ARCHIVE_R111: "on" });
+      const { ctx, op, target } = await world(mode === "act" ? "ops_admin" : "ops_support", { MOBILE_WEB_LINK: "on", PASSKEY_DES1: "on", VAULT_R128: "on", MAIL_ARCHIVE_R111: "on", DASHBOARDS_PLUS: "on", CLIENT_PORTAL: "on", CHAT_CHANNELS: "on" });
       expect((await start(op.c, { userId: target.id, mode })).status).toBe(201);
       const imp = (await row(ctx, op.id))!;
       for (const rule of IMPERSONATION_ALWAYS_BLOCKED) {

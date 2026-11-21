@@ -28,14 +28,14 @@ export function attachCollab(server: Server, app: FetchApp, deps: Deps) {
         socket.end(`HTTP/1.1 ${access.status} ${access.message}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
         return;
       }
-      wss.handleUpgrade(req, socket, head, (ws) => join(ws, docId, access.readOnly));
+      wss.handleUpgrade(req, socket, head, (ws) => join(ws, docId, access.readOnly, !!access.silent));
     }).catch(() => socket.destroy());
   });
 
-  function join(ws: WebSocket, docId: string, readOnly: boolean) {
+  function join(ws: WebSocket, docId: string, readOnly: boolean, silent = false) {
     let room = rooms.get(docId);
     if (!room) { room = new CollabRoom(); rooms.set(docId, room); }
-    const conn: CollabConn = { readOnly, send: (data) => { if (ws.readyState === ws.OPEN) ws.send(data); } };
+    const conn: CollabConn = { readOnly, silent, send: (data) => { if (ws.readyState === ws.OPEN) ws.send(data); } };
     ws.binaryType = "nodebuffer";
     ws.on("message", (data: Buffer, isBinary: boolean) => { if (isBinary) room.receive(conn, new Uint8Array(data.buffer, data.byteOffset, data.byteLength)); });
     ws.on("close", () => room.leave(conn));

@@ -28,7 +28,7 @@ export interface DurableObjectStateLike {
 }
 declare const WebSocketPair: { new (): { 0: HibernatingSocket; 1: HibernatingSocket } };
 
-type Attachment = { readOnly: boolean; ids: number[] };
+type Attachment = { readOnly: boolean; silent?: boolean; ids: number[] }; // OPS1 impersonation: silent
 type SocketConn = CollabConn & { ws: HibernatingSocket };
 
 const IDLE_CLEANUP_MS = 30 * 24 * 60 * 60 * 1000;
@@ -43,7 +43,7 @@ export class DocRoom {
     if ((request.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") return new Response("Expected a WebSocket upgrade.", { status: 426 });
     const pair = new WebSocketPair();
     const client = pair[0], server = pair[1];
-    const att: Attachment = { readOnly: request.headers.get("x-collab-read-only") === "1", ids: [] };
+    const att: Attachment = { readOnly: request.headers.get("x-collab-read-only") === "1", silent: request.headers.get("x-collab-silent") === "1", ids: [] };
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(att);
     const room = this.getRoom();
@@ -84,7 +84,7 @@ export class DocRoom {
     let conn = this.conns.get(ws);
     if (!conn) {
       const att = (ws.deserializeAttachment() ?? { readOnly: false, ids: [] }) as Attachment;
-      conn = { ws, readOnly: att.readOnly, send: (data) => ws.send(data) };
+      conn = { ws, readOnly: att.readOnly, silent: !!att.silent, send: (data) => ws.send(data) };
       this.conns.set(ws, conn);
     }
     return conn;

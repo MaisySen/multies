@@ -414,7 +414,7 @@ async function collabUpgrade(request: Request, env: WorkerEnv, docId: string): P
   const { app, deps } = await getReady(env);
   const access = await collabAccess(app, deps, request, docId);
   if (!access.ok) return Response.json({ error: { code: "collab_denied", message: access.message } }, { status: access.status });
-  const headers = new Headers({ upgrade: "websocket", "x-collab-read-only": access.readOnly ? "1" : "0" });
+  const headers = new Headers({ upgrade: "websocket", "x-collab-read-only": access.readOnly ? "1" : "0", "x-collab-silent": access.silent ? "1" : "0" }); // OPS1 impersonation: silent
   for (const name of ["sec-websocket-key", "sec-websocket-version", "sec-websocket-protocol", "sec-websocket-extensions"]) {
     const v = request.headers.get(name);
     if (v) headers.set(name, v);

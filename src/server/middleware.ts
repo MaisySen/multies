@@ -4,7 +4,7 @@ import type { AppEnv } from "./context";
 import { HttpError, zodToHttp } from "./lib/errors";
 
 // The guards live in the auth module; re-exported here for the existing imports.
-export { resolveAuth, requireAuth, requirePlatformAdmin, requireAdmin } from "./auth/guards";
+export { resolveAuth, resolveAuthFor, receiveOnly, requireAuth, requirePlatformAdmin, requireAdmin } from "./auth/guards"; // OPS1 impersonation: resolveAuthFor
 
 /**
  * CSRF defence for cookie-authenticated, state-changing requests: the request must

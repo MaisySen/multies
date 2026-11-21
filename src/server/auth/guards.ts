@@ -285,13 +285,38 @@ async function enforceImpersonation(c: Context<AppEnv>, cached: AuthContext): Pr
     auth = await resolveAuth(c.var.deps, c.req.raw.headers);
     if (!auth) throw unauthorized();
   }
-  const imp = auth.impersonation;
-  if (!imp) throw unauthorized();
-  const block = impersonationBlock(imp.mode, c.req.method, c.req.path);
-  if (block === "always") throw new HttpError(403, "impersonation_blocked", ALWAYS_BLOCKED_MESSAGE);
-  if (block === "view") throw new HttpError(403, "impersonation_blocked", VIEW_ONLY_MESSAGE);
+  assertImpersonationAllows(auth, c.req.method, c.req.path);
   return auth;
 }
+
+/**
+ * OPS1 impersonation: THE check for an impersonated session doing `method path`. Throws 401 when the session has no
+ * usable impersonation, 403 impersonation_blocked when the always blocked list (both modes) or view mode refuses it.
+ * Does nothing for a normal session. requireAuth runs it; any other entry point must use resolveAuthFor below.
+ */
+export function assertImpersonationAllows(auth: AuthContext, method: string, path: string): void {
+  if (!auth.impersonatedBy) return;
+  const imp = auth.impersonation;
+  if (!imp) throw unauthorized();
+  const block = impersonationBlock(imp.mode, method, path);
+  if (block === "always") throw new HttpError(403, "impersonation_blocked", ALWAYS_BLOCKED_MESSAGE);
+  if (block === "view") throw new HttpError(403, "impersonation_blocked", VIEW_ONLY_MESSAGE);
+}
+
+/**
+ * OPS1 impersonation: the session for an entry point that does not run requireAuth (the doc and chat WebSockets, and
+ * anything added later). Same as resolveAuth, then assertImpersonationAllows for the request it stands for. Callers
+ * that hold a connection open must also honour `auth.impersonation.mode` (view: receive only). A source sweep
+ * (tests/console-impersonation-entrypoints.test.ts) fails when a new file calls resolveAuth directly.
+ */
+export async function resolveAuthFor(deps: Deps, headers: Headers, req: { method: string; path: string }): Promise<AuthContext | null> {
+  const auth = await resolveAuth(deps, headers);
+  if (auth) assertImpersonationAllows(auth, req.method, req.path);
+  return auth;
+}
+
+/** OPS1 impersonation: true when this session may only receive on a live connection (view mode). */
+export const receiveOnly = (auth: Pick<AuthContext, "impersonation">): boolean => auth.impersonation?.mode === "view";
 
 /**
  * Operators only. OPS1: any operator role (src/shared/operator-permissions.ts) passes; routes that need a particular

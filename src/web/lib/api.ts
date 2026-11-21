@@ -4,6 +4,8 @@ import { tl } from "@/web/i18n"; // R104
 
 /** Thin typed client for the Multies API. Cookies carry the session. */
 export class ApiError extends Error {
+  /** OPS1 impersonation: set for a call the app made on its own (polling, heartbeats), not one the person asked for. */
+  background = false;
   constructor(public status: number, public code: string, message: string, public fields?: Record<string, string>, public details?: unknown) {
     super(message);
   }
@@ -37,6 +39,8 @@ interface RequestOptions {
   idempotencyKey?: string;
   /** Extra request headers (for example x-device-id for the free address limits). */
   headers?: Record<string, string>;
+  /** OPS1 impersonation: a call the app makes on its own (polling, heartbeats). Its errors never toast through showError. */
+  background?: boolean;
 }
 
 /** T1G (T1-8): how long one read may take before it is given up (not retried here; the query retries it once). */
@@ -121,6 +125,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
     try {
       return await once<T>(method, path, body, headers);
     } catch (err) {
+      if (opts.background && err instanceof ApiError) err.background = true; // OPS1 impersonation
       if (i >= delays.length || !isTransientError(err) || (err as ApiError).code === "timeout") throw err;
       await sleep(delays[i]!);
     }
@@ -151,6 +156,6 @@ export const api = {
   get: <T>(p: string, opts?: RequestOptions) => request<T>("GET", p, undefined, opts),
   post: <T>(p: string, b: unknown = {}, o?: RequestOptions) => request<T>("POST", p, b, o),
   patch: <T>(p: string, b: unknown, o?: RequestOptions) => request<T>("PATCH", p, b, o),
-  put: <T>(p: string, b: unknown) => request<T>("PUT", p, b),
-  del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),
+  put: <T>(p: string, b: unknown, o?: RequestOptions) => request<T>("PUT", p, b, o),
+  del: <T>(p: string, b?: unknown, o?: RequestOptions) => request<T>("DELETE", p, b, o),
 };

@@ -28,6 +28,8 @@ export interface CollabConn {
   send(data: Uint8Array): void;
   /** Read-only people receive edits but their updates are dropped. */
   readOnly?: boolean;
+  /** OPS1 impersonation: its awareness (presence, cursor) updates are dropped too, so it is never shown to others. */
+  silent?: boolean;
 }
 
 /** Where a room keeps its state between wakes. */
@@ -114,6 +116,7 @@ export class CollabRoom {
         syncProtocol.readSyncMessage(decoder, enc, this.doc, conn);
         if (encoding.length(enc) > 1) safeSend(conn, encoding.toUint8Array(enc));
       } else if (type === MESSAGE_AWARENESS) {
+        if (conn.silent) return; // OPS1 impersonation
         awarenessProtocol.applyAwarenessUpdate(this.awareness, decoding.readVarUint8Array(decoder), conn);
       } else if (type === MESSAGE_QUERY_AWARENESS) {
         const states = this.awareness.getStates();
