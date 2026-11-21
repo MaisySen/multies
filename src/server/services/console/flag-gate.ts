@@ -13,6 +13,7 @@
 import type { Context } from "hono";
 import type { AppEnv, AuthContext } from "../../context";
 import { resolveAuthFor } from "../../auth/guards";
+import { HttpError } from "../../lib/errors";
 import { eq } from "drizzle-orm";
 import { forms } from "../../db/schema";
 import { featureOn, featureVariesByWorkspace, loadFlagOverridesSafe } from "./flags";
@@ -61,7 +62,15 @@ export async function flagOn(c: Context<AppEnv>, key: FlagKey): Promise<boolean>
   const deps = c.var.deps;
   const known = requestOrgId(c);
   if (known || !featureVariesByWorkspace(deps, key)) return featureOn(deps, key, known);
-  // A refused session (for example an impersonation block) counts as none here; requireAuth answers it after the gate.
-  const auth = await resolveAuthFor(deps, c.req.raw.headers, { method: c.req.method, path: c.req.path }).catch((): AuthContext | null => null);
+  let auth: AuthContext | null;
+  try {
+    auth = await resolveAuthFor(deps, c.req.raw.headers, { method: c.req.method, path: c.req.path });
+  } catch (err) {
+    // A refusal (an impersonation block, an ended impersonation) is the answer requireAuth would give: pass it on.
+    if (err instanceof HttpError) throw err;
+    // Any other failure to read the session never opens a gate: the platform wide value would be wrong for a workspace
+    // an operator turned off, and requireAuth could still succeed from its cached copy. Closed (404) for this request.
+    return false;
+  }
   return featureOn(deps, key, auth?.orgId);
 }
