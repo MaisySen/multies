@@ -12,6 +12,7 @@ import { apiKeys, oauthClients, oauthGrants, organizations, users, webhookDelive
 import { badRequest } from "../../lib/errors";
 import { containsAny } from "../../lib/like-search";
 import { inIds } from "../../lib/sql-chunks";
+import { newestRows } from "./recent-rows";
 import { deleteApiKey } from "../developer/api-keys";
 import { revokeGrant } from "../developer/oauth";
 import { replayFailed, updateEndpoint } from "../developer/webhooks";
@@ -180,8 +181,10 @@ export interface ConsoleWebhookDelivery {
 
 /**
  * Index: with `endpointId`, or `orgId` (resolved to that workspace's endpoint ids, at most 10), the window and order
- * use `webhook_deliveries_endpoint_idx (endpoint_id, created_at)`. With neither, `webhook_deliveries_due_idx
- * (status, next_attempt_at)` narrows to the status, and the window is applied over those rows.
+ * use `webhook_deliveries_endpoint_idx (endpoint_id, created_at)`. With neither, failed or pending (rare: dead letters
+ * and retries in flight) come from `webhook_deliveries_due_idx (status, next_attempt_at)`. Delivered ones across every
+ * workspace look at the newest RECENT_ROWS_CAP deliveries only (recent-rows.ts; an index here would cost a row write
+ * per webhook event).
  */
 export async function listWebhookDeliveries(deps: Deps, filters: WebhookDeliveryFilters, page: PageRequest): Promise<Page<ConsoleWebhookDelivery>> {
   const spec = sortSpec(deliverySorts, page.sort.field);
@@ -208,7 +211,9 @@ export async function listWebhookDeliveries(deps: Deps, filters: WebhookDelivery
       endpointIds ? inIds(d.endpointId, endpointIds) : undefined,
       filters.orgId ? eq(d.orgId, filters.orgId) : undefined,
       gte(d.createdAt, from), lt(d.createdAt, to),
-      inIds(d.status, statuses),
+      // Delivered across every workspace: the newest rows only. The unary + keeps SQLite off webhook_deliveries_due_idx
+      // there, which would read every delivered row.
+      ...(endpointIds || !statuses.includes("delivered") ? [inIds(d.status, statuses)] : [inIds(sql`+${d.status}`, statuses), newestRows(d)]),
       filters.eventType ? eq(d.eventType, filters.eventType) : undefined,
       keysetAfter(spec, d.id, page.sort.dir, page.cursor),
     ))
@@ -248,8 +253,9 @@ export interface OAuthClientFilters { q?: string; window?: TimeWindow }
 export interface ConsoleOAuthClient { id: string; name: string; redirectUris: string[]; clientUri: string | null; createdAt: Date }
 
 /**
- * `oauth_clients` has only its primary key, so this is a scan bounded by a created_at window (default 90 days)
- * unless the operator searches by name (see the report on OPS1 indexes).
+ * `oauth_clients` has only its primary key (an index would cost a row write on every client registration, which is
+ * open to anyone), so the list looks at the newest RECENT_ROWS_CAP registrations by rowid (recent-rows.ts) and then
+ * applies the created_at window (default 90 days) or the name search.
  */
 export async function listOAuthClients(deps: Deps, filters: OAuthClientFilters, page: PageRequest): Promise<Page<ConsoleOAuthClient>> {
   const spec = sortSpec(clientSorts, page.sort.field);
@@ -259,6 +265,7 @@ export async function listOAuthClients(deps: Deps, filters: OAuthClientFilters, 
   const c = oauthClients;
   const rows = await deps.db.select().from(c)
     .where(and(
+      newestRows(c),
       w ? and(gte(c.createdAt, w.from), lt(c.createdAt, w.to)) : undefined,
       q ? containsAny([c.name, c.clientUri], q) : undefined,
       keysetAfter(spec, c.id, page.sort.dir, page.cursor),
@@ -292,7 +299,11 @@ export interface ConsoleOAuthGrant {
   lastUsedAt: Date | null; revokedAt: Date | null; createdAt: Date;
 }
 
-/** Index: `oauth_grants_org_idx (org_id, user_id)` with `orgId` (and `userId`); otherwise a created_at window over a scan. */
+/**
+ * Index: `oauth_grants_org_idx (org_id, user_id)` with `orgId` (and `userId`). Without a workspace there is no index
+ * (one would cost a row write on every MCP sign in), so the list looks at the newest RECENT_ROWS_CAP grants by rowid
+ * (recent-rows.ts), then applies the created_at window (default 90 days) and the client and state filters.
+ */
 export async function listOAuthGrants(deps: Deps, filters: OAuthGrantFilters, page: PageRequest): Promise<Page<ConsoleOAuthGrant>> {
   const spec = sortSpec(grantSorts, page.sort.field);
   const limit = clampLimit(page.limit);
@@ -308,7 +319,7 @@ export async function listOAuthGrants(deps: Deps, filters: OAuthGrantFilters, pa
     .leftJoin(oauthClients, eq(oauthClients.id, g.clientId))
     .leftJoin(users, eq(users.id, g.userId))
     .where(and(
-      filters.orgId ? eq(g.orgId, filters.orgId) : undefined,
+      filters.orgId ? eq(g.orgId, filters.orgId) : newestRows(g),
       filters.userId ? eq(g.userId, filters.userId) : undefined,
       filters.clientId ? eq(g.clientId, filters.clientId) : undefined,
       w ? and(gte(g.createdAt, w.from), lt(g.createdAt, w.to)) : undefined,

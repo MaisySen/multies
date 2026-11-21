@@ -4,7 +4,7 @@
  * needs an operator now, each with a link to the already filtered page), the totals and the five newest workspaces.
  * Reads only; every count uses an index or one small scan, and they run side by side.
  */
-import { and, count, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { migrationDriver, pendingMigrations } from "../../db";
 import { abuseEvents, deliveries, domains, jobs, mailboxes, organizations, usageCounters, users } from "../../db/schema";
@@ -92,7 +92,12 @@ export async function attentionList(deps: Deps): Promise<AttentionItem[]> {
       suspended: sql<number | null>`sum(case when ${organizations.suspendedAt} is not null then 1 else 0 end)`,
     }).from(organizations).get(),
     daily
-      ? db.select({ n: count() }).from(usageCounters).where(and(eq(usageCounters.period, today), eq(usageCounters.metric, WORKSPACE_ROWS_METRIC), gte(usageCounters.count, daily))).get()
+      // One primary key probe per workspace (org_id, period, metric); no index on (period, metric), which would cost a
+      // row write on every counter bump.
+      ? db.select({ n: count() }).from(usageCounters).where(and(
+        inArray(usageCounters.orgId, db.select({ id: organizations.id }).from(organizations)), // D1: a subquery, no bound list
+        eq(usageCounters.period, today), eq(usageCounters.metric, WORKSPACE_ROWS_METRIC), gte(usageCounters.count, daily),
+      )).get()
       : Promise.resolve({ n: 0 }),
     writeBudget(deps).catch(() => null),
     pendingMigrationCount(deps),

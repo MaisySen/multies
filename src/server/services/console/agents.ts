@@ -11,6 +11,8 @@ import type { Deps } from "../../context";
 import { agentRuns, agents, agentTriggers, aiKeys, aiUsageDaily, organizations, sendApprovals, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { containsAny } from "../../lib/like-search";
+import { inIds } from "../../lib/sql-chunks";
+import { newestRows } from "./recent-rows";
 import { cancelRun, RUN_CANCEL_REASON_MAX, RUN_STATUSES, type RunStatus } from "../suite/agent-runs";
 import { updateTrigger } from "../suite/agent-triggers";
 import type { SuiteActor } from "../suite/common";
@@ -27,6 +29,14 @@ function actorFor(op: ConsoleOperator, orgId: string): SuiteActor {
 
 /** Runs older than this that are still queued or running count as long-running. */
 export const LONG_RUNNING_MS = 30 * 60_000;
+/** At most this many long-running runs are looked up for one list (they are active runs, so few). */
+export const LONG_RUNNING_MAX = 500;
+/**
+ * The literal conditions of the partial indexes the run lists read (SQLite only uses a partial index when the query
+ * repeats its WHERE): agent_runs_failed_created_idx (0177) and agent_runs_active_uq (queued or running).
+ */
+const RUN_FAILED_SQL = sql`${agentRuns.status} = 'failed'`;
+const RUN_ACTIVE_SQL = sql`${agentRuns.status} IN ('queued', 'running')`;
 
 /** `attention` (the default) is failed runs plus queued or running ones past LONG_RUNNING_MS. */
 export type AgentRunStatusFilter = RunStatus | "attention" | "long_running" | "all";
@@ -67,9 +77,11 @@ export interface ConsoleAgentRun {
 
 /**
  * Agent runs across workspaces inside a created_at window (default 7 days), by default the ones that need a look.
- * D1: with a workspace, agent_runs_creator_td6_idx (org_id, created_by_user_id, finished_at) narrows by org_id. Across
- * workspaces no index leads on created_at or status, so the window is applied by a table scan (index missing:
- * agent_runs(created_at) or agent_runs(status, created_at)).
+ * D1: failed runs come from the partial agent_runs_failed_created_idx (0177); long-running ones are found first among
+ * the active runs through the partial agent_runs_active_uq (queued or running, so few), then fetched by id. With a
+ * workspace, agent_runs_creator_td6_idx (org_id, ...) narrows by org_id. Any other status across every workspace has
+ * no index (a full one would cost row writes on every run's status change), so it looks at the newest
+ * RECENT_ROWS_CAP runs only (recent-rows.ts).
  */
 export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: ConsolePage<AgentRunSortField>): Promise<ConsolePageResult<ConsoleAgentRun>> {
   const status = filters.status ?? "attention";
@@ -83,10 +95,17 @@ export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: 
     and(eq(agentRuns.status, "running"), sql`coalesce(${agentRuns.startedAt}, ${agentRuns.createdAt}) <= ${longBefore}`),
     and(eq(agentRuns.status, "queued"), lte(agentRuns.createdAt, new Date(longBefore))),
   );
-  const statusCond = status === "attention" ? or(eq(agentRuns.status, "failed"), longRunning)
-    : status === "long_running" ? longRunning
-      : status === "all" ? undefined
-        : eq(agentRuns.status, status);
+  const longIds = status === "attention" || status === "long_running"
+    ? (await deps.db.select({ id: agentRuns.id }).from(agentRuns)
+      .where(and(RUN_ACTIVE_SQL, longRunning, gte(agentRuns.createdAt, since), filters.orgId ? eq(agentRuns.orgId, filters.orgId) : undefined))
+      .limit(LONG_RUNNING_MAX)).map((r) => r.id)
+    : [];
+  const failedRecent = and(RUN_FAILED_SQL, gte(agentRuns.createdAt, since));
+  // With no long-running run the condition is the failed one alone, so SQLite reads only the partial index.
+  const statusCond = status === "attention" ? (longIds.length ? or(failedRecent, inIds(agentRuns.id, longIds)) : failedRecent)
+    : status === "long_running" ? inIds(agentRuns.id, longIds)
+      : status === "failed" ? RUN_FAILED_SQL
+        : and(status === "all" ? undefined : eq(agentRuns.status, status), filters.orgId ? undefined : newestRows(agentRuns));
   const rows = await deps.db.select({
     id: agentRuns.id, orgId: agentRuns.orgId, workspaceName: organizations.name, taskId: agentRuns.taskId,
     agentUserId: agentRuns.agentUserId, agentName: users.name, status: agentRuns.status, triggerId: agentRuns.triggerId,
@@ -221,8 +240,7 @@ export interface ConsolePendingApproval {
 /**
  * Agent sends waiting for a person's approval, oldest first by default. Pending rows expire (maintenance marks them
  * expired), so the set is bounded. D1: with a workspace, send_approvals_org_status_idx (org_id, status, created_at)
- * serves it exactly; across workspaces no index leads on status, so it scans (index missing: send_approvals(status,
- * created_at)).
+ * serves it exactly; across workspaces the partial send_approvals_pending_created_idx (0177) holds only pending rows.
  */
 export async function listPendingSendApprovals(deps: Deps, filters: { orgId?: string; q?: string }, page: ConsolePage<SendApprovalSortField>): Promise<ConsolePageResult<ConsolePendingApproval>> {
   const p = pageParts(page, SEND_APPROVAL_SORTS, sendApprovals.id);
@@ -234,7 +252,8 @@ export async function listPendingSendApprovals(deps: Deps, filters: { orgId?: st
     .leftJoin(organizations, eq(organizations.id, sendApprovals.orgId))
     .leftJoin(agents, eq(agents.id, sendApprovals.agentId))
     .where(and(
-      eq(sendApprovals.status, "pending"), filters.orgId ? eq(sendApprovals.orgId, filters.orgId) : undefined,
+      // The partial index's own condition, written as a literal so SQLite can use it.
+      sql`${sendApprovals.status} = 'pending'`, filters.orgId ? eq(sendApprovals.orgId, filters.orgId) : undefined,
       searchOf(filters.q) ? containsAny([organizations.name, sendApprovals.orgId, agents.name], searchOf(filters.q)!) : undefined,
       p.after,
     ))

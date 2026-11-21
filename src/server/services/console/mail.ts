@@ -16,6 +16,7 @@ import { deliveries, domains, importJobs, mailboxes, mailConnections, mailSchedu
 import { badRequest, notFound } from "../../lib/errors";
 import { containsAny } from "../../lib/like-search";
 import { inIds } from "../../lib/sql-chunks";
+import { newestRows } from "./recent-rows";
 import { sendingState, verifyDomain } from "../domains";
 import { unsuppress } from "../deliverability/suppressions";
 import { sendQueuedAnyway } from "../mail/send-queue-r34";
@@ -103,6 +104,14 @@ export type DeliveryStatus = (typeof deliveries.$inferSelect)["status"];
 export const DELIVERY_STATUSES = ["received", "delivered", "forwarded", "queued", "sent", "failed", "rejected", "bounced", "complained", "delayed", "suppressed"] as const satisfies readonly DeliveryStatus[];
 /** What counts as a failed delivery in the console (lists default to these, and the failure rate counts them). */
 export const DELIVERY_FAILURE_STATUSES = ["failed", "rejected", "bounced", "complained"] as const satisfies readonly DeliveryStatus[];
+/**
+ * The failure statuses as the literal SQL of the partial index `deliveries_failed_created_idx` (migration 0177). SQLite
+ * only uses a partial index when the query repeats its WHERE, so lists of failures add this term as written.
+ */
+const DELIVERY_FAILED_SQL = sql`${deliveries.status} IN ('failed', 'rejected', 'bounced', 'complained')`;
+const isFailure = (s: string) => (DELIVERY_FAILURE_STATUSES as readonly string[]).includes(s);
+/** deliveryFailureRateByWorkspace ranks at most this many workspaces with failures (most failures first). */
+export const FAILURE_RATE_CANDIDATES = 200;
 
 export const DELIVERY_SORT_FIELDS = ["createdAt"] as const;
 export type DeliverySortField = (typeof DELIVERY_SORT_FIELDS)[number];
@@ -128,8 +137,10 @@ export interface ConsoleDelivery {
 }
 
 /**
- * Index: with `orgId`, `deliveries_org_idx (org_id, created_at)` serves the window and order. Without it there is no
- * index that leads with created_at or status, so the window is applied over a scan (see the report on OPS1 indexes).
+ * Index: with `orgId`, `deliveries_org_idx (org_id, created_at)` serves the window and order. Without it, a list of
+ * failure statuses only (the default) reads the partial `deliveries_failed_created_idx`. Any other status across every
+ * workspace has no index (one on this table would cost a row write per delivery), so it looks at the newest
+ * RECENT_ROWS_CAP deliveries only (recent-rows.ts); pick a workspace to see older ones.
  */
 export async function listDeliveries(deps: Deps, filters: DeliveryFilters, page: PageRequest): Promise<Page<ConsoleDelivery>> {
   const spec = sortSpec(deliverySorts, page.sort.field);
@@ -144,6 +155,8 @@ export async function listDeliveries(deps: Deps, filters: DeliveryFilters, page:
       filters.orgId ? eq(deliveries.orgId, filters.orgId) : undefined,
       gte(deliveries.createdAt, from), lt(deliveries.createdAt, to),
       inIds(deliveries.status, statuses),
+      // Failures only: the partial index's own condition, so SQLite can use it. Otherwise, unscoped: the newest rows.
+      statuses.every(isFailure) ? DELIVERY_FAILED_SQL : filters.orgId ? undefined : newestRows(deliveries),
       filters.direction ? eq(deliveries.direction, filters.direction) : undefined,
       q ? containsAny([deliveries.toAddress, deliveries.fromAddress], q) : undefined,
       keysetAfter(spec, deliveries.id, page.sort.dir, page.cursor),
@@ -166,29 +179,35 @@ export interface WorkspaceFailureRate {
 /**
  * The workspaces with the highest outbound failure rate in the window (default last 7 days), worst first. A
  * workspace needs `minTotal` outbound rows (default 10) to be ranked, so two sends with one bounce don't top the list.
- * Index: none leads with created_at, so this is one aggregate over the window (see the report on OPS1 indexes).
+ * Never a scan of every delivery: first the workspaces with outbound failures in the window, from the partial
+ * `deliveries_failed_created_idx` (the FAILURE_RATE_CANDIDATES with the most failures), then those workspaces' totals
+ * through `deliveries_org_idx (org_id, created_at)` in one statement. A workspace outside the candidates (more than 200
+ * workspaces failing in one window) is left out of the ranking.
  */
 export async function deliveryFailureRateByWorkspace(deps: Deps, opts: { window?: TimeWindow; limit?: number; minTotal?: number } = {}): Promise<WorkspaceFailureRate[]> {
   const { from, to } = resolveWindow(deps, opts.window);
   const limit = clampLimit(opts.limit ?? 20);
   const minTotal = Math.max(1, Math.floor(opts.minTotal ?? 10));
-  const failedCase = sql<number>`sum(case when ${inIds(deliveries.status, [...DELIVERY_FAILURE_STATUSES])} then 1 else 0 end)`;
-  const total = sql<number>`count(*)`;
-  const rows = await deps.db.select({
-    orgId: deliveries.orgId, total, failed: failedCase,
+  const inWindow = and(eq(deliveries.direction, "outbound"), gte(deliveries.createdAt, from), lt(deliveries.createdAt, to));
+  const failing = await deps.db.select({ orgId: deliveries.orgId }).from(deliveries)
+    .where(and(DELIVERY_FAILED_SQL, inWindow))
+    .groupBy(deliveries.orgId).orderBy(sql`count(*) desc`, asc(deliveries.orgId)).limit(FAILURE_RATE_CANDIDATES);
+  if (!failing.length) return [];
+  const failedCase = sql<number>`sum(case when ${DELIVERY_FAILED_SQL} then 1 else 0 end)`;
+  const counted = await deps.db.select({
+    orgId: deliveries.orgId, total: sql<number>`count(*)`, failed: failedCase,
     bounced: sql<number>`sum(case when ${deliveries.status} = 'bounced' then 1 else 0 end)`,
     complained: sql<number>`sum(case when ${deliveries.status} = 'complained' then 1 else 0 end)`,
   }).from(deliveries)
-    .where(and(eq(deliveries.direction, "outbound"), gte(deliveries.createdAt, from), lt(deliveries.createdAt, to)))
-    .groupBy(deliveries.orgId)
-    .having(and(sql`${total} >= ${minTotal}`, sql`${failedCase} > 0`))
-    .orderBy(sql`(${failedCase} * 1.0 / ${total}) desc`, sql`${failedCase} desc`, asc(deliveries.orgId))
-    .limit(limit);
+    .where(and(inIds(deliveries.orgId, failing.map((r) => r.orgId)), inWindow))
+    .groupBy(deliveries.orgId);
+  const rows = counted
+    .map((r) => ({ orgId: r.orgId, total: Number(r.total), failed: Number(r.failed), bounced: Number(r.bounced), complained: Number(r.complained) }))
+    .filter((r) => r.total >= minTotal && r.failed > 0)
+    .sort((a, b) => b.failed / b.total - a.failed / a.total || b.failed - a.failed || (a.orgId < b.orgId ? -1 : a.orgId > b.orgId ? 1 : 0))
+    .slice(0, limit);
   const names = await orgNames(deps, rows.map((r) => r.orgId));
-  return rows.map((r) => ({
-    orgId: r.orgId, orgName: names.get(r.orgId) ?? null, total: Number(r.total), failed: Number(r.failed),
-    bounced: Number(r.bounced), complained: Number(r.complained), failureRate: Number(r.total) ? Number(r.failed) / Number(r.total) : 0,
-  }));
+  return rows.map((r) => ({ ...r, orgName: names.get(r.orgId) ?? null, failureRate: r.total ? r.failed / r.total : 0 }));
 }
 
 /** Workspace names for a set of ids, one statement (inIds binds one variable past 20 ids). */

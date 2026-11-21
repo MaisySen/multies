@@ -7,7 +7,7 @@
  * Read-only except clearLockout, which reuses services/lockout.ts. Never returns secrets: integrations are reported
  * as configured or not, never their keys or DSNs.
  */
-import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Deps, RateLimitScope } from "../../context";
 import { migrationDriver, pendingMigrations } from "../../db";
 import { loginThrottle, organizations, usageCounters, users } from "../../db/schema";
@@ -72,15 +72,19 @@ async function migrationsState(deps: Deps): Promise<SystemSnapshot["migrations"]
 
 /**
  * Today's busiest workspaces by D1 rows written (the workspace write meter), with names. D1: usage_counters' primary
- * key is (org_id, period, metric), so a lookup by period and metric across workspaces scans it (index missing:
- * usage_counters(period, metric, count)). The meter prunes its rows after 7 days, which bounds the scan.
+ * key is (org_id, period, metric), and an index on (period, metric) would cost a row write on every counter bump, so
+ * the workspaces come from a subquery and each is one primary key probe (one row read per workspace), never a scan
+ * of every counter.
  */
 async function busiest(deps: Deps): Promise<SystemSnapshot["busiestWorkspaces"]> {
   const cfg = deps.config.workspaceBudget;
   const day = deps.now().toISOString().slice(0, 10);
   const rows = await deps.db.select({ orgId: usageCounters.orgId, workspaceName: organizations.name, n: usageCounters.count })
     .from(usageCounters).leftJoin(organizations, eq(organizations.id, usageCounters.orgId))
-    .where(and(eq(usageCounters.period, day), eq(usageCounters.metric, WORKSPACE_ROWS_METRIC)))
+    .where(and(
+      inArray(usageCounters.orgId, deps.db.select({ id: organizations.id }).from(organizations)), // D1: a subquery, no bound list
+      eq(usageCounters.period, day), eq(usageCounters.metric, WORKSPACE_ROWS_METRIC),
+    ))
     .orderBy(desc(usageCounters.count)).limit(BUSIEST_WORKSPACES);
   return {
     day, budget: cfg.daily,
