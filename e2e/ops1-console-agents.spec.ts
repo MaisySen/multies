@@ -20,12 +20,12 @@ const iso = (agoMs: number) => new Date(Date.now() - agoMs).toISOString();
 
 const runs = [
   {
-    id: "run_failed", orgId: "org_alpha", workspaceName: "Alpha Works", taskId: "tsk_1", agentUserId: "usr_bot", agentName: "Alpha Bot",
+    id: "run_failed", orgId: "org_alpha", workspaceName: "Alpha Works", ownerEmail: "ada@alpha.test", taskId: "tsk_1", agentUserId: "usr_bot", agentName: "Alpha Bot",
     status: "failed", triggerId: null, createdByUserId: null, stepCount: 4, startedAt: iso(3_600_000), finishedAt: iso(3_000_000),
     createdAt: iso(3_600_000), updatedAt: iso(3_000_000), durationMs: 600_000, longRunning: false,
   },
   {
-    id: "run_long", orgId: "org_beta", workspaceName: "Beta Labs", taskId: "tsk_2", agentUserId: "usr_bot2", agentName: "Beta Helper",
+    id: "run_long", orgId: "org_beta", workspaceName: "Beta Labs", ownerEmail: "ben@beta.test", taskId: "tsk_2", agentUserId: "usr_bot2", agentName: "Beta Helper",
     status: "running", triggerId: null, createdByUserId: null, stepCount: 12, startedAt: iso(7_200_000), finishedAt: null,
     createdAt: iso(7_200_000), updatedAt: iso(60_000), durationMs: 7_200_000, longRunning: true,
   },
@@ -33,7 +33,7 @@ const runs = [
 
 const triggers = [
   {
-    id: "trg_on", orgId: "org_alpha", workspaceName: "Alpha Works", name: "Hourly sweep", kind: "schedule", enabled: true,
+    id: "trg_on", orgId: "org_alpha", workspaceName: "Alpha Works", ownerEmail: "ada@alpha.test", name: "Hourly sweep", kind: "schedule", enabled: true,
     agentUserId: "usr_bot", agentName: "Alpha Bot", nextRunAt: new Date(Date.now() + 3_600_000).toISOString(), lastFiredAt: iso(600_000), fireCount: 41,
     createdAt: iso(86_400_000), updatedAt: iso(600_000),
   },
@@ -48,7 +48,7 @@ async function mockAgents(page: Page): Promise<Seen> {
   await page.route(/\/api\/console\/agents\/triggers(\?.*)?$/, (r) => { seen.triggers.push(r.request().url()); return json(r, { items: triggers, nextCursor: null }); });
   await page.route(/\/api\/console\/agents\/approvals(\?.*)?$/, (r) => json(r, { items: [], nextCursor: null }));
   await page.route(/\/api\/console\/agents\/ai-usage(\?.*)?$/, (r) => json(r, {
-    items: [{ orgId: "org_alpha", workspaceName: "Alpha Works", units: 1200, calls: 80, days: 5 }], nextCursor: null,
+    items: [{ orgId: "org_alpha", workspaceName: "Alpha Works", ownerEmail: "ada@alpha.test", units: 1200, calls: 80, days: 5 }], nextCursor: null,
     window: { from: "2026-11-15", to: "2026-11-21" }, account: { units: 1500, calls: 95 },
   }));
   await page.route(/\/api\/console\/agents\/ai-key-problems(\?.*)?$/, (r) => json(r, { items: [], nextCursor: null }));
@@ -70,6 +70,10 @@ test("runs needing attention: filter in the address, Cancel asks for a reason an
   await expect(page.getByText("Alpha Works")).toBeVisible();
   await expect(page.getByText("Running a long time")).toBeVisible();
   expect(seen.runs.at(-1)).toContain("status=attention");
+  // The workspace comes first, linked, with its owner underneath so two workspaces with one name can be told apart.
+  await expect(page.getByRole("columnheader").first()).toHaveText("Workspace");
+  await expect(page.getByRole("link", { name: "Alpha Works" })).toHaveAttribute("href", "/console/workspaces/org_alpha");
+  await expect(page.getByText("ada@alpha.test")).toBeVisible();
 
   await page.getByRole("combobox", { name: "Status" }).selectOption("failed");
   await expect(page).toHaveURL(/status=failed/);
@@ -78,6 +82,7 @@ test("runs needing attention: filter in the address, Cancel asks for a reason an
   // Only the running run can be cancelled.
   const cancel = page.getByTestId("console-agents-run-cancel");
   await expect(cancel).toHaveCount(1);
+  await expect(cancel).toHaveText("Cancel run");
   await cancel.click();
   const dialog = page.getByTestId("reason-dialog");
   await expect(dialog).toBeVisible();
@@ -119,6 +124,11 @@ test("tabs switch through the address, and AI usage shows the account totals", a
   await page.getByTestId("console-agents-tab-usage").click();
   await expect(page.getByTestId("console-agents-usage-units")).toContainText("1.5K");
   await expect(page.getByTestId("console-agents-usage-calls")).toContainText("95");
+  // The window picker sits above the totals, and the window reads as calendar dates.
+  await expect(page.getByTestId("console-agents-usage-units")).toContainText("15 Nov 2026 to 21 Nov 2026");
+  const picker = await page.getByRole("combobox", { name: "Window" }).boundingBox();
+  const tile = await page.getByTestId("console-agents-usage-units").boundingBox();
+  expect(picker!.y).toBeLessThan(tile!.y);
   await expect(page.getByText("Alpha Works")).toBeVisible();
 
   await page.getByTestId("console-agents-tab-keys").click();

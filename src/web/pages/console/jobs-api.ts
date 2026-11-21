@@ -1,5 +1,7 @@
 /** OPS1: types, calls and plain labels for the console's Jobs section (GET/POST /api/console/jobs). */
 import { api } from "@/web/lib/api";
+import { consoleGet } from "@/web/lib/console-api";
+import type { StatusTone } from "./components/format";
 
 export type JobStatus = "pending" | "running" | "done" | "dead";
 
@@ -25,23 +27,18 @@ export const jobsKeys = { stats: ["console", "jobs", "stats"] as const };
 
 const enc = encodeURIComponent;
 export const jobsApi = {
-  stats: () => api.get<JobStats>("/console/jobs/stats"),
+  stats: () => consoleGet<JobStats>("/console/jobs/stats"),
   replayOne: (id: string, reason: string) => api.post<ReplayResult>(`/console/jobs/${enc(id)}/replay`, { reason }),
   replaySelected: (ids: string[], reason: string) => api.post<ReplayResult>("/console/jobs/replay", { ids, reason }),
   replayAll: (reason: string) => api.post<ReplayResult>("/console/jobs/replay-all", { reason }),
   markDead: (id: string, reason: string) => api.post<{ id: string; status: "dead" }>(`/console/jobs/${enc(id)}/mark-dead`, { reason }),
 };
 
-/** Plain words for the queue's statuses (the internal name stays in a title attribute). */
-export const JOB_STATUS_LABEL: Record<JobStatus, string> = { dead: "Failed for good", pending: "Waiting", running: "Running", done: "Done" };
-export const JOB_STATUS_TONE: Record<JobStatus, "bad" | "warn" | "neutral" | "ok"> = { dead: "bad", pending: "neutral", running: "warn", done: "ok" };
-
 export const MOVE_STATUS_LABEL: Record<DataMoveStatus, string> = {
   running: "Running", stopped: "Paused", done: "Done", undone: "Undone", failed: "Failed", ready: "Ready to download", expired: "Expired",
 };
-export const MOVE_STATUS_TONE: Record<DataMoveStatus, "bad" | "warn" | "neutral" | "ok"> = {
-  running: "neutral", stopped: "warn", done: "ok", undone: "neutral", failed: "bad", ready: "ok", expired: "neutral",
-};
+/** Data move states whose colour differs from the console's shared statusTone (a paused move waits on someone). */
+export const MOVE_STATUS_TONE: Partial<Record<DataMoveStatus, StatusTone>> = { stopped: "warn", ready: "ok" };
 
 /** "45 sec", "12 min", "3 h", "2 days". */
 export function ageText(ms: number): string {

@@ -1,5 +1,6 @@
 /** OPS1: types and calls for the console's Moderation section (/api/console/moderation and the lockouts in /system). */
 import { api } from "@/web/lib/api";
+import { consoleGet } from "@/web/lib/console-api";
 import type { Permission } from "@/shared/operator-permissions";
 
 export type ReportStatus = "open" | "resolved" | "dismissed";
@@ -43,8 +44,8 @@ export const CLEAR_LOCKOUT = "users.unlock" satisfies Permission;
 const enc = encodeURIComponent;
 
 export const moderationApi = {
-  counts: () => api.get<ReportCounts>("/console/moderation/reports/counts"),
-  abuseSummary: () => api.get<{ items: AbuseSummary[] }>("/console/moderation/abuse/summary"),
+  counts: () => consoleGet<ReportCounts>("/console/moderation/reports/counts"),
+  abuseSummary: () => consoleGet<{ items: AbuseSummary[] }>("/console/moderation/abuse/summary"),
   actOnReport: (id: string, body: { action: ReportActionName; reason: string }) => api.post<{ ok: true }>(`/console/moderation/reports/${enc(id)}/action`, body),
   resolveAbuse: (body: { ids: string[]; reason: string } | { workspace: string; reason: string }) => api.post<{ ok: true; resolved: number }>("/console/moderation/abuse/resolve", body),
   suspend: (orgId: string, reason: string) => api.post<{ ok: true }>(`/console/moderation/workspaces/${enc(orgId)}/suspend`, { reason }),

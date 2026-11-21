@@ -6,14 +6,13 @@
 import type { ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { errorMessage } from "@/web/lib/api";
-import { fullDate } from "@/web/lib/format";
 import { sendSentryTest, sentryEnabled } from "@/web/lib/sentry";
 import { LOCALE } from "@/shared/locale";
-import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Card, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { IconRefresh, IconShieldCheck, IconWarning } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
+import { humanize, IntegrationBadge, LoadError, RelTime, StatusBadge } from "./components/format";
 import { KvList } from "./components/kv-list";
 import { useOperatorAction } from "./components/reason-dialog";
 import { PermissionGate } from "./guard";
@@ -61,12 +60,12 @@ function Overall({ s }: { s: SystemSnapshot }) {
 function ReleaseAndDatabase({ s }: { s: SystemSnapshot }) {
   const m = s.migrations;
   const migrations = !m.ok
-    ? <Badge tone="warn" dot>Couldn't read the migration list</Badge>
+    ? <StatusBadge state="unreadable" tone="warn" label="Couldn't read the migration list" />
     : !m.pending.length
-      ? <Badge tone="ok" dot>None waiting</Badge>
+      ? <StatusBadge state="ok" label="None waiting" />
       : (
         <span className="flex flex-col gap-1">
-          <Badge tone="bad" dot>{m.pending.length === 1 ? "1 waiting" : `${m.pending.length} waiting`}</Badge>
+          <StatusBadge state="pending" tone="bad" label={m.pending.length === 1 ? "1 waiting" : `${m.pending.length} waiting`} />
           <span className="font-mono text-xs text-muted">{m.pending.slice(0, 10).join(", ")}{m.pending.length > 10 ? `, and ${m.pending.length - 10} more` : ""}</span>
         </span>
       );
@@ -79,12 +78,17 @@ function ReleaseAndDatabase({ s }: { s: SystemSnapshot }) {
   );
 }
 
-const INTEGRATIONS: { key: keyof SystemSnapshot["integrations"]; label: string }[] = [
+const INTEGRATIONS: { key: Exclude<keyof SystemSnapshot["integrations"], "billingTestMode">; label: string }[] = [
   { key: "sentryApi", label: "Sentry (API)" }, { key: "sentryWeb", label: "Sentry (web)" }, { key: "outbound", label: "Outbound mail" },
-  { key: "mailServer", label: "Mail server" }, { key: "billing", label: "Stripe billing" }, { key: "billingTestMode", label: "Stripe test mode" },
+  { key: "mailServer", label: "Mail server" }, { key: "billing", label: "Stripe billing" },
   { key: "auth0", label: "Auth0 sign-in" }, { key: "google", label: "Google sign-in" }, { key: "github", label: "GitHub sign-in" },
-  { key: "writeBudgetMeter", label: "Database meter" },
+  { key: "writeBudgetMeter", label: "Database write meter" },
 ];
+
+/** The mail provider names the server reports for outbound mail ("log" and "none" mean nothing is sent). */
+const OUTBOUND: Record<string, string> = { resend: "Resend" };
+const outboundOn = (v: string) => v !== "none" && v !== "log";
+const outboundHint = (v: string) => (outboundOn(v) ? OUTBOUND[v] ?? humanize(v) : v === "log" ? "Mail is only written to the server log" : undefined);
 
 function Integrations({ s }: { s: SystemSnapshot }) {
   const apiTest = useOperatorAction<void, { configured: boolean; eventId: string | null }>({
@@ -102,16 +106,17 @@ function Integrations({ s }: { s: SystemSnapshot }) {
   return (
     <div className="space-y-3">
       <ul className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2" data-testid="console-system-integrations">
-        {INTEGRATIONS.map(({ key, label }) => {
+        {INTEGRATIONS.map(({ key, label }, i) => {
           const v = s.integrations[key];
-          const on = typeof v === "string" ? v !== "none" && v !== "log" : v;
+          const on = typeof v === "string" ? outboundOn(v) : v;
+          const hint = typeof v === "string" ? outboundHint(v) : key === "billing" && v && s.integrations.billingTestMode ? "Test mode" : undefined;
           return (
-            <li key={key} className="flex items-center justify-between gap-3 bg-surface px-4 py-2.5 text-sm">
-              <span className="flex min-w-0 items-center gap-2.5">
-                <span className={cn("h-2 w-2 shrink-0 rounded-full", on ? "bg-ok" : "bg-line-strong")} aria-hidden />
+            <li key={key} className={cn("flex items-center justify-between gap-3 bg-surface px-4 py-2.5 text-sm", i === INTEGRATIONS.length - 1 && INTEGRATIONS.length % 2 === 1 && "sm:col-span-2")} data-testid={`console-system-integration-${key}`}>
+              <span className="flex min-w-0 flex-col">
                 <span className="truncate">{label}</span>
+                {hint && <span className="truncate text-xs text-subtle">{hint}</span>}
               </span>
-              <span className={cn("shrink-0 text-xs", on ? "font-medium text-ok" : "text-subtle")}>{typeof v === "string" ? v : v ? "Configured" : "Not configured"}</span>
+              <IntegrationBadge on={on} />
             </li>
           );
         })}
@@ -153,7 +158,7 @@ export function ConsoleSystemPage() {
     <PageHeader eyebrow="Platform" title="System health" description="How this deployment is doing right now. Refreshes every minute."
       actions={
         <span className="flex items-center gap-2 text-xs text-subtle">
-          {updated && <span data-testid="console-system-updated" title={fullDate(updated.toISOString())}>Updated {updated.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}
+          {updated && <span data-testid="console-system-updated">Updated <RelTime at={updated} /></span>}
           <Button variant="ghost" size="sm" loading={q.isFetching} onClick={() => void q.refetch()} data-testid="console-system-refresh"><IconRefresh className="h-4 w-4" aria-hidden />Refresh</Button>
         </span>
       } />
@@ -173,7 +178,7 @@ export function ConsoleSystemPage() {
     return (
       <div className="space-y-6">
         {header}
-        <Card className="p-0"><EmptyState icon={<IconWarning />} title="Couldn't load system health" body={errorMessage(q.error)} action={<Button variant="secondary" onClick={() => void q.refetch()}>Try again</Button>} /></Card>
+        <LoadError error={q.error} what="system health" retry={() => void q.refetch()} />
       </div>
     );
   }

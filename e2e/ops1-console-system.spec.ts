@@ -46,7 +46,14 @@ test("an operator sees what needs attention and sends an API test error with a r
   await expect(page.getByText("rel-e2e-2026-11-21")).toBeVisible();
   await expect(page.getByText("0412_console_indexes")).toBeVisible();
   await expect(page.getByTestId("console-system-writes-level")).toHaveText("Watch");
+  await expect(page.getByTestId("console-system-writes-today")).toHaveText("61,000");
   await expect(page.getByTestId("console-system-busiest")).toContainText("Busy Bees");
+  // Integrations read Connected or Not connected; today's checks alone are not an uptime figure yet.
+  await expect(page.getByTestId("console-system-integration-sentryApi")).toContainText("Connected");
+  await expect(page.getByTestId("console-system-integration-github")).toContainText("Not connected");
+  await expect(page.getByTestId("console-system-integration-outbound")).toContainText("Resend");
+  await expect(page.getByTestId("console-system-uptime-30")).toContainText("No data yet");
+  await expect(page.getByTestId("console-system-uptime-90")).toContainText("No data yet");
   await expect(page.getByTestId("console-system-breakers")).toContainText("Outbound mail");
   await expect(page.getByText("This shows only the server that answered this page.", { exact: false })).toBeVisible();
   await expect(page.getByTestId("console-system-updated")).toBeVisible();
@@ -65,11 +72,21 @@ test("an operator sees what needs attention and sends an API test error with a r
 
 test("all clear reads as normal, and a read only operator sees no test buttons", async ({ page }) => {
   await mockConsoleMe(page, "ops_readonly");
-  const calm = { ...snapshot, migrations: { ok: true, pending: [] }, database: { ...snapshot.database, writes: { ...snapshot.database.writes, level: "ok", pct: 12 } } };
+  const yesterday = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+  const calm = {
+    ...snapshot, migrations: { ok: true, pending: [] },
+    // The write meter is not connected on this deployment.
+    database: { meter: "off", writes: null, reads: null },
+    uptime: { days: [{ date: yesterday, checks: 288, uptime: 1, worst: "operational" }, ...snapshot.uptime.days], uptime30d: 1, uptime90d: 1 },
+  };
   await page.route("**/api/console/system/snapshot", (r) => r.fulfill({ json: calm }));
   await signUp(page, "Rory Readonly");
   await page.goto("/console/system");
   await expect(page.getByTestId("console-system-overall")).toHaveText("All systems normal", { timeout: 15_000 });
+  // One plain sentence for the missing meter; the setting names stay out of the text.
+  await expect(page.getByTestId("console-system-meter-off")).toContainText("The database write meter isn't connected on this deployment");
+  await expect(page.getByText("CF_ANALYTICS_TOKEN", { exact: false })).toHaveCount(0);
+  await expect(page.getByTestId("console-system-uptime-30")).toHaveText("Last 30 days: 100% from 2 days of checks");
   await expect(page.getByTestId("console-system-integrations")).toContainText("Sentry (API)");
   await expect(page.getByTestId("console-system-sentry-api")).toHaveCount(0);
   await expect(page.getByTestId("console-system-sentry-web")).toHaveCount(0);

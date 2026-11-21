@@ -58,6 +58,12 @@ export interface AgentRunFilters {
   q?: string;
 }
 
+/**
+ * The workspace's first owner's email, shown under the workspace's name so two workspaces with the same name can be
+ * told apart. A correlated lookup on members (members_org_user_uq leads on organization_id) per row of an already limited page.
+ */
+const OWNER_EMAIL = sql<string | null>`(select u."email" from "members" m join "users" u on u."id" = m."user_id" where m."organization_id" = "organizations"."id" and m."role" = 'owner' order by m."created_at", m."id" limit 1)`;
+
 /** A trimmed search (at most 100 characters), or undefined when empty. */
 function searchOf(q: string | undefined): string | undefined {
   const t = (q ?? "").trim().slice(0, 100);
@@ -65,7 +71,7 @@ function searchOf(q: string | undefined): string | undefined {
 }
 
 export interface ConsoleAgentRun {
-  id: string; orgId: string; workspaceName: string | null;
+  id: string; orgId: string; workspaceName: string | null; ownerEmail: string | null;
   taskId: string; agentUserId: string; agentName: string | null;
   status: RunStatus; triggerId: string | null; createdByUserId: string | null; stepCount: number;
   startedAt: string | null; finishedAt: string | null; createdAt: string; updatedAt: string;
@@ -107,7 +113,7 @@ export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: 
       : status === "failed" ? RUN_FAILED_SQL
         : and(status === "all" ? undefined : eq(agentRuns.status, status), filters.orgId ? undefined : newestRows(agentRuns));
   const rows = await deps.db.select({
-    id: agentRuns.id, orgId: agentRuns.orgId, workspaceName: organizations.name, taskId: agentRuns.taskId,
+    id: agentRuns.id, orgId: agentRuns.orgId, workspaceName: organizations.name, ownerEmail: OWNER_EMAIL, taskId: agentRuns.taskId,
     agentUserId: agentRuns.agentUserId, agentName: users.name, status: agentRuns.status, triggerId: agentRuns.triggerId,
     createdByUserId: agentRuns.createdByUserId, stepCount: agentRuns.stepCount, startedAt: agentRuns.startedAt, finishedAt: agentRuns.finishedAt,
     createdAt: agentRuns.createdAt, updatedAt: agentRuns.updatedAt,
@@ -125,7 +131,7 @@ export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: 
     const from = r.status === "running" ? r.startedAt ?? r.createdAt : r.status === "queued" ? r.createdAt : r.startedAt;
     const to = active ? now : r.finishedAt ? ms(r.finishedAt) : null;
     return {
-      id: r.id, orgId: r.orgId, workspaceName: r.workspaceName ?? null, taskId: r.taskId,
+      id: r.id, orgId: r.orgId, workspaceName: r.workspaceName ?? null, ownerEmail: r.ownerEmail ?? null, taskId: r.taskId,
       agentUserId: r.agentUserId, agentName: r.agentName ?? null, status: r.status, triggerId: r.triggerId ?? null,
       createdByUserId: r.createdByUserId ?? null, stepCount: r.stepCount,
       startedAt: iso(r.startedAt), finishedAt: iso(r.finishedAt), createdAt: iso(r.createdAt)!, updatedAt: iso(r.updatedAt)!,
@@ -167,7 +173,7 @@ export interface AgentTriggerFilters {
 }
 
 export interface ConsoleAgentTrigger {
-  id: string; orgId: string; workspaceName: string | null;
+  id: string; orgId: string; workspaceName: string | null; ownerEmail: string | null;
   name: string; kind: "schedule" | "webhook"; enabled: boolean;
   agentUserId: string; agentName: string | null;
   nextRunAt: string | null; lastFiredAt: string | null; fireCount: number;
@@ -183,7 +189,7 @@ export async function listAgentTriggers(deps: Deps, filters: AgentTriggerFilters
   if (filters.kind && filters.kind !== "schedule" && filters.kind !== "webhook") throw new HttpError(422, "validation_failed", "kind is schedule or webhook.");
   const p = pageParts(page, AGENT_TRIGGER_SORTS, agentTriggers.id);
   const rows = await deps.db.select({
-    id: agentTriggers.id, orgId: agentTriggers.orgId, workspaceName: organizations.name, name: agentTriggers.name, kind: agentTriggers.kind,
+    id: agentTriggers.id, orgId: agentTriggers.orgId, workspaceName: organizations.name, ownerEmail: OWNER_EMAIL, name: agentTriggers.name, kind: agentTriggers.kind,
     enabled: agentTriggers.enabled, agentUserId: agentTriggers.agentUserId, agentName: users.name, nextRunAt: agentTriggers.nextRunAt,
     lastFiredAt: agentTriggers.lastFiredAt, fireCount: agentTriggers.fireCount, createdAt: agentTriggers.createdAt, updatedAt: agentTriggers.updatedAt,
   }).from(agentTriggers)
@@ -197,7 +203,7 @@ export async function listAgentTriggers(deps: Deps, filters: AgentTriggerFilters
       p.after,
     )).orderBy(...p.orderBy).limit(p.take);
   return p.finish(rows, (r) => ({ v: p.field === "fireCount" ? r.fireCount : p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.createdAt), id: r.id }), (r) => ({
-    id: r.id, orgId: r.orgId, workspaceName: r.workspaceName ?? null, name: r.name, kind: r.kind, enabled: r.enabled,
+    id: r.id, orgId: r.orgId, workspaceName: r.workspaceName ?? null, ownerEmail: r.ownerEmail ?? null, name: r.name, kind: r.kind, enabled: r.enabled,
     agentUserId: r.agentUserId, agentName: r.agentName ?? null,
     nextRunAt: r.kind === "schedule" && r.enabled ? iso(r.nextRunAt) : null, lastFiredAt: iso(r.lastFiredAt), fireCount: r.fireCount,
     createdAt: iso(r.createdAt)!, updatedAt: iso(r.updatedAt)!,
@@ -228,7 +234,7 @@ const SEND_APPROVAL_SORTS: Record<SendApprovalSortField, SortDef> = {
 };
 
 export interface ConsolePendingApproval {
-  id: string; orgId: string; workspaceName: string | null;
+  id: string; orgId: string; workspaceName: string | null; ownerEmail: string | null;
   agentId: string; agentName: string | null; mailboxId: string;
   createdAt: string; expiresAt: string;
   /** How long it has waited for a person. */
@@ -246,7 +252,7 @@ export async function listPendingSendApprovals(deps: Deps, filters: { orgId?: st
   const p = pageParts(page, SEND_APPROVAL_SORTS, sendApprovals.id);
   const now = deps.now().getTime();
   const rows = await deps.db.select({
-    id: sendApprovals.id, orgId: sendApprovals.orgId, workspaceName: organizations.name, agentId: sendApprovals.agentId, agentName: agents.name,
+    id: sendApprovals.id, orgId: sendApprovals.orgId, workspaceName: organizations.name, ownerEmail: OWNER_EMAIL, agentId: sendApprovals.agentId, agentName: agents.name,
     mailboxId: sendApprovals.mailboxId, createdAt: sendApprovals.createdAt, expiresAt: sendApprovals.expiresAt,
   }).from(sendApprovals)
     .leftJoin(organizations, eq(organizations.id, sendApprovals.orgId))
@@ -259,7 +265,7 @@ export async function listPendingSendApprovals(deps: Deps, filters: { orgId?: st
     ))
     .orderBy(...p.orderBy).limit(p.take);
   return p.finish(rows, (r) => ({ v: p.field === "expiresAt" ? ms(r.expiresAt) : ms(r.createdAt), id: r.id }), (r) => ({
-    id: r.id, orgId: r.orgId, workspaceName: r.workspaceName ?? null, agentId: r.agentId, agentName: r.agentName ?? null, mailboxId: r.mailboxId,
+    id: r.id, orgId: r.orgId, workspaceName: r.workspaceName ?? null, ownerEmail: r.ownerEmail ?? null, agentId: r.agentId, agentName: r.agentName ?? null, mailboxId: r.mailboxId,
     createdAt: iso(r.createdAt)!, expiresAt: iso(r.expiresAt)!, ageMs: Math.max(0, now - ms(r.createdAt)), overdue: ms(r.expiresAt) <= now,
   }));
 }
@@ -273,7 +279,7 @@ const AI_USAGE_SORTS: Record<AiUsageSortField, SortDef> = {
   calls: { expr: sql`sum(${aiUsageDaily.calls})`, kind: "number" },
 };
 
-export interface AiUsageWorkspace { orgId: string; workspaceName: string | null; units: number; calls: number; days: number }
+export interface AiUsageWorkspace { orgId: string; workspaceName: string | null; ownerEmail: string | null; units: number; calls: number; days: number }
 export interface AiUsageTop extends ConsolePageResult<AiUsageWorkspace> {
   /** The UTC days counted, inclusive. */
   window: { from: string; to: string };
@@ -292,7 +298,7 @@ export async function aiUsageTopWorkspaces(deps: Deps, filters: { days?: number 
   const from = new Date(deps.now().getTime() - (days - 1) * DAY_MS).toISOString().slice(0, 10);
   const [rows, total] = await Promise.all([
     deps.db.select({
-      orgId: aiUsageDaily.orgId, workspaceName: organizations.name,
+      orgId: aiUsageDaily.orgId, workspaceName: organizations.name, ownerEmail: OWNER_EMAIL,
       units: sql<number>`sum(${aiUsageDaily.units})`, calls: sql<number>`sum(${aiUsageDaily.calls})`, days: sql<number>`count(*)`,
     }).from(aiUsageDaily).leftJoin(organizations, eq(organizations.id, aiUsageDaily.orgId))
       .where(and(gte(aiUsageDaily.day, from), ne(aiUsageDaily.orgId, "*")))
@@ -301,7 +307,7 @@ export async function aiUsageTopWorkspaces(deps: Deps, filters: { days?: number 
       .from(aiUsageDaily).where(and(gte(aiUsageDaily.day, from), eq(aiUsageDaily.orgId, "*"))).get(),
   ]);
   const page1 = p.finish(rows, (r) => ({ v: Number(p.field === "calls" ? r.calls : r.units), id: r.orgId }), (r) => ({
-    orgId: r.orgId, workspaceName: r.workspaceName ?? null, units: Number(r.units), calls: Number(r.calls), days: Number(r.days),
+    orgId: r.orgId, workspaceName: r.workspaceName ?? null, ownerEmail: r.ownerEmail ?? null, units: Number(r.units), calls: Number(r.calls), days: Number(r.days),
   }));
   return { ...page1, window: { from, to }, account: { units: Number(total?.units ?? 0), calls: Number(total?.calls ?? 0) } };
 }
@@ -317,7 +323,7 @@ const AI_KEY_PROBLEM_SORTS: Record<AiKeyProblemSortField, SortDef> = {
 
 export type AiKeyProblem = "key_refused" | "no_credit" | "model_unavailable";
 export interface ConsoleAiKeyProblem {
-  orgId: string; workspaceName: string | null;
+  orgId: string; workspaceName: string | null; ownerEmail: string | null;
   provider: string; model: string; problem: AiKeyProblem;
   problemAt: string | null; updatedAt: string;
 }
@@ -330,7 +336,7 @@ export interface ConsoleAiKeyProblem {
 export async function listAiKeyProblems(deps: Deps, filters: { problem?: AiKeyProblem; q?: string }, page: ConsolePage<AiKeyProblemSortField>): Promise<ConsolePageResult<ConsoleAiKeyProblem>> {
   const p = pageParts(page, AI_KEY_PROBLEM_SORTS, aiKeys.orgId);
   const rows = await deps.db.select({
-    orgId: aiKeys.orgId, workspaceName: organizations.name, provider: aiKeys.provider, model: aiKeys.model, problem: aiKeys.problem,
+    orgId: aiKeys.orgId, workspaceName: organizations.name, ownerEmail: OWNER_EMAIL, provider: aiKeys.provider, model: aiKeys.model, problem: aiKeys.problem,
     problemAt: aiKeys.problemAt, updatedAt: aiKeys.updatedAt,
   }).from(aiKeys).leftJoin(organizations, eq(organizations.id, aiKeys.orgId))
     .where(and(
@@ -340,7 +346,7 @@ export async function listAiKeyProblems(deps: Deps, filters: { problem?: AiKeyPr
     ))
     .orderBy(...p.orderBy).limit(p.take);
   return p.finish(rows, (r) => ({ v: p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.problemAt ?? r.updatedAt), id: r.orgId }), (r) => ({
-    orgId: r.orgId, workspaceName: r.workspaceName ?? null, provider: r.provider, model: r.model.slice(0, 120), problem: r.problem as AiKeyProblem,
+    orgId: r.orgId, workspaceName: r.workspaceName ?? null, ownerEmail: r.ownerEmail ?? null, provider: r.provider, model: r.model.slice(0, 120), problem: r.problem as AiKeyProblem,
     problemAt: iso(r.problemAt), updatedAt: iso(r.updatedAt)!,
   }));
 }

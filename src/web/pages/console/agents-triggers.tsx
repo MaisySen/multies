@@ -2,14 +2,14 @@
  * OPS1: Agents and AI, the Triggers tab. Every agent trigger (schedules and webhooks) across workspaces, with how often
  * it fired and when it runs next. Never the trigger's instructions. Pause and Resume (agents.manage), with a reason.
  */
-import { Badge } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { IconCalendarClock } from "@/web/components/ui/icon";
 import { DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
+import { Empty, RelTime, StatusBadge } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { PermissionGate } from "./guard";
-import { agentsApi, When, WorkspaceLink, type AgentTriggerRow } from "./agents-shared";
+import { agentsApi, WorkspaceCell, type AgentTriggerRow } from "./agents-shared";
 
 const FILTERS: FilterDef[] = [
   { key: "enabled", label: "State", options: [{ value: "", label: "Any" }, { value: "true", label: "On" }, { value: "false", label: "Paused" }] },
@@ -37,17 +37,17 @@ export function AgentTriggersTab() {
         label="Agent triggers" path="/agents/triggers"
         filters={FILTERS} search={{ placeholder: "Search trigger, workspace or agent" }}
         defaultSort="createdAt:desc"
-        rowKey={(t) => t.id}
+        rowKey={(t) => t.id} minWidth={820}
         empty={{ icon: <IconCalendarClock />, title: "No triggers match", body: "Agent schedules and webhooks that workspaces set up show here." }}
         columns={[
+          { key: "workspace", header: "Workspace", cell: (t) => <WorkspaceCell row={t} /> },
           { key: "name", header: "Trigger", cell: (t) => <span className="font-medium">{t.name}</span> },
-          { key: "state", header: "State", cell: (t) => (t.enabled ? <Badge tone="ok" dot>On</Badge> : <Badge dot>Paused</Badge>) },
-          { key: "kind", header: "Kind", cell: (t) => (t.kind === "schedule" ? "Schedule" : "Webhook") },
-          { key: "workspace", header: "Workspace", cell: (t) => <WorkspaceLink id={t.orgId} name={t.workspaceName} /> },
-          { key: "agent", header: "Agent", cell: (t) => t.agentName ?? <span className="text-subtle">Removed agent</span> },
+          { key: "state", header: "State", cell: (t) => (t.enabled ? <StatusBadge state="on" label="On" /> : <StatusBadge state="paused" label="Paused" tone="neutral" />) },
+          { key: "kind", header: "Kind", secondary: true, cell: (t) => (t.kind === "schedule" ? "Schedule" : "Webhook") },
+          { key: "agent", header: "Agent", secondary: true, cell: (t) => t.agentName ?? <Empty>Removed agent</Empty> },
           { key: "fires", header: "Fired", sort: "fireCount", align: "right", cell: (t) => <span className="tabular-nums">{t.fireCount}</span> },
-          { key: "last", header: "Last fired", cell: (t) => <When at={t.lastFiredAt} none="Never" /> },
-          { key: "next", header: "Next run", cell: (t) => <When at={t.nextRunAt} none={t.kind === "webhook" ? "On call" : "None"} /> },
+          { key: "last", header: "Last fired", cell: (t) => <RelTime at={t.lastFiredAt} className="text-muted" /> },
+          { key: "next", header: "Next run", cell: (t) => (t.kind === "webhook" && !t.nextRunAt ? <Empty>When called</Empty> : <RelTime at={t.nextRunAt} className="text-muted" />) },
           {
             key: "actions", header: "", align: "right",
             cell: (t) => (

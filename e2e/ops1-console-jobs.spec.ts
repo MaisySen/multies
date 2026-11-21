@@ -24,8 +24,8 @@ const stats = {
   byStatus: { pending: 2, running: 1, done: 40, dead: 3 },
   byStatusAndType: [
     { status: "dead", type: "mail.deliver", count: 3, oldestRunAt: iso(86_400_000), newestUpdatedAt: iso(3_600_000) },
-    { status: "pending", type: "webhook.deliver", count: 2, oldestRunAt: iso(20 * 60_000), newestUpdatedAt: iso(60_000) },
-    { status: "running", type: "webhook.deliver", count: 1, oldestRunAt: iso(60_000), newestUpdatedAt: iso(60_000) },
+    { status: "pending", type: "push.send", count: 2, oldestRunAt: iso(20 * 60_000), newestUpdatedAt: iso(60_000) },
+    { status: "running", type: "push.send", count: 1, oldestRunAt: iso(60_000), newestUpdatedAt: iso(60_000) },
     { status: "done", type: "mail.deliver", count: 40, oldestRunAt: iso(86_400_000), newestUpdatedAt: iso(60_000) },
   ],
   oldestPendingAgeMs: 20 * 60_000,
@@ -45,7 +45,7 @@ const moves = [{
 
 interface Call { method: string; path: string; search: string; body: unknown }
 
-async function mockJobs(page: Page, role: OperatorRole) {
+async function mockJobs(page: Page, role: OperatorRole, statsJson: typeof stats = stats) {
   const calls: Call[] = [];
   await mockConsoleMe(page, role);
   await page.route((url) => url.pathname.startsWith("/api/console/jobs"), async (r: Route) => {
@@ -56,10 +56,10 @@ async function mockJobs(page: Page, role: OperatorRole) {
       if (url.pathname.endsWith("/mark-dead")) return r.fulfill({ json: { id: "job_wait", previousStatus: "pending", status: "dead" } });
       return r.fulfill({ json: { requested: 1, replayed: 1 } });
     }
-    if (url.pathname === "/api/console/jobs/stats") return r.fulfill({ json: stats });
+    if (url.pathname === "/api/console/jobs/stats") return r.fulfill({ json: statsJson });
     if (url.pathname === "/api/console/jobs/data-moves") return r.fulfill({ json: { items: moves, nextCursor: null } });
     const status = url.searchParams.get("status") ?? "dead";
-    const items = status === "pending" ? [job("job_wait", "pending", { attempts: 1, type: "webhook.deliver", orgId: null, workspaceName: null, lastError: null })] : status === "dead" ? [job("job_1", "dead"), job("job_2", "dead")] : [];
+    const items = status === "pending" ? [job("job_wait", "pending", { attempts: 1, type: "push.send", orgId: null, workspaceName: null, lastError: null })] : status === "dead" ? [job("job_1", "dead"), job("job_2", "dead")] : [];
     return r.fulfill({ json: { items, nextCursor: null } });
   });
   return calls;
@@ -78,17 +78,18 @@ test("an operator sees the queue, filters by status and replays through the reas
   await expect(tiles).toContainText("Done recently");
   await expect(page.getByTestId("console-jobs-oldest")).toHaveText("Oldest waiting 20 min");
   await expect(page.getByTestId("console-jobs-oldest")).toHaveClass(/text-warn/);
-  await expect(page.getByTestId("console-jobs-by-type")).toContainText("webhook.deliver");
+  await expect(page.getByTestId("console-jobs-by-type")).toContainText("Push notification");
 
   // The list opens on jobs that failed for good, with the workspace linked and the payload as structure only.
   await expect(page.getByRole("link", { name: "Harbour Studio" }).first()).toHaveAttribute("href", "/console/workspaces/org_e2e");
   await expect(page.getByText("Remote server said 550 mailbox unavailable").first()).toBeVisible();
+  await expect(page.getByTestId("console-jobs-preview").first().locator("summary")).toHaveText("Details");
   await page.getByTestId("console-jobs-preview").first().locator("summary").click();
   await expect(page.getByTestId("console-jobs-preview").first().locator("pre")).toContainText("messageId");
 
   // Replay one.
   await page.getByTestId("console-jobs-replay").first().click();
-  const one = page.getByRole("dialog", { name: "Replay this mail.deliver job?" });
+  const one = page.getByRole("dialog", { name: "Replay this Mail delivery job?" });
   await expect(one).toBeVisible();
   await one.getByLabel("Reason").fill("Mail provider is back");
   await one.getByRole("button", { name: "Replay job" }).click();
@@ -96,7 +97,7 @@ test("an operator sees the queue, filters by status and replays through the reas
   await expect.poll(() => calls.find((c) => c.path === "/api/console/jobs/job_1/replay")?.body).toEqual({ reason: "Mail provider is back" });
 
   // Replay selected.
-  await page.getByRole("checkbox", { name: "Select mail.deliver job job_2" }).check();
+  await page.getByRole("checkbox", { name: "Select Mail delivery job job_2" }).check();
   await page.getByTestId("console-jobs-replay-selected").click();
   const sel = page.getByRole("dialog", { name: "Replay 1 selected job?" });
   await sel.getByLabel("Reason").fill("Retry after the fix");
@@ -120,11 +121,29 @@ test("an operator sees the queue, filters by status and replays through the reas
   await expect.poll(() => calls.some((c) => c.method === "GET" && c.path === "/api/console/jobs" && c.search.includes("status=pending"))).toBe(true);
   await expect(page.getByText("No workspace", { exact: true })).toBeVisible();
   await page.getByTestId("console-jobs-mark-dead").click();
-  const stop = page.getByRole("dialog", { name: "Stop this webhook.deliver job?" });
+  const stop = page.getByRole("dialog", { name: "Stop this Push notification job?" });
   await stop.getByLabel("Reason").fill("Stuck on a dead endpoint");
   await stop.getByRole("button", { name: "Mark failed for good" }).click();
   await expect(stop).toBeHidden();
   await expect.poll(() => calls.find((c) => c.path === "/api/console/jobs/job_wait/mark-dead")?.body).toEqual({ reason: "Stuck on a dead endpoint" });
+
+  // The workspace filter searches by name (the workspaces list's ?q=) and filters the jobs by the picked workspace.
+  const searches: string[] = [];
+  await page.route("**/api/console/workspaces?*", (r) => {
+    searches.push(new URL(r.request().url()).searchParams.get("q") ?? "");
+    return r.fulfill({ json: { items: [{ id: "org_e2e", name: "Harbour Studio", ownerEmail: "olive@harbour.test" }], nextCursor: null } });
+  });
+  await page.getByRole("combobox", { name: "Workspace" }).fill("Harb");
+  await page.getByRole("option", { name: /Harbour Studio/ }).click();
+  expect(searches).toContain("Harb");
+  await expect(page).toHaveURL(/workspace=org_e2e/);
+  await expect(page.getByTestId("console-jobs-workspace-chip")).toContainText("Harbour Studio");
+  await expect.poll(() => calls.some((c) => c.method === "GET" && c.path === "/api/console/jobs" && c.search.includes("workspace=org_e2e"))).toBe(true);
+  // A reload finds the name again from the id in the address.
+  await page.reload();
+  await expect(page.getByTestId("console-jobs-workspace-chip")).toContainText("Harbour Studio", { timeout: 15_000 });
+  await page.getByTestId("console-jobs-workspace-clear").click();
+  await expect(page).not.toHaveURL(/workspace=/);
 
   // Data moves tab.
   await page.getByTestId("console-jobs-tab-moves").click();
@@ -132,6 +151,17 @@ test("an operator sees the queue, filters by status and replays through the reas
   await expect(page.getByText("Import", { exact: true })).toBeVisible();
   await expect(page.getByText("4 of 10 (40%)")).toBeVisible();
   await expect(page.getByText("Row 5 has no email")).toBeVisible();
+});
+
+test("with nothing failed for good there is no Replay all button", async ({ page }) => {
+  const calm = { ...stats, byStatus: { ...stats.byStatus, dead: 0 }, byStatusAndType: stats.byStatusAndType.filter((r) => r.status !== "dead") };
+  await mockJobs(page, "admin", calm);
+  await signUp(page, "Olive Operator");
+  await page.goto("/console/jobs");
+  await expect(page.getByTestId("console-jobs-stats")).toContainText("Failed for good", { timeout: 15_000 });
+  await expect(page.getByTestId("console-jobs-replay").first()).toBeVisible();
+  await expect(page.getByTestId("console-jobs-replay-all")).toHaveCount(0);
+  await expect(page.getByTestId("console-jobs-replay-selected")).toHaveCount(0);
 });
 
 test("a read only operator sees the queue but no actions", async ({ page }) => {

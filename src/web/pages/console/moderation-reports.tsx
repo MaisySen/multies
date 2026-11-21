@@ -1,19 +1,19 @@
 /**
- * OPS1: the Reports tab of /console/moderation. The R35 queue's cards (same look and test ids), now with search, status
- * and reason filters in the address bar and Load more. Open reports first; the age turns amber from 12 hours and red
- * from 24. Every action asks for a reason (kept in the audit log and as the report's note).
+ * OPS1: the Reports tab of /console/moderation. The R35 queue's cards (same test ids), with search, status and reason
+ * filters in the address bar and Load more. Open reports first; the age turns amber from 12 hours and red from 24.
+ * Each card's actions come in two groups: Resolve and Dismiss first, then, set apart, the danger actions (Remove
+ * message, Suspend user). Every action asks for a reason (kept in the audit log and as the report's note).
  */
+import type { ReactNode } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
-import { errorMessage } from "@/web/lib/api";
 import { consoleApi, consoleKeys } from "@/web/lib/console-api";
-import { fullDate, timeAgo } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
 import { Badge, Card, EmptyState } from "@/web/components/ui/misc";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { IconFlag, IconSearch, IconShieldCheck, IconWarning } from "@/web/components/ui/icon";
 import { REPORT_REASONS } from "../app/work/report-sheet-r35";
 import { FilterBar, useUrlParams, type FilterDef } from "./components/filter-bar";
+import { Empty, LoadError, PersonLink, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { usePermission } from "./guard";
 import { ageTone, moderationApi, type ConsoleReport } from "./moderation-api";
@@ -28,13 +28,18 @@ const FILTERS: FilterDef[] = [
   { key: "reason", label: "Reason", initial: "", options: [{ value: "", label: "Any" }, ...REPORT_REASONS.map((r) => ({ value: r.id, label: r.label }))] },
 ];
 
-const person = (p: { id: string; name: string | null; email: string | null }) => (
-  <Link to={`/console/users/${encodeURIComponent(p.id)}`} className="font-medium hover:underline">{p.name ?? "Unknown"}</Link>
-);
-
 function closedLabel(r: ConsoleReport) {
   if (r.status === "dismissed") return "Dismissed";
   return r.action === "message_removed" ? "Message removed" : r.action === "user_suspended" ? "Suspended" : "Resolved";
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[11.5px] text-subtle">{label}</dt>
+      <dd className="text-[13px]">{children}</dd>
+    </div>
+  );
 }
 
 export function useReportCounts() {
@@ -94,7 +99,7 @@ export function ReportsTab() {
       {list.isPending ? (
         <SkeletonRows rows={4} label="Loading reports" />
       ) : list.error ? (
-        <Card className="p-0"><EmptyState icon={<IconWarning />} title="Couldn't load reports" body={errorMessage(list.error)} action={<Button variant="secondary" onClick={() => void list.refetch()}>Try again</Button>} /></Card>
+        <LoadError error={list.error} what="reports" retry={() => void list.refetch()} />
       ) : !rows.length ? (
         <Card className="p-0">
           <EmptyState icon={filtered ? <IconSearch /> : <IconShieldCheck />} title={filtered ? "No reports match" : "Nothing to review"}
@@ -104,37 +109,47 @@ export function ReportsTab() {
       ) : (
         <>
           <ul className="space-y-3" data-testid="moderation-queue">
-            {rows.map((r) => (
-              <li key={r.id}>
-                <Card className="space-y-3 p-4" data-testid="moderation-report">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <IconFlag className="h-4 w-4 text-bad" aria-hidden />
-                    <span className="text-[14px] font-semibold">{REASON[r.reason] ?? r.reason}</span>
-                    <Badge tone="neutral">{r.targetType === "message" ? (CONTEXT[r.context ?? "chat"] ?? "Message") : "Person"}</Badge>
-                    {r.status === "open"
-                      ? <Badge tone={ageTone(r.ageHours)}>{r.ageHours < 1 ? "Under an hour" : `${r.ageHours} h`}</Badge>
-                      : <Badge tone="neutral">{closedLabel(r)}</Badge>}
-                    <time className="ml-auto text-[12px] text-subtle" dateTime={r.createdAt} title={fullDate(r.createdAt)}>{timeAgo(r.createdAt)}</time>
-                  </div>
-                  {r.snapshotText !== null && <blockquote className="whitespace-pre-wrap break-words rounded-lg border-l-2 border-line-strong bg-fill px-3 py-2 text-[13.5px]">{r.snapshotText || "(no text)"}</blockquote>}
-                  {r.note && <p className="text-[13px] text-muted"><span className="font-medium text-fg">Reporter's note:</span> {r.note}</p>}
-                  <dl className="grid gap-x-6 gap-y-1 text-[12.5px] sm:grid-cols-2">
-                    <div className="min-w-0"><dt className="inline text-subtle">Reported: </dt><dd className="inline [overflow-wrap:anywhere]">{r.target ? <>{person(r.target)} ({r.target.email ?? "no email"}){r.target.suspended ? ", suspended" : ""}</> : "Unknown"}</dd></div>
-                    <div className="min-w-0"><dt className="inline text-subtle">By: </dt><dd className="inline [overflow-wrap:anywhere]">{person(r.reporter)} ({r.reporter.email ?? "no email"})</dd></div>
-                    {r.orgId && <div className="min-w-0"><dt className="inline text-subtle">Workspace: </dt><dd className="inline"><Link to={`/console/workspaces/${encodeURIComponent(r.orgId)}`} className="hover:underline">{r.workspaceName ?? r.orgId}</Link></dd></div>}
-                  </dl>
-                  {r.resolutionNote && <p className="text-[12.5px] text-muted">Note: {r.resolutionNote}</p>}
-                  {r.status === "open" && canAct && (
-                    <div className="flex flex-wrap gap-2">
-                      {r.messageId && <Button size="sm" variant="danger" onClick={() => remove.open(r)} data-testid="report-remove">Remove message</Button>}
-                      {canBan && r.target && !r.target.suspended && <Button size="sm" variant="danger" onClick={() => suspend.open(r)} data-testid="report-suspend">Suspend user</Button>}
-                      <Button size="sm" variant="secondary" onClick={() => resolve.open(r)} data-testid="report-resolve">Resolve</Button>
-                      <Button size="sm" variant="ghost" onClick={() => dismiss.open(r)} data-testid="report-dismiss">Dismiss</Button>
+            {rows.map((r) => {
+              const canRemove = !!r.messageId;
+              const canSuspend = canBan && !!r.target && !r.target.suspended;
+              return (
+                <li key={r.id}>
+                  <Card className="space-y-3 p-4" data-testid="moderation-report">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <IconFlag className="h-4 w-4 shrink-0 text-bad" aria-hidden />
+                      <span className="text-[14px] font-semibold">{REASON[r.reason] ?? r.reason}</span>
+                      <Badge tone="neutral" className="whitespace-nowrap">{r.targetType === "message" ? (CONTEXT[r.context ?? "chat"] ?? "Message") : "Person"}</Badge>
+                      {r.status === "open"
+                        ? <StatusBadge state="open" tone={ageTone(r.ageHours)} dot={false} label={r.ageHours < 1 ? "Under an hour" : `${r.ageHours} h`} />
+                        : <StatusBadge state={r.status} tone="neutral" dot={false} label={closedLabel(r)} />}
+                      <RelTime at={r.createdAt} className="ml-auto text-[12px] text-subtle" />
                     </div>
-                  )}
-                </Card>
-              </li>
-            ))}
+                    {r.snapshotText !== null && <blockquote className="whitespace-pre-wrap break-words rounded-lg border-l-2 border-line-strong bg-fill px-3 py-2 text-[13.5px]">{r.snapshotText || "(no text)"}</blockquote>}
+                    {r.note && <p className="text-[13px] text-muted"><span className="font-medium text-fg">Reporter's note:</span> {r.note}</p>}
+                    <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
+                      <Fact label={r.target?.suspended ? "Reported (suspended)" : "Reported"}>
+                        {r.target ? <PersonLink id={r.target.id} name={r.target.name} email={r.target.email} className="max-w-full" /> : <Empty />}
+                      </Fact>
+                      <Fact label="Reported by"><PersonLink id={r.reporter.id} name={r.reporter.name} email={r.reporter.email} className="max-w-full" /></Fact>
+                      {r.orgId && <Fact label="Workspace"><WorkspaceLink id={r.orgId} name={r.workspaceName} className="max-w-full" /></Fact>}
+                    </dl>
+                    {r.resolutionNote && <p className="text-[12.5px] text-muted">Note: {r.resolutionNote}</p>}
+                    {r.status === "open" && canAct && (
+                      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3" data-testid="report-actions">
+                        <Button size="sm" variant="secondary" onClick={() => resolve.open(r)} data-testid="report-resolve">Resolve</Button>
+                        <Button size="sm" variant="secondary" onClick={() => dismiss.open(r)} data-testid="report-dismiss">Dismiss</Button>
+                        {(canRemove || canSuspend) && (
+                          <span className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:border-l sm:border-line sm:pl-3" data-testid="report-danger-actions">
+                            {canRemove && <Button size="sm" variant="danger" onClick={() => remove.open(r)} data-testid="report-remove">Remove message</Button>}
+                            {canSuspend && <Button size="sm" variant="danger" onClick={() => suspend.open(r)} data-testid="report-suspend">Suspend user</Button>}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </Card>
+                </li>
+              );
+            })}
           </ul>
           <div className="flex items-center justify-between gap-3 text-xs text-subtle">
             <span className="tabular-nums">{rows.length} shown</span>

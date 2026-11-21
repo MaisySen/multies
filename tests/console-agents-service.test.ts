@@ -92,7 +92,7 @@ describe("listAgentRuns", () => {
     expect(ids).not.toContain("run_a_old_failed");
     expect(ids).toHaveLength(14);
     const long = r.items.find((x) => x.id === "run_a_long")!;
-    expect(long).toMatchObject({ orgId: a.orgId, workspaceName: "Alpha", status: "running", longRunning: true, agentName: "Alpha Bot" });
+    expect(long).toMatchObject({ orgId: a.orgId, workspaceName: "Alpha", ownerEmail: "owner@alpha.test", status: "running", longRunning: true, agentName: "Alpha Bot" });
     expect(long.durationMs).toBeGreaterThan(LONG_RUNNING_MS);
     expect(r.items.find((x) => x.id === "run_b_failed_00")!.workspaceName).toBe("Beta");
     expect(JSON.stringify(r)).not.toContain(PLANTED);
@@ -243,6 +243,8 @@ describe("approvals backlog, AI usage and AI key problems", () => {
     expect(r.items[0]).toMatchObject({ workspaceName: "Gamma", units: 500, calls: 9, days: 1 });
     expect(r.items.slice(1).map((x) => x.units)).toEqual([100, 100]);
     expect(r.items.find((x) => x.orgId === alpha)).toMatchObject({ units: 100, calls: 10, days: 2 });
+    // The owner's email comes along so two workspaces with one name can be told apart.
+    expect(r.items.every((x) => typeof x.ownerEmail === "string" && x.ownerEmail.includes("@"))).toBe(true);
     expect(r.items.some((x) => x.orgId === "*")).toBe(false);
     expect(r.account).toEqual({ units: 700, calls: 39 });
     const byCalls = await aiUsageTopWorkspaces(ctx.deps, { days: 7 }, page("calls"));

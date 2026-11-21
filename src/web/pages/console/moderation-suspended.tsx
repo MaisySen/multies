@@ -1,15 +1,17 @@
 /**
  * OPS1: the Suspended workspaces and Sign-in lockouts tabs of /console/moderation.
- * Suspended: the reason, when, and who (an operator, or "Automatic" for the spam filter), with Restore.
- * Lockouts: accounts locked out of password sign in after too many failures, with when the lock lifts and Clear.
+ * Suspended: the reason, when, and who (an operator, or "Automatic" for the spam filter), with Restore (secondary, the
+ * same as on the workspace page).
+ * Lockouts: accounts locked out of password sign in after too many failures, with when the lock lifts and Clear. This
+ * is the console's one cross-account lockout list (a person's own lockout also shows on their Sign in tab).
  */
-import { Link } from "react-router";
-import { fullDate, num, timeAgo } from "@/web/lib/format";
+import { num } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
 import { Badge } from "@/web/components/ui/misc";
 import { IconLock, IconShieldCheck } from "@/web/components/ui/icon";
 import { DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
+import { Empty, formatDateTime, PersonLink, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { usePermission } from "./guard";
 import { CLEAR_LOCKOUT, duration, moderationApi, type Lockout, type SuspendedWorkspace } from "./moderation-api";
@@ -26,18 +28,16 @@ export function SuspendedTab() {
     <div data-testid="console-moderation-suspended">
       <DataTable<SuspendedWorkspace>
         label="Suspended workspaces" path="/moderation/suspended" defaultSort="suspendedAt:desc"
-        rowKey={(w) => w.orgId} rowHref={(w) => `/console/workspaces/${encodeURIComponent(w.orgId)}`}
+        rowKey={(w) => w.orgId} rowHref={(w) => `/console/workspaces/${encodeURIComponent(w.orgId)}`} minWidth={720}
         empty={{ icon: <IconShieldCheck />, title: "No suspended workspaces", body: "Workspaces suspended by an operator or the spam filter show here." }}
         columns={[
-          { key: "name", header: "Workspace", sort: "name", cell: (w) => <Link to={`/console/workspaces/${encodeURIComponent(w.orgId)}`} className="font-medium hover:underline">{w.workspaceName}</Link> },
-          { key: "reason", header: "Reason", cell: (w) => (w.reason ? <span className="line-clamp-2 max-w-xs">{w.reason}</span> : <span className="text-subtle">No reason given</span>) },
-          { key: "when", header: "Suspended", sort: "suspendedAt", cell: (w) => <span className="whitespace-nowrap text-muted" title={fullDate(w.suspendedAt)}>{timeAgo(w.suspendedAt)}</span> },
-          { key: "by", header: "By", cell: (w) => (w.automatic ? <Badge tone="warn">Automatic</Badge> : w.suspendedBy ? (
-            w.suspendedBy.userId
-              ? <Link to={`/console/users/${encodeURIComponent(w.suspendedBy.userId)}`} className="hover:underline">{w.suspendedBy.email ?? "An operator"}</Link>
-              : <span>{w.suspendedBy.email ?? "An operator"}</span>
-          ) : <span className="text-subtle">Not recorded</span>) },
-          { key: "signals", header: "Open signals", align: "right", cell: (w) => <span className="tabular-nums">{num(w.openAbuseEvents)}</span> },
+          { key: "name", header: "Workspace", sort: "name", cell: (w) => <WorkspaceLink id={w.orgId} name={w.workspaceName} className="max-w-[14rem]" /> },
+          { key: "reason", header: "Reason", cell: (w) => (w.reason ? <span className="line-clamp-2 max-w-xs">{w.reason}</span> : <Empty>No reason given</Empty>) },
+          { key: "when", header: "Suspended", sort: "suspendedAt", cell: (w) => <RelTime at={w.suspendedAt} className="text-muted" /> },
+          { key: "by", header: "By", secondary: true, cell: (w) => (w.automatic ? <StatusBadge state="automatic" tone="warn" dot={false} label="Automatic" /> : w.suspendedBy ? (
+            <PersonLink id={w.suspendedBy.userId} email={w.suspendedBy.email ?? "An operator"} />
+          ) : <Empty>Not recorded</Empty>) },
+          { key: "signals", header: "Open signals", align: "right", secondary: true, cell: (w) => <span className="tabular-nums">{num(w.openAbuseEvents)}</span> },
           { key: "actions", header: "", align: "right", cell: (w) => (canRestore ? <Button size="sm" variant="secondary" onClick={() => restore.open(w)} data-testid="console-moderation-restore">Restore</Button> : null) },
         ]}
       />
@@ -65,14 +65,12 @@ export function LockoutsTab() {
         rowKey={(l) => l.email}
         empty={{ icon: <IconLock />, title: "Nobody is locked out", body: "After 10 wrong passwords in 15 minutes an account is locked for 15 minutes. Those accounts show here." }}
         columns={[
-          { key: "email", header: "Account", cell: (l) => (l.userId
-            ? <Link to={`/console/users/${encodeURIComponent(l.userId)}`} className="font-medium hover:underline">{l.email}</Link>
-            : <span className="font-medium">{l.email}</span>) },
+          { key: "email", header: "Account", cell: (l) => <PersonLink id={l.userId} email={l.email} className="max-w-[24rem] font-medium" /> },
           { key: "failures", header: "Failed attempts", sort: "failures", align: "right", cell: (l) => <span className="tabular-nums">{num(l.failures)}</span> },
-          { key: "since", header: "Since", sort: "windowStart", cell: (l) => <span className="whitespace-nowrap text-muted" title={fullDate(l.windowStart)}>{timeAgo(l.windowStart)}</span> },
+          { key: "since", header: "Since", sort: "windowStart", secondary: true, cell: (l) => <RelTime at={l.windowStart} className="text-muted" /> },
           { key: "lifts", header: "Lock lifts in", sort: "lockedUntil", cell: (l) => (l.locked
-            ? <span title={l.lockedUntil ? fullDate(l.lockedUntil) : undefined}><Badge tone="bad" dot>{duration(l.unlocksInMs)}</Badge></span>
-            : <Badge>Not locked</Badge>) },
+            ? <span className="inline-flex" title={l.lockedUntil ? `Until ${formatDateTime(l.lockedUntil)}` : undefined}><Badge tone="bad" dot className="whitespace-nowrap">{duration(l.unlocksInMs)}</Badge></span>
+            : <StatusBadge state="unlocked" tone="neutral" label="Not locked" />) },
           { key: "actions", header: "", align: "right", cell: (l) => (canClear ? <Button size="sm" variant="secondary" onClick={() => clear.open(l)} data-testid="console-lockout-clear">Clear</Button> : null) },
         ]}
       />

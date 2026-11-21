@@ -3,8 +3,9 @@
  * first), Abuse signals, Suspended workspaces and Sign-in lockouts. Switching tab starts that tab's filters afresh.
  * (/app/admin/reports redirects here.)
  */
-import { Badge, PageHeader } from "@/web/components/ui/misc";
+import { PageHeader } from "@/web/components/ui/misc";
 import { QueryTabs, TabPanel, useQueryTab } from "./components/detail-tabs";
+import { TabCount } from "./components/format";
 import { AbuseTab } from "./moderation-abuse";
 import { ReportsTab, useReportCounts } from "./moderation-reports";
 import { LockoutsTab, SuspendedTab } from "./moderation-suspended";
@@ -22,7 +23,7 @@ export function ConsoleModerationPage() {
   const counts = useReportCounts();
   const open = counts.data?.open ?? 0;
   const tabs = TABS.map((t) => t.id === "reports" && open > 0
-    ? { ...t, badge: <Badge tone={(counts.data?.olderThan24h ?? 0) > 0 ? "bad" : (counts.data?.olderThan12h ?? 0) > 0 ? "warn" : "neutral"}>{open}</Badge> }
+    ? { ...t, badge: <TabCount n={open} tone={(counts.data?.olderThan24h ?? 0) > 0 ? "bad" : (counts.data?.olderThan12h ?? 0) > 0 ? "warn" : "neutral"} /> }
     : t);
   return (
     <div className="space-y-4">

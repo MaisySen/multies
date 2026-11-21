@@ -57,6 +57,13 @@ test("an operator filters reports, dismisses one with a reason, and suspends a w
   await expect(card).toContainText("30 h");
   await expect(page.getByTestId("console-moderation-late")).toBeVisible();
   expect(reportQueries[0]).toContain("status=open");
+  // Resolve and Dismiss come first together; the danger actions sit apart after them.
+  const actions = card.getByTestId("report-actions");
+  await expect(actions.getByRole("button").nth(0)).toHaveText("Resolve");
+  await expect(actions.getByRole("button").nth(1)).toHaveText("Dismiss");
+  await expect(card.getByTestId("report-danger-actions").getByRole("button")).toHaveText(["Remove message", "Suspend user"]);
+  await expect(card.getByRole("link", { name: "Sam Lee" })).toHaveAttribute("href", "/console/users/usr_sam");
+  await expect(card.getByRole("link", { name: "Harbour Studio" })).toHaveAttribute("href", "/console/workspaces/org_e2e");
 
   // The status filter goes into the address and the request.
   await page.getByRole("combobox", { name: "Status" }).selectOption("all");

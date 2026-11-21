@@ -3,11 +3,12 @@
  * busiest workspaces today, uptime history and provider health.
  */
 import type { ReactNode } from "react";
-import { Link } from "react-router";
 import { LOCALE } from "@/shared/locale";
-import { Badge, Card, EmptyState, tableStyles as T } from "@/web/components/ui/misc";
+import { Card, tableStyles } from "@/web/components/ui/misc";
 import { IconActivity, IconBuilding, IconDatabase } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
+import { consoleTable as T } from "./components/data-table";
+import { EmptyRow, formatDay, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
 import { providerLabel, type SystemReads, type SystemSnapshot, type SystemWrites } from "./system-api";
 
 const fmt = (n: number) => n.toLocaleString(LOCALE);
@@ -43,17 +44,17 @@ function MeterCard({ icon, title, subtitle, level, tone, today, budget, pct, chi
   return (
     <Card className="p-5" data-testid={testid}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-hover">{icon}</span>
           <div className="min-w-0">
             <h3 className="text-sm font-semibold">{title}</h3>
             <p className="text-xs text-muted">{subtitle}</p>
           </div>
         </div>
-        <span className={cn("rounded-full border border-current/20 px-2.5 py-0.5 text-xs font-medium", TEXT[tone])} data-testid={`${testid}-level`}>{level}</span>
+        <span className={cn("shrink-0 whitespace-nowrap rounded-full border border-current/20 px-2.5 py-0.5 text-xs font-medium", TEXT[tone])} data-testid={`${testid}-level`}>{level}</span>
       </div>
       <div className="mt-4 flex flex-wrap items-baseline gap-x-2">
-        <span className="text-3xl font-semibold tabular-nums tracking-tight">{fmt(today)}</span>
+        <span className="text-3xl font-semibold tabular-nums tracking-tight" data-testid={`${testid}-today`}>{fmt(today)}</span>
         <span className="text-sm text-muted tabular-nums">of {fmt(budget)} rows</span>
         <span className="ml-auto text-sm font-medium tabular-nums" data-testid={`${testid}-pct`}>{pct}%</span>
       </div>
@@ -66,9 +67,9 @@ export function DatabaseUsage({ s }: { s: SystemSnapshot }) {
   const { writes: w, reads: r } = s.database;
   if (!w) {
     return (
-      <Card className="p-5 text-sm text-muted" data-testid="console-system-meter-off">
-        The database meter is off on this deployment. Set CF_ANALYTICS_TOKEN and CF_ACCOUNT_ID to read today's writes and reads.
-      </Card>
+      <EmptyRow icon={<IconDatabase />} testId="console-system-meter-off">
+        <span title="Needs the CF_ANALYTICS_TOKEN and CF_ACCOUNT_ID settings">The database write meter isn't connected on this deployment, so today's writes and reads can't be shown here.</span>
+      </EmptyRow>
     );
   }
   const level = WRITE_LEVEL[w.level] ?? WRITE_LEVEL.ok;
@@ -92,10 +93,10 @@ export function DatabaseUsage({ s }: { s: SystemSnapshot }) {
             ))}
           </dl>
         )}
-        <p className="mt-3 text-[11px] text-muted">Read {new Date(w.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" })} from Cloudflare analytics, a few minutes behind.</p>
+        <p className="mt-3 text-[11px] text-muted">Read <RelTime at={w.at} /> from Cloudflare analytics, a few minutes behind.</p>
       </MeterCard>
       {r ? <ReadsCard r={r} tone={readTone} /> : (
-        <Card className="p-5 text-sm text-muted">Today's reads aren't available from Cloudflare analytics yet.</Card>
+        <EmptyRow icon={<IconDatabase />} className="self-start">Today's reads aren't available from Cloudflare analytics yet.</EmptyRow>
       )}
     </div>
   );
@@ -117,23 +118,23 @@ const WS_LEVEL: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "n
 };
 
 export function BusiestWorkspaces({ b }: { b: SystemSnapshot["busiestWorkspaces"] }) {
-  if (!b.items.length) return <Card className="p-0"><EmptyState icon={<IconBuilding />} title="No writes counted yet today" body="Workspaces show here as they write to the database." /></Card>;
+  if (!b.items.length) return <EmptyRow icon={<IconBuilding />}>No writes counted yet today. Workspaces show here as they write to the database.</EmptyRow>;
   return (
     <div className={T.wrap} tabIndex={0} role="region" aria-label="Busiest workspaces today" data-testid="console-system-busiest">
-      <table className={T.table}>
+      <table className={cn(tableStyles.table, "sm:min-w-[480px]")}>
         <thead className={T.head}><tr>
-          <th className={T.th}>Workspace</th><th className={`${T.th} text-right`}>Rows written</th>
-          {b.budget > 0 && <th className={`${T.th} text-right`}>Of daily budget</th>}<th className={T.th}>Status</th>
+          <th className={T.th}>Workspace</th><th className={cn(T.th, "text-right")}>Rows written</th>
+          {b.budget > 0 && <th className={cn(T.th, "text-right", T.secondary)}>Of daily budget</th>}<th className={T.th}>Status</th>
         </tr></thead>
         <tbody className={T.body}>
           {b.items.map((w) => {
             const l = WS_LEVEL[w.level] ?? WS_LEVEL.off;
             return (
               <tr key={w.orgId} className={T.row}>
-                <td className={T.td}><Link to={`/console/workspaces/${encodeURIComponent(w.orgId)}`} className="font-medium hover:underline">{w.workspaceName ?? w.orgId}</Link></td>
-                <td className={`${T.td} text-right tabular-nums`}>{fmt(w.rowsWritten)}</td>
-                {b.budget > 0 && <td className={`${T.td} text-right tabular-nums text-muted`}>{Math.round((w.rowsWritten / b.budget) * 100)}%</td>}
-                <td className={T.td}><Badge tone={l.tone}>{l.label}</Badge></td>
+                <td className={T.td}><WorkspaceLink id={w.orgId} name={w.workspaceName} className="max-w-[16rem]" /></td>
+                <td className={cn(T.td, "text-right tabular-nums")}>{fmt(w.rowsWritten)}</td>
+                {b.budget > 0 && <td className={cn(T.td, "text-right tabular-nums text-muted", T.secondary)}>{Math.round((w.rowsWritten / b.budget) * 100)}%</td>}
+                <td className={T.td}><StatusBadge state={w.level} tone={l.tone} label={l.label} dot={false} /></td>
               </tr>
             );
           })}
@@ -143,26 +144,51 @@ export function BusiestWorkspaces({ b }: { b: SystemSnapshot["busiestWorkspaces"
   );
 }
 
-const pctText = (n: number | null) => (n === null ? "No checks" : `${(Math.round(n * 1000) / 10).toLocaleString(LOCALE)}%`);
+const pctText = (n: number) => `${(Math.round(n * 1000) / 10).toLocaleString(LOCALE)}%`;
+/** The status check's days are UTC days ("2026-11-21"), so they read as UTC dates. */
+const utcDay = (day: string) => formatDay(`${day}T00:00:00Z`, { timeZone: "UTC" });
+type UptimeDay = NonNullable<SystemSnapshot["uptime"]>["days"][number];
+
+/**
+ * A window's uptime in words. A figure needs at least one whole day of checks before today (today alone is a part of a
+ * day and would read as a misleading "100%"); a window the checks only partly cover says how many days it rests on.
+ */
+export function uptimeFigure(days: readonly UptimeDay[], value: number | null, windowDays: number, today: string): { text: string; note?: string } {
+  const counted = days.filter((d) => d.checks > 0);
+  if (value === null || !counted.some((d) => d.date !== today)) return { text: "No data yet" };
+  if (counted.length >= windowDays) return { text: pctText(value) };
+  return { text: pctText(value), note: counted.length === 1 ? "from 1 day of checks" : `from ${counted.length} days of checks` };
+}
+
+function Figure({ label, f, testId }: { label: string; f: { text: string; note?: string }; testId: string }) {
+  return (
+    <span data-testid={testId}>
+      <span className="text-muted">{label}: </span>
+      <span className="font-semibold tabular-nums">{f.text}</span>
+      {f.note && <span className="text-xs text-subtle"> {f.note}</span>}
+    </span>
+  );
+}
 
 export function UptimeHistory({ u }: { u: SystemSnapshot["uptime"] }) {
   if (!u || !u.days.some((d) => d.checks > 0)) {
-    return <Card className="p-0"><EmptyState icon={<IconActivity />} title="No uptime checks yet" body="The status check runs every few minutes. Days fill in here as it records them." /></Card>;
+    return <EmptyRow icon={<IconActivity />}>No uptime checks yet. The status check runs every few minutes and days fill in here as it records them.</EmptyRow>;
   }
   const days = u.days.slice(-90);
-  const tone = (d: (typeof days)[number]) => (d.checks === 0 || d.uptime === null ? "bg-fill" : d.uptime >= 0.999 ? "bg-ok" : d.uptime >= 0.98 ? "bg-warn" : "bg-bad");
+  const today = days[days.length - 1]?.date ?? "";
+  const tone = (d: UptimeDay) => (d.checks === 0 || d.uptime === null ? "bg-fill" : d.uptime >= 0.999 ? "bg-ok" : d.uptime >= 0.98 ? "bg-warn" : "bg-bad");
   return (
     <Card className="p-5" data-testid="console-system-uptime">
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-        <span><span className="text-muted">Last 30 days: </span><span className="font-semibold tabular-nums">{pctText(u.uptime30d)}</span></span>
-        <span><span className="text-muted">Last 90 days: </span><span className="font-semibold tabular-nums">{pctText(u.uptime90d)}</span></span>
+        <Figure label="Last 30 days" f={uptimeFigure(days.slice(-30), u.uptime30d, 30, today)} testId="console-system-uptime-30" />
+        <Figure label="Last 90 days" f={uptimeFigure(days, u.uptime90d, 90, today)} testId="console-system-uptime-90" />
       </div>
       <div className="mt-3 flex h-8 items-end gap-px" role="img" aria-label={`Daily uptime for the last ${days.length} days`}>
         {days.map((d) => (
-          <span key={d.date} className={cn("h-full min-w-0 flex-1 rounded-sm", tone(d))} title={`${d.date}: ${d.checks ? pctText(d.uptime) : "no checks"}`} />
+          <span key={d.date} className={cn("h-full min-w-0 flex-1 rounded-sm", tone(d))} title={`${utcDay(d.date)}: ${d.checks && d.uptime !== null ? pctText(d.uptime) : "no checks"}`} />
         ))}
       </div>
-      <div className="mt-1.5 flex justify-between text-[11px] text-muted" aria-hidden="true"><span>{days[0]?.date}</span><span>Today</span></div>
+      <div className="mt-1.5 flex justify-between text-[11px] text-muted" aria-hidden="true"><span>{days[0] ? utcDay(days[0].date) : ""}</span><span>Today</span></div>
     </Card>
   );
 }
@@ -182,7 +208,7 @@ export function ProviderHealth({ c }: { c: SystemSnapshot["circuitBreakers"] }) 
           return (
             <li key={p.provider} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
               <span className="font-medium">{providerLabel(p.provider)}</span>
-              <span className="flex items-center gap-2"><span className="text-xs text-subtle">{b.note}</span><Badge tone={b.tone} dot>{b.label}</Badge></span>
+              <span className="flex items-center gap-2"><span className="text-xs text-subtle">{b.note}</span><StatusBadge state={p.state} tone={b.tone} label={b.label} /></span>
             </li>
           );
         })}

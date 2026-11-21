@@ -1,5 +1,6 @@
 /** OPS1: the System health snapshot (GET /api/console/system/snapshot) as the console reads it. */
 import { api } from "@/web/lib/api";
+import { consoleGet } from "@/web/lib/console-api";
 
 export type RateScope = "auth" | "api" | "webhooks" | "app" | "handoff";
 export type ComponentState = "operational" | "degraded" | "down" | "not_configured";
@@ -33,7 +34,7 @@ export interface SystemSnapshot {
 export const systemKeys = { snapshot: ["console", "system", "snapshot"] as const };
 
 export const systemApi = {
-  snapshot: () => api.get<SystemSnapshot>("/console/system/snapshot"),
+  snapshot: () => consoleGet<SystemSnapshot>("/console/system/snapshot"),
   sentryTest: (reason: string) => api.post<{ configured: boolean; eventId: string | null }>("/console/system/sentry-test", { reason }),
 };
 
