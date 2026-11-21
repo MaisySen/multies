@@ -6,18 +6,21 @@
  *   const me = useConsoleMe();                the operator (inside the guard)
  *   const canSuspend = usePermission("workspaces.suspend");
  *   <PermissionGate permission="billing.manage">{button}</PermissionGate>   hides what the role can't use
+ *   <RequirePermission permission="operators.read">{page body}</RequirePermission>  a page the role can't open shows
+ *                                             "You don't have access to this page" instead (no request is made)
  *
  * The server checks every permission again; hiding is for a calm screen, not for safety.
  */
 import { createContext, useContext, type ReactNode } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ApiError, errorMessage } from "@/web/lib/api";
+import { ApiError } from "@/web/lib/api";
 import { consoleApi, consoleKeys, type ConsoleMe } from "@/web/lib/console-api";
 import { Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Button, buttonClass } from "@/web/components/ui/button";
 import { IconLock, IconShieldAlert, IconShieldCheck, IconWifiOff } from "@/web/components/ui/icon";
 import type { Permission } from "@/shared/operator-permissions";
+import { NoAccess, consoleErrorMessage } from "./components/states";
 
 const MeContext = createContext<ConsoleMe | null>(null);
 
@@ -47,6 +50,11 @@ export function usePermission(permission: Permission): boolean {
 /** Shows its children only when the role has the permission; otherwise the fallback (nothing by default). */
 export function PermissionGate({ permission, children, fallback = null }: { permission: Permission; children: ReactNode; fallback?: ReactNode }) {
   return <>{usePermission(permission) ? children : fallback}</>;
+}
+
+/** A page (or a part of one) only for roles with this permission; others see the calm "no access" card. */
+export function RequirePermission({ permission, children }: { permission: Permission; children: ReactNode }) {
+  return <>{usePermission(permission) ? children : <NoAccess />}</>;
 }
 
 function Blocked({ icon, title, body, action }: { icon: ReactNode; title: string; body: ReactNode; action?: ReactNode }) {
@@ -87,7 +95,7 @@ export function ConsoleGuard({ children }: { children: ReactNode }) {
     if (e instanceof ApiError && e.status === 403) {
       return <Blocked icon={<IconShieldCheck />} title="This console is for platform operators" body="You can keep working in your workspace. If you need access to this console, ask an operator to add you." action={backToApp} />;
     }
-    return <Blocked icon={<IconWifiOff />} title="Couldn't open the console" body={errorMessage(e)} action={<Button onClick={() => void q.refetch()}>Try again</Button>} />;
+    return <Blocked icon={<IconWifiOff />} title="Couldn't open the console" body={consoleErrorMessage(e)} action={<Button onClick={() => void q.refetch()}>Try again</Button>} />;
   }
   return <MeContext.Provider value={q.data}>{children}</MeContext.Provider>;
 }

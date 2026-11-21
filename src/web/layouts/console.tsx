@@ -5,12 +5,14 @@
  */
 import { Suspense, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Logo } from "@/web/components/logo";
 import { AppearanceControl } from "@/web/components/theme";
 import { Badge, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { IconArrowLeft, IconClose, IconMenu } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
+import { consoleKeys, consoleRetry } from "@/web/lib/console-api";
 import { ConsoleGuard, useConsoleMe } from "@/web/pages/console/guard";
 import { navFor } from "@/web/pages/console/nav";
 
@@ -43,23 +45,27 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 function TopBar({ onMenu }: { onMenu: () => void }) {
   const me = useConsoleMe();
   const prod = me.environment.mode === "production";
+  // Below md only the menu, the logo, the environment and an icon for Back to app fit (no sideways scroll at 360 px);
+  // the theme switcher moves into the menu there.
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur">
-      <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open the console menu" onClick={onMenu}><IconMenu className="h-5 w-5" aria-hidden /></Button>
-      <Link to="/console" className="flex items-center gap-2" aria-label="Operator console home">
+    <header className="sticky top-0 z-20 flex h-14 min-w-0 items-center gap-2 border-b border-line bg-surface/90 px-3 backdrop-blur sm:gap-3 sm:px-4" data-testid="console-topbar">
+      <Button variant="ghost" size="icon" className="shrink-0 lg:hidden" aria-label="Open the console menu" onClick={onMenu}><IconMenu className="h-5 w-5" aria-hidden /></Button>
+      <Link to="/console" className="flex shrink-0 items-center gap-2" aria-label="Operator console home">
         <Logo className="h-6" decorative />
         <span className="hidden text-sm font-semibold sm:inline">Operator console</span>
       </Link>
-      <Badge tone={prod ? "bad" : "neutral"} dot>{prod ? "Production" : "Development"}</Badge>
-      <span className="hidden text-xs text-subtle md:inline" title="Release">{me.environment.release}</span>
-      <div className="ml-auto flex items-center gap-2">
-        <span className="hidden text-right text-xs leading-tight sm:block">
-          <span className="block font-medium text-fg">{me.user.email}</span>
+      <span className="shrink-0"><Badge tone={prod ? "bad" : "neutral"} dot>{prod ? "Production" : "Development"}</Badge></span>
+      <span className="hidden text-xs text-subtle lg:inline" title="Release">{me.environment.release}</span>
+      <div className="ml-auto flex min-w-0 items-center gap-2">
+        <span className="hidden min-w-0 text-right text-xs leading-tight md:block">
+          <span className="block truncate font-medium text-fg">{me.user.email}</span>
           <span className="block text-subtle" data-testid="console-role">{me.roleLabel}</span>
         </span>
-        <AppearanceControl className="hidden md:inline-flex" />
-        <Link to="/app/my-work" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg">
-          <IconArrowLeft className="h-4 w-4" aria-hidden />Back to app
+        <span className="sr-only md:hidden">{me.roleLabel}</span>
+        <div className="hidden md:block"><AppearanceControl /></div>
+        <Link to="/app/my-work" aria-label="Back to app" title="Back to app"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg">
+          <IconArrowLeft className="h-4 w-4" aria-hidden /><span className="hidden sm:inline">Back to app</span>
         </Link>
       </div>
     </header>
@@ -67,6 +73,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
 }
 
 function Frame() {
+  const me = useConsoleMe();
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   useEffect(() => { setOpen(false); }, [loc.pathname]);
@@ -77,7 +84,7 @@ function Frame() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
   return (
-    <div className="min-h-dvh bg-bg text-fg" data-testid="console-shell">
+    <div className="min-h-dvh overflow-x-clip bg-bg text-fg" data-testid="console-shell">
       <TopBar onMenu={() => setOpen(true)} />
       <div className="mx-auto flex max-w-[1400px]">
         <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-60 shrink-0 overflow-y-auto border-r border-line lg:block">
@@ -92,6 +99,11 @@ function Frame() {
                 <Button variant="ghost" size="icon" aria-label="Close the console menu" onClick={() => setOpen(false)}><IconClose className="h-5 w-5" aria-hidden /></Button>
               </div>
               <Sidebar onNavigate={() => setOpen(false)} />
+              <div className="border-t border-line px-5 py-4 md:hidden">
+                <p className="truncate text-xs font-medium text-fg">{me.user.email}</p>
+                <p className="mb-3 text-xs text-subtle">{me.roleLabel}</p>
+                <AppearanceControl />
+              </div>
             </div>
           </div>
         )}
@@ -106,6 +118,9 @@ function Frame() {
 }
 
 export function ConsoleLayout() {
+  const qc = useQueryClient();
+  // Every ["console", ...] read shows the server's answer straight away instead of retrying it (consoleRetry).
+  useState(() => qc.setQueryDefaults(consoleKeys.all, { retry: consoleRetry }));
   return (
     <div className="min-h-dvh bg-bg">
       <ConsoleGuard><Frame /></ConsoleGuard>
