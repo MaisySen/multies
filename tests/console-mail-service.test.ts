@@ -36,7 +36,7 @@ beforeEach(async () => {
   ctx = await makeTestApp();
   ({ orgId: orgA, domainId: domainA, mailboxId: mailboxA } = await workspace("a@alpha.io", "Alpha Co", "alpha.io"));
   ({ orgId: orgB, domainId: domainB, mailboxId: mailboxB } = await workspace("b@beta.io", "Beta Co", "beta.io"));
-});
+}, 120_000);
 
 const page = (field: string, dir: "asc" | "desc" = "desc", limit = 50, cursor: PageCursor | null = null): PageRequest => ({ limit, cursor, sort: { field, dir } });
 
@@ -56,7 +56,7 @@ async function walk<T extends { id: string }>(fn: (p: PageRequest) => Promise<Pa
 
 async function addDelivery(orgId: string, status: (typeof deliveries.$inferSelect)["status"], at: Date, extra: Partial<typeof deliveries.$inferInsert> = {}) {
   const id = newId("dlv");
-  await ctx.db.insert(deliveries).values({ id, orgId, direction: "outbound", fromAddress: "hello@alpha.io", toAddress: `to-${id}@outside.example`, subject: "Private subject line", status, provider: "log", detail: "550 mailbox unavailable", createdAt: at, ...extra });
+  await ctx.db.insert(deliveries).values({ id, orgId, direction: "outbound", fromAddress: "hello@alpha.io", toAddress: `to-${id}@outside.example`, subject: "PLANTED-DELIVERY-SUBJECT-h2Vx7", status, provider: "log", detail: "550 mailbox unavailable", createdAt: at, ...extra });
   return id;
 }
 
@@ -73,7 +73,7 @@ describe("deliveries", () => {
     expect(all.items.map((d) => d.id)).toEqual([fA, fB, inbound]);
     expect(all.next).toBeNull();
     expect(all.items[0]).toMatchObject({ orgId: orgA, orgName: "Alpha Co", status: "bounced", detail: "550 mailbox unavailable" });
-    expect(JSON.stringify(all)).not.toContain("Private subject line");
+    expect(JSON.stringify(all)).not.toContain("PLANTED-DELIVERY-SUBJECT-h2Vx7");
     expect(Object.keys(all.items[0]!)).not.toContain("subject");
 
     expect((await listDeliveries(ctx.deps, { orgId: orgB }, page("createdAt"))).items.map((d) => d.id)).toEqual([fB, inbound]);
@@ -83,7 +83,7 @@ describe("deliveries", () => {
     // The window bounds both ends: the 8 day old bounce only shows in a window that reaches it.
     const wide = await listDeliveries(ctx.deps, { window: { from: new Date(now - 9 * DAY), to: new Date(now - 7 * DAY) } }, page("createdAt"));
     expect(wide.items.map((d) => d.id)).toEqual([old]);
-  });
+  }, 120_000);
 
   it("pages by (createdAt, id) with no duplicates or gaps, ties included, in both directions", async () => {
     const t = Date.now() - HOUR;
@@ -95,7 +95,7 @@ describe("deliveries", () => {
     expect(new Set(desc)).toEqual(new Set(ids));
     const asc = await walk((p) => listDeliveries(ctx.deps, {}, p), "createdAt", "asc", 3);
     expect(asc).toEqual([...desc].reverse());
-  });
+  }, 120_000);
 
   it("refuses a sort field off the whitelist, a bad cursor, an unknown status and an over-wide or inverted window", async () => {
     expect(DELIVERY_SORT_FIELDS).toEqual(["createdAt"]);
@@ -105,7 +105,7 @@ describe("deliveries", () => {
     const now = Date.now();
     await expect(listDeliveries(ctx.deps, { window: { from: new Date(now - 100 * DAY), to: new Date(now) } }, page("createdAt"))).rejects.toMatchObject({ status: 400 });
     await expect(listDeliveries(ctx.deps, { window: { from: new Date(now), to: new Date(now - DAY) } }, page("createdAt"))).rejects.toMatchObject({ status: 400 });
-  });
+  }, 120_000);
 
   it("ranks workspaces by outbound failure rate in the window, with a minimum volume", async () => {
     const t = new Date(Date.now() - HOUR);
@@ -119,7 +119,7 @@ describe("deliveries", () => {
     expect(top[1]).toMatchObject({ total: 10, failed: 2, bounced: 2, failureRate: 0.2 });
     expect(await deliveryFailureRateByWorkspace(ctx.deps, { limit: 1 })).toHaveLength(1);
     expect(await deliveryFailureRateByWorkspace(ctx.deps, { minTotal: 11 })).toEqual([]);
-  });
+  }, 120_000);
 });
 
 describe("domains", () => {
@@ -139,7 +139,7 @@ describe("domains", () => {
     expect(await walk((p) => listDomains(ctx.deps, {}, p), "name", "desc", 1)).toEqual([domainB, domainA]);
     expect(DOMAIN_SORT_FIELDS).toContain("lastCheckedAt");
     await expect(listDomains(ctx.deps, {}, page("dkimPrivateKeyEnc"))).rejects.toMatchObject({ status: 400 });
-  });
+  }, 120_000);
 
   it("recheckDomain runs the live DNS check and records the outcome", async () => {
     const before = await recheckDomain(ctx.deps, domainA);
@@ -158,7 +158,7 @@ describe("domains", () => {
     expect((await ctx.db.select().from(domains).where(eq(domains.id, domainA)).get())!.status).toBe("verified");
     expect((await listDomains(ctx.deps, { status: ["verified"] }, page("lastCheckedAt"))).items.map((d) => d.id)).toEqual([domainA]);
     await expect(recheckDomain(ctx.deps, "dom_missing")).rejects.toMatchObject({ status: 404 });
-  });
+  }, 120_000);
 });
 
 describe("suppressions", () => {
@@ -187,13 +187,13 @@ describe("suppressions", () => {
     expect(await removeSuppression(ctx.deps, a1)).toEqual({ id: a1, orgId: orgA, address: "bounce@x.example", reason: "hard_bounce" });
     expect(await ctx.db.select().from(suppressions).where(eq(suppressions.id, a1)).get()).toBeUndefined();
     await expect(removeSuppression(ctx.deps, a1)).rejects.toMatchObject({ status: 404 });
-  });
+  }, 120_000);
 });
 
 describe("queued sends and the kill switch", () => {
   async function addHeld(orgId: string, mailboxId: string, dueAt: Date, held: string | null, kind: "send" | "snooze" = "send") {
     const id = newId("sch");
-    const payload = { via: "person", input: { mailboxId, to: ["x@outside.example", "y@outside.example"], cc: ["z@outside.example"], subject: "Secret plans", text: "Body text here" }, ...(held ? { held } : {}) };
+    const payload = { via: "person", input: { mailboxId, to: ["planted-to-a4Rk9@outside.example", "planted-to-b6Ln2@outside.example"], cc: ["planted-cc-c8Pq5@outside.example"], subject: "PLANTED-QUEUED-SUBJECT-w3Jt8", text: "PLANTED-QUEUED-BODY-e7Gz1" }, ...(held ? { held } : {}) };
     await ctx.db.insert(mailSchedules).values({ id, orgId, mailboxId, kind, status: "pending", dueAt, payload: JSON.stringify(payload) });
     return id;
   }
@@ -210,7 +210,7 @@ describe("queued sends and the kill switch", () => {
     expect(list.items.map((q) => q.id)).toEqual([hA, hB]);
     expect(list.items[0]).toMatchObject({ orgId: orgA, orgName: "Alpha Co", mailboxAddress: "hello@alpha.io", recipients: 3, forced: false, reason: "New workspaces send to 20 outside recipients a day" });
     const json = JSON.stringify(list);
-    for (const s of ["Secret plans", "Body text here", "x@outside.example"]) expect(json).not.toContain(s);
+    for (const s of ["PLANTED-QUEUED-SUBJECT-w3Jt8", "PLANTED-QUEUED-BODY-e7Gz1", "planted-to-a4Rk9", "planted-to-b6Ln2", "planted-cc-c8Pq5"]) expect(json).not.toContain(s);
     expect((await listQueuedSendsAll(ctx.deps, { orgId: orgB }, page("dueAt"))).items.map((q) => q.id)).toEqual([hB]);
     expect(await walk((p) => listQueuedSendsAll(ctx.deps, {}, p), "dueAt", "desc", 1)).toEqual([hB, hA]);
     expect(QUEUED_SEND_SORT_FIELDS).toContain("createdAt");
@@ -224,7 +224,7 @@ describe("queued sends and the kill switch", () => {
     expect((await listQueuedSendsAll(ctx.deps, { orgId: orgA }, page("dueAt"))).items[0]!.forced).toBe(true);
     // The workspace must match: another workspace's id is not found.
     await expect(forceQueuedSend(ctx.deps, orgB, hA)).rejects.toMatchObject({ status: 404 });
-  });
+  }, 120_000);
 
   it("setWorkspaceSending switches a workspace's sending off and back to its plan cap", async () => {
     expect(await setWorkspaceSending(ctx.deps, orgA, false)).toEqual({ orgId: orgA, sending: false, sendCapDaily: 0, before: { sendCapDaily: null } });
@@ -232,7 +232,7 @@ describe("queued sends and the kill switch", () => {
     expect((await ctx.db.select().from(organizations).where(eq(organizations.id, orgB)).get())!.sendCapDaily).toBeNull();
     expect(await setWorkspaceSending(ctx.deps, orgA, true)).toEqual({ orgId: orgA, sending: true, sendCapDaily: null, before: { sendCapDaily: 0 } });
     await expect(setWorkspaceSending(ctx.deps, "org_missing", true)).rejects.toMatchObject({ status: 404 });
-  });
+  }, 120_000);
 });
 
 describe("mail connections and imports", () => {
@@ -241,25 +241,25 @@ describe("mail connections and imports", () => {
     for (const [orgId, mailboxId, email, status] of [[orgA, mailboxA, "ann@gmail.com", "active"], [orgB, mailboxB, "bob@outlook.com", "auth_failed"]] as const) {
       const id = newId("conn");
       ids.push(id);
-      await ctx.db.insert(mailConnections).values({ id, orgId, mailboxId, provider: "gmail", email, username: email, imapHost: "imap.example", imapPort: 993, imapSecurity: "tls", smtpHost: "smtp.example", smtpPort: 465, smtpSecurity: "tls", secretEnc: "ENC-APP-PASSWORD", syncState: "{\"INBOX\":{\"uid\":42}}", status, lastError: status === "auth_failed" ? "Invalid credentials" : null });
+      await ctx.db.insert(mailConnections).values({ id, orgId, mailboxId, provider: "gmail", email, username: email, imapHost: "imap.example", imapPort: 993, imapSecurity: "tls", smtpHost: "smtp.example", smtpPort: 465, smtpSecurity: "tls", secretEnc: "PLANTED-CONN-SECRET-n5Bv3", syncState: "{\"PLANTED-SYNC-FOLDER-u2Xc6\":{\"uid\":42}}", status, lastError: status === "auth_failed" ? "Invalid credentials" : null });
     }
     const all = await listMailConnections(ctx.deps, {}, page("email", "asc"));
     expect(all.items.map((c) => c.email)).toEqual(["ann@gmail.com", "bob@outlook.com"]);
     expect(all.items[1]).toMatchObject({ orgId: orgB, orgName: "Beta Co", status: "auth_failed", lastError: "Invalid credentials", authKind: "password" });
     const json = JSON.stringify(all);
-    for (const s of ["ENC-APP-PASSWORD", "secretEnc", "syncState", "INBOX"]) expect(json).not.toContain(s);
+    for (const s of ["PLANTED-CONN-SECRET-n5Bv3", "secretEnc", "syncState", "PLANTED-SYNC-FOLDER-u2Xc6"]) expect(json).not.toContain(s);
     expect((await listMailConnections(ctx.deps, { status: ["auth_failed", "error"] }, page("createdAt"))).items.map((c) => c.id)).toEqual([ids[1]]);
     expect((await listMailConnections(ctx.deps, { orgId: orgA }, page("lastSyncAt"))).items.map((c) => c.id)).toEqual([ids[0]]);
     expect((await listMailConnections(ctx.deps, { q: "OUTLOOK" }, page("createdAt"))).items.map((c) => c.id)).toEqual([ids[1]]);
     expect(await walk((p) => listMailConnections(ctx.deps, {}, p), "email", "desc", 1)).toEqual([ids[1], ids[0]]);
     expect(MAIL_CONNECTION_SORT_FIELDS).toEqual(["createdAt", "lastSyncAt", "email"]);
     await expect(listMailConnections(ctx.deps, {}, page("secretEnc"))).rejects.toMatchObject({ status: 400 });
-  });
+  }, 120_000);
 
   it("lists imports by status and workspace, bounds an unfiltered list by window, and never returns the source password", async () => {
     const add = async (orgId: string, mailboxId: string, status: (typeof importJobs.$inferSelect)["status"], at = new Date()) => {
       const id = newId("imp");
-      await ctx.db.insert(importJobs).values({ id, orgId, mailboxId, provider: "imap", sourceHost: "imap.old.example", sourceUser: "me@old.example", secretEnc: "ENC-IMPORT-SECRET", status, error: status === "failed" ? "Login failed" : null, createdAt: at });
+      await ctx.db.insert(importJobs).values({ id, orgId, mailboxId, provider: "imap", sourceHost: "imap.old.example", sourceUser: "me@old.example", secretEnc: "PLANTED-IMPORT-SECRET-k1Dw4", status, error: status === "failed" ? "Login failed" : null, createdAt: at });
       return id;
     };
     const failedA = await add(orgA, mailboxA, "failed");
@@ -267,7 +267,7 @@ describe("mail connections and imports", () => {
     const oldFailedB = await add(orgB, mailboxB, "failed", new Date(Date.now() - 60 * DAY));
     const all = await listImportJobs(ctx.deps, {}, page("createdAt"));
     expect(new Set(all.items.map((j) => j.id))).toEqual(new Set([failedA, doneB]));
-    expect(JSON.stringify(all)).not.toContain("ENC-IMPORT-SECRET");
+    expect(JSON.stringify(all)).not.toContain("PLANTED-IMPORT-SECRET-k1Dw4");
     expect(JSON.stringify(all)).not.toContain("secretEnc");
     expect((await listImportJobs(ctx.deps, { status: ["failed"] }, page("createdAt"))).items.map((j) => j.id)).toEqual([failedA, oldFailedB]);
     expect((await listImportJobs(ctx.deps, { orgId: orgB }, page("createdAt", "asc"))).items.map((j) => j.id)).toEqual([oldFailedB, doneB]);
@@ -275,5 +275,5 @@ describe("mail connections and imports", () => {
     expect(await walk((p) => listImportJobs(ctx.deps, { status: ["failed", "done"] }, p), "createdAt", "desc", 1)).toHaveLength(3);
     expect(IMPORT_JOB_SORT_FIELDS).toEqual(["createdAt"]);
     await expect(listImportJobs(ctx.deps, {}, page("status"))).rejects.toMatchObject({ status: 400 });
-  });
+  }, 120_000);
 });

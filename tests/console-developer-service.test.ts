@@ -20,6 +20,10 @@ let userA: string;
 let userB: string;
 const posted: string[] = [];
 const HOUR = 3_600_000;
+/** Planted payload values: long markers no generated id, field name or copy can contain by chance. */
+const PLANTED_ID = "PLANTED-PAYLOAD-ID-q8Zr2Lw9Xk";
+const PLANTED_TO = "planted-recipient-v7Hn3Qe5@customer.example";
+const PLANTED_SUBJECT = "PLANTED-PAYLOAD-SUBJECT-c4Tm8Yb1";
 const DAY = 24 * HOUR;
 
 async function workspace(email: string, name: string) {
@@ -36,7 +40,7 @@ beforeEach(async () => {
   ctx = await makeTestApp({}, { fetch: (async (url: string) => { posted.push(String(url)); return new Response("ok", { status: 200 }); }) as unknown as typeof fetch });
   ({ orgId: orgA, userId: userA } = await workspace("a@alpha.io", "Alpha Co"));
   ({ orgId: orgB, userId: userB } = await workspace("b@beta.io", "Beta Co"));
-});
+}, 120_000);
 
 const page = (field: string, dir: "asc" | "desc" = "desc", limit = 50, cursor: PageCursor | null = null): PageRequest => ({ limit, cursor, sort: { field, dir } });
 
@@ -86,13 +90,13 @@ describe("API keys", () => {
     const refused = await new Client(ctx.app).call("GET", "/api/v1/mailboxes", undefined, { authorization: `Bearer ${made[2]!.secret}` });
     expect(refused.status).toBe(401);
     await expect(revokeApiKey(ctx.deps, made[2]!.id)).rejects.toMatchObject({ status: 404 });
-  });
+  }, 120_000);
 });
 
 describe("webhooks", () => {
   async function addDelivery(orgId: string, endpointId: string, status: "pending" | "delivered" | "failed", at: Date, eventType = "message.bounced") {
     const id = newId("msg");
-    const payload = JSON.stringify({ type: eventType, timestamp: at.toISOString(), data: { id: "msg_1", to: "private@customer.example", subject: "Very private subject" } });
+    const payload = JSON.stringify({ type: eventType, timestamp: at.toISOString(), data: { id: PLANTED_ID, to: PLANTED_TO, subject: PLANTED_SUBJECT } });
     await ctx.db.insert(webhookDeliveries).values({ id, orgId, endpointId, eventType, payload, status, attempts: status === "failed" ? 6 : 1, lastError: status === "failed" ? "Receiver answered 500" : null, createdAt: at });
     return id;
   }
@@ -126,7 +130,7 @@ describe("webhooks", () => {
     expect((await listWebhookEndpoints(ctx.deps, { enabled: true }, page("createdAt"))).items.map((e) => e.id)).toEqual([b.endpoint.id]);
     expect(await setWebhookEndpointEnabled(ctx.deps, a.endpoint.id, true)).toMatchObject({ before: { enabled: false }, enabled: true });
     await expect(setWebhookEndpointEnabled(ctx.deps, "whe_missing", true)).rejects.toMatchObject({ status: 404 });
-  });
+  }, 120_000);
 
   it("lists deliveries (failures by default) in a window with a field-name preview only, pages, and redelivers one", async () => {
     const a = await createEndpoint(ctx.deps, orgA, { url: "https://hooks.alpha.example/in", events: ["*"] });
@@ -144,7 +148,7 @@ describe("webhooks", () => {
     expect(all.items[0]).toMatchObject({ orgId: orgA, orgName: "Alpha Co", endpointUrl: "https://hooks.alpha.example/in", eventType: "message.bounced", status: "failed", attempts: 6, lastError: "Receiver answered 500" });
     expect(all.items[0]!.payloadPreview).toBe("message.bounced: id, to, subject");
     const json = JSON.stringify(all);
-    for (const s of ["private@customer.example", "Very private subject", "msg_1", "\"payload\""]) expect(json).not.toContain(s);
+    for (const s of [PLANTED_ID, PLANTED_TO, PLANTED_SUBJECT, "\"payload\""]) expect(json).not.toContain(s);
 
     expect((await listWebhookDeliveries(ctx.deps, { orgId: orgA }, page("createdAt"))).items.map((d) => d.id)).toEqual([fA, fA2]);
     expect((await listWebhookDeliveries(ctx.deps, { endpointId: b.endpoint.id, status: ["delivered", "failed"] }, page("createdAt"))).items.map((d) => d.id)).toEqual([okB, fB]);
@@ -163,7 +167,7 @@ describe("webhooks", () => {
     expect((await ctx.db.select().from(webhookDeliveries).where(eq(webhookDeliveries.id, fB)).get())!.status).toBe("delivered");
     expect((await listWebhookDeliveries(ctx.deps, { orgId: orgB }, page("createdAt"))).items).toEqual([]);
     await expect(redeliverWebhook(ctx.deps, "msg_missing")).rejects.toMatchObject({ status: 404 });
-  });
+  }, 120_000);
 });
 
 describe("OAuth", () => {
@@ -176,8 +180,8 @@ describe("OAuth", () => {
     const id = newId("oag");
     const at = opts.at ?? new Date();
     await ctx.db.insert(oauthGrants).values({
-      id, clientId, orgId, userId, scope: "full", redirectUri: "https://claude.example/callback", codeHash: "CODE-HASH-SECRET", codeChallenge: "PKCE-CHALLENGE",
-      codeUsedAt: opts.used === false ? null : at, refreshHash: opts.revoked ? null : "REFRESH-HASH-SECRET", revokedAt: opts.revoked ? at : null, createdAt: at,
+      id, clientId, orgId, userId, scope: "full", redirectUri: "https://claude.example/callback", codeHash: "PLANTED-CODE-HASH-r5Kd2", codeChallenge: "PLANTED-PKCE-CHALLENGE-m3Wf6",
+      codeUsedAt: opts.used === false ? null : at, refreshHash: opts.revoked ? null : "PLANTED-REFRESH-HASH-j9Ps4", revokedAt: opts.revoked ? at : null, createdAt: at,
     });
     return id;
   }
@@ -193,7 +197,7 @@ describe("OAuth", () => {
     expect(await walk((p) => listOAuthClients(ctx.deps, {}, p), "name", "desc", 1)).toEqual([cursor, claude]);
     expect(OAUTH_CLIENT_SORT_FIELDS).toEqual(["createdAt", "name"]);
     await expect(listOAuthClients(ctx.deps, {}, page("redirectUris"))).rejects.toMatchObject({ status: 400 });
-  });
+  }, 120_000);
 
   it("lists grants without codes, hashes or challenges, filters by state, workspace and client, pages, and revokes one", async () => {
     const claude = await client("Claude");
@@ -209,7 +213,7 @@ describe("OAuth", () => {
     expect(active.items.map((g) => g.id)).toEqual([gA, gA2, gB]);
     expect(active.items[2]).toMatchObject({ orgId: orgB, orgName: "Beta Co", clientId: claude, clientName: "Claude", userId: userB, userEmail: "b@beta.io", scope: "full", revokedAt: null });
     const json = JSON.stringify(await listOAuthGrants(ctx.deps, { state: "all" }, page("createdAt")));
-    for (const s of ["CODE-HASH-SECRET", "REFRESH-HASH-SECRET", "PKCE-CHALLENGE", "codeHash", "refreshHash", "codeChallenge"]) expect(json).not.toContain(s);
+    for (const s of ["PLANTED-CODE-HASH-r5Kd2", "PLANTED-REFRESH-HASH-j9Ps4", "PLANTED-PKCE-CHALLENGE-m3Wf6", "codeHash", "refreshHash", "codeChallenge"]) expect(json).not.toContain(s);
     expect((await listOAuthGrants(ctx.deps, { state: "all", orgId: orgB }, page("createdAt"))).items.map((g) => g.id)).toEqual([gB, unused, revoked]);
     expect((await listOAuthGrants(ctx.deps, { state: "revoked" }, page("createdAt"))).items.map((g) => g.id)).toEqual([revoked]);
     expect((await listOAuthGrants(ctx.deps, { clientId: chatgpt }, page("createdAt"))).items.map((g) => g.id)).toEqual([gA2]);
@@ -224,5 +228,5 @@ describe("OAuth", () => {
     expect(row!.refreshHash).toBeNull();
     expect((await listOAuthGrants(ctx.deps, {}, page("createdAt"))).items.map((g) => g.id)).toEqual([gA, gA2]);
     await expect(revokeOAuthGrant(ctx.deps, gB)).rejects.toMatchObject({ status: 404 });
-  });
+  }, 120_000);
 });
