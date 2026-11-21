@@ -32,9 +32,9 @@ function oldPhoneList(flags: NavFlagSet): string[] {
   const block = src.slice(src.indexOf("const nav: NavItem[] = ["), src.indexOf("];", src.indexOf("const nav: NavItem[] = [")));
   const tos = [...block.matchAll(/to: "([^"]+)"/g)].map((m) => m[1]);
   expect(tos.length).toBeGreaterThan(20);
-  return [...tos, ...(flags.tools ? ["/app/tools"] : []), ...(flags.files ? ["/app/files"] : []), ...(flags.scheduling ? ["/app/scheduling"] : []), ...(flags.operator ? ["/app/admin"] : [])];
+  return [...tos, ...(flags.tools ? ["/app/tools"] : []), ...(flags.files ? ["/app/files"] : []), ...(flags.scheduling ? ["/app/scheduling"] : []), ...(flags.operator ? ["/console"] : [])]; // OPS1: the operator console moved from /app/admin
 }
-const settingsPanes = (groups: typeof SETTINGS_GROUPS, flags: NavFlagSet) => groups.flatMap((g) => g.items).map((p) => p.to).filter((to) => to !== "/app/admin" || !!flags.operator);
+const settingsPanes = (groups: typeof SETTINGS_GROUPS, flags: NavFlagSet) => groups.flatMap((g) => g.items).map((p) => p.to).filter((to) => to !== "/console" || !!flags.operator); // OPS1
 
 function p2Reachable(flags: NavFlagSet): Set<string> {
   return new Set([...visibleIn(SECTIONS_P2, flags).flatMap((s) => s.pages.map((p) => p.to)), ...settingsPanes(SETTINGS_GROUPS_P2, flags), nav.SOCIAL_NEW]);
@@ -58,8 +58,8 @@ describe("R121 reachability: no route lost", () => {
     }
   });
   it("Operator stays with platform admins only, in the rail and in Settings", () => {
-    expect(p2Reachable({}).has("/app/admin")).toBe(false);
-    expect(p2Reachable({ operator: true }).has("/app/admin")).toBe(true);
+    expect(p2Reachable({}).has("/console")).toBe(false); // OPS1: the operator console moved from /app/admin
+    expect(p2Reachable({ operator: true }).has("/console")).toBe(true);
   });
   it("every P2 address is a page the server knows (no 404 for a menu entry)", () => {
     for (const to of p2Reachable(Object.fromEntries(FLAGS.map((f) => [f, true])))) expect(isKnownPage(to), to).toBe(true);
