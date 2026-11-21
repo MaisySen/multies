@@ -62,6 +62,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   const workflow={version:1,mode:"development",revision:"workflow-fixture-r1",source_id:"fixture",policy,challenge_ms:10000,max_lease_ms:15000,max_observation_age_ms:20000,clock_uncertainty_ms:1,max_live_per_principal:4,max_proof_attempts:4,max_live:4,max_attempts:8,max_records:8,max_state_bytes:1048576};
   await writeFile(join(dir,"coordinator.tmp"),JSON.stringify({mode,code:new URL(choice.body.redirectTo).searchParams.get("code"),sources,workflow}),{mode:0o600});await rename(join(dir,"coordinator.tmp"),join(dir,"coordinator.json"));
   if(mode!=="source-denied"){
+   let originalPeerExpiryMS=0;
    const approveDisposableCounterpart=async()=>{
    const peerLaunch=JSON.parse(await waitFile(join(dir,"peer-launch.json"),()=>done));
    const peerPrepared=await e.person.post("/api/mnet-enrollment-v1/authorizations",{...peerLaunch,workspaceId,displayed});expect(peerPrepared.status).toBe(201);
@@ -97,24 +98,36 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    expect(await page.getByTestId("mnet-handoff-key").textContent()).toBe(nativeLaunch.devicePublicKey);
    await page.getByRole("combobox").selectOption(workspaceId);
    await page.screenshot({path:"/downloads/mnet-development-installed-consent.png",fullPage:true});
+   // Finish native approval-page work before any peer receipt is committed.
+   // Return remains a real later click, not an injected callback or renewal.
+   const prepareApprovedReturn=async()=>{
+    await page!.getByRole("button",{name:variant==="decline"?"Decline":"Approve handoff",exact:true}).click();
+    await page!.getByRole("button",{name:"Return to Mnet",exact:true}).waitFor();
+    await page!.screenshot({path:"/downloads/mnet-development-installed-return.png",fullPage:true});
+   };
    if(networkCase){
+    await prepareApprovedReturn();
     await writeFile(join(dir,"installed-consent-ready"),"actual owned browser login and workspace selection completed",{mode:0o600});
     await approveDisposableCounterpart();
-    await waitFile(join(dir,"installed-peers-ready"),()=>done);
+    const timing=JSON.parse(await waitFile(join(dir,"installed-peers-ready"),()=>done));
+    expect(Number.isSafeInteger(timing.committedAtMS)&&Number.isSafeInteger(timing.accessExpiresAtMS)).toBe(true);
+    expect(timing.accessExpiresAtMS-timing.committedAtMS).toBeGreaterThan(0);
+    expect(timing.accessExpiresAtMS-timing.committedAtMS).toBeLessThanOrEqual(15000);
+    originalPeerExpiryMS=timing.accessExpiresAtMS;
+    console.log("ORIGINAL PEER CLOCK",{...timing,observedAtMS:Date.now(),remainingMS:originalPeerExpiryMS-Date.now()});
+    if(Date.now()>=originalPeerExpiryMS)throw new Error("original peer interval ended before native Return; no retry or renewal");
    }
    if(variant==="result-write-failure")await chmod(join(dir,"installed-setup"),0o500);
    if(variant==="cancel")await writeFile(join(dir,"installed-cancel-request"),"cancel only this disposable process");
    if(variant==="changed-policy"){const path=join(dir,"installed-setup","native","enrollment-policy-v2.json");const data=JSON.parse(await readFile(path,"utf8"));data.revision+="-changed";await writeFile(path,JSON.stringify(data));}
    if(variant!=="cancel"){
-   await page.getByRole("button",{name:variant==="decline"?"Decline":"Approve handoff",exact:true}).click();
-   await page.getByRole("button",{name:"Return to Mnet",exact:true}).waitFor();
-   await page.screenshot({path:"/downloads/mnet-development-installed-return.png",fullPage:true});
+   if(!networkCase)await prepareApprovedReturn();
    await page.getByRole("button",{name:"Return to Mnet",exact:true}).click();
    if(variant==="success")await page.getByText("Approval returned to Mnet.",{exact:false}).waitFor();
    if(variant==="decline")await page.getByText("Computer not approved.",{exact:false}).waitFor();
    if(variant==="changed-policy"){await page.getByText("Mnet callback unavailable.",{exact:false}).waitFor();await writeFile(join(dir,"installed-cancel-request"),"retire refused callback attempt");}
    }
-   await page.screenshot({path:"/downloads/mnet-development-installed-callback.png",fullPage:true});
+   if(!dashboard)await page.screenshot({path:"/downloads/mnet-development-installed-callback.png",fullPage:true});
    }
    if(!displayUnavailable){
    let resultPage;
@@ -127,12 +140,23 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     let live;
     for(let i=0;i<200&&!live;i++){for(const p of context.pages()){if(await p.title().catch(()=>"")==="Mnet disposable network"){live=p;break;}}if(!live)await sleep(25);}
     if(!live){console.log("PAGES",await Promise.all(context.pages().map(async p=>({title:await p.title().catch(()=>""),body:(await p.locator("body").innerText().catch(()=>"")).slice(0,500)}))));throw new Error("actual native live dashboard did not open; native="+output);}
+    let lastDashboardState="";
+    live.on("response",async response=>{if(new URL(response.url()).pathname!=="/state")return;try{const state=await response.json();const stateKey=JSON.stringify(state);if(stateKey!==lastDashboardState){lastDashboardState=stateKey;console.log("DASHBOARD STATE",{atMS:Date.now(),state});}}catch{/* A failed response remains a failed observation, never ended. */}});
+    await live.bringToFront();
     await live.getByRole("heading",{name:"Network active",exact:true}).waitFor();
+    console.log("DASHBOARD ACTIVE CLOCK",{observedAtMS:Date.now(),originalPeerExpiryMS,remainingMS:originalPeerExpiryMS-Date.now()});
     await live.getByText("Joining saved. This is separate",{exact:false}).waitFor();
     expect(await live.locator("#peers li").count()).toBeGreaterThan(0);
     await live.screenshot({path:`/downloads/mnet-live-dashboard-active-${variant}.png`,fullPage:true});
     if(variant==="network-tcp-cancel")await live.getByRole("button",{name:"Stop network",exact:true}).click();
-    await live.getByRole("heading",{name:"Network ended",exact:true}).waitFor({timeout:20000});
+    // This changes only the test observation deadline, never receipt lifetime.
+    const observationTimeout=variant==="network-tcp-expiry"?Math.max(1000,Math.min(25000,originalPeerExpiryMS-Date.now()+10000)):10000;
+    await live.getByRole("heading",{name:"Network ended",exact:true}).waitFor({timeout:observationTimeout}).catch(async error=>{
+     console.log("DASHBOARD TIMEOUT EVIDENCE",{atMS:Date.now(),originalPeerExpiryMS,body:await live.locator("body").innerText().catch(()=>"unavailable"),nativeOutput:output});
+     await live.screenshot({path:"/downloads/mnet-dashboard-timing-timeout.png",fullPage:true});
+     throw error;
+    });
+    console.log("DASHBOARD ENDED CLOCK",{observedAtMS:Date.now(),originalPeerExpiryMS,afterOriginalExpiryMS:Date.now()-originalPeerExpiryMS});
     expect(await live.locator("#peers li").count()).toBe(0);
     expect(await live.getByRole("button",{name:"Stop network",exact:true}).isDisabled()).toBe(true);
     if(variant==="network-tcp-expiry")await live.getByText("The original approved peer lease ended.",{exact:false}).waitFor();
