@@ -13,7 +13,7 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
-(repo?it:it.skip)("actual enrolled WireGuard/proofnet attended fakeUI denial, no capture or input",async()=>{
+(repo?it:it.skip).each(["deny","withdraw-pending"])("actual enrolled WireGuard/proofnet attended fakeUI %s, no capture or input",async(caseName)=>{
  const mode="direct-transport" as string;
  const dir=await mkdtemp(join(tmpdir(),"mnet-workflow-cross-"));await chmod(dir,0o700);
  const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;
@@ -34,7 +34,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address();if(!address||typeof address==="string")throw new Error("missing TLS address");
   const nativeBinary=join(dir,"native-fixture.test");
   execFileSync("go",["test","-race","-tags","multies_native_fixture,mnet_enrollment_development","-c","-o",nativeBinary,"./cmd/mnetd"],{cwd:repo,stdio:"pipe"});
-  child=spawn("go",["test","-race","-tags","multies_native_fixture","./internal/control","-run","^TestActualMultiesRegistrarWorkflowFixture$","-count=1","-timeout","60s"],{cwd:repo,env:{...process.env,MNET_WORKFLOW_FIXTURE_DIR:dir,MNET_NATIVE_WORKFLOW_BINARY:nativeBinary,MNET_DEVELOPMENT_ATTENDED_FIXTURE:"1",SSL_CERT_FILE:cert,SSL_CERT_DIR:join(dir,"no-extra-roots")},stdio:["ignore","pipe","pipe"]});
+  child=spawn("go",["test","-race","-tags","multies_native_fixture","./internal/control","-run","^TestActualMultiesRegistrarWorkflowFixture$","-count=1","-timeout","60s"],{cwd:repo,env:{...process.env,MNET_WORKFLOW_FIXTURE_DIR:dir,MNET_NATIVE_WORKFLOW_BINARY:nativeBinary,MNET_DEVELOPMENT_ATTENDED_FIXTURE:"1",MNET_DEVELOPMENT_ATTENDED_CASE:caseName,SSL_CERT_FILE:cert,SSL_CERT_DIR:join(dir,"no-extra-roots")},stdio:["ignore","pipe","pipe"]});
   child.stdout!.on("data",b=>{output+=b.toString();});child.stderr!.on("data",b=>{output+=b.toString();});const completion=new Promise<number|null>((resolve,reject)=>{child!.on("error",reject);child!.on("close",code=>{done=true;resolve(code);});});
   const publicInput=JSON.parse(await waitFile(join(dir,"launch.json"),()=>done));
   const operator=e.deps.config.mnetEnrollmentOperator!;operator.bindings[0].networkId=publicInput.networkId;operator.registrarOrigin=publicInput.registrarOrigin;e.deps.config.mnetEnrollmentServiceFixture!.keys[0].registrarOrigin=publicInput.registrarOrigin;
@@ -65,14 +65,14 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
   expect(exchangeCalls).toBe(mode!=="source-denied"?3:1);expect(reserveCalls).toBe(mode!=="source-denied"?3:1);expect(reserveStatus).toBe(mode!=="source-denied"?200:403);expect(outcome.inputAuthorized).toBe(false);
-  expect(outcome).toEqual({version:1,fake_ui:true,attendedDenied:true,actualEnrolledPeers:true,joined:true,inputAuthorized:false});
+  if(caseName==="deny"){expect(outcome).toEqual({version:1,fake_ui:true,attendedDenied:true,actualEnrolledPeers:true,joined:true,inputAuthorized:false});}else{expect(outcome).toMatchObject({version:1,fake_ui:true,case:caseName,attendedDenied:true,actualEnrolledPeers:true,joined:true,inputAuthorized:false,promptCancelled:true});expect(["explicit-protocol-refusal","closed-after-authority-withdrawal","local-close-after-verified-store-withdrawal"]).toContain(outcome.transportClass);}
   const row=await e.db.select().from(journal).where(eq(journal.id,prepared.body.id)).get();expect(row!.status).toBe("reserved");
   const state=JSON.parse(await readFile(join(dir,"control","state.json"),"utf8"));expect(Object.keys(state.nodes)).toHaveLength(0);expect(Object.keys(state.node_tokens)).toHaveLength(0);
 
  }finally{
   if(child&&!done){child.kill("SIGKILL");await new Promise<void>(resolve=>child!.once("close",()=>resolve()));}
   const evidence=join("/downloads",`attended-enrolled-run-${Date.now()}`);await mkdir(evidence,{recursive:true});
-  for(const name of ["peer-attended-coordinates.json","native-attended-listening.json","peer-attended-refused.json","native-attended-outcome.json","native-attended-failed.json","outcome.json"]){try{await copyFile(join(dir,name),join(evidence,name));}catch{/* Missing IPC files are not success. */}}
+  for(const name of ["peer-attended-coordinates.json","native-attended-listening.json","peer-attended-refused.json","native-attended-outcome.json","native-attended-pending.json","peer-attended-withdrawn.json","peer-attended-transport.json","native-attended-failed.json","outcome.json"]){try{await copyFile(join(dir,name),join(evidence,name));}catch{/* Missing IPC files are not success. */}}
   await writeFile(join(evidence,"control-output.log"),output,{mode:0o600});console.log(`Retained public-coordinate/counter/failure evidence at ${evidence}`);
   server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));
   (e.db as unknown as {$client:{close():void}}).$client.close();if(e.indexDb)(e.indexDb as unknown as {$client:{close():void}}).$client.close();await rm(dir,{recursive:true,force:true});
