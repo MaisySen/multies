@@ -13,7 +13,9 @@ async function setup() {
  const member = await env.db.select().from(members).where(eq(members.userId, user!.id)).get();
  env.deps.config.mnetEnrollmentOperator = { revision: "fixture-r1", issuer: "https://issuer.example.test/path", registrarOrigin: "https://registrar.example.test", audience: "fixture-enrollment", bindings: [{ workspaceId: member!.organizationId, networkId: "net-fixture", principals: [user!.id] }] };
  expect((await import("@/server/services/mnet-enrollment-config")).enrollmentOperatorSchema.safeParse(env.deps.config.mnetEnrollmentOperator)).toMatchObject({success:true});
- return { ...env, person, user: user!, workspaceId: member!.organizationId };
+ const operator = env.deps.config.mnetEnrollmentOperator!;
+ const displayed = { issuer: operator.issuer, registrarOrigin: operator.registrarOrigin, audience: operator.audience, mappingRevision: operator.revision, networkId: operator.bindings[0]!.networkId };
+ return { ...env, person, displayed, user: user!, workspaceId: member!.organizationId };
 }
 describe("separate Mnet enrollment consent, no registrar authority", () => {
  it("is off by default and also unavailable without explicit operator config", async () => {
@@ -24,16 +26,16 @@ describe("separate Mnet enrollment consent, no registrar authority", () => {
   const e = await setup();
   const info = await e.person.get("/api/mnet-enrollment/authorize?" + new URLSearchParams(launch));
   expect(info).toMatchObject({status:200}); expect(info.body.workspaces).toEqual([{ id: e.workspaceId, name: "Acme", networkId: "net-fixture" }]);
-  const prepared = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId }); expect(prepared.status).toBe(201);
+  const prepared = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: e.displayed }); expect(prepared.status).toBe(201);
   const result = await e.person.post(`/api/mnet-enrollment/decisions/${prepared.body.id}`, { decision: "allow" });
   expect(result.status).toBe(200); expect(result.body).toEqual({ decision: "approved", purpose: "mnet-enrollment", inputAuthorized: false, registrarConnected: false, enrolled: false });
   expect((await e.person.post(`/api/mnet-enrollment/decisions/${prepared.body.id}`, { decision: "allow" })).status).toBe(403);
-  expect((await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId })).status).toBe(403);
+  expect((await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: e.displayed })).status).toBe(403);
   const row = await e.db.select().from(mnetEnrollmentDecisions).get(); expect(row!.networkId).toBe("net-fixture"); expect(row!.mappingRevision).toBe("fixture-r1"); expect(row!.status).toBe("approved");
   for (const path of ["/api/mnet-enrollment/token", "/api/mnet-enrollment/consume", "/api/mnet-enrollment/recover"]) expect((await e.person.post(path, {})).status).toBe(404);
  });
  it.each(["mapping", "membership", "session", "expiry", "other-person"])("refuses decision after %s change", async (mode) => {
-  const e = await setup(); const p = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId }); expect(p.status).toBe(201);
+  const e = await setup(); const p = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: e.displayed }); expect(p.status).toBe(201);
   if (mode === "mapping") e.deps.config.mnetEnrollmentOperator!.revision = "changed";
   if (mode === "membership") await e.db.update(members).set({ disabledAt: new Date() }).where(eq(members.userId, e.user.id));
   if (mode === "session") await e.db.update(sessions).set({ expiresAt: new Date(0) }).where(eq(sessions.userId, e.user.id));
@@ -41,30 +43,53 @@ describe("separate Mnet enrollment consent, no registrar authority", () => {
   let client = e.person;
   if (mode === "other-person") { client = new Client(e.app); await client.signup(); }
   expect((await client.post(`/api/mnet-enrollment/decisions/${p.body.id}`, { decision: "allow" })).status).not.toBe(200);
-  const row = await e.db.select().from(mnetEnrollmentDecisions).get(); if (mode === "session") expect(row).toBeUndefined(); else expect(row!.status).toBe("pending");
+  const row = await e.db.select().from(mnetEnrollmentDecisions).get(); if (row) expect(row.status).toBe("pending"); else expect(mode).toBe("session");
  });
  it("rejects non-allowlisted people and ambiguous request JSON before writes", async () => {
-  const e = await setup(); const raw = JSON.stringify({ ...launch, workspaceId: e.workspaceId }).replace('"platform":"linux"', '"platform":"linux","platform":"windows"');
+  const e = await setup(); const raw = JSON.stringify({ ...launch, workspaceId: e.workspaceId, displayed: e.displayed }).replace('"platform":"linux"', '"platform":"linux","platform":"windows"');
   const r = await e.app.request("/api/mnet-enrollment/decisions", { method: "POST", headers: { cookie: e.person.cookie, host: "localhost", "content-type": "application/json" }, body: raw }); expect(r.status).toBe(400);
   e.deps.config.mnetEnrollmentOperator!.bindings[0]!.principals = ["not-this-person"];
-  expect((await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId })).status).toBe(403);
+  expect((await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: e.displayed })).status).toBe(403);
   expect(await e.db.select().from(mnetEnrollmentDecisions)).toHaveLength(0);
   expect(await e.db.select().from(organizations)).toHaveLength(1);
  });
  it("has one winner for competing decisions and never upgrades a List credential", async () => {
-  const e = await setup(); const p = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId });
+  const e = await setup(); const p = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: e.displayed });
   expect(p.status).toBe(201);
   const results = await Promise.all([e.person.post(`/api/mnet-enrollment/decisions/${p.body.id}`, { decision: "allow" }), e.person.post(`/api/mnet-enrollment/decisions/${p.body.id}`, { decision: "decline" })]);
   expect(results.map((r) => r.status).sort()).toEqual([200,403]);
-  const token = await e.app.request("/api/mnet-enrollment/decisions", { method: "POST", headers: { authorization: "Bearer " + key, "content-type": "application/json", host:"localhost" }, body: JSON.stringify({ ...launch, attemptId: key.slice(0,-1)+"A", workspaceId: e.workspaceId }) });
+  const token = await e.app.request("/api/mnet-enrollment/decisions", { method: "POST", headers: { authorization: "Bearer " + key, "content-type": "application/json", host:"localhost" }, body: JSON.stringify({ ...launch, attemptId: key.slice(0,-1)+"A", workspaceId: e.workspaceId, displayed: e.displayed }) });
   expect(token.status).toBe(401);
  });
  it("binds a decision to the original session even for the same person", async () => {
-  const e = await setup(); const p = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId });
+  const e = await setup(); const p = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: e.displayed });
   expect(p.status).toBe(201);
   const second = new Client(e.app); expect((await second.login(e.person.email!)).status).toBe(200);
   expect((await second.post(`/api/mnet-enrollment/decisions/${p.body.id}`, { decision:"allow" })).status).toBe(403);
   expect((await e.person.post(`/api/mnet-enrollment/decisions/${p.body.id}`, { decision:"decline" })).status).toBe(200);
+ });
+
+ it("refuses a changed operator mapping between browser preview and prepare", async () => {
+  const e = await setup();
+  const info = await e.person.get("/api/mnet-enrollment/authorize?" + new URLSearchParams(launch));
+  expect(info.status).toBe(200);
+  e.deps.config.mnetEnrollmentOperator!.bindings[0]!.networkId = "different-unseen-network";
+  const result = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: e.displayed });
+  expect(result.status).toBe(403);
+  expect(await e.db.select().from(mnetEnrollmentDecisions)).toHaveLength(0);
+ });
+
+ it.each(["issuer", "registrarOrigin", "audience", "mappingRevision", "networkId"] as const)("compares displayed %s with server configuration rather than accepting browser policy", async (field) => {
+  const e = await setup();
+  const result = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: { ...e.displayed, [field]: e.displayed[field] + "changed" } });
+  expect(result.status).toBe(403); expect(await e.db.select().from(mnetEnrollmentDecisions)).toHaveLength(0);
+ });
+ it("returns controlled refusal for concurrent duplicate prepares", async () => {
+  const e = await setup();
+  const request = { ...launch, workspaceId: e.workspaceId, displayed: e.displayed };
+  const results = await Promise.all(Array.from({ length: 4 }, () => e.person.post("/api/mnet-enrollment/decisions", request)));
+  expect(results.map((r) => r.status).sort()).toEqual([201,403,403,403]);
+  expect(await e.db.select().from(mnetEnrollmentDecisions)).toHaveLength(1);
  });
 
 });

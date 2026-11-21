@@ -13,7 +13,11 @@ const digest = z.string().regex(/^[A-Za-z0-9_-]{43}$/).refine((s) => {
 });
 // Full public key, not a claimed thumbprint. Possession is NOT established here.
 export const enrollmentLaunch = z.object({ attemptId: digest, devicePublicKey: digest, platform: z.enum(["linux", "windows", "macos"]) }).strict();
-export const enrollmentRequest = enrollmentLaunch.extend({ workspaceId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/) }).strict();
+export const enrollmentRequest = enrollmentLaunch.extend({
+ workspaceId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/),
+ // Comparison guard for exactly what the browser displayed, never trusted config.
+ displayed: z.object({ issuer: z.string().max(2048), registrarOrigin: z.string().max(2048), audience: z.string().max(256), mappingRevision: z.string().max(128), networkId: z.string().max(128) }).strict(),
+}).strict();
 const refused = () => new HttpError(403, "mnet_enrollment_denied", "Computer joining approval is unavailable.");
 function operator(d: Deps) {
  const parsed = enrollmentOperatorSchema.safeParse(d.config.mnetEnrollmentOperator);
@@ -37,6 +41,7 @@ export async function enrollmentInfo(d: Deps, headers: Headers, request: z.infer
 }
 export async function prepareEnrollment(d: Deps, headers: Headers, request: z.infer<typeof enrollmentRequest>) {
  const person = await mnetPerson(d, headers), { config, b } = binding(d, request.workspaceId, person.userId);
+ if (request.displayed.issuer !== config.issuer || request.displayed.registrarOrigin !== config.registrarOrigin || request.displayed.audience !== config.audience || request.displayed.mappingRevision !== config.revision || request.displayed.networkId !== b.networkId) throw refused();
  await eligible(d, person.userId, b.workspaceId, person.id);
  const id = randomToken(), at = d.now().getTime();
  // Never prune/reuse attempt IDs here. A timeout cannot resurrect uncertain authority.
@@ -45,7 +50,8 @@ export async function prepareEnrollment(d: Deps, headers: Headers, request: z.in
  SELECT ${id},${person.userId},${person.id},${b.workspaceId},${request.attemptId},${request.devicePublicKey},${config.issuer},${config.registrarOrigin},${config.audience},${b.networkId},${config.revision},'pending',${at + 120000}
  WHERE NOT EXISTS (SELECT 1 FROM mnet_enrollment_decisions WHERE attempt_id=${request.attemptId})
  AND (SELECT COUNT(*) FROM mnet_enrollment_decisions WHERE user_id=${person.userId} AND expires_at>${at})<20
- AND ${liveEligibility(d, person.userId, b.workspaceId, person.id)}`);
+ AND ${liveEligibility(d, person.userId, b.workspaceId, person.id)}
+ ON CONFLICT(attempt_id) DO NOTHING`);
  const won = await d.db.select({ id: mnetEnrollmentDecisions.id }).from(mnetEnrollmentDecisions).where(eq(mnetEnrollmentDecisions.id, id)).get();
  if (!won) throw refused();
  return { id, purpose: "mnet-enrollment", expiresAt: new Date(at + 120000), inputAuthorized: false, registrarConnected: false };

@@ -104,3 +104,37 @@ crash/recovery state and integrated revoke/tombstone handling. Do not attach the
 inactive key experiment or legacy Join/ApproveNode as a shortcut. No activation,
 release, default production origin, global logout behavior, recovery window or
 revocation SLA follows from this branch-only consent checkpoint.
+
+## Displayed mapping guard and review reconciliation
+
+A later route regression proved that changing the configured network after the
+browser preview but before prepare could record an unseen newer mapping. The
+old request returned201 in that failing-first case. Prepare now requires the
+exact displayed issuer/registrar/audience/revision/network tuple and compares it
+against independently resolved server config. The browser tuple is a comparison
+guard, never permission or configuration. All five altered fields refuse403
+before writes; the ordinary real browser approval/decline journey still passes.
+An initial test used the proposed new field against the old strict schema and
+received400; the decisive reproduction used the actual old browser shape and
+observed201, separately retained in the local test log.
+
+Duplicate prepare now has explicit `ON CONFLICT(attempt_id) DO NOTHING`, followed
+by the existing controlled refusal. Four concurrent in-process real handler
+requests yield one201 and three403, one stored row. This is not a distributed
+multi-writer/D1 load test or a claim that every database error maps to403.
+
+Session-expiry refusal tests permit either a still-pending row or cleanup-driven
+absence. Safety depends on live auth/eligibility and conditional decision checks,
+not on when cleanup runs. Approved/expired/declined rows remain session-scoped,
+unredeemable browser decisions and cannot be durable registrar receipts.
+Production retention of public keys/attempt tombstones needs explicit policy;
+indefinite retention to prevent ID reuse is not silently a product choice. Do
+not add a pruning job or redemption route until durable records and privacy
+retention are designed together. The source-only consent review did not exercise
+base CSRF/rate-limit/audit internals, multiwriter prepare or end-to-end enrollment.
+
+After this change,23focused enrollment/config/freshness tests pass, changed lint
+and combined server/page strict entry typecheck pass, and actual font-loaded
+browser approval/decline is rerun with inspected ready/not-enrolled pixels. The
+earlier34test broader checkpoint remains its own source checkpoint, not a new
+full-suite claim for this small guard change.

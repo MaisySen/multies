@@ -21,7 +21,10 @@ export function MnetEnrollPage() {
  useEffect(() => { if (info.error instanceof ApiError && info.error.status === 401) navigate(`/login?next=${encodeURIComponent(`/mnet/enroll?${qs}`)}`, { replace: true }); }, [info.error, navigate, qs]);
  const decision = useMutation({
   mutationFn: async (allow: boolean) => {
-   const prepared = await api.post<{ id: string }>("/mnet-enrollment/decisions", { ...info.data!.request, workspaceId });
+   const d = info.data!, selected = d.workspaces.find((w) => w.id === workspaceId);
+   if (!selected) throw new Error("Choose a current workspace before approving.");
+   const displayed = { issuer: d.issuer, registrarOrigin: d.registrarOrigin, audience: d.audience, mappingRevision: d.mappingRevision, networkId: selected.networkId };
+   const prepared = await api.post<{ id: string }>("/mnet-enrollment/decisions", { ...d.request, workspaceId, displayed });
    await api.post(`/mnet-enrollment/decisions/${prepared.id}`, { decision: allow ? "allow" : "decline" });
    return allow;
   },
