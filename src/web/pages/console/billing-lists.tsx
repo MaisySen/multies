@@ -1,38 +1,31 @@
 /**
- * OPS1: the five lists on /console/billing (Past due, Subscriptions, Stripe events, Comps, Referrals). Each is the
+ * OPS1: the five lists on /console/billing (Past due, Subscriptions, Stripe events, Free plans, Referrals). Each is the
  * shared DataTable with its filters in the address bar; rows open the workspace's Billing tab.
  */
-import { Link } from "react-router";
-import { Badge } from "@/web/components/ui/misc";
+import { useSearchParams } from "react-router";
 import { IconActivity, IconCreditCard, IconShare, IconTag } from "@/web/components/ui/icon";
 import { formatCents } from "@/shared/money";
 import { DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
+import { Day, Empty, EMPTY, RelTime, StatusBadge, WorkspaceLink, humanize, planLabel, type StatusTone } from "./components/format";
 import {
-  IdCell, STAGE, StatusBadge, When, planName,
+  IdCell, PlanCell, STRIPE_EVENT_TYPES, StageBadge, StripeEventBadge, SubscriptionBadge, shortId,
   type BillingEventRow, type PastDueRow, type ReferralRow, type SubscriptionRow,
 } from "./billing-api";
 
 const billingHref = (orgId: string) => `/console/workspaces/${encodeURIComponent(orgId)}/billing`;
 
-function WorkspaceLink({ id, name }: { id: string | null; name: string | null }) {
-  if (!id) return <span className="text-subtle">No workspace</span>;
-  return <Link to={`/console/workspaces/${encodeURIComponent(id)}`} className="font-medium text-fg hover:underline">{name ?? id}</Link>;
-}
+const Workspace = ({ id, name }: { id: string | null; name: string | null }) => <WorkspaceLink id={id} name={name} hint={id ? shortId(id) : null} />;
 
-function PlanCell({ plan, effectivePlan, comp }: { plan: string; effectivePlan: string; comp: boolean }) {
-  return (
-    <span className="flex flex-wrap items-center gap-1.5">
-      <span>{planName(effectivePlan)}</span>
-      {comp && <Badge tone="brand">Free</Badge>}
-      {plan !== effectivePlan && <span className="text-xs text-subtle">billed as {planName(plan)}</span>}
-    </span>
-  );
+/** Whether the address narrows the list (a search or any of `keys`), so the empty state can say "match" or "yet". */
+function useNarrowed(keys: string[]): boolean {
+  const [params] = useSearchParams();
+  return ["q", ...keys].some((k) => !!params.get(k));
 }
 
 const PLAN_FILTER: FilterDef = {
   key: "plan", label: "Plan", initial: "",
-  options: [{ value: "", label: "Any" }, { value: "starter", label: "Free" }, { value: "pro", label: "Pro" }, { value: "business", label: "Business" }],
+  options: [{ value: "", label: "Any" }, { value: "starter", label: planLabel("starter") }, { value: "pro", label: planLabel("pro") }, { value: "business", label: planLabel("business") }],
 };
 
 export function PastDueList() {
@@ -42,22 +35,23 @@ export function PastDueList() {
       rowKey={(r) => r.orgId} rowHref={(r) => billingHref(r.orgId)}
       empty={{ icon: <IconCreditCard />, title: "Nobody is behind on payment", body: "Workspaces with a failed payment show here with how long they have before sending is paused." }}
       columns={[
-        { key: "name", header: "Workspace", sort: "name", cell: (r) => <WorkspaceLink id={r.orgId} name={r.name} /> },
-        { key: "stage", header: "Stage", cell: (r) => <Badge tone={STAGE[r.stage].tone} dot className="whitespace-nowrap">{STAGE[r.stage].label}</Badge> },
+        { key: "name", header: "Workspace", sort: "name", cell: (r) => <Workspace id={r.orgId} name={r.name} /> },
+        // The stage already says whether sending is paused, so there is no separate Sending column.
+        { key: "stage", header: "Stage", cell: (r) => <StageBadge stage={r.stage} /> },
         { key: "days", header: "Days past due", sort: "pastDueSince", align: "right", cell: (r) => <span className="tabular-nums">{r.daysPastDue}</span> },
-        { key: "grace", header: "Grace ends", sort: "graceEndsAt", cell: (r) => <When at={r.graceEndsAt} /> },
-        { key: "sending", header: "Sending", cell: (r) => (r.sendingPaused ? <Badge tone="bad" dot className="whitespace-nowrap">Paused</Badge> : <Badge tone="ok" dot className="whitespace-nowrap">On</Badge>) },
-        { key: "plan", header: "Plan", cell: (r) => <PlanCell plan={r.plan} effectivePlan={r.effectivePlan} comp={r.comp} /> },
+        { key: "grace", header: "Grace ends", sort: "graceEndsAt", cell: (r) => <RelTime at={r.graceEndsAt} /> },
+        { key: "plan", header: "Plan", secondary: true, cell: (r) => <PlanCell plan={r.plan} comp={r.comp} /> },
       ]}
     />
   );
 }
 
 export function SubscriptionsList() {
+  const narrowed = useNarrowed(["status", "plan", "comp"]);
   return (
     <DataTable<SubscriptionRow>
       label="Subscriptions" path="/billing/subscriptions" defaultSort="createdAt:desc"
-      search={{ placeholder: "Search by name, workspace id or Stripe id" }}
+      search={{ placeholder: "Search subscriptions" }}
       filters={[
         { key: "status", label: "Status", initial: "", options: [
           { value: "", label: "Any" }, { value: "active", label: "Active" }, { value: "trialing", label: "Trial" },
@@ -67,46 +61,43 @@ export function SubscriptionsList() {
         { key: "comp", label: "Free plan", initial: "", options: [{ value: "", label: "Any" }, { value: "true", label: "Given free" }, { value: "false", label: "Paying" }] },
       ]}
       rowKey={(r) => r.orgId} rowHref={(r) => billingHref(r.orgId)}
-      empty={{ icon: <IconCreditCard />, title: "No subscriptions match", body: "Workspaces with a Stripe customer, a subscription or a free plan show here." }}
+      empty={narrowed
+        ? { icon: <IconCreditCard />, title: "No subscriptions match", body: "Try another search or clear the filters." }
+        : { icon: <IconCreditCard />, title: "No subscriptions yet", body: "Workspaces with a Stripe customer, a subscription or a free plan show here." }}
       columns={[
-        { key: "name", header: "Workspace", sort: "name", cell: (r) => <WorkspaceLink id={r.orgId} name={r.name} /> },
-        { key: "plan", header: "Plan", cell: (r) => <PlanCell plan={r.plan} effectivePlan={r.effectivePlan} comp={r.comp} /> },
+        { key: "name", header: "Workspace", sort: "name", cell: (r) => <Workspace id={r.orgId} name={r.name} /> },
+        { key: "plan", header: "Plan", cell: (r) => <PlanCell plan={r.plan} comp={r.comp} /> },
         { key: "status", header: "Status", cell: (r) => (
-          <span className="flex flex-wrap items-center gap-1.5"><StatusBadge status={r.status} />{r.cancelAtPeriodEnd && <Badge tone="warn" className="whitespace-nowrap">Ends at period end</Badge>}</span>
+          <span className="flex flex-wrap items-center gap-1.5"><SubscriptionBadge status={r.status} />{r.cancelAtPeriodEnd && <StatusBadge state="ending" label="Ends at period end" tone="warn" dot={false} />}</span>
         ) },
-        { key: "period", header: "Period ends", sort: "currentPeriodEnd", cell: (r) => <When at={r.currentPeriodEnd} empty="None" /> },
-        { key: "customer", header: "Stripe customer", cell: (r) => <IdCell id={r.stripeCustomerId} label="Stripe customer id" /> },
+        { key: "period", header: "Period ends", sort: "currentPeriodEnd", cell: (r) => <RelTime at={r.currentPeriodEnd} /> },
+        { key: "customer", header: "Stripe customer", secondary: true, cell: (r) => <IdCell id={r.stripeCustomerId} label="Stripe customer id" /> },
       ]}
     />
   );
 }
 
-const EVENT_TYPES = [
-  ["invoice.paid", "Invoice paid"],
-  ["invoice.payment_failed", "Payment failed"],
-  ["customer.subscription.created", "Subscription created"],
-  ["customer.subscription.updated", "Subscription updated"],
-  ["customer.subscription.deleted", "Subscription ended"],
-  ["checkout.session.completed", "Checkout completed"],
-  ["charge.refunded", "Refund"],
-] as const;
-const EVENT_LABEL: Record<string, string> = Object.fromEntries(EVENT_TYPES);
-
 export function EventsList() {
+  const narrowed = useNarrowed(["type"]);
   return (
     <DataTable<BillingEventRow>
       label="Stripe events" path="/billing/events" defaultSort="createdAt:desc"
-      filters={[{ key: "type", label: "Type", initial: "", options: [{ value: "", label: "Any" }, ...EVENT_TYPES.map(([value, label]) => ({ value, label }))] }]}
+      filters={[{ key: "type", label: "Type", initial: "", options: [{ value: "", label: "Any" }, ...STRIPE_EVENT_TYPES.map(([value, label]) => ({ value, label }))] }]}
       rowKey={(r) => r.id}
-      empty={{ icon: <IconActivity />, title: "No Stripe events yet", body: "Each payment, subscription change or refund Stripe tells us about shows here." }}
+      empty={narrowed
+        ? { icon: <IconActivity />, title: "No Stripe events of this type", body: "Pick Any to see every event." }
+        : { icon: <IconActivity />, title: "No Stripe events yet", body: "Each payment, subscription change or refund Stripe tells us about shows here." }}
       columns={[
-        { key: "when", header: "When", sort: "createdAt", cell: (r) => <When at={r.createdAt} /> },
-        { key: "type", header: "Type", cell: (r) => (
-          <span className={r.type === "invoice.payment_failed" ? "font-medium text-bad" : "font-medium"}>{EVENT_LABEL[r.type] ?? r.type}</span>
+        { key: "when", header: "When", sort: "createdAt", cell: (r) => <RelTime at={r.createdAt} /> },
+        { key: "type", header: "Type", cell: (r) => <StripeEventBadge type={r.type} /> },
+        { key: "summary", header: "Summary", cell: (r) => (r.summary ? <span className="line-clamp-2 max-w-sm">{r.summary}</span> : <Empty />) },
+        { key: "ws", header: "Workspace", cell: (r) => <Workspace id={r.orgId} name={r.orgName} /> },
+        { key: "details", header: "", secondary: true, cell: (r) => (
+          <details className="text-xs" data-testid="console-billing-event-details">
+            <summary className="cursor-pointer select-none text-muted hover:text-fg">Details</summary>
+            <span className="mt-1 block"><IdCell id={r.id} label="Stripe event id" /></span>
+          </details>
         ) },
-        { key: "summary", header: "Summary", cell: (r) => (r.summary ? <span className="line-clamp-2 max-w-sm">{r.summary}</span> : <span className="text-subtle">No summary</span>) },
-        { key: "ws", header: "Workspace", cell: (r) => <WorkspaceLink id={r.orgId} name={r.orgName} /> },
-        { key: "id", header: "Event id", cell: (r) => <IdCell id={r.id} label="event id" /> },
       ]}
     />
   );
@@ -116,22 +107,24 @@ export function CompsList() {
   return (
     <DataTable<SubscriptionRow>
       label="Free plans" path="/billing/subscriptions" params={{ comp: "true" }} defaultSort="createdAt:desc"
-      search={{ placeholder: "Search by name or workspace id" }}
+      search={{ placeholder: "Search free plans" }}
       rowKey={(r) => r.orgId} rowHref={(r) => billingHref(r.orgId)}
       empty={{ icon: <IconTag />, title: "No free plans given", body: "Workspaces an operator gave a free Business plan show here with the end date and note." }}
       columns={[
-        { key: "name", header: "Workspace", sort: "name", cell: (r) => <WorkspaceLink id={r.orgId} name={r.name} /> },
-        { key: "until", header: "Free until", cell: (r) => (r.compUntil ? <When at={r.compUntil} /> : <Badge>No end date</Badge>) },
-        { key: "note", header: "Note", cell: (r) => (r.compNote ? <span className="line-clamp-2 max-w-sm">{r.compNote}</span> : <span className="text-subtle">No note</span>) },
+        { key: "name", header: "Workspace", sort: "name", cell: (r) => <Workspace id={r.orgId} name={r.name} /> },
+        { key: "until", header: "Free until", cell: (r) => (r.compUntil ? <Day at={r.compUntil} /> : <Empty>No end date</Empty>) },
+        { key: "note", header: "Note", secondary: true, cell: (r) => (r.compNote ? <span className="line-clamp-2 max-w-sm">{r.compNote}</span> : <Empty />) },
         { key: "billing", header: "Still billed", cell: (r) => (
-          r.status && ["active", "trialing", "past_due"].includes(r.status) ? <Badge tone="warn" dot>Yes, {planName(r.plan)}</Badge> : <Badge tone="ok" dot>No</Badge>
+          r.status && ["active", "trialing", "past_due"].includes(r.status)
+            ? <StatusBadge state="billed" label={`Yes, ${planLabel(r.plan)}`} tone="warn" />
+            : <StatusBadge state="not_billed" label="No" tone="ok" />
         ) },
       ]}
     />
   );
 }
 
-const REFERRAL_STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "neutral" }> = {
+const REFERRAL_STATUS: Record<string, { label: string; tone: StatusTone }> = {
   signed_up: { label: "Signed up", tone: "neutral" },
   pending: { label: "Waiting", tone: "warn" },
   credited: { label: "Credited", tone: "ok" },
@@ -140,27 +133,29 @@ const REFERRAL_STATUS: Record<string, { label: string; tone: "ok" | "warn" | "ba
 };
 
 export function ReferralsList() {
+  const narrowed = useNarrowed(["status"]);
   return (
     <DataTable<ReferralRow>
       label="Referrals" path="/billing/referrals" defaultSort="createdAt:desc"
       filters={[{ key: "status", label: "Status", initial: "", options: [{ value: "", label: "Any" }, ...Object.entries(REFERRAL_STATUS).map(([value, s]) => ({ value, label: s.label }))] }]}
       rowKey={(r) => r.id}
-      empty={{ icon: <IconShare />, title: "No referrals yet", body: "When a workspace signs up with another's referral link it shows here." }}
+      empty={narrowed
+        ? { icon: <IconShare />, title: "No referrals in this state", body: "Pick Any to see every referral." }
+        : { icon: <IconShare />, title: "No referrals yet", body: "When a workspace signs up with another's referral link it shows here." }}
       columns={[
-        { key: "created", header: "Created", sort: "createdAt", cell: (r) => <When at={r.createdAt} /> },
-        { key: "referrer", header: "Referred by", cell: (r) => <WorkspaceLink id={r.referrerOrgId} name={r.referrerName} /> },
-        { key: "referred", header: "New workspace", cell: (r) => <WorkspaceLink id={r.referredOrgId} name={r.referredName} /> },
+        { key: "created", header: "Created", sort: "createdAt", cell: (r) => <RelTime at={r.createdAt} /> },
+        { key: "referrer", header: "Referred by", cell: (r) => <Workspace id={r.referrerOrgId} name={r.referrerName} /> },
+        { key: "referred", header: "New workspace", cell: (r) => <Workspace id={r.referredOrgId} name={r.referredName} /> },
         { key: "status", header: "Status", cell: (r) => {
-          const s = REFERRAL_STATUS[r.status] ?? { label: r.status, tone: "neutral" as const };
-          return <span title={r.reason ?? undefined}><Badge tone={s.tone} dot>{s.label}</Badge></span>;
+          const s = REFERRAL_STATUS[r.status] ?? { label: humanize(r.status), tone: "neutral" as const };
+          return <span title={r.reason ?? undefined}><StatusBadge state={r.status} label={s.label} tone={s.tone} /></span>;
         } },
         { key: "credit", header: "Credit each", align: "right", cell: (r) => (
-          <span className="tabular-nums">{r.referrerCreditCents || r.referredCreditCents ? formatCents(Math.max(r.referrerCreditCents, r.referredCreditCents)) : "None"}</span>
+          <span className="tabular-nums">{r.referrerCreditCents || r.referredCreditCents ? formatCents(Math.max(r.referrerCreditCents, r.referredCreditCents)) : EMPTY}</span>
         ) },
-        { key: "credited", header: "Credited", sort: "creditedAt", cell: (r) => <When at={r.creditedAt} empty="Not yet" /> },
-        { key: "invoice", header: "Invoice", cell: (r) => <IdCell id={r.invoiceId} label="invoice id" /> },
+        { key: "credited", header: "Credited", sort: "creditedAt", secondary: true, cell: (r) => <RelTime at={r.creditedAt} empty="Not yet" /> },
+        { key: "invoice", header: "Invoice", secondary: true, cell: (r) => <IdCell id={r.invoiceId} label="invoice id" /> },
       ]}
     />
   );
 }
-

@@ -1,6 +1,6 @@
 /**
  * OPS1: Developer platform in the operator console. Tabs (in the address as ?tab=, failures first):
- *   Webhook failures   deliveries that ran out of retries, last 7 days, field names only; Redeliver
+ *   Webhook failures   deliveries that ran out of retries, last 7 days, a Fields column (names only); Redeliver
  *   Webhook endpoints  on or off, recent failures, why it was switched off; Enable and Disable
  *   API keys           name, prefix, access, workspace, who made it, last used (never the key); Revoke
  *   Connected apps     OAuth connections per person and workspace; Revoke
@@ -29,7 +29,7 @@ export function ConsoleDeveloperPage() {
   return (
     <div className="space-y-4">
       <PageHeader eyebrow="Product" title="Developer platform"
-        description="Webhooks, API keys and connected apps across every workspace. Keys, secrets and webhook contents are never shown." />
+        description="Webhooks, API keys and connected apps across every workspace. Keys and secrets are never shown; for webhooks only field names are shown, never values." />
       {scope.orgId && (
         <p className="flex flex-wrap items-center gap-2 text-sm text-muted" data-testid="console-developer-scope">
           Showing one workspace only.

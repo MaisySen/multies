@@ -17,8 +17,14 @@ async function signUp(page: Page, who: string) {
 
 const now = () => new Date().toISOString();
 const failureRates = { items: [{ orgId: "org_beta", orgName: "Beta Co", total: 40, failed: 8, bounced: 6, complained: 2, failureRate: 0.2 }] };
-const deliveries = () => ({ items: [{ id: "dlv_1", orgId: "org_beta", orgName: "Beta Co", direction: "outbound", status: "bounced", provider: "resend", detail: "550 mailbox unavailable", createdAt: now() }], nextCursor: null });
+const deliveries = () => ({ items: [
+  { id: "dlv_1", orgId: "org_beta", orgName: "Beta Co", direction: "outbound", status: "bounced", provider: "resend", detail: "550 mailbox unavailable", createdAt: now() },
+  { id: "dlv_2", orgId: "org_beta", orgName: "Beta Co", direction: "inbound", status: "rejected", provider: "resend", detail: "Message larger than 25 MB", createdAt: now() },
+], nextCursor: null });
 const suppressionsList = () => ({ items: [{ id: "sup_1", orgId: "org_beta", orgName: "Beta Co", address: "gone@outside.example", reason: "hard_bounce", detail: "User unknown", createdAt: now() }], nextCursor: null });
+const heldList = () => ({ items: [{ id: "sch_1", orgId: "org_beta", orgName: "Beta Co", mailboxId: "mbx_1", mailboxAddress: "sales@beta.example", reason: "Daily sending limit reached", recipients: 3, forced: false, dueAt: new Date(Date.now() + 3_600_000).toISOString(), createdAt: now() }], nextCursor: null });
+const connectionsList = () => ({ items: [], nextCursor: null });
+const importsList = () => ({ items: [{ id: "imp_1", orgId: "org_beta", orgName: "Beta Co", mailboxId: "mbx_1", provider: "gmail", sourceHost: "imap.gmail.com", status: "failed", messagesDone: 120, messagesTotal: 900, error: "Sign in was refused", claimedAt: null, heartbeatAt: null, finishedAt: now(), createdAt: now() }], nextCursor: null });
 
 /** Mocks the mail API; returns the URLs of list reads and the bodies of changes. */
 async function mockMail(page: Page) {
@@ -28,6 +34,9 @@ async function mockMail(page: Page) {
   await page.route(/\/api\/console\/mail\/failure-rates(\?|$)/, list(() => failureRates));
   await page.route(/\/api\/console\/mail\/deliveries(\?|$)/, list(deliveries));
   await page.route(/\/api\/console\/mail\/suppressions(\?|$)/, list(suppressionsList));
+  await page.route(/\/api\/console\/mail\/queued-sends(\?|$)/, list(heldList));
+  await page.route(/\/api\/console\/mail\/connections(\?|$)/, list(connectionsList));
+  await page.route(/\/api\/console\/mail\/imports(\?|$)/, list(importsList));
   await page.route(/\/api\/console\/mail\/suppressions\/sup_1$/, async (r) => {
     changes.push({ method: r.request().method(), url: r.request().url(), body: r.request().postDataJSON() });
     await r.fulfill({ json: { ok: true, id: "sup_1" } });
@@ -54,6 +63,39 @@ test("opens on delivery problems, and a filter goes into the address", async ({ 
   await page.getByLabel("When", { exact: true }).selectOption("30");
   await expect(page).toHaveURL(/[?&]window=30/);
   await expect.poll(() => reads.some((u) => u.includes("/failure-rates?") && u.includes("window=30"))).toBe(true);
+});
+
+test("four tabs: held sends sit under the failures, imports under connected mailboxes, and old addresses still land there", async ({ page }) => {
+  await signUp(page, "Olive Operator");
+  await mockConsoleMe(page, "admin");
+  const { reads } = await mockMail(page);
+  await page.goto("/console/mail");
+  await expect(page.getByRole("heading", { name: "Mail and deliverability", level: 1 })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("tablist", { name: "Mail sections" }).getByRole("tab")).toHaveText(["Delivery problems", "Domains", "Suppressions", "Connected mailboxes"]);
+  // A refused message is red like every other failure.
+  await expect(page.getByText("Refused", { exact: true }).locator("xpath=ancestor-or-self::*[contains(@class,'text-bad')][1]")).toHaveCount(1);
+  // Held sends are a section of Delivery problems, with Send anyway.
+  const held = page.getByTestId("console-mail-held");
+  await expect(held.getByRole("heading", { name: "Held sends" })).toBeVisible();
+  await expect(held).toContainText("Daily sending limit reached");
+  await expect(held.getByTestId("console-mail-force-send")).toBeVisible();
+
+  await page.goto("/console/mail?tab=held");
+  await expect(page).toHaveURL(/\/console\/mail#mail-held$/);
+  await expect(page.getByTestId("console-mail-tab-delivery")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("console-mail-held")).toContainText("Daily sending limit reached");
+
+  await page.goto("/console/mail?tab=imports");
+  await expect(page).toHaveURL(/\/console\/mail\?tab=connections#mail-imports$/);
+  await expect(page.getByTestId("console-mail-tab-connections")).toHaveAttribute("aria-selected", "true");
+  const imports = page.getByTestId("console-mail-imports");
+  await expect(imports).toContainText("imap.gmail.com");
+  await expect(imports).toContainText("Sign in was refused");
+  expect(reads.some((u) => u.includes("/imports?") && u.includes("status=failed"))).toBe(true);
+  // The imports state is the section's own: it does not go into the address.
+  await imports.getByLabel("Import state").selectOption("all");
+  await expect.poll(() => reads.some((u) => /\/imports(\?|$)/.test(u) && !u.includes("status="))).toBe(true);
+  await expect(page).not.toHaveURL(/status=all/);
 });
 
 test("removing a suppressed address asks for a reason and sends it", async ({ page }) => {

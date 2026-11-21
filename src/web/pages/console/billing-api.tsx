@@ -1,13 +1,14 @@
 /**
- * OPS1: the Billing section's calls and shared bits (types, plan and status labels, a relative date, an id with a
- * copy button). Lists go through DataTable; this file holds the workspace read and the actions.
+ * OPS1: the Billing section's calls and shared bits (types, plan, subscription, stage and Stripe event badges, an id
+ * with a copy button). Lists go through DataTable; this file holds the workspace read and the actions.
  */
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
-import { fullDate, timeAgo } from "@/web/lib/format";
-import { Badge, Card, CopyButton } from "@/web/components/ui/misc";
+import { consoleGet } from "@/web/lib/console-api";
+import { Card, CopyButton } from "@/web/components/ui/misc";
 import { IconInfo } from "@/web/components/ui/icon";
-import { PLANS, isPlanId, type AddonQuantities, type PlanId, type PlanLimits } from "@/shared/plans";
+import type { AddonQuantities, PlanId, PlanLimits } from "@/shared/plans";
+import { Empty, StatusBadge, compPlanLabel, humanize, planLabel, type StatusTone } from "./components/format";
 
 export interface BillingStatus { enabled: boolean; testMode: boolean; currency: string }
 
@@ -55,8 +56,8 @@ export interface WorkspaceBilling {
 const base = (orgId: string) => `/console/billing/workspaces/${encodeURIComponent(orgId)}`;
 
 export const billingApi = {
-  status: () => api.get<BillingStatus>("/console/billing/status"),
-  workspace: (orgId: string) => api.get<WorkspaceBilling>(base(orgId)),
+  status: () => consoleGet<BillingStatus>("/console/billing/status"),
+  workspace: (orgId: string) => consoleGet<WorkspaceBilling>(base(orgId)),
   changePlan: (orgId: string, body: { plan: PlanId; reason: string }) => api.post<{ ok: true; pending: boolean; plan: PlanId }>(`${base(orgId)}/plan`, body),
   setComp: (orgId: string, body: { on: boolean; until?: string | null; note?: string | null; reason: string }) =>
     api.post<{ ok: true; comp: boolean; compUntil: string | null; warnings: string[] }>(`${base(orgId)}/comp`, body),
@@ -73,40 +74,66 @@ export const billingKeys = {
   workspace: (orgId: string) => ["console", "billing", "workspace", orgId] as const,
 };
 
-export const planName = (p: string | null | undefined) => (isPlanId(p) ? PLANS[p].name : p ?? "None");
-
-const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "neutral" }> = {
-  active: { label: "Active", tone: "ok" },
-  trialing: { label: "Trial", tone: "ok" },
-  past_due: { label: "Past due", tone: "bad" },
-  unpaid: { label: "Unpaid", tone: "bad" },
-  incomplete: { label: "Incomplete", tone: "warn" },
-  incomplete_expired: { label: "Expired", tone: "neutral" },
-  paused: { label: "Paused", tone: "warn" },
-  canceled: { label: "Cancelled", tone: "neutral" },
+/** A subscription status in plain words, in the console's shared colours (past due amber, ended grey). */
+const SUBSCRIPTION_LABEL: Record<string, string> = {
+  active: "Active", trialing: "Trial", past_due: "Past due", unpaid: "Unpaid", incomplete: "Incomplete",
+  incomplete_expired: "Expired", paused: "Paused", canceled: "Cancelled",
 };
 
-export function StatusBadge({ status }: { status: string | null }) {
-  if (!status) return <Badge>No subscription</Badge>;
-  const s = STATUS[status] ?? { label: status.replace(/_/g, " "), tone: "neutral" as const };
-  return <Badge tone={s.tone} dot className="whitespace-nowrap">{s.label}</Badge>;
+export function SubscriptionBadge({ status }: { status: string | null }) {
+  if (!status) return <StatusBadge state="none" label="No subscription" tone="neutral" dot={false} />;
+  const ended = status === "canceled" || status === "incomplete_expired";
+  return <StatusBadge state={status} label={SUBSCRIPTION_LABEL[status] ?? humanize(status)} tone={ended ? "neutral" : undefined} />;
 }
 
-export const STAGE: Record<DunningStage, { label: string; tone: "warn" | "bad" | "neutral" }> = {
+export const STAGE: Record<DunningStage, { label: string; tone: StatusTone }> = {
   grace: { label: "In grace period", tone: "warn" },
   paused: { label: "Sending paused", tone: "bad" },
   exempt: { label: "Free plan, not paused", tone: "neutral" },
 };
 
-/** A relative date with the exact time on hover ("Not set" when empty). */
-export function When({ at, empty = "Not set" }: { at: string | null | undefined; empty?: string }) {
-  if (!at) return <span className="text-subtle">{empty}</span>;
-  return <span className="whitespace-nowrap" title={fullDate(at)}>{timeAgo(at)}</span>;
+/** Where a late payer is: in grace (sending on), sending paused, or exempt (a free plan is never paused). */
+export function StageBadge({ stage }: { stage: DunningStage }) {
+  return <StatusBadge state={stage} label={STAGE[stage].label} tone={STAGE[stage].tone} />;
 }
+
+/** Stripe's event types in plain words; the raw type stays in the badge's title. */
+export const STRIPE_EVENT_TYPES = [
+  ["invoice.paid", "Invoice paid"],
+  ["invoice.payment_failed", "Payment failed"],
+  ["customer.subscription.created", "Subscription created"],
+  ["customer.subscription.updated", "Subscription updated"],
+  ["customer.subscription.deleted", "Subscription ended"],
+  ["checkout.session.completed", "Checkout completed"],
+  ["charge.refunded", "Refund"],
+] as const;
+const STRIPE_EVENT_LABEL: Record<string, string> = Object.fromEntries(STRIPE_EVENT_TYPES);
+const STRIPE_EVENT_TONE: Record<string, StatusTone> = {
+  "invoice.paid": "ok", "invoice.payment_failed": "bad", "customer.subscription.deleted": "warn", "charge.refunded": "warn",
+};
+
+/** A Stripe event as a badge: a failed payment red, a paid invoice green, an ending or refund amber, the rest grey. */
+export function StripeEventBadge({ type }: { type: string }) {
+  return <StatusBadge state={type} label={STRIPE_EVENT_LABEL[type] ?? humanize(type)} tone={STRIPE_EVENT_TONE[type] ?? "neutral"} />;
+}
+
+/** The plan a workspace is on: "Pro", or "Free Business plan" (and what they still pay for) when it was given free. */
+export function PlanCell({ plan, comp }: { plan: string; comp: boolean }) {
+  if (!comp) return <span className="whitespace-nowrap">{planLabel(plan)}</span>;
+  return (
+    <span className="flex flex-col">
+      <span className="whitespace-nowrap">{compPlanLabel("business")}</span>
+      {plan !== "starter" && <span className="whitespace-nowrap text-xs text-subtle">still pays for {planLabel(plan)}</span>}
+    </span>
+  );
+}
+
+/** The hint under a workspace's name in a list: a short id, so two workspaces with one name can be told apart. */
+export const shortId = (id: string) => id.replace(/^org_/, "").slice(0, 8);
 
 /** A Stripe or Multies id in mono with a short Copy button (`label` names it for the hover title). Never a whole object. */
 export function IdCell({ id, label }: { id: string | null | undefined; label: string }) {
-  if (!id) return <span className="text-subtle">None</span>;
+  if (!id) return <Empty />;
   return (
     <span className="inline-flex max-w-full items-center gap-1">
       <span className="truncate font-mono text-xs" title={`${label}: ${id}`}>{id}</span>
@@ -129,16 +156,27 @@ export function newRequestKey(): string {
   return `ck_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
-/** Says when Stripe isn't connected here: lists still read, Stripe actions are refused. Nothing while loading. */
-export function BillingNotConnected() {
+/** Whether Stripe is connected here (undefined while loading). */
+export function useBillingEnabled(): boolean | undefined {
   const status = useQuery({ queryKey: billingKeys.status, queryFn: billingApi.status, staleTime: 5 * 60_000 });
-  if (!status.data || status.data.enabled) return null;
+  return status.data?.enabled;
+}
+
+/**
+ * The one notice that Stripe isn't connected here. On the Billing page it says lists still read; on a workspace
+ * (`workspace`) it names what is left, since actions that need Stripe are hidden rather than shown disabled.
+ */
+export function BillingNotConnected({ workspace }: { workspace?: boolean }) {
+  const enabled = useBillingEnabled();
+  if (enabled !== false) return null;
   return (
     <Card className="flex items-start gap-3 border-warn/30 bg-warn-soft p-4 text-sm" role="status" data-testid="console-billing-not-connected">
       <IconInfo className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
       <p>
         <span className="font-medium">Billing isn't connected on this deployment.</span>{" "}
-        Lists still show what is stored here, but plan changes, credits, trials, syncs and cancellations need Stripe and won't run. Free plans and grace periods still work.
+        {workspace
+          ? "Invoices, plan changes, credits, trials, syncs and cancellations need Stripe, so they are hidden here. You can still give a free Business plan and extend a grace period."
+          : "Lists show what is stored here. On each workspace, changes that need Stripe are hidden; free plans and grace periods still work."}
       </p>
     </Card>
   );

@@ -1,24 +1,25 @@
 /**
  * OPS1: the "Delivery problems" tab. The workspaces with the worst outbound failure rate first, then every failed
- * delivery in the window. No subjects, bodies or addresses: what happened, where, and when.
+ * delivery in the window, then the held sends (messages a sending limit is holding back). No subjects, bodies or
+ * addresses of recipients: what happened, where, and when.
  */
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { consoleKeys } from "@/web/lib/console-api";
-import { errorMessage } from "@/web/lib/api";
 import { num } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
-import { Card, EmptyState, tableStyles as T } from "@/web/components/ui/misc";
+import { tableStyles as T } from "@/web/components/ui/misc";
 import { Field, Select } from "@/web/components/ui/input";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
-import { IconMailCheck, IconMailWarning, IconWarning } from "@/web/components/ui/icon";
+import { IconMailWarning } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
-import { DataTable } from "./components/data-table";
+import { DataTable, consoleTable } from "./components/data-table";
 import { useUrlParams, type FilterDef } from "./components/filter-bar";
 import { useOperatorAction } from "./components/reason-dialog";
-import { PermissionGate } from "./guard";
-import { mailApi, plain, StatusBadge, When, WorkspaceLink, type MailDelivery, type MailFailureRate, type Tone } from "./mail-shared";
+import { Empty, EmptyRow, LoadError, RelTime, StatusBadge, humanize, statusTone, type StatusTone } from "./components/format";
+import { PermissionGate, usePermission } from "./guard";
+import { mailApi, SectionList, Workspace, type MailDelivery, type MailFailureRate, type MailQueuedSend } from "./mail-shared";
 
 const STATUS: FilterDef = {
   key: "status", label: "Status", initial: "",
@@ -26,7 +27,7 @@ const STATUS: FilterDef = {
     { value: "", label: "Any failure" },
     { value: "bounced", label: "Bounced" },
     { value: "failed", label: "Failed" },
-    { value: "rejected", label: "Rejected" },
+    { value: "rejected", label: "Refused" },
     { value: "complained", label: "Complaint" },
     { value: "delayed", label: "Delayed" },
     { value: "suppressed", label: "Suppressed" },
@@ -42,12 +43,14 @@ const WINDOW: FilterDef = {
 };
 const FILTERS = [STATUS, DIRECTION, WINDOW];
 
-export function deliveryTone(status: string): Tone {
-  if (["bounced", "failed", "rejected", "complained"].includes(status)) return "bad";
-  if (["delayed", "queued", "suppressed"].includes(status)) return "warn";
-  if (["delivered", "sent", "received", "forwarded"].includes(status)) return "ok";
-  return "neutral";
+/** A delivery's colour: every failure (bounced, failed, refused, complained) red, held back amber. */
+export function deliveryTone(status: string): StatusTone {
+  if (["delayed", "suppressed"].includes(status)) return "warn";
+  return statusTone(status);
 }
+
+/** A delivery's state in plain words: a rejected message reads "Refused" (red, like every failure). */
+const deliveryLabel = (status: string) => (status === "rejected" || status === "refused" ? "Refused" : status === "complained" ? "Complaint" : humanize(status));
 
 const pct = (r: number) => `${(r * 100).toFixed(r >= 0.1 ? 0 : 1)}%`;
 
@@ -80,35 +83,35 @@ function WorstWorkspaces({ days, onPick }: { days: string; onPick: (orgId: strin
     <section className="space-y-2" aria-labelledby="mail-worst">
       <h2 id="mail-worst" className="text-[13px] font-semibold">Workspaces with the most failures</h2>
       {q.isPending ? <SkeletonRows rows={3} label="Loading failure rates" /> : q.error ? (
-        <Card className="p-0"><EmptyState icon={<IconWarning />} title="Couldn't load failure rates" body={errorMessage(q.error)} action={<Button variant="secondary" onClick={() => void q.refetch()}>Try again</Button>} /></Card>
+        <LoadError error={q.error} what="failure rates" retry={() => void q.refetch()} />
       ) : !q.data.items.length ? (
-        <Card className="p-0"><EmptyState icon={<IconMailCheck />} title="No workspace stands out" body="Workspaces with at least 10 sent messages and any failures in this window show here, worst first." /></Card>
+        <EmptyRow>No workspace stands out. Workspaces with at least 10 sent messages and any failures in this window show here, worst first.</EmptyRow>
       ) : (
         <div className={T.wrap} tabIndex={0} role="region" aria-label="Workspaces with the most failures" data-testid="console-mail-worst">
-          <table className={T.table}>
+          <table className={consoleTable.table}>
             <thead className={T.head}>
               <tr>
                 <th className={T.th}>Workspace</th>
                 <th className={cn(T.th, "text-right")}>Failure rate</th>
                 <th className={cn(T.th, "text-right")}>Failed of sent</th>
-                <th className={cn(T.th, "text-right")}>Bounced</th>
-                <th className={cn(T.th, "text-right")}>Complaints</th>
+                <th className={cn(T.th, "text-right", consoleTable.secondary)}>Bounced</th>
+                <th className={cn(T.th, "text-right", consoleTable.secondary)}>Complaints</th>
                 <th className={T.th}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className={T.body}>
               {q.data.items.map((w) => (
                 <tr key={w.orgId} className={T.row}>
-                  <td className={T.td}><WorkspaceLink id={w.orgId} name={w.orgName} /></td>
-                  <td className={cn(T.td, "text-right")}><StatusBadge tone={w.failureRate >= 0.05 ? "bad" : w.failureRate >= 0.02 ? "warn" : "neutral"}>{pct(w.failureRate)}</StatusBadge></td>
-                  <td className={cn(T.td, "text-right tabular-nums")}>{num(w.failed)} of {num(w.total)}</td>
-                  <td className={cn(T.td, "text-right tabular-nums")}>{num(w.bounced)}</td>
-                  <td className={cn(T.td, "text-right tabular-nums")}>{num(w.complained)}</td>
+                  <td className={T.td}><Workspace id={w.orgId} name={w.orgName} /></td>
+                  <td className={cn(T.td, "text-right")}><StatusBadge state="rate" label={pct(w.failureRate)} tone={w.failureRate >= 0.05 ? "bad" : w.failureRate >= 0.02 ? "warn" : "neutral"} /></td>
+                  <td className={cn(T.td, "whitespace-nowrap text-right tabular-nums")}>{num(w.failed)} of {num(w.total)}</td>
+                  <td className={cn(T.td, "text-right tabular-nums", consoleTable.secondary)}>{num(w.bounced)}</td>
+                  <td className={cn(T.td, "text-right tabular-nums", consoleTable.secondary)}>{num(w.complained)}</td>
                   <td className={cn(T.td, "text-right")}>
                     <span className="inline-flex gap-1.5">
                       <Button size="sm" variant="ghost" onClick={() => onPick(w.orgId)}>Show failures</Button>
                       <PermissionGate permission="workspaces.limits">
-                        <Button size="sm" variant="ghost" onClick={() => sending.open(w)} data-testid="console-mail-sending">Change sending</Button>
+                        <Button size="sm" variant="secondary" onClick={() => sending.open(w)} data-testid="console-mail-sending">Change sending</Button>
                       </PermissionGate>
                     </span>
                   </td>
@@ -123,6 +126,38 @@ function WorstWorkspaces({ days, onPick }: { days: string; onPick: (orgId: strin
   );
 }
 
+/** Held sends: messages a sending limit holds until tomorrow, each with Send anyway. */
+function HeldSends({ orgId }: { orgId: string }) {
+  const canAct = usePermission("mail.manage");
+  const force = useOperatorAction<MailQueuedSend>({
+    title: "Send this message now?",
+    description: (s) => `It goes out on the next run, past ${s.orgName ?? "the workspace"}'s daily sending limit. It never goes out while the workspace's sending is turned off.`,
+    confirmLabel: "Send anyway",
+    run: (s, reason) => mailApi.forceSend(s.id, reason),
+    success: "Message will go out on the next run",
+  });
+  return (
+    <>
+      <SectionList<MailQueuedSend>
+        id="mail-held" title="Held sends" path="/mail/queued-sends" query={{ sort: "dueAt:asc", ...(orgId ? { orgId } : {}) }} testId="console-mail-held"
+        rowKey={(s) => s.id}
+        empty="No held sends. Messages a sending limit holds until tomorrow show here."
+        columns={[
+          { key: "reason", header: "Why it was held", cell: (s) => <span className="line-clamp-2 max-w-sm">{s.reason || "A sending limit"}</span> },
+          { key: "workspace", header: "Workspace", cell: (s) => <Workspace id={s.orgId} name={s.orgName} /> },
+          { key: "from", header: "From", secondary: true, cell: (s) => (s.mailboxAddress ? <span className="text-muted">{s.mailboxAddress}</span> : <Empty>A removed mailbox</Empty>) },
+          { key: "recipients", header: "Recipients", align: "right", secondary: true, cell: (s) => <span className="tabular-nums">{num(s.recipients)}</span> },
+          { key: "due", header: "Due", cell: (s) => (s.forced ? <StatusBadge state="sending" label="Sending now" tone="ok" /> : <RelTime at={s.dueAt} />) },
+          { key: "actions", header: "", align: "right", cell: (s) => (canAct && !s.forced
+            ? <Button size="sm" variant="secondary" onClick={() => force.open(s)} data-testid="console-mail-force-send">Send anyway</Button>
+            : null) },
+        ]}
+      />
+      {force.dialog}
+    </>
+  );
+}
+
 export function DeliveryTab() {
   const url = useUrlParams(FILTERS, { sort: "createdAt:desc" });
   const [params, setParams] = useSearchParams();
@@ -134,7 +169,7 @@ export function DeliveryTab() {
   }, { replace: true });
   const days = url.values.window || "7";
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {!orgId && <WorstWorkspaces days={days} onPick={setOrg} />}
       <section className="space-y-2" aria-labelledby="mail-failed">
         <h2 id="mail-failed" className="text-[13px] font-semibold">Failed deliveries</h2>
@@ -145,14 +180,15 @@ export function DeliveryTab() {
           rowKey={(d) => d.id}
           empty={{ icon: <IconMailWarning />, title: "No failed deliveries", body: "Nothing bounced, failed or was refused in this window. Try a longer window or another status." }}
           columns={[
-            { key: "when", header: "When", sort: "createdAt", cell: (d) => <When at={d.createdAt} /> },
-            { key: "status", header: "Status", cell: (d) => <StatusBadge tone={deliveryTone(d.status)}>{plain(d.status)}</StatusBadge> },
-            { key: "direction", header: "Direction", cell: (d) => <span className="text-muted">{d.direction === "outbound" ? "Sent" : "Received"}</span> },
-            { key: "workspace", header: "Workspace", cell: (d) => <WorkspaceLink id={d.orgId} name={d.orgName} /> },
-            { key: "detail", header: "Error", cell: (d) => (d.detail ? <span className="line-clamp-2 max-w-md text-xs text-muted" title={d.detail}>{d.detail}</span> : <span className="text-subtle">None given</span>) },
+            { key: "when", header: "When", sort: "createdAt", cell: (d) => <RelTime at={d.createdAt} className="text-muted" /> },
+            { key: "status", header: "Status", cell: (d) => <StatusBadge state={d.status} label={deliveryLabel(d.status)} tone={deliveryTone(d.status)} /> },
+            { key: "direction", header: "Direction", secondary: true, cell: (d) => <span className="text-muted">{d.direction === "outbound" ? "Sent" : "Received"}</span> },
+            { key: "workspace", header: "Workspace", cell: (d) => <Workspace id={d.orgId} name={d.orgName} /> },
+            { key: "detail", header: "Error", cell: (d) => (d.detail ? <span className="line-clamp-2 max-w-md text-xs text-muted" title={d.detail}>{d.detail}</span> : <Empty>None given</Empty>) },
           ]}
         />
       </section>
+      <HeldSends orgId={orgId} />
     </div>
   );
 }

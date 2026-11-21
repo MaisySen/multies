@@ -29,13 +29,19 @@ const apiKey = () => ({
   createdByUserId: "usr_e2e_dev", createdByEmail: "dev@harbour.example", lastUsedAt: now(), createdAt: now(),
 });
 
+const endpoint = (id: string, enabled: boolean) => ({
+  id, orgId: "org_e2e", orgName: "Harbour Studio", url: `https://${id}.harbour.example`, description: null, events: ["message.bounced"],
+  format: "json", connector: null, enabled, disabledReason: enabled ? null : "Turned off after 20 failed deliveries",
+  consecutiveDead: 0, recentFailures: 0, createdAt: now(),
+});
+
 interface Seen { lists: string[]; posts: { url: string; body: unknown }[] }
 
 async function mockDeveloper(page: Page): Promise<Seen> {
   const seen: Seen = { lists: [], posts: [] };
   await page.route(/\/api\/console\/developer\/webhook-deliveries(\?|$)/, (r) => { seen.lists.push(r.request().url()); return r.fulfill({ json: { items: [delivery()], nextCursor: null } }); });
   await page.route(/\/api\/console\/developer\/api-keys(\?|$)/, (r) => { seen.lists.push(r.request().url()); return r.fulfill({ json: { items: [apiKey()], nextCursor: null } }); });
-  await page.route(/\/api\/console\/developer\/webhooks(\?|$)/, (r) => r.fulfill({ json: { items: [], nextCursor: null } }));
+  await page.route(/\/api\/console\/developer\/webhooks(\?|$)/, (r) => r.fulfill({ json: { items: [endpoint("whe_on", true), endpoint("whe_off", false)], nextCursor: null } }));
   await page.route(/\/api\/console\/developer\/oauth-(grants|clients)(\?|$)/, (r) => r.fulfill({ json: { items: [], nextCursor: null } }));
   await page.route(/\/api\/console\/developer\/.+\/(redeliver|revoke|enable|disable)$/, async (r) => {
     seen.posts.push({ url: r.request().url(), body: r.request().postDataJSON() });
@@ -51,7 +57,11 @@ test("webhook failures first, filters in the address, Redeliver and Revoke send 
   await page.goto("/console/developer");
   await expect(page.getByRole("heading", { name: "Developer platform", level: 1 })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("console-developer-tab-failures")).toHaveAttribute("aria-current", "page");
-  await expect(page.getByText("message.bounced: id, mailboxId, to")).toBeVisible();
+  // The event in plain words (the raw type in its title), and a Fields column with field names only.
+  await expect(page.getByRole("columnheader", { name: "Fields" })).toBeVisible();
+  await expect(page.getByText("Message bounced", { exact: true })).toHaveAttribute("title", "message.bounced");
+  await expect(page.getByText("id, mailboxId, to", { exact: true })).toBeVisible();
+  await expect(page.getByText(/only field names are shown, never values/)).toBeVisible();
   await expect(page.getByText("hooks.harbour.example")).toBeVisible();
   await expect(page.getByRole("link", { name: "Harbour Studio" })).toHaveAttribute("href", "/console/workspaces/org_e2e");
   // Opens on failed deliveries in the last 7 days.
@@ -64,13 +74,22 @@ test("webhook failures first, filters in the address, Redeliver and Revoke send 
 
   // Redeliver: the dialog says the endpoint is switched back on, and the reason is sent.
   await page.getByTestId("console-developer-redeliver").click();
-  const re = page.getByRole("dialog", { name: "Send this message.bounced event again?" });
+  const re = page.getByRole("dialog", { name: 'Send the "Message bounced" event again?' });
   await expect(re).toBeVisible();
   await expect(re).toContainText("switches it back on");
   await re.getByLabel("Reason").fill("Customer fixed their receiver");
   await re.getByRole("button", { name: "Redeliver" }).click();
   await expect(re).toBeHidden();
   await expect.poll(() => seen.posts.find((p) => p.url.endsWith("/webhook-deliveries/msg_e2e_1/redeliver"))?.body).toEqual({ reason: "Customer fixed their receiver" });
+
+  // Endpoints: Disable is a danger button, Enable an ordinary one; the Off badge keeps its own width.
+  await page.getByTestId("console-developer-tab-endpoints").click();
+  await expect(page.getByTestId("console-developer-disable")).toHaveClass(/bg-bad-soft/);
+  await expect(page.getByTestId("console-developer-enable")).not.toHaveClass(/bg-bad-soft/);
+  await expect(page.getByText("Message bounced", { exact: true }).first()).toBeVisible();
+  const off = page.getByRole("table").getByText("Off", { exact: true });
+  const offBox = await off.boundingBox();
+  expect(offBox!.width).toBeLessThan(80);
 
   // API keys tab: the prefix only, and Revoke says the workspace needs a new key.
   await page.getByTestId("console-developer-tab-keys").click();
@@ -92,7 +111,7 @@ test("a read only operator sees the lists but no actions", async ({ page }) => {
   await mockDeveloper(page);
   await signUp(page, "Rory Readonly");
   await page.goto("/console/developer");
-  await expect(page.getByText("message.bounced: id, mailboxId, to")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("id, mailboxId, to", { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("console-developer-redeliver")).toHaveCount(0);
   await page.getByTestId("console-developer-tab-keys").click();
   await expect(page.getByText("Zapier sync")).toBeVisible();

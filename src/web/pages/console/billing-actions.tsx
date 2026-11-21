@@ -10,10 +10,10 @@ import { Card } from "@/web/components/ui/misc";
 import { DateInput, Field, Input, Select } from "@/web/components/ui/input";
 import { formatCents } from "@/shared/money";
 import { PLAN_ORDER, PLANS, type PlanId } from "@/shared/plans";
-import { shortDate } from "@/web/lib/format";
+import { formatDay, planLabel } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { PermissionGate } from "./guard";
-import { billingApi, dollarsToCents, newRequestKey, planName, type WorkspaceBilling } from "./billing-api";
+import { billingApi, dollarsToCents, newRequestKey, type WorkspaceBilling } from "./billing-api";
 
 type Res<K extends keyof typeof billingApi> = Awaited<ReturnType<(typeof billingApi)[K]>>;
 
@@ -42,12 +42,11 @@ export function WorkspaceBillingActions({ b }: { b: WorkspaceBilling }) {
   const money = (cents: number) => formatCents(cents, b.currency);
   const live = !!b.subscription.status && LIVE.includes(b.subscription.status) && !!b.stripe.subscriptionId;
   const stripeOff = !b.billing.enabled;
-  const offWhy = "Billing isn't connected on this deployment.";
 
   const [plan, setPlan] = useState<PlanId>(b.plan === "business" ? "pro" : "business");
   const changePlan = useOperatorAction<void, Res<"changePlan">>({
     title: `Change ${b.name}'s plan`,
-    description: `They are billed for ${planName(b.plan)} now. The change goes to Stripe straight away. An upgrade is prorated: Stripe charges the difference for the rest of this period on their next invoice. A downgrade gives them prorated credit. Moving to Free removes the plan from the subscription and keeps their add-ons.`,
+    description: `They are billed for ${planLabel(b.plan)} now. The change goes to Stripe straight away. An upgrade is prorated: Stripe charges the difference for the rest of this period on their next invoice. A downgrade gives them prorated credit. Moving to Free removes the plan from the subscription and keeps their add-ons.`,
     confirmLabel: "Change plan",
     canSubmit: plan !== b.plan,
     fields: (
@@ -68,7 +67,7 @@ export function WorkspaceBillingActions({ b }: { b: WorkspaceBilling }) {
   const [compNote, setCompNote] = useState("");
   const giveComp = useOperatorAction<void, Res<"setComp">>({
     title: `Give ${b.name} a free Business plan`,
-    description: `Only Business can be given free. The workspace gets Business limits at no charge until the end date (or until you end it). Nothing is charged or refunded, and their Stripe subscription is not touched${live ? `: they still pay for ${planName(b.plan)} unless you also cancel it at period end` : ""}.`,
+    description: `Only Business can be given free. The workspace gets Business limits at no charge until the end date (or until you end it). Nothing is charged or refunded, and their Stripe subscription is not touched${live ? `: they still pay for ${planLabel(b.plan)} unless you also cancel it at period end` : ""}.`,
     confirmLabel: "Give free Business plan",
     fields: (
       <div className="space-y-4">
@@ -94,7 +93,7 @@ export function WorkspaceBillingActions({ b }: { b: WorkspaceBilling }) {
   });
   const endComp = useOperatorAction<void>({
     title: `End ${b.name}'s free Business plan?`,
-    description: `They go back to the limits of the plan they pay for (${planName(b.plan)}) straight away. Nothing is charged by this change.`,
+    description: `They go back to the limits of the plan they pay for (${planLabel(b.plan)}) straight away. Nothing is charged by this change.`,
     confirmLabel: "End free plan", tone: "danger",
     run: (_v, reason) => billingApi.setComp(orgId, { on: false, reason }),
     success: "Free plan ended",
@@ -146,7 +145,7 @@ export function WorkspaceBillingActions({ b }: { b: WorkspaceBilling }) {
   const graceN = wholeDays(graceDays, b.bounds.graceDaysMax);
   const grace = useOperatorAction<void>({
     title: `Extend ${b.name}'s grace period`,
-    description: `Gives them more days before sending is paused for the missed payment${b.dunning?.graceEndsAt ? ` (now ${shortDate(b.dunning.graceEndsAt)})` : ""}. This only changes Multies: Stripe keeps retrying the card as usual, and nothing is charged or credited.`,
+    description: `Gives them more days before sending is paused for the missed payment${b.dunning?.graceEndsAt ? ` (now ${formatDay(b.dunning.graceEndsAt)})` : ""}. This only changes Multies: Stripe keeps retrying the card as usual, and nothing is charged or credited.`,
     confirmLabel: "Extend grace period",
     canSubmit: graceN !== null,
     fields: (
@@ -170,7 +169,7 @@ export function WorkspaceBillingActions({ b }: { b: WorkspaceBilling }) {
   });
 
   const ending = b.subscription.cancelAtPeriodEnd;
-  const periodEnd = b.subscription.currentPeriodEnd ? shortDate(b.subscription.currentPeriodEnd) : "the end of the period";
+  const periodEnd = b.subscription.currentPeriodEnd ? formatDay(b.subscription.currentPeriodEnd) : "the end of the period";
   const cancel = useOperatorAction<void>({
     title: ending ? `Keep ${b.name}'s subscription?` : `Cancel ${b.name}'s subscription at period end?`,
     description: ending
@@ -186,24 +185,34 @@ export function WorkspaceBillingActions({ b }: { b: WorkspaceBilling }) {
       <section className="space-y-2" data-testid="console-billing-actions">
         <h2 className="text-sm font-semibold">Actions</h2>
         <Card className="divide-y divide-line px-4 py-1">
-          <ActionRow label="Change plan" hint="Move the paid subscription to another plan in Stripe." onClick={() => changePlan.open()} testId="console-billing-action-plan"
-            disabled={stripeOff || b.comp.on} disabledWhy={stripeOff ? offWhy : "End the free Business plan first."} />
+          {/* Without Stripe only the free plan and the grace period work; the rest is hidden (the notice above says why). */}
+          {!stripeOff && (
+            <ActionRow label="Change plan" hint="Move the paid subscription to another plan in Stripe." onClick={() => changePlan.open()} testId="console-billing-action-plan"
+              disabled={b.comp.on} disabledWhy="End the free Business plan first." />
+          )}
           {b.comp.on ? (
             <ActionRow label="End free Business plan" hint="Go back to the plan they pay for." onClick={() => endComp.open()} testId="console-billing-action-comp-end" tone="danger" />
           ) : (
             <ActionRow label="Give free Business plan" hint="Business limits at no charge, with an optional end date and note." onClick={() => giveComp.open()} testId="console-billing-action-comp" />
           )}
-          <ActionRow label="Add credit" hint="Credit on their Stripe balance, taken off their next invoices." onClick={() => { setRequestKey(newRequestKey()); credit.open(); }} testId="console-billing-action-credit"
-            disabled={stripeOff || !b.stripe.customerId} disabledWhy={stripeOff ? offWhy : "They have no Stripe customer yet."} />
-          <ActionRow label="Extend trial" hint="Push the trial end later in Stripe." onClick={() => trial.open()} testId="console-billing-action-trial"
-            disabled={stripeOff || !live || b.subscription.status === "past_due" || b.comp.on} disabledWhy={stripeOff ? offWhy : b.subscription.status === "past_due" ? "They are behind on payment. Extend the grace period instead." : "They have no live subscription."} />
+          {!stripeOff && (
+            <>
+              <ActionRow label="Add credit" hint="Credit on their Stripe balance, taken off their next invoices." onClick={() => { setRequestKey(newRequestKey()); credit.open(); }} testId="console-billing-action-credit"
+                disabled={!b.stripe.customerId} disabledWhy="They have no Stripe customer yet." />
+              <ActionRow label="Extend trial" hint="Push the trial end later in Stripe." onClick={() => trial.open()} testId="console-billing-action-trial"
+                disabled={!live || b.subscription.status === "past_due" || b.comp.on} disabledWhy={b.subscription.status === "past_due" ? "They are behind on payment. Extend the grace period instead." : b.comp.on ? "End the free Business plan first." : "They have no live subscription."} />
+            </>
+          )}
           <ActionRow label="Extend grace period" hint="More days before sending is paused for a missed payment." onClick={() => grace.open()} testId="console-billing-action-grace"
             disabled={!b.dunning} disabledWhy="They aren't behind on payment." />
-          <ActionRow label="Sync with Stripe" hint="Update this workspace from what Stripe has." onClick={() => resync.open()} testId="console-billing-action-resync"
-            disabled={stripeOff} disabledWhy={offWhy} />
-          <ActionRow label={ending ? "Keep subscription" : "Cancel at period end"} hint={ending ? `It ends on ${periodEnd}. Undo that.` : "End the subscription when the current period ends."}
-            onClick={() => cancel.open()} testId="console-billing-action-cancel" tone={ending ? "secondary" : "danger"}
-            disabled={stripeOff || !live || b.comp.on} disabledWhy={stripeOff ? offWhy : b.comp.on ? "End the free Business plan first." : "They have no live subscription."} />
+          {!stripeOff && (
+            <>
+              <ActionRow label="Sync with Stripe" hint="Update this workspace from what Stripe has." onClick={() => resync.open()} testId="console-billing-action-resync" />
+              <ActionRow label={ending ? "Keep subscription" : "Cancel at period end"} hint={ending ? `It ends on ${periodEnd}. Undo that.` : "End the subscription when the current period ends."}
+                onClick={() => cancel.open()} testId="console-billing-action-cancel" tone={ending ? "secondary" : "danger"}
+                disabled={!live || b.comp.on} disabledWhy={b.comp.on ? "End the free Business plan first." : "They have no live subscription."} />
+            </>
+          )}
         </Card>
       </section>
       {changePlan.dialog}{giveComp.dialog}{endComp.dialog}{credit.dialog}{trial.dialog}{grace.dialog}{resync.dialog}{cancel.dialog}

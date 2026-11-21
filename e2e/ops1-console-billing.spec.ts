@@ -49,12 +49,13 @@ const workspaceBilling = {
 
 /** Billing reads, plus a plain workspace for the Workspaces section's own detail reads. */
 async function mockBilling(page: Page, opts: { enabled: boolean }) {
+  const ws = { ...workspaceBilling, billing: { enabled: opts.enabled, testMode: true } };
   await page.route(/\/api\/console\/billing\/status$/, (r) => r.fulfill({ json: { enabled: opts.enabled, testMode: true, currency: "aud" } }));
   await page.route(/\/api\/console\/billing\/past-due(\?|$)/, (r) => r.fulfill({ json: page1([pastDue]) }));
   await page.route(/\/api\/console\/billing\/subscriptions(\?|$)/, (r) => r.fulfill({ json: page1([subscription]) }));
   await page.route(/\/api\/console\/billing\/events(\?|$)/, (r) => r.fulfill({ json: page1(workspaceBilling.recentEvents) }));
   await page.route(/\/api\/console\/billing\/referrals(\?|$)/, (r) => r.fulfill({ json: page1([]) }));
-  await page.route(/\/api\/console\/billing\/workspaces\/org_e2e_acme$/, (r) => r.fulfill({ json: workspaceBilling }));
+  await page.route(/\/api\/console\/billing\/workspaces\/org_e2e_acme$/, (r) => r.fulfill({ json: ws }));
   // The Workspaces detail page reads the workspace before it shows any tab.
   await page.route(/\/api\/console\/workspaces\/org_e2e_acme$/, (r) => r.fulfill({ json: workspaceOverview }));
 }
@@ -81,7 +82,8 @@ test("the billing page opens on Past due, says when billing is not connected, an
   await expect(page.getByTestId("console-billing-not-connected")).toBeVisible();
   await expect(page.getByTestId("console-billing-tab-past-due")).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("link", { name: "Late Labs" })).toBeVisible();
-  await expect(page.getByText("Sending paused")).toBeVisible();
+  // The stage says sending is paused once; no second Sending column repeats it.
+  await expect(page.getByText("Sending paused")).toHaveCount(1);
 
   await page.getByTestId("console-billing-tab-subscriptions").click();
   await expect(page).toHaveURL(/tab=subscriptions/);
@@ -95,6 +97,28 @@ test("the billing page opens on Past due, says when billing is not connected, an
   await page.getByTestId("console-billing-tab-events").click();
   await expect(page).toHaveURL(/tab=events/);
   await expect(page.getByText("Invoice MM-0042 paid: A$29.00")).toBeVisible();
+  // The type is a badge; the event id sits in the row's Details disclosure.
+  await expect(page.getByRole("table").getByText("Invoice paid", { exact: true })).toBeVisible();
+  await expect(page.getByText("evt_e2e_1")).toBeHidden();
+  await page.getByTestId("console-billing-event-details").first().locator("summary").click();
+  await expect(page.getByText("evt_e2e_1")).toBeVisible();
+});
+
+test("without Stripe a workspace's Billing tab shows one notice and only the actions that still work", async ({ page }) => {
+  await signUp(page, "Bea Billing");
+  await mockConsoleMe(page, "ops_billing");
+  await mockBilling(page, { enabled: false });
+  await page.goto("/console/workspaces/org_e2e_acme/billing");
+  await expect(page.getByTestId("console-billing-workspace")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("console-billing-not-connected")).toHaveCount(1);
+  await expect(page.getByText("Billing isn't connected on this deployment.")).toHaveCount(1);
+  await expect(page.getByTestId("console-billing-action-comp")).toBeVisible();
+  await expect(page.getByTestId("console-billing-action-grace")).toBeVisible();
+  for (const id of ["plan", "credit", "trial", "resync", "cancel"]) await expect(page.getByTestId(`console-billing-action-${id}`)).toHaveCount(0);
+  await expect(page.getByTestId("console-billing-invoices")).toHaveCount(0);
+  // Usage against limits lives on the Usage tab, linked in one line.
+  await expect(page.getByText("Usage against limits")).toHaveCount(0);
+  await expect(page.getByTestId("console-billing-usage-link").getByRole("link", { name: "Usage tab" })).toHaveAttribute("href", "/console/workspaces/org_e2e_acme/usage");
 });
 
 test("adding credit on a workspace's Billing tab explains the charge, asks for a reason and sends cents", async ({ page }) => {

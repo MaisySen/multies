@@ -1,9 +1,9 @@
 /** OPS1: types, calls and small cells shared by the Developer platform tabs (pages/console/developer*.tsx). */
 import type { ReactNode } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { api } from "@/web/lib/api";
-import { fullDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { EMPTY, WorkspaceLink } from "./components/format";
 
 // ---------------------------------------------------------------- what the server answers (dates as ISO strings)
 
@@ -23,6 +23,7 @@ export interface DevWebhookEndpoint {
 export interface DevWebhookDelivery {
   id: string; orgId: string; orgName: string | null; endpointId: string; endpointUrl: string | null; eventType: string;
   status: "pending" | "delivered" | "failed"; attempts: number; responseStatus: number | null; lastError: string | null;
+  /** "<event type>: <field names>" (never values). */
   payloadPreview: string; nextAttemptAt: string | null; deliveredAt: string | null; createdAt: string;
 }
 
@@ -47,25 +48,22 @@ export const developerApi = {
 
 // ---------------------------------------------------------------- cells
 
-/** Relative time with the exact time on hover. */
-export function When({ at, never = "Never" }: { at: string | null; never?: string }) {
-  if (!at) return <span className="text-subtle">{never}</span>;
-  return <span className="whitespace-nowrap text-muted" title={fullDate(at)}>{timeAgo(at)}</span>;
-}
-
-export function WorkspaceLink({ id, name }: { id: string; name: string | null }) {
-  return <Link to={`/console/workspaces/${encodeURIComponent(id)}`} className="font-medium text-fg hover:underline">{name || id}</Link>;
-}
-
-export function PersonLink({ id, email }: { id: string | null; email: string | null }) {
-  if (!id) return <span className="text-subtle">Unknown</span>;
-  return <Link to={`/console/users/${encodeURIComponent(id)}`} className="hover:underline">{email || id}</Link>;
+/** A workspace name that opens it in the console, with a short id under it so two of one name can be told apart. */
+export function Workspace({ id, name }: { id: string; name: string | null }) {
+  return <WorkspaceLink id={id} name={name} hint={id.replace(/^org_/, "").slice(0, 8)} />;
 }
 
 /** "https://hooks.example.com" reads as "hooks.example.com". */
 export function hostOf(url: string | null): string {
   if (!url) return "Removed endpoint";
   try { return new URL(url).host || url; } catch { return url; }
+}
+
+/** The field names of a delivery's preview ("message.bounced: id, to" -> "id, to"); EMPTY when it names none. */
+export function fieldNames(d: Pick<DevWebhookDelivery, "eventType" | "payloadPreview">): string {
+  const p = d.payloadPreview ?? "";
+  const rest = p.startsWith(d.eventType) ? p.slice(d.eventType.length).replace(/^:\s*/, "") : p;
+  return rest.trim() || EMPTY;
 }
 
 export const Mono = ({ children, className }: { children: ReactNode; className?: string }) => <span className={cn("font-mono text-xs", className)}>{children}</span>;
