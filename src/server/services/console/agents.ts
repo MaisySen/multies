@@ -10,6 +10,7 @@ import { and, eq, gte, isNotNull, lte, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agentRuns, agents, agentTriggers, aiKeys, aiUsageDaily, organizations, sendApprovals, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
+import { containsAny } from "../../lib/like-search";
 import { cancelRun, RUN_CANCEL_REASON_MAX, RUN_STATUSES, type RunStatus } from "../suite/agent-runs";
 import { updateTrigger } from "../suite/agent-triggers";
 import type { SuiteActor } from "../suite/common";
@@ -28,8 +29,8 @@ function actorFor(op: ConsoleOperator, orgId: string): SuiteActor {
 export const LONG_RUNNING_MS = 30 * 60_000;
 
 /** `attention` (the default) is failed runs plus queued or running ones past LONG_RUNNING_MS. */
-export type AgentRunStatusFilter = RunStatus | "attention" | "long_running";
-export const AGENT_RUN_STATUS_FILTERS: readonly AgentRunStatusFilter[] = [...RUN_STATUSES, "attention", "long_running"];
+export type AgentRunStatusFilter = RunStatus | "attention" | "long_running" | "all";
+export const AGENT_RUN_STATUS_FILTERS: readonly AgentRunStatusFilter[] = [...RUN_STATUSES, "attention", "long_running", "all"];
 
 export const AGENT_RUN_SORT_FIELDS = ["createdAt", "updatedAt"] as const;
 export type AgentRunSortField = (typeof AGENT_RUN_SORT_FIELDS)[number];
@@ -43,6 +44,14 @@ export interface AgentRunFilters {
   orgId?: string;
   /** Days back from now on created_at, 1..90 (default 7). */
   days?: number;
+  /** Workspace name or id, or the agent's name, contains this (case blind). */
+  q?: string;
+}
+
+/** A trimmed search (at most 100 characters), or undefined when empty. */
+function searchOf(q: string | undefined): string | undefined {
+  const t = (q ?? "").trim().slice(0, 100);
+  return t || undefined;
 }
 
 export interface ConsoleAgentRun {
@@ -69,13 +78,15 @@ export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: 
   const now = deps.now().getTime();
   const since = windowStart(deps, filters.days, 7);
   const longBefore = now - LONG_RUNNING_MS;
+  const q = searchOf(filters.q);
   const longRunning = or(
     and(eq(agentRuns.status, "running"), sql`coalesce(${agentRuns.startedAt}, ${agentRuns.createdAt}) <= ${longBefore}`),
     and(eq(agentRuns.status, "queued"), lte(agentRuns.createdAt, new Date(longBefore))),
   );
   const statusCond = status === "attention" ? or(eq(agentRuns.status, "failed"), longRunning)
     : status === "long_running" ? longRunning
-      : eq(agentRuns.status, status);
+      : status === "all" ? undefined
+        : eq(agentRuns.status, status);
   const rows = await deps.db.select({
     id: agentRuns.id, orgId: agentRuns.orgId, workspaceName: organizations.name, taskId: agentRuns.taskId,
     agentUserId: agentRuns.agentUserId, agentName: users.name, status: agentRuns.status, triggerId: agentRuns.triggerId,
@@ -84,7 +95,11 @@ export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: 
   }).from(agentRuns)
     .leftJoin(organizations, eq(organizations.id, agentRuns.orgId))
     .leftJoin(users, eq(users.id, agentRuns.agentUserId))
-    .where(and(gte(agentRuns.createdAt, since), filters.orgId ? eq(agentRuns.orgId, filters.orgId) : undefined, statusCond, p.after))
+    .where(and(
+      gte(agentRuns.createdAt, since), filters.orgId ? eq(agentRuns.orgId, filters.orgId) : undefined, statusCond,
+      q ? containsAny([organizations.name, agentRuns.orgId, users.name], q) : undefined,
+      p.after,
+    ))
     .orderBy(...p.orderBy).limit(p.take);
   return p.finish(rows, (r) => ({ v: p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.createdAt), id: r.id }), (r) => {
     const active = r.status === "queued" || r.status === "running";
@@ -126,7 +141,11 @@ const AGENT_TRIGGER_SORTS: Record<AgentTriggerSortField, SortDef> = {
   fireCount: { expr: agentTriggers.fireCount, kind: "number" },
 };
 
-export interface AgentTriggerFilters { enabled?: boolean; orgId?: string; kind?: "schedule" | "webhook" }
+export interface AgentTriggerFilters {
+  enabled?: boolean; orgId?: string; kind?: "schedule" | "webhook";
+  /** Trigger name, workspace name or id, or agent name contains this (case blind). */
+  q?: string;
+}
 
 export interface ConsoleAgentTrigger {
   id: string; orgId: string; workspaceName: string | null;
@@ -155,6 +174,7 @@ export async function listAgentTriggers(deps: Deps, filters: AgentTriggerFilters
       filters.enabled === undefined ? undefined : eq(agentTriggers.enabled, filters.enabled),
       filters.orgId ? eq(agentTriggers.orgId, filters.orgId) : undefined,
       filters.kind ? eq(agentTriggers.kind, filters.kind) : undefined,
+      searchOf(filters.q) ? containsAny([agentTriggers.name, organizations.name, agentTriggers.orgId, users.name], searchOf(filters.q)!) : undefined,
       p.after,
     )).orderBy(...p.orderBy).limit(p.take);
   return p.finish(rows, (r) => ({ v: p.field === "fireCount" ? r.fireCount : p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.createdAt), id: r.id }), (r) => ({
@@ -204,7 +224,7 @@ export interface ConsolePendingApproval {
  * serves it exactly; across workspaces no index leads on status, so it scans (index missing: send_approvals(status,
  * created_at)).
  */
-export async function listPendingSendApprovals(deps: Deps, filters: { orgId?: string }, page: ConsolePage<SendApprovalSortField>): Promise<ConsolePageResult<ConsolePendingApproval>> {
+export async function listPendingSendApprovals(deps: Deps, filters: { orgId?: string; q?: string }, page: ConsolePage<SendApprovalSortField>): Promise<ConsolePageResult<ConsolePendingApproval>> {
   const p = pageParts(page, SEND_APPROVAL_SORTS, sendApprovals.id);
   const now = deps.now().getTime();
   const rows = await deps.db.select({
@@ -213,7 +233,11 @@ export async function listPendingSendApprovals(deps: Deps, filters: { orgId?: st
   }).from(sendApprovals)
     .leftJoin(organizations, eq(organizations.id, sendApprovals.orgId))
     .leftJoin(agents, eq(agents.id, sendApprovals.agentId))
-    .where(and(eq(sendApprovals.status, "pending"), filters.orgId ? eq(sendApprovals.orgId, filters.orgId) : undefined, p.after))
+    .where(and(
+      eq(sendApprovals.status, "pending"), filters.orgId ? eq(sendApprovals.orgId, filters.orgId) : undefined,
+      searchOf(filters.q) ? containsAny([organizations.name, sendApprovals.orgId, agents.name], searchOf(filters.q)!) : undefined,
+      p.after,
+    ))
     .orderBy(...p.orderBy).limit(p.take);
   return p.finish(rows, (r) => ({ v: p.field === "expiresAt" ? ms(r.expiresAt) : ms(r.createdAt), id: r.id }), (r) => ({
     id: r.id, orgId: r.orgId, workspaceName: r.workspaceName ?? null, agentId: r.agentId, agentName: r.agentName ?? null, mailboxId: r.mailboxId,
@@ -284,13 +308,17 @@ export interface ConsoleAiKeyProblem {
  * D1: no index on ai_keys.problem, so this scans ai_keys (one row per workspace that saved a key; index missing:
  * ai_keys(problem_at) where problem is not null).
  */
-export async function listAiKeyProblems(deps: Deps, filters: { problem?: AiKeyProblem }, page: ConsolePage<AiKeyProblemSortField>): Promise<ConsolePageResult<ConsoleAiKeyProblem>> {
+export async function listAiKeyProblems(deps: Deps, filters: { problem?: AiKeyProblem; q?: string }, page: ConsolePage<AiKeyProblemSortField>): Promise<ConsolePageResult<ConsoleAiKeyProblem>> {
   const p = pageParts(page, AI_KEY_PROBLEM_SORTS, aiKeys.orgId);
   const rows = await deps.db.select({
     orgId: aiKeys.orgId, workspaceName: organizations.name, provider: aiKeys.provider, model: aiKeys.model, problem: aiKeys.problem,
     problemAt: aiKeys.problemAt, updatedAt: aiKeys.updatedAt,
   }).from(aiKeys).leftJoin(organizations, eq(organizations.id, aiKeys.orgId))
-    .where(and(isNotNull(aiKeys.problem), filters.problem ? eq(aiKeys.problem, filters.problem) : undefined, p.after))
+    .where(and(
+      isNotNull(aiKeys.problem), filters.problem ? eq(aiKeys.problem, filters.problem) : undefined,
+      searchOf(filters.q) ? containsAny([organizations.name, aiKeys.orgId], searchOf(filters.q)!) : undefined,
+      p.after,
+    ))
     .orderBy(...p.orderBy).limit(p.take);
   return p.finish(rows, (r) => ({ v: p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.problemAt ?? r.updatedAt), id: r.orgId }), (r) => ({
     orgId: r.orgId, workspaceName: r.workspaceName ?? null, provider: r.provider, model: r.model.slice(0, 120), problem: r.problem as AiKeyProblem,
