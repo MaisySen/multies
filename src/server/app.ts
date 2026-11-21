@@ -457,19 +457,23 @@ export function createApp(deps: Deps) {
     // QUAL1 (audit row 69): no platform mail volume on the public page (operators: /api/admin/status).
     return c.json({ ...publicStatus(body), history }, body.overall === "down" ? 503 : 200);
   });
-  app.get("/api/config", (c) =>
-    c.json({
+  // OPS1 feature flags: each switch in src/shared/feature-flags.ts answers the flag engine's platform wide value (env
+  // default, then a global override). This endpoint is public, so no workspace override applies here; signed in people
+  // get their workspace's differences on /api/account/me (flags), which useConfig merges over this.
+  app.get("/api/config", (c) => {
+    const cf = clientFlags(deps);
+    return c.json({
       appName: deps.config.appName,
       mode: deps.config.mode,
       release: deps.config.release,
       cfBeaconToken: deps.config.cfBeaconToken,
       // ANALYTICS-PH: internal product usage analytics (on only with ANALYTICS_PH and its keys; the browser still honours Do Not Track).
       analyticsPh: !!deps.config.productAnalytics,
-      demoEnabled: deps.config.demoEnabled,
+      demoEnabled: cf.demoEnabled,
       // R117: Social composer v2, planner views and slots, drafts and approvals, library (SOCIAL_P2; on unless "off").
-      socialP2: deps.config.socialP2 !== false,
+      socialP2: cf.socialP2,
       // R118: Social inbox, analytics and account health alerts (SOCIAL_P2B); the staging only test network.
-      socialP2b: deps.config.socialP2b !== false,
+      socialP2b: cf.socialP2b,
       socialTestNetwork: deps.config.socialTestNetwork === true,
       supportEmail: deps.config.supportEmail,
       outboundDriver: deps.outbound.name,
@@ -477,81 +481,81 @@ export function createApp(deps: Deps) {
       mxHosts: deps.config.mail.mxHosts,
       plans: Object.values(PLANS),
       meetings: !!deps.config.meetings,
-      scheduling: deps.config.schedulingEnabled,
-      flows: deps.config.flows !== false, // R90
+      scheduling: cf.scheduling,
+      flows: cf.flows, // R90
       // R94: CRM timeline (CRM_TIMELINE): paged timeline, logged calls and notes, segments, CSV import, deal forecast.
-      crmTimeline: !!deps.config.crmTimeline,
-      tasksPlus: !!deps.config.tasksPlus, // R95
-      webinar: !!deps.config.webinar, // R114: webinar mode for meetings
+      crmTimeline: cf.crmTimeline,
+      tasksPlus: cf.tasksPlus, // R95
+      webinar: cf.webinar, // R114: webinar mode for meetings
       // R91: dashboards plus (DASHBOARDS_PLUS): share, reports, question builder, alerts, data sources.
-      dashboardsPlus: !!deps.config.dashboardsPlus,
+      dashboardsPlus: cf.dashboardsPlus,
       // R98: typo tolerant search with filters and instant results in the command menu (SEARCH_R98).
-      searchR98: !!deps.config.searchR98,
+      searchR98: cf.searchR98,
       // R115: maps (MAPS_R115): address cards, visit routes, booking meeting place.
-      maps: !!deps.config.mapsR115,
+      maps: cf.maps,
       // R108: contracts (CONTRACTS_R108): templates, guided interview, clause library, reminders.
-      contractsR108: !!deps.config.contractsR108,
+      contractsR108: cf.contractsR108,
       // R110: Ask across the workspace (ASK_R110).
-      askR110: !!deps.config.askR110,
-      askTd1: !!deps.config.askTd1, // TD1: Ask v2 and AI trust controls
-      crmTd10: !!deps.config.crmTd10, // TD10: CRM suggestions, saved analyses, shortcut switch
-      portalTd9: !!(deps.config.clientPortal && deps.config.portalTd9), // TD9: portal access per area, project view, private comments
-      videoRecVid1: !!(deps.config.videoRecVid1 && deps.config.meetings), // VID1: admins save a video of the call on their own device
-      videoRecVid2: !!(deps.config.videoRecVid2 && deps.config.videoRecVid1 && deps.config.meetings), // VID2: pause, layouts, crash safe, chat and transcript files
-      videoPhoneVid3: !!(deps.config.videoPhoneVid3 && deps.config.videoRecVid2 && deps.config.videoRecVid1 && deps.config.meetings), // VID3: recording on phone browsers
-      translateR116: !!deps.config.translateR116, // R116: translate and read aloud
-      langR104: !!deps.config.langR104, // R104: the app in Nepali and Hindi
-      vaultR128: !!deps.config.vaultR128, // R128: team password vault
-      peopleR126: !!deps.config.peopleR126, // R126: staff directory, onboarding, assets
-      mentionsTd5: !!deps.config.mentionsTd5, // TD5: record mentions and References
-      inboxTd6: !!deps.config.inboxTd6, // TD6: One inbox
-      teamaiTd8: !!deps.config.teamaiTd8, // TD8: Team AI
-      designDes1: !!deps.config.designDes1, // DES1: web app design pass
-      passkeyDes1: !!deps.config.passkeyDes1, // DES1: passkey sign in
-      invoices: deps.config.invoicesEnabled, // R105
-      coursesR129: !!deps.config.coursesR129, // R129: courses (vv8k gets 404 from the API and no entry points)
-      bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
-      officeEditR113: !!deps.config.officeEditR113, // R113: office files in the browser
-      expenses: deps.config.invoicesEnabled && deps.config.expensesR106, // R106
-      billTd4: !!deps.config.invoicesEnabled && !!deps.config.billTd4, // TD4: time to invoice (owners and admins)
-      tablesR125: !!deps.config.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
-      polishPol1: !!deps.config.polishPol1, // POL1: tables and courses to the trash with restore
-      formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
-      formsTd2: !!deps.config.formsTd2, // TD2: Forms pro
-      formsTd7: !!deps.config.formsTd7, // TD7: Forms pro B
-      homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
-      toursR130: !!deps.config.toursR130, // R130: guided onboarding (vv8k gets enabled false from /api/tours/me)
-      aiConnectAi2: !!deps.config.aiConnectAi2, // AI2: connect AI properly
-      meetTd3: !!deps.config.meetTd3, // TD3: meetings to tasks
-      reporting: !!deps.config.reporting, // R112: anonymous reporting channel and data requests
-      socialP3R132: !!deps.config.socialP3R132, // R132: Social P3
-      socialMultiSoc1: !!deps.config.socialMultiSoc1, // SOC1: several Pages and accounts
-      socialYoutubeUploadR132: !!deps.config.socialP3R132 && !!deps.config.socialYoutubeUploadR132, // R132 held
-      socialGbpR132: !!deps.config.socialP3R132 && !!deps.config.socialGbpR132, // R132 held
+      askR110: cf.askR110,
+      askTd1: cf.askTd1, // TD1: Ask v2 and AI trust controls
+      crmTd10: cf.crmTd10, // TD10: CRM suggestions, saved analyses, shortcut switch
+      portalTd9: cf.portalTd9, // TD9: portal access per area, project view, private comments
+      videoRecVid1: cf.videoRecVid1, // VID1: admins save a video of the call on their own device
+      videoRecVid2: cf.videoRecVid2, // VID2: pause, layouts, crash safe, chat and transcript files
+      videoPhoneVid3: cf.videoPhoneVid3, // VID3: recording on phone browsers
+      translateR116: cf.translateR116, // R116: translate and read aloud
+      langR104: cf.langR104, // R104: the app in Nepali and Hindi
+      vaultR128: cf.vaultR128, // R128: team password vault
+      peopleR126: cf.peopleR126, // R126: staff directory, onboarding, assets
+      mentionsTd5: cf.mentionsTd5, // TD5: record mentions and References
+      inboxTd6: cf.inboxTd6, // TD6: One inbox
+      teamaiTd8: cf.teamaiTd8, // TD8: Team AI
+      designDes1: cf.designDes1, // DES1: web app design pass
+      passkeyDes1: cf.passkeyDes1, // DES1: passkey sign in
+      invoices: cf.invoices, // R105
+      coursesR129: cf.coursesR129, // R129: courses (vv8k gets 404 from the API and no entry points)
+      bookingPlus: cf.bookingPlus, // R92: resources, time polls, events
+      officeEditR113: cf.officeEditR113, // R113: office files in the browser
+      expenses: cf.expenses, // R106
+      billTd4: cf.billTd4, // TD4: time to invoice (owners and admins)
+      tablesR125: cf.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
+      polishPol1: cf.polishPol1, // POL1: tables and courses to the trash with restore
+      formsPlus: cf.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
+      formsTd2: cf.formsTd2, // TD2: Forms pro
+      formsTd7: cf.formsTd7, // TD7: Forms pro B
+      homeWidgetsR131: cf.homeWidgetsR131, // R131: Home widgets
+      toursR130: cf.toursR130, // R130: guided onboarding (vv8k gets enabled false from /api/tours/me)
+      aiConnectAi2: cf.aiConnectAi2, // AI2: connect AI properly
+      meetTd3: cf.meetTd3, // TD3: meetings to tasks
+      reporting: cf.reporting, // R112: anonymous reporting channel and data requests
+      socialP3R132: cf.socialP3R132, // R132: Social P3
+      socialMultiSoc1: cf.socialMultiSoc1, // SOC1: several Pages and accounts
+      socialYoutubeUploadR132: cf.socialYoutubeUploadR132, // R132 held
+      socialGbpR132: cf.socialGbpR132, // R132 held
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
-      chatChannels: deps.config.channels.enabled,
+      chatChannels: cf.chatChannels,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
-      mailArchive: !!deps.config.mailArchive,
+      mailArchive: cf.mailArchive,
       // Tools P1: whether the Tools page and its menu entries show (TOOLS_ENABLED with an engine configured).
       tools: deps.config.tools.enabled,
       // Tools P2: the P2 features on here (TOOLS_FEATURES), so menus can follow each flag without another request.
       toolFeatures: deps.config.tools.enabled ? activeToolFeatures(deps) : [],
       // R122: the help center in Docs (HELP_CENTER=on).
-      helpCenter: !!deps.config.helpCenter,
-      sites: !!deps.config.sites, // R123
-      blog: !!deps.config.blogR124, // R124: the blog in Sites
-      navP2: !!deps.config.navP2R121, // R121: layout plan P2 navigation
-      davSync: !!deps.config.davSync,
+      helpCenter: cf.helpCenter,
+      sites: cf.sites, // R123
+      blog: cf.blog, // R124: the blog in Sites
+      navP2: cf.navP2, // R121: layout plan P2 navigation
+      davSync: cf.davSync,
       // R103: Docs plus (DOCS_PLUS_R103=on).
-      docsPlus: !!deps.config.docsPlus,
+      docsPlus: cf.docsPlus,
       // R101: Files plus (FILES_PLUS_R101=on): the drive and brand library on the Files page.
-      filesPlus: !!deps.config.filesPlus,
+      filesPlus: cf.filesPlus,
       // R102: Smart document inbox, Files > Documents (DOC_INBOX_R102=on, needs Files plus).
-      docInbox: !!deps.config.filesPlus && !!deps.config.docInbox,
+      docInbox: cf.docInbox,
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
-      backgroundCopy: !!deps.config.backgroundCopy,
+      backgroundCopy: cf.backgroundCopy,
       // R89: whiteboards, diagrams, mind map and Present in Docs (DOCS_VISUAL; on unless "off").
-      docsVisual: deps.config.docsVisual !== false,
+      docsVisual: cf.docsVisual,
       // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).
       socialConnections: deps.config.auth.socialConnections ?? [],
       // R32: the VAPID public key a browser subscribes with (absent when web push is off).
@@ -560,8 +564,8 @@ export function createApp(deps: Deps) {
       sentry: deps.config.sentry.dsnWeb
         ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment, release: deps.config.release, tracesSampleRate: deps.config.sentry.tracesSampleRate }
         : null,
-    }),
-  );
+    });
+  });
 
   // ANALYTICS-PH: a successful key action (send mail, new task, invite...) is recorded after the response (off unless ANALYTICS_PH).
   app.use("/api/*", productAnalyticsActions);
