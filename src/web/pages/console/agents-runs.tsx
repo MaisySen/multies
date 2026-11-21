@@ -19,7 +19,7 @@ const FILTERS: FilterDef[] = [
       { value: "attention", label: "Needs attention" },
       { value: "failed", label: "Failed" },
       { value: "long_running", label: "Long running" },
-      { value: "any", label: "All" },
+      { value: "all", label: "All", send: true },
     ],
   },
   {
@@ -31,7 +31,7 @@ const FILTERS: FilterDef[] = [
 export function RunStatusBadge({ run }: { run: Pick<AgentRunRow, "status" | "longRunning"> }) {
   if (run.status === "failed") return <Badge tone="bad" dot>Failed</Badge>;
   if (run.longRunning) return <Badge tone="warn" dot>{run.status === "queued" ? "Queued a long time" : "Running a long time"}</Badge>;
-  if (run.status === "running") return <Badge tone="brand" dot>Running</Badge>;
+  if (run.status === "running") return <Badge dot>Running</Badge>;
   if (run.status === "queued") return <Badge dot>Queued</Badge>;
   if (run.status === "succeeded") return <Badge tone="ok" dot>Finished</Badge>;
   return <Badge dot>Cancelled</Badge>;

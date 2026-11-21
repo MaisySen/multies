@@ -113,6 +113,7 @@ describe("agents console lists", () => {
     const ids = async (q: string) => ((await readonly.get(`${BASE}/runs?${q}`)).body.items as { id: string }[]).map((r) => r.id).sort();
     expect(await ids("status=succeeded")).toEqual(["run_a_ok"]);
     expect(await ids("status=long_running")).toEqual(["run_a_long"]);
+    expect(await ids("status=all")).toHaveLength(8);
     expect(await ids("status=any")).toHaveLength(8);
     expect(await ids("status=failed&days=30")).toContain("run_a_old");
     expect(await ids(`orgId=${beta.orgId}`)).toEqual(["run_b_failed"]);

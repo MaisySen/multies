@@ -6,7 +6,7 @@
  * Never returned: an API key or its hash, a webhook signing secret, an OAuth code, refresh token or their hashes, a
  * PKCE challenge, or a webhook payload's values (only its event type and the names of its top-level data fields).
  */
-import { and, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { apiKeys, oauthClients, oauthGrants, organizations, users, webhookDeliveries, webhookEndpoints } from "../../db/schema";
 import { badRequest } from "../../lib/errors";
@@ -208,7 +208,7 @@ export async function listWebhookDeliveries(deps: Deps, filters: WebhookDelivery
       endpointIds ? inIds(d.endpointId, endpointIds) : undefined,
       filters.orgId ? eq(d.orgId, filters.orgId) : undefined,
       gte(d.createdAt, from), lt(d.createdAt, to),
-      inArray(d.status, statuses),
+      inIds(d.status, statuses),
       filters.eventType ? eq(d.eventType, filters.eventType) : undefined,
       keysetAfter(spec, d.id, page.sort.dir, page.cursor),
     ))

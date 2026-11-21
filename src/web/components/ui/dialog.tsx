@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { IconClose } from "./icon";
 import { cn } from "@/web/lib/cn";
 // R58 (MB-245): an open dialog makes the page inert, so the "switched in another tab" strip shows inside it too.
@@ -13,6 +13,10 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
   returnFocus?: () => HTMLElement | null;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // OPS1: ids of this dialog's own title and description, so a dialog opened over another (a reason dialog over a
+  // form) is named by its own title, not the first "dialog-title" in the page.
+  const titleId = useId();
+  const descriptionId = useId();
   // R115 (R99 low): the control that opened the dialog gets focus back on close, however it closed (Esc, Close, Done).
   const opener = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(false);
@@ -47,7 +51,8 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       // the tree, which used to close the form too.
       onClose={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onClick={(e) => { if (e.target === ref.current) onClose(); }}
-      aria-labelledby="dialog-title"
+      aria-labelledby={titleId}
+      aria-describedby={open && description ? descriptionId : undefined}
       className={cn(
         // Centred card on larger screens; a bottom sheet on phones, the way iOS presents a form.
         "ds-dialog m-auto w-[calc(100%-2rem)] max-w-lg rounded-[var(--radius-r20)] border border-line bg-elevated p-0 text-fg elev-3 backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-pop-in open:backdrop:animate-fade-in max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)] max-sm:open:animate-sheet-up",
@@ -59,8 +64,8 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
           <WorkspaceSwitchedBanner variant="dialog" />
           <div className="flex items-start justify-between gap-4 px-6 pt-5">
             <div className="min-w-0">
-              <h2 id="dialog-title" className="text-[17px] font-semibold">{title}</h2>
-              {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+              <h2 id={titleId} className="text-[17px] font-semibold">{title}</h2>
+              {description && <p id={descriptionId} className="mt-1 text-sm text-muted">{description}</p>}
             </div>
             <button type="button" onClick={onClose} className="-mr-2 grid shrink-0 place-items-center rounded-full p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label="Close">
               <IconClose className="h-4 w-4" />

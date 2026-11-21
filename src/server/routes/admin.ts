@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { desc, eq, isNull } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody } from "../middleware";
 import { abuseEvents, organizations, users } from "../db/schema";
@@ -12,7 +12,8 @@ import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound } from "../lib/errors";
 import { listJobs, queueStats, replayJobs } from "../services/jobs";
 import { getOrg } from "../services/plans";
-import { inIds } from "../lib/sql-chunks";
+import { resolveAbuseEvents, suspendWorkspace, unsuspendWorkspace, type SuspendResult } from "../services/console/moderation";
+import { setWorkspaceSending, type WorkspaceSendingResult } from "../services/console/mail";
 import { containsAny } from "../lib/like-search";
 
 /**
@@ -78,25 +79,23 @@ export function adminRoutes() {
     .post("/abuse/resolve", requireOperator("moderation.act"), async (c) => {
       const { ids, reason } = await parseBody(c, z.object({ ids: z.array(z.string().max(64)).min(1).max(500), reason: optionalReasonSchema }));
       await operatorAction(c, { action: "abuse.resolved", targetType: "abuse_event", reason, metadata: { ids: ids.slice(0, 100), count: ids.length } },
-        () => c.var.deps.db.update(abuseEvents).set({ resolvedAt: c.var.deps.now() }).where(and(inIds(abuseEvents.id, ids), isNull(abuseEvents.resolvedAt))));
+        () => resolveAbuseEvents(c.var.deps, { ids }));
       return c.json({ ok: true });
     })
     .post("/workspaces/:id/suspend", requireOperator("workspaces.suspend"), async (c) => {
       const { reason } = await parseBody(c, z.object({ reason: z.string().trim().min(3, "Give a reason; the workspace sees it.").max(300) }));
-      const { deps } = c.var;
-      const org = await getOrg(deps.db, c.req.param("id"));
-      await operatorAction(c, { action: "workspace.suspended", targetType: "workspace", targetId: org.id, orgId: org.id, reason, before: { suspendedAt: org.suspendedAt, suspendedReason: org.suspendedReason }, workspaceAudit: true },
-        () => deps.db.update(organizations).set({ suspendedAt: deps.now(), suspendedReason: reason }).where(eq(organizations.id, org.id)));
+      const id = c.req.param("id");
+      // OPS1: the change lives in services/console/moderation.ts (the console's Suspend uses it too).
+      await operatorAction(c, { action: "workspace.suspended", targetType: "workspace", targetId: id, orgId: id, reason, before: (r: SuspendResult) => r.before, workspaceAudit: true },
+        () => suspendWorkspace(c.var.deps, id, reason));
       return c.json({ ok: true });
     })
     .post("/workspaces/:id/unsuspend", requireOperator("workspaces.suspend"), async (c) => {
       const { reason } = await parseBody(c, z.object({ reason: optionalReasonSchema }));
-      const { deps } = c.var;
-      const org = await getOrg(deps.db, c.req.param("id"));
-      await operatorAction(c, { action: "workspace.unsuspended", targetType: "workspace", targetId: org.id, orgId: org.id, reason, before: { suspendedAt: org.suspendedAt, suspendedReason: org.suspendedReason }, workspaceAudit: true }, async () => {
-        await deps.db.update(organizations).set({ suspendedAt: null, suspendedReason: null }).where(eq(organizations.id, org.id));
-        await deps.db.update(abuseEvents).set({ resolvedAt: deps.now() }).where(and(eq(abuseEvents.orgId, org.id), isNull(abuseEvents.resolvedAt)));
-      });
+      const id = c.req.param("id");
+      // Also resolves the workspace's open abuse signals (services/console/moderation.ts).
+      await operatorAction(c, { action: "workspace.unsuspended", targetType: "workspace", targetId: id, orgId: id, reason, before: (r: SuspendResult) => r.before, workspaceAudit: true },
+        () => unsuspendWorkspace(c.var.deps, id));
       return c.json({ ok: true });
     })
     .put("/workspaces/:id/send-cap", requireOperator("workspaces.limits"), async (c) => {
@@ -111,11 +110,11 @@ export function adminRoutes() {
     // on = back to the plan's cap (null). Audited.
     .put("/workspaces/:id/sending", requireOperator("workspaces.limits"), async (c) => {
       const { enabled, reason } = await parseBody(c, z.object({ enabled: z.boolean(), reason: optionalReasonSchema }));
-      const { deps } = c.var;
-      const org = await getOrg(deps.db, c.req.param("id"));
+      const id = c.req.param("id");
       const cap = enabled ? null : 0;
-      await operatorAction(c, { action: enabled ? "workspace.sending_on" : "workspace.sending_off", targetType: "workspace", targetId: org.id, orgId: org.id, reason, before: { cap: org.sendCapDaily }, after: { cap }, workspaceAudit: true },
-        () => deps.db.update(organizations).set({ sendCapDaily: cap }).where(eq(organizations.id, org.id)));
+      // OPS1: the change lives in services/console/mail.ts (the console's sending switch uses it too).
+      await operatorAction(c, { action: enabled ? "workspace.sending_on" : "workspace.sending_off", targetType: "workspace", targetId: id, orgId: id, reason, before: (r: WorkspaceSendingResult) => ({ cap: r.before.sendCapDaily }), after: { cap }, workspaceAudit: true },
+        () => setWorkspaceSending(c.var.deps, id, enabled));
       return c.json({ ok: true, sending: enabled, sendCapDaily: cap });
     })
     // R34 (MB-166): messages a sending limit queued until tomorrow, and "Send anyway" (operator only).

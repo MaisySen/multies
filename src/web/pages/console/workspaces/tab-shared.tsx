@@ -106,7 +106,7 @@ export function Section({ title, description, actions, children, testId }: { tit
 
 export function LoadingBlock({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="Loading">
+    <div className="space-y-2" role="status" aria-busy="true" aria-label="Loading">
       {Array.from({ length: rows }, (_, i) => <Skeleton key={i} className="h-12 rounded-xl" />)}
     </div>
   );

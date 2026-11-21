@@ -73,7 +73,7 @@ function idParam(c: Context<AppEnv>, what: string): string {
 }
 
 const RunsQuery = z.object({
-  // "any" is the console's word for every status (its list control leaves out the value "all").
+  // "all" is every status; "any", the console's older word for it, is still accepted.
   status: z.preprocess((v) => (v === "any" ? "all" : v === "" ? undefined : v), z.enum(AGENT_RUN_STATUS_FILTERS as [AgentRunStatusFilter, ...AgentRunStatusFilter[]]).optional()),
   orgId: optionalText(100),
   days,

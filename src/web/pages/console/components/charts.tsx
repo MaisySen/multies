@@ -6,7 +6,7 @@
  * as zero (a short stub on the baseline for bars).
  *
  * This module pulls in recharts, so load it lazily: use LazyTrendLine and LazyTrendBars from ./kpi (inside a
- * ChartCard), or `lazy(() => import("./charts").then((m) => ({ default: m.TrendLine })))`. The light pieces (helpers,
+ * ChartCard), or `lazyPage(() => import("./charts"), "TrendLine")`. The light pieces (helpers,
  * KpiTile, Sparkline, RangePicker, ChartCard) are re-exported here for convenience but live in ./kpi.
  */
 import { useMemo } from "react";

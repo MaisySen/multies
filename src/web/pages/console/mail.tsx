@@ -4,12 +4,12 @@
  * credentials anywhere: content access is only through audited impersonation.
  */
 import { PageHeader } from "@/web/components/ui/misc";
-import { MailTabs, useMailTab, type MailTab } from "./mail-shared";
+import { QueryTabs, TabPanel, useQueryTab, type DetailTab } from "./components/detail-tabs";
 import { DeliveryTab } from "./mail-delivery";
 import { DomainsTab, HeldSendsTab, SuppressionsTab } from "./mail-domains";
 import { ConnectionsTab, ImportsTab } from "./mail-accounts";
 
-const TABS: MailTab[] = [
+const TABS: DetailTab[] = [
   { id: "delivery", label: "Delivery problems" },
   { id: "domains", label: "Domains" },
   { id: "suppressions", label: "Suppressions" },
@@ -19,19 +19,19 @@ const TABS: MailTab[] = [
 ];
 
 export function ConsoleMailPage() {
-  const tab = useMailTab(TABS);
+  const tab = useQueryTab(TABS);
   return (
     <div className="space-y-4">
       <PageHeader eyebrow="Product" title="Mail and deliverability" description="Where mail is failing, and the domains, addresses and mailboxes behind it." />
-      <MailTabs tabs={TABS} />
-      <div key={tab}>
+      <QueryTabs tabs={TABS} label="Mail sections" testIdPrefix="console-mail-tab" className="mb-5" />
+      <TabPanel testIdPrefix="console-mail-tab" current={tab}>
         {tab === "delivery" && <DeliveryTab />}
         {tab === "domains" && <DomainsTab />}
         {tab === "suppressions" && <SuppressionsTab />}
         {tab === "held" && <HeldSendsTab />}
         {tab === "connections" && <ConnectionsTab />}
         {tab === "imports" && <ImportsTab />}
-      </div>
+      </TabPanel>
     </div>
   );
 }

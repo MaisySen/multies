@@ -105,6 +105,10 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
     await wb.flushAllWorkspaces(deps);
     if (deps.now().getUTCHours() === 1 && deps.now().getUTCMinutes() < 15) await wb.pruneWorkspaceCounters(deps);
   });
+  // OPS1 Trends: the platform metrics rollup. One index probe when yesterday is already stored, so in practice it writes
+  // once a day (the first slot 0 pass after midnight UTC) and skips itself while optional writes are paused.
+  if (inSlot(0)) await step("platform_metrics", async () => (await import("./console/metrics")).rollPlatformMetrics(deps, deps.now()));
+  // OPS1: follow-up, wire billing-ops expireComps (comped plans past their end date) here once the Billing console lands.
   if (inSlot(1)) await step("prune", async () => {
     await Promise.all([
       pruneRateLimits(deps.db, deps.now().getTime()), pruneIdempotencyKeys(deps.db, deps.now()), pruneLockouts(deps.db, deps.now()),

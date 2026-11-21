@@ -3,6 +3,7 @@
  * platform audit rows about it (operator actions with the reason and what changed).
  */
 import { useState } from "react";
+import { Link } from "react-router";
 import { Badge } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -16,7 +17,7 @@ import { JsonDiff } from "../components/json-diff";
 import { When } from "./tab-shared";
 
 interface AuditRow {
-  id: string; source: "workspace" | "platform"; action: string; actorEmail: string | null; actorRole: string | null;
+  id: string; source: "workspace" | "platform"; action: string; actorUserId: string | null; actorEmail: string | null; actorRole: string | null;
   targetType: string | null; targetId: string | null; reason: string | null; before: unknown; after: unknown;
   metadata: Record<string, unknown> | null; createdAt: string;
 }
@@ -72,7 +73,9 @@ export function WorkspaceAuditTab({ orgId }: { orgId: string }) {
             key: "who", header: "By",
             cell: (r) => (
               <span className="flex flex-col">
-                <span className="[overflow-wrap:anywhere]">{r.actorEmail ?? "System"}</span>
+                <span className="[overflow-wrap:anywhere]">{r.actorUserId
+                  ? <Link to={`/console/users/${encodeURIComponent(r.actorUserId)}`} className="hover:underline">{r.actorEmail ?? r.actorUserId}</Link>
+                  : r.actorEmail ?? "System"}</span>
                 {r.actorRole ? <span className="text-xs text-subtle">{operatorRoleLabel(r.actorRole)}</span> : r.metadata?.by === "operator" ? <span className="text-xs text-subtle">Operator</span> : null}
               </span>
             ),

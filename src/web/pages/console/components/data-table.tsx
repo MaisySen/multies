@@ -28,7 +28,7 @@ import { Card, EmptyState, tableStyles as T } from "@/web/components/ui/misc";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { IconChevronDown, IconChevronUp, IconSearch, IconWarning } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
-import { FilterBar, useUrlParams, type FilterDef } from "./filter-bar";
+import { FilterBar, filterQuery, useUrlParams, type FilterDef } from "./filter-bar";
 
 export interface DataColumn<T> {
   key: string;
@@ -56,8 +56,7 @@ export function DataTable<T>({ label, path, columns, rowKey, rowHref, filters = 
 }) {
   const navigate = useNavigate();
   const url = useUrlParams(filters, { sort: defaultSort });
-  const query: Record<string, string> = { ...(params ?? {}), ...(pageSize ? { limit: String(pageSize) } : {}) };
-  for (const [k, v] of Object.entries(url.values)) if (v && v !== "all") query[k] = v;
+  const query: Record<string, string> = { ...(params ?? {}), ...(pageSize ? { limit: String(pageSize) } : {}), ...filterQuery(filters, url.values) };
   const list = useInfiniteQuery({
     queryKey: consoleKeys.list(path, query),
     queryFn: ({ pageParam }) => consoleApi.list<T>(path, { ...query, cursor: pageParam }),

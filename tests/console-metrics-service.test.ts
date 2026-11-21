@@ -322,10 +322,10 @@ describe("readWorkspaceTrends", () => {
 describe("query plans", () => {
   it("the indexed sources use their indexes", async () => {
     const plan = async (q: string) => ((await ctx.db.all(sql.raw(`explain query plan ${q}`))) as { detail: string }[]).map((r) => r.detail).join(" | ");
-    expect(await plan("select count(*) from deliveries where org_id in (select id from organizations where is_demo = 0) and created_at >= 0 and created_at < 1 and direction = 'outbound'")).toMatch(/deliveries_org_idx/);
+    expect(await plan("select count(*) from deliveries where org_id in (select id from organizations where is_demo = 0) and created_at >= 0 and created_at < 1 and direction = 'outbound'")).toMatch(/deliveries_(org|direction_created)_idx/); // 0177 added (direction, created_at)
     expect(await plan("select count(*) from abuse_events where org_id in (select id from organizations) and created_at >= 0 and created_at < 1")).toMatch(/abuse_events_org_idx/);
     expect(await plan("select count(*) from content_reports where status in ('open','resolved','dismissed') and created_at >= 0 and created_at < 1")).toMatch(/content_reports_status_idx/);
-    expect(await plan("select count(*) from webhook_deliveries where endpoint_id in (select id from webhook_endpoints) and created_at >= 0 and created_at < 1 and status = 'failed'")).toMatch(/webhook_deliveries_(endpoint|due)_idx/);
+    expect(await plan("select count(*) from webhook_deliveries where endpoint_id in (select id from webhook_endpoints) and created_at >= 0 and created_at < 1 and status = 'failed'")).toMatch(/webhook_deliveries_(endpoint|due|status_created)_idx/); // 0177 added (status, created_at)
     expect(await plan("select count(*) from jobs where status = 'dead' and updated_at >= 0 and updated_at < 1")).toMatch(/jobs_due_idx/);
     expect(await plan("select max(day) from platform_metrics_daily where metric = 'users_total'")).toMatch(/platform_metrics_daily_metric_idx/);
     expect(await plan("select count(*) from uptime_checks where at >= 0 and at < 1")).toMatch(/uptime_checks_at_idx/);

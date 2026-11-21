@@ -35,7 +35,7 @@ function plural(n: number, one: string, many = `${one}s`) {
 function StatTiles({ stats }: { stats: JobStats | undefined }) {
   if (!stats) {
     return (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true" aria-label="Loading queue numbers">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-busy="true" aria-label="Loading queue numbers">
         {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
       </div>
     );

@@ -126,7 +126,8 @@ export function OverviewTrends() {
   ];
   const mail = [
     { label: "Sent", rows: pointsOf(current, "deliveries_sent") },
-    { label: "Failed", rows: pointsOf(current, "deliveries_failed"), tone: "bad" as const },
+    // A bounce counts as sent and as failed, so the label says both.
+    { label: "Failed or bounced", rows: pointsOf(current, "deliveries_failed"), tone: "bad" as const },
   ];
   const stateRows = pointsOf(current, stateView);
   const stateLabel = STATE_VIEWS.find((v) => v.id === stateView)!.label;

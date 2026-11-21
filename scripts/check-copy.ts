@@ -33,6 +33,12 @@ const OLD_NAME = /\bMy ?Mail\b(?![-/])|\bMail ?Forge\b/;
 /** Hosts and the old build mailbox name that must never ship: Multies lives on multies.si only. */
 export const FOREIGN_HOST = /\btab\.bot\b|\bmymail\.builder\b/i;
 
+/**
+ * A quoted dotted id such as "users.unlock" (a permission, an audit action): code, not copy. It is taken out of the
+ * line before the stock phrase check, so a permission named after its verb is not read as marketing.
+ */
+const ID_LITERAL = /(["'`])[a-z][a-z_]*\.[a-z][a-z_]*\1/g;
+
 export interface Issue { file: string; line: number; rule: "dash" | "slop" | "name" | "host"; text: string }
 
 export function findIssues(file: string, text: string): Issue[] {
@@ -41,7 +47,7 @@ export function findIssues(file: string, text: string): Issue[] {
   text.split("\n").forEach((line, i) => {
     // nosemgrep: regex_dos (a fixed two-character class, linear time)
     if (DASHES.test(line)) out.push({ file, line: i + 1, rule: "dash", text: line.trim() });
-    const m = facing ? line.match(SLOP_RE) : null;
+    const m = facing ? line.replace(ID_LITERAL, "").match(SLOP_RE) : null;
     if (m) out.push({ file, line: i + 1, rule: "slop", text: m[0] });
     if (facing && OLD_NAME.test(line)) out.push({ file, line: i + 1, rule: "name", text: line.match(OLD_NAME)?.[0] ?? "old name" });
     if (FOREIGN_HOST.test(line)) out.push({ file, line: i + 1, rule: "host", text: line.trim() });

@@ -16,7 +16,7 @@ import { usePermission } from "./guard";
 import { moderationApi, type AbuseEvent, type AbuseSummary } from "./moderation-api";
 
 const FILTERS: FilterDef[] = [
-  { key: "status", label: "Status", initial: "open", options: [{ value: "open", label: "Open" }, { value: "resolved", label: "Dismissed" }, { value: "any", label: "Any" }] },
+  { key: "status", label: "Status", initial: "open", options: [{ value: "open", label: "Open" }, { value: "resolved", label: "Dismissed" }, { value: "all", label: "Any", send: true }] },
 ];
 
 /** Signal kinds read as words ("spam_reports" as "Spam reports"). */

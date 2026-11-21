@@ -47,7 +47,7 @@ export function SuspendedTab() {
 }
 
 const LOCKOUT_FILTERS: FilterDef[] = [
-  { key: "status", label: "Show", initial: "locked", options: [{ value: "locked", label: "Locked now" }, { value: "any", label: "Any recent failures" }] },
+  { key: "status", label: "Show", initial: "locked", options: [{ value: "locked", label: "Locked now" }, { value: "all", label: "Any recent failures", send: true }] },
 ];
 
 export function LockoutsTab() {

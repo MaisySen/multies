@@ -1,13 +1,16 @@
 /**
- * OPS1: the console's Overview. What needs attention now comes first, then the platform numbers, the write budget,
+ * OPS1: the console's Overview. What needs attention now comes first, then the trends (loaded on demand, so the charts
+ * stay out of the console's first chunk), then the platform numbers, the write budget,
  * integrations, abuse signals, the job queue and the newest workspaces with their controls (moved from /app/admin).
  */
+import { Suspense } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { consoleApi, consoleKeys } from "@/web/lib/console-api";
 import { sendSentryTest, sentryEnabled } from "@/web/lib/sentry";
+import { fullDate, timeAgo } from "@/web/lib/format";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, StatTile, tableStyles as T } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { IconBuilding, IconChevronRight, IconGlobe, IconInbox, IconSend, IconShieldCheck, IconTeam, IconWarning } from "@/web/components/ui/icon";
@@ -17,7 +20,10 @@ import { Section } from "../app/settings";
 import { AbuseQueue, INTEGRATION_LABEL, JobQueue, TenantControls } from "../app/admin";
 import { WriteBudgetMeter } from "../app/admin-write-budget";
 import { ModerationLink } from "../app/admin-moderation-r35";
+import { lazyPage } from "@/web/components/lazy-page";
 import { PermissionGate } from "./guard";
+
+const OverviewTrends = lazyPage(() => import("./overview-trends"), "OverviewTrends");
 
 function Attention() {
   const q = useQuery({ queryKey: consoleKeys.overview, queryFn: consoleApi.overview });
@@ -92,6 +98,9 @@ export function ConsoleOverviewPage() {
       {header}
       <Attention />
       <PermissionGate permission="moderation.read"><ModerationLink /></PermissionGate>
+      <PermissionGate permission="metrics.read">
+        <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}><OverviewTrends /></Suspense>
+      </PermissionGate>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => <StatTile key={t.label} label={t.label} value={fmt.format(t.value)} icon={t.icon} tone={t.tone} />)}
       </div>
@@ -130,7 +139,7 @@ export function ConsoleOverviewPage() {
                 <tr key={t.id} className={T.row}>
                   <td className={T.td}>
                     <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium">{t.name}</span>
+                      <Link to={`/console/workspaces/${encodeURIComponent(t.id)}`} className="font-medium hover:underline">{t.name}</Link>
                       {t.isDemo && <Badge>demo</Badge>}{t.suspendedAt && <Badge tone="bad" dot>suspended</Badge>}{t.pastDueSince && <Badge tone="warn" dot>past due</Badge>}
                     </span>
                     {t.suspendedReason && t.suspendedAt && <span className="mt-0.5 block max-w-xs truncate text-xs text-subtle" title={t.suspendedReason}>{t.suspendedReason}</span>}
@@ -138,7 +147,7 @@ export function ConsoleOverviewPage() {
                   <td className={T.td}><Badge tone={t.plan === "free" ? "neutral" : "brand"} className="capitalize">{t.plan}</Badge></td>
                   <td className={`${T.td} text-right tabular-nums`}>{t.members}</td><td className={`${T.td} text-right tabular-nums`}>{t.agents}</td>
                   <td className={`${T.td} text-right tabular-nums`}>{t.domains}</td>
-                  <td className={`${T.td} whitespace-nowrap text-muted`}>{new Date(t.createdAt).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" })}</td>
+                  <td className={`${T.td} whitespace-nowrap text-muted`} title={fullDate(t.createdAt)}>{timeAgo(t.createdAt)}</td>
                   <td className={`${T.td} text-right`}><PermissionGate permission="workspaces.limits"><TenantControls t={t} /></PermissionGate></td>
                 </tr>
               ))}

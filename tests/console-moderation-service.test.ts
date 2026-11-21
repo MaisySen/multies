@@ -37,7 +37,7 @@ async function insertAll<T>(rows: T[], insert: (part: T[]) => Promise<unknown>) 
 const pageOf = <F extends string>(field: F, dir: "asc" | "desc", limit: number, cursor: PageCursor | null = null): PageRequest<F> => ({ limit, cursor, sort: { field, dir } });
 
 /** Walks every page and returns the ids in order. */
-async function walk<T extends { id?: string; orgId?: string }>(fetch: (cursor: PageCursor | null) => Promise<Paged<T>>, idOf: (t: T) => string) {
+async function walk<T extends { id?: string; orgId?: string | null }>(fetch: (cursor: PageCursor | null) => Promise<Paged<T>>, idOf: (t: T) => string) {
   const ids: string[] = [];
   let cursor: PageCursor | null = null;
   for (let i = 0; i < 100; i++) {
@@ -174,7 +174,7 @@ describe("abuse signals", () => {
     expect(r.after).toEqual({ resolvedAt: new Date(NOW).toISOString(), count: 120 });
     // Again: nothing left open among them.
     expect((await resolveAbuseEvents(ctx.deps, { ids })).after).toEqual({ resolvedAt: null, count: 0 });
-    const left = rows.filter((x, i) => i >= 120 && i < 140);
+    const left = rows.filter((_, i) => i >= 120 && i < 140);
     const byOrg = await resolveAbuseEvents(ctx.deps, { orgId: orgA });
     expect(byOrg.before.count).toBe(left.filter((x) => x.orgId === orgA).length);
     expect(byOrg.before.orgIds).toEqual([orgA]);
