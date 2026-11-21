@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","include":["src/web/pages/mnet-enroll-handoff.tsx"],"exclude":[]}

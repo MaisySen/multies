@@ -7,13 +7,14 @@ import {mkdtemp,readFile,writeFile,rm,chmod,rename} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {eq} from "drizzle-orm";
-import {members,mnetEnrollmentHandoffs as journal} from "@/server/db/schema";
+import {members} from "@/server/db/schema";
 import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 
 // Opt-in real Multies approval/PKCE/SQLite/source -> private Go crypto/atomic
 // Store workflow. No registered registrar ingress, native State or real device.
 const repo=process.env.MNET_NATIVE_REPO;
 const installed=process.env.MNET_DEVELOPMENT_SETUP_BINARY;
+const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
 (repo&&installed?it:it.skip).each(["success"])("explicit installed disposable setup with actual browser %s",async(mode)=>{
@@ -62,7 +63,6 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    const peerChoice=await e.person.post(`/api/mnet-enrollment-v1/authorizations/${peerPrepared.body.id}/decision`,{decision:"allow"});expect(peerChoice.status).toBe(200);
    await writeFile(join(dir,"peer-code.tmp"),JSON.stringify({code:new URL(peerChoice.body.redirectTo).searchParams.get("code")}),{mode:0o600});await rename(join(dir,"peer-code.tmp"),join(dir,"peer-code.json"));
    const nativeLaunch=JSON.parse(await waitFile(join(dir,"native-launch.json"),()=>done));
-   const url=new URL(sourceOrigin+"/mnet/enroll-v1");for(const [key,value]of Object.entries(nativeLaunch))url.searchParams.set(key,String(value));
    // The installed native command opens the system browser. CDP drives that
    // actual opened page, not an API shortcut or a separately invented URL.
    for(let i=0;i<150&&!browser;i++){try{browser=await chromium.connectOverCDP("http://127.0.0.1:9237",{timeout:500});}catch{await sleep(100);}}
@@ -80,22 +80,36 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    expect(await page.getByTestId("mnet-handoff-key").textContent()).toBe(nativeLaunch.devicePublicKey);
    await page.getByRole("combobox").selectOption(workspaceId);
    await page.screenshot({path:"/downloads/mnet-development-installed-consent.png",fullPage:true});
-   await page.getByRole("button",{name:"Approve handoff",exact:true}).click();
+   if(variant==="cancel")await writeFile(join(dir,"installed-cancel-request"),"cancel only this disposable process");
+   if(variant==="changed-policy"){const path=join(dir,"installed-setup","native","enrollment-policy-v2.json");const data=JSON.parse(await readFile(path,"utf8"));data.revision+="-changed";await writeFile(path,JSON.stringify(data));}
+   if(variant!=="cancel"){
+   await page.getByRole("button",{name:variant==="decline"?"Decline":"Approve handoff",exact:true}).click();
    await page.getByRole("button",{name:"Return to Mnet",exact:true}).waitFor();
    await page.screenshot({path:"/downloads/mnet-development-installed-return.png",fullPage:true});
    await page.getByRole("button",{name:"Return to Mnet",exact:true}).click();
-   await page.getByText("Approval returned to Mnet.",{exact:false}).waitFor();
+   if(variant==="success")await page.getByText("Approval returned to Mnet.",{exact:false}).waitFor();
+   if(variant==="decline")await page.getByText("Computer not approved.",{exact:false}).waitFor();
+   if(variant==="changed-policy"){await page.getByText("Mnet callback unavailable.",{exact:false}).waitFor();await writeFile(join(dir,"installed-cancel-request"),"retire refused callback attempt");}
+   }
    await page.screenshot({path:"/downloads/mnet-development-installed-callback.png",fullPage:true});
    let resultPage;
    for(let i=0;i<100&&!resultPage;i++){resultPage=context.pages().find(p=>p.url().endsWith("/setup-result.html"));if(!resultPage)await sleep(50);}
    if(!resultPage)throw new Error("actual native result page did not open");
-   await resultPage.getByRole("heading",{name:"Joining saved. Not connected.",exact:true}).waitFor();
-   await resultPage.screenshot({path:"/downloads/mnet-development-installed-final.png",fullPage:true});
+   await resultPage.getByRole("heading",{name:variant==="success"?"Joining saved. Not connected.":variant==="decline"?"Computer not approved":"Setup did not finish",exact:true}).waitFor();
+   await resultPage.screenshot({path:`/downloads/mnet-development-installed-final-${variant}.png`,fullPage:true});
+   const late=new URL(nativeLaunch.redirectUri);late.searchParams.set("state",nativeLaunch.state);late.searchParams.set("attemptId",nativeLaunch.attemptId);late.searchParams.set("code","A".repeat(43));
+   let callbackClosed=false;try{await context.request.get(late.href,{timeout:1000});}catch{callbackClosed=true;}
+   expect(callbackClosed,"ended setup still owns callback listener").toBe(true);
+
 
 
 
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
+  if(variant!=="success"){
+    expect(outcome).toMatchObject({developmentStopped:true,noNativeCredential:true,noRegistrarNode:true,inputAuthorized:false});expect(exchangeCalls).toBe(2);expect(reserveCalls).toBe(2);
+    console.log("PASS stopped actual installed browser",variant);return;
+  }
   expect(outcome).toMatchObject({developmentInstalled:true,nativeOwnedKeyConfirmed:true,nativeProofStateUnchanged:true,nativeStateFinalized:true,nodeDeleted:true,inputAuthorized:false});
   expect(outcome.nativeCurrentPeers).toBeGreaterThanOrEqual(0);
   expect(exchangeCalls).toBe(3);expect(reserveCalls).toBe(3);expect(reserveStatus).toBe(200);
@@ -103,7 +117,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
 
  }finally{
   if(child&&!done){child.kill("SIGKILL");await new Promise<void>(resolve=>child!.once("close",()=>resolve()));}
-  if(browser){try{await(await browser.newBrowserCDPSession()).send("Browser.close");}catch{}await browser.close();}
+  if(browser){try{await(await browser.newBrowserCDPSession()).send("Browser.close");}catch{/* Browser may already be closed. */}await browser.close();}
   await vite.close();
   server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));
   (e.db as unknown as {$client:{close():void}}).$client.close();if(e.indexDb)(e.indexDb as unknown as {$client:{close():void}}).$client.close();await rm(dir,{recursive:true,force:true});
