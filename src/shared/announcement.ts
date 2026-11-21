@@ -1,7 +1,7 @@
 /**
  * OPS1: the one in-app announcement operators publish from the console (Announcements section). Stored in
- * app_settings under one key (services/console/announcements.ts), served on /api/config while it is live, and
- * shown by web/components/announcement-banner.tsx. Shared so the server validates and the web app decides what
+ * app_settings under one key (services/console/announcements.ts), served while it is live (audience "all" on the
+ * public /api/config; "admins" ones only to a signed in workspace owner or admin), and shown by web/components/announcement-banner.tsx. Shared so the server validates and the web app decides what
  * to show with the same rules.
  */
 import { z } from "zod";

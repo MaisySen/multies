@@ -8,7 +8,7 @@ import { makeTestApp } from "./helpers";
 import { appSettings } from "../src/server/db/schema";
 import { HttpError } from "../src/server/lib/errors";
 import {
-  ANNOUNCEMENT_CACHE_MS, ANNOUNCEMENT_KEY, clearAnnouncement, getAnnouncement, publicAnnouncement, publishAnnouncement, resetAnnouncementCache,
+  ANNOUNCEMENT_CACHE_MS, ANNOUNCEMENT_KEY, accountAnnouncement, clearAnnouncement, getAnnouncement, publicAnnouncement, publishAnnouncement, resetAnnouncementCache,
 } from "../src/server/services/console/announcements";
 import { isAnnouncementActive, viewerAudience, type Announcement } from "../src/shared/announcement";
 
@@ -88,10 +88,27 @@ describe("window and audience", () => {
     expect(isAnnouncementActive(null, T0)).toBe(false);
   });
 
-  it("an admins-only announcement is served with its audience so the client can filter", async () => {
+  it("an admins-only announcement is never public; accountAnnouncement gives it to workspace owners and admins only", async () => {
     const { deps } = await setup();
     await publishAnnouncement(deps, { text: "For admins", audience: "admins" }, actor);
-    expect((await publicAnnouncement(deps))?.audience).toBe("admins");
+    expect(await publicAnnouncement(deps)).toBeNull();
+    expect(await publicAnnouncement(deps, T0)).toBeNull();
+    expect((await accountAnnouncement(deps, T0, "owner"))?.text).toBe("For admins");
+    expect((await accountAnnouncement(deps, T0, "admin"))?.audience).toBe("admins");
+    expect(await accountAnnouncement(deps, T0, "member")).toBeNull();
+    expect(await accountAnnouncement(deps, T0, "guest")).toBeNull();
+    expect(await accountAnnouncement(deps, T0, null)).toBeNull();
+  });
+
+  it("an announcement for everyone is public and reaches every signed in role, inside its window only", async () => {
+    const { deps } = await setup();
+    await publishAnnouncement(deps, { text: "Everyone", startsAt: "2026-11-21T12:00:00Z" }, actor);
+    expect(await accountAnnouncement(deps, T0, "owner")).toBeNull();
+    const at = new Date("2026-11-21T12:00:00Z");
+    expect((await publicAnnouncement(deps, at))?.text).toBe("Everyone");
+    for (const role of ["owner", "admin", "member", "guest", null]) expect((await accountAnnouncement(deps, at, role))?.text).toBe("Everyone");
+    const pub = await accountAnnouncement(deps, at, "owner");
+    expect(pub).not.toHaveProperty("updatedBy");
   });
 });
 

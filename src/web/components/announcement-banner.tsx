@@ -32,10 +32,15 @@ const toneClass: Record<AnnouncementTone, string> = {
 };
 const iconClass: Record<AnnouncementTone, string> = { info: "text-brand", warning: "text-warn", critical: "text-bad" };
 
-export function AnnouncementBanner({ announcement, role, now }: { announcement: PublicAnnouncement | null | undefined; role: string | null | undefined; now?: Date }) {
+/**
+ * `preview` (the console's live preview): always draws the strip, whatever its window, audience or an earlier
+ * dismissal, and the close button does nothing, so the operator sees exactly what customers will see.
+ */
+export function AnnouncementBanner({ announcement, role, now, preview }: { announcement: PublicAnnouncement | null | undefined; role: string | null | undefined; now?: Date; preview?: boolean }) {
   const [dismissed, setDismissed] = useState<string | null>(readDismissed);
-  if (!announcement || !isAnnouncementActive(announcement, now ?? new Date(), viewerAudience(role))) return null;
-  if (announcement.dismissible && dismissed === announcement.id) return null;
+  if (!announcement) return null;
+  if (!preview && !isAnnouncementActive(announcement, now ?? new Date(), viewerAudience(role))) return null;
+  if (!preview && announcement.dismissible && dismissed === announcement.id) return null;
   const a = announcement;
   const Icon = a.tone === "info" ? IconInfo : IconWarning;
   const link = a.linkUrl && a.linkLabel && a.linkUrl.startsWith("https://") ? { href: a.linkUrl, label: a.linkLabel } : null;
@@ -64,7 +69,7 @@ export function AnnouncementBanner({ announcement, role, now }: { announcement: 
       {a.dismissible && (
         <button
           type="button"
-          onClick={() => { writeDismissed(a.id); setDismissed(a.id); }}
+          onClick={() => { if (preview) return; writeDismissed(a.id); setDismissed(a.id); }}
           className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-fg/70 transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
           aria-label="Dismiss announcement"
           data-testid="announcement-dismiss"

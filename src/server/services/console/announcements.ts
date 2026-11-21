@@ -2,8 +2,10 @@
  * OPS1: the in-app announcement (console section "Announcements"). One announcement at a time, stored as JSON in
  * app_settings under ANNOUNCEMENT_KEY, so there is no migration and a publish or clear is one D1 write.
  *
- * Reads: getAnnouncement is for the console (always reads the row). publicAnnouncement is for /api/config, which
- * every page load hits, so it keeps the row in memory per isolate for ANNOUNCEMENT_CACHE_MS and never writes.
+ * Reads: getAnnouncement is for the console (always reads the row). publicAnnouncement is for the public /api/config
+ * (audience "all" only) and accountAnnouncement for a signed in person (adds "admins" ones for workspace owners and
+ * admins). Both are hit on every page load, so they keep the row in memory per isolate for ANNOUNCEMENT_CACHE_MS
+ * and never write.
  * A publish or clear in this isolate refreshes that copy at once; other isolates catch up within the TTL.
  *
  * publishAnnouncement and clearAnnouncement return { before, after } for the platform audit row; the route wraps
@@ -14,7 +16,7 @@ import type { Deps } from "../../context";
 import { appSettings } from "../../db/schema";
 import { newId } from "../../lib/crypto";
 import { zodToHttp } from "../../lib/errors";
-import { announcementInput, ANNOUNCEMENT_AUDIENCES, ANNOUNCEMENT_TONES, isAnnouncementActive, toPublicAnnouncement, type Announcement, type PublicAnnouncement } from "@/shared/announcement";
+import { announcementInput, ANNOUNCEMENT_AUDIENCES, ANNOUNCEMENT_TONES, isAnnouncementActive, toPublicAnnouncement, viewerAudience, type Announcement, type PublicAnnouncement } from "@/shared/announcement";
 
 export const ANNOUNCEMENT_KEY = "announcement";
 export const ANNOUNCEMENT_CACHE_MS = 30_000;
@@ -88,19 +90,33 @@ export async function clearAnnouncement(deps: Pick<Deps, "db" | "now">, _actor: 
   return { before, after: null };
 }
 
+/** The stored announcement through the per isolate copy (refreshed after ANNOUNCEMENT_CACHE_MS). Never writes. */
+async function cachedAnnouncement(deps: Pick<Deps, "db">, now: Date): Promise<Announcement | null> {
+  const hit = cache.get(deps.db);
+  if (hit && now.getTime() - hit.at >= 0 && now.getTime() - hit.at < ANNOUNCEMENT_CACHE_MS) return hit.value;
+  const value = await readRow(deps.db);
+  cache.set(deps.db, { at: now.getTime(), value });
+  return value;
+}
+
 /**
- * The announcement for /api/config: only the public fields, and only while its window is open (audience is left
- * to the client, which knows the viewer's role). Cached per isolate; never writes.
+ * The announcement for the public /api/config (anyone, signed in or not): only the public fields, only while its
+ * window is open, and only when its audience is "all". An "admins" announcement is never served here, so its text
+ * does not reach people outside a workspace's owners and admins. Cached per isolate; never writes.
  */
 export async function publicAnnouncement(deps: Pick<Deps, "db" | "now">, now: Date = deps.now()): Promise<PublicAnnouncement | null> {
-  const hit = cache.get(deps.db);
-  let value: Announcement | null;
-  if (hit && now.getTime() - hit.at >= 0 && now.getTime() - hit.at < ANNOUNCEMENT_CACHE_MS) value = hit.value;
-  else {
-    value = await readRow(deps.db);
-    cache.set(deps.db, { at: now.getTime(), value });
-  }
-  return value && isAnnouncementActive(value, now) ? toPublicAnnouncement(value) : null;
+  const value = await cachedAnnouncement(deps, now);
+  return value && value.audience === "all" && isAnnouncementActive(value, now, "all") ? toPublicAnnouncement(value) : null;
+}
+
+/**
+ * The announcement for a signed in person (GET /api/account/me), by their role in the current workspace: an
+ * "admins" announcement is included only for an owner or admin. Same window, public fields and cache as
+ * publicAnnouncement; never writes.
+ */
+export async function accountAnnouncement(deps: Pick<Deps, "db" | "now">, now: Date, role: string | null | undefined): Promise<PublicAnnouncement | null> {
+  const value = await cachedAnnouncement(deps, now);
+  return value && isAnnouncementActive(value, now, viewerAudience(role)) ? toPublicAnnouncement(value) : null;
 }
 
 /** Test helper: forget the in-memory copy for this database. */
