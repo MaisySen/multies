@@ -65,7 +65,15 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    const nativeLaunch=JSON.parse(await waitFile(join(dir,"native-launch.json"),()=>done));
    // The installed native command opens the system browser. CDP drives that
    // actual opened page, not an API shortcut or a separately invented URL.
-   for(let i=0;i<150&&!browser;i++){try{browser=await chromium.connectOverCDP("http://127.0.0.1:9237",{timeout:500});}catch{await sleep(100);}}
+   const devtoolsFile=process.env.MNET_DEVELOPMENT_SETUP_DEVTOOLS_FILE;
+   if(!devtoolsFile)throw new Error("owned disposable browser profile required");
+   // The fresh private profile identifies this run's browser. Never attach to
+   // a shared fixed debug port, which could belong to another parallel run.
+   for(let i=0;i<150&&!browser;i++){try{
+    const [port,path]=(await readFile(devtoolsFile,"utf8")).trim().split("\n");
+    if(!/^\d+$/.test(port)||Number(port)<1||Number(port)>65535||!/^\/devtools\/browser\/[a-zA-Z0-9-]+$/.test(path))throw new Error("invalid owned browser endpoint");
+    browser=await chromium.connectOverCDP(`ws://127.0.0.1:${port}${path}`,{timeout:500});
+   }catch{await sleep(100);}}
    if(!browser)throw new Error("system browser did not open "+output);
    const context=browser.contexts()[0];let page=context.pages().find(p=>p.url().includes("/mnet/enroll-v1")||p.url().includes("/login"));
    for(let i=0;i<100&&!page;i++){await sleep(100);page=context.pages().find(p=>p.url().includes("/mnet/enroll-v1")||p.url().includes("/login"));}
