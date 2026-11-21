@@ -25,7 +25,7 @@ export const users = sqliteTable("users", {
   locale: text("locale"),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().default(new Date(0)).$defaultFn(() => new Date()).$onUpdate(() => new Date()),
-}, (t) => [uniqueIndex("users_email_uq").on(t.email)]);
+}, (t) => [uniqueIndex("users_email_uq").on(t.email), index("users_created_idx").on(t.createdAt) /* OPS1 console lists (0177) */]);
 
 /** A tenant. Every resource below belongs to exactly one organization. */
 export const organizations = sqliteTable("organizations", {
@@ -97,7 +97,7 @@ export const usageCounters = sqliteTable("usage_counters", {
   period: text("period").notNull(),
   metric: text("metric").notNull(),
   count: integer("count").notNull().default(0),
-}, (t) => [primaryKey({ columns: [t.orgId, t.period, t.metric] })]);
+}, (t) => [primaryKey({ columns: [t.orgId, t.period, t.metric] }), index("usage_counters_period_metric_idx").on(t.period, t.metric, t.count) /* OPS1 console lists (0177) */]);
 
 /** Workspace membership (Better Auth organization plugin, model "member"). */
 export const members = sqliteTable("members", {
@@ -353,7 +353,11 @@ export const deliveries = sqliteTable("deliveries", {
   providerMessageId: text("provider_message_id"),
   detail: text("detail"),
   createdAt: createdAt(),
-}, (t) => [index("deliveries_org_idx").on(t.orgId, t.createdAt), index("deliveries_provider_msg_idx").on(t.providerMessageId).where(sql`${t.providerMessageId} IS NOT NULL`)]);
+}, (t) => [
+  index("deliveries_org_idx").on(t.orgId, t.createdAt), index("deliveries_provider_msg_idx").on(t.providerMessageId).where(sql`${t.providerMessageId} IS NOT NULL`),
+  // OPS1 console lists (0177): cross-workspace failures by status, and outbound totals by direction, in a time window.
+  index("deliveries_status_created_idx").on(t.status, t.createdAt), index("deliveries_direction_created_idx").on(t.direction, t.createdAt),
+]);
 
 /** Signing keys the Cloudflare Email Worker uses to deliver inbound mail. */
 export const inboundKeys = sqliteTable("inbound_keys", {
@@ -555,7 +559,10 @@ export const webhookDeliveries = sqliteTable("webhook_deliveries", {
   nextAttemptAt: ts("next_attempt_at"),
   deliveredAt: ts("delivered_at"),
   createdAt: createdAt(),
-}, (t) => [index("webhook_deliveries_endpoint_idx").on(t.endpointId, t.createdAt), index("webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt)]);
+}, (t) => [
+  index("webhook_deliveries_endpoint_idx").on(t.endpointId, t.createdAt), index("webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt),
+  index("webhook_deliveries_status_created_idx").on(t.status, t.createdAt), // OPS1 console lists (0177)
+]);
 
 /** Addresses we will not send to again: hard bounces, spam complaints and manual blocks. */
 export const suppressions = sqliteTable("suppressions", {
@@ -565,7 +572,7 @@ export const suppressions = sqliteTable("suppressions", {
   reason: text("reason", { enum: ["hard_bounce", "complaint", "manual"] }).notNull(),
   detail: text("detail"),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex("suppressions_org_address_uq").on(t.orgId, t.address)]);
+}, (t) => [uniqueIndex("suppressions_org_address_uq").on(t.orgId, t.address), index("suppressions_created_idx").on(t.createdAt) /* OPS1 console lists (0177) */]);
 
 /** DMARC aggregate (RUA) reports received for a workspace's domains (RFC 7489, appendix C). */
 export const dmarcReports = sqliteTable("dmarc_reports", {
@@ -715,7 +722,10 @@ export const sendApprovals = sqliteTable("send_approvals", {
   error: text("error"),
   expiresAt: ts("expires_at").notNull(),
   createdAt: createdAt(),
-}, (t) => [index("send_approvals_org_status_idx").on(t.orgId, t.status, t.createdAt), index("send_approvals_agent_idx").on(t.agentId, t.createdAt)]);
+}, (t) => [
+  index("send_approvals_org_status_idx").on(t.orgId, t.status, t.createdAt), index("send_approvals_agent_idx").on(t.agentId, t.createdAt),
+  index("send_approvals_status_created_idx").on(t.status, t.createdAt), // OPS1 console lists (0177)
+]);
 
 /** An ordered event log per workspace: what agents stream (SSE) and poll for. */
 export const agentEvents = sqliteTable("agent_events", {
@@ -820,7 +830,7 @@ export const importJobs = sqliteTable("import_jobs", {
   heartbeatAt: ts("heartbeat_at"),
   finishedAt: ts("finished_at"),
   createdAt: createdAt(),
-}, (t) => [index("import_jobs_org_idx").on(t.orgId), index("import_jobs_status_idx").on(t.status)]);
+}, (t) => [index("import_jobs_org_idx").on(t.orgId), index("import_jobs_status_idx").on(t.status), index("import_jobs_created_idx").on(t.createdAt) /* OPS1 console lists (0177) */]);
 
 /**
  * A person's existing mailbox at another provider (round 18), connected over IMAP and SMTP.
@@ -1800,7 +1810,7 @@ export const oauthClients = sqliteTable("oauth_clients", {
   redirectUris: text("redirect_uris").notNull(),
   clientUri: text("client_uri"),
   createdAt: createdAt(),
-});
+}, (t) => [index("oauth_clients_created_idx").on(t.createdAt) /* OPS1 console lists (0177) */]);
 
 /**
  * One person's sign in of an OAuth client to one workspace. The authorisation code and the refresh
@@ -1824,7 +1834,11 @@ export const oauthGrants = sqliteTable("oauth_grants", {
   lastUsedAt: ts("last_used_at"),
   revokedAt: ts("revoked_at"),
   createdAt: createdAt(),
-}, (t) => [index("oauth_grants_org_idx").on(t.orgId, t.userId)]);
+}, (t) => [
+  index("oauth_grants_org_idx").on(t.orgId, t.userId),
+  // OPS1 console lists (0177): newest grants across workspaces, and the grants of one client.
+  index("oauth_grants_created_idx").on(t.createdAt), index("oauth_grants_client_idx").on(t.clientId),
+]);
 
 // ---------------------------------------------------------------- round 20: chat reactions
 
@@ -2160,6 +2174,7 @@ export const agentRuns = sqliteTable("agent_runs", {
   uniqueIndex("agent_runs_active_uq").on(t.taskId, t.agentUserId).where(sql`${t.status} IN ('queued', 'running')`),
   index("agent_runs_queued_idx").on(t.agentUserId).where(sql`${t.status} = 'queued'`),
   index("agent_runs_creator_td6_idx").on(t.orgId, t.createdByUserId, t.finishedAt), // TD6 assistant replies
+  index("agent_runs_status_created_idx").on(t.status, t.createdAt), // OPS1 console lists (0177)
 ]);
 
 /**
@@ -2399,7 +2414,7 @@ export const dataMoves = sqliteTable("data_moves", {
   fileMeta: text("file_meta"),
   /** R43: the kept file is deleted by this time at the latest (7 days after it was kept). */
   fileExpiresAt: ts("file_expires_at"),
-}, (t) => [index("data_moves_org_idx").on(t.orgId, t.createdAt), index("data_moves_status_step_idx").on(t.status, t.lastStepAt)]);
+}, (t) => [index("data_moves_org_idx").on(t.orgId, t.createdAt), index("data_moves_status_step_idx").on(t.status, t.lastStepAt), index("data_moves_created_idx").on(t.createdAt) /* OPS1 console lists (0177) */]);
 
 
 /**
