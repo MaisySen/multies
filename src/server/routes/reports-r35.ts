@@ -10,7 +10,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z as zod } from "zod";
 import { Hono, type Context } from "hono";
 import type { AppEnv, Deps } from "../context";
-import { parseBody, requireAuth, requirePlatformAdmin } from "../middleware";
+import { parseBody, requireAuth } from "../middleware";
+import { operatorSession, requireOperator } from "../auth/operator"; // OPS1
+import { operatorAction, optionalReasonSchema } from "../services/console/audit"; // OPS1
 import { HttpError } from "../lib/errors";
 import type { SuiteActor } from "../services/suite/common";
 import { actOnReport, addBlock, createReport, listBlocks, listReports, openReportCount, removeBlock, REPORT_CONTEXTS, REPORT_REASONS } from "../services/suite/reports-r35";
@@ -50,18 +52,24 @@ export function blocksRoutes() {
 
 /** Operator moderation queue. Platform admins only (never workspace admins). */
 export function adminReportsRoutes() {
-  return new Hono<AppEnv>().use("*", requireAuth, requirePlatformAdmin)
-    .get("/", async (c) => {
+  // OPS1: operator permissions (moderation.read, moderation.act), no workspace SSO or budget, and every action audited.
+  return new Hono<AppEnv>().use("*", operatorSession)
+    .get("/", requireOperator("moderation.read"), async (c) => {
       const s = c.req.query("status");
       const status = s === "resolved" || s === "dismissed" || s === "all" ? s : "open";
       return c.json(await listReports(c.var.deps, { status }));
     })
-    .get("/count", async (c) => c.json(await openReportCount(c.var.deps)))
-    .post("/:id/action", async (c) => {
-      const body = await parseBody(c, ReportActionBody);
+    .get("/count", requireOperator("moderation.read"), async (c) => c.json(await openReportCount(c.var.deps)))
+    .post("/:id/action", requireOperator("moderation.act"), async (c) => {
+      const { reason, ...body } = await parseBody(c, ReportActionBody.extend({ reason: optionalReasonSchema }));
       const op = c.var.auth.userId;
       if (!op) throw new HttpError(401, "unauthorized", "Sign in first.");
-      return c.json({ report: await actOnReport(c.var.deps, { userId: op }, c.req.param("id"), body) });
+      const id = c.req.param("id");
+      const report = await operatorAction(c, {
+        action: `report.${body.action}`, targetType: "report", targetId: id, reason: reason ?? body.note ?? null, metadata: { action: body.action },
+        after: (r: Awaited<ReturnType<typeof actOnReport>>) => ({ status: r.status, action: r.action, targetUserId: r.target?.id ?? null, workspaceId: r.workspaceId }),
+      }, () => actOnReport(c.var.deps, { userId: op }, id, body));
+      return c.json({ report });
     });
 }
 

@@ -226,6 +226,12 @@ export interface AppConfig {
   billingGraceDays: number;
   /** User ids or verified emails that get platform admin (operator console) on sign-in. */
   platformAdmins: string[];
+  /**
+   * OPS1: the operator console's sign in rules. requireTwoFactor (OPERATOR_REQUIRE_2FA, on in production unless "off")
+   * asks for two-step sign in, or a sign in through one of ssoMethods (OPERATOR_SSO_METHODS, default auth0). freshMinutes
+   * (OPERATOR_FRESH_MINUTES, default 15) is how recent a sign in must be for the sensitive actions.
+   */
+  operator: { requireTwoFactor: boolean; ssoMethods: string[]; freshMinutes: number };
   /** Demo workspaces the daily purge keeps (the fixed App Review account). KEEP_DEMO_ORG_IDS. */
   keepDemoOrgIds: string[];
   /** New demo workspaces allowed per rolling 24 hours, platform wide (DEMO_DAILY_LIMIT); 0 means no cap. */
@@ -416,6 +422,14 @@ export interface AppConfig {
 
 const csv = (v: string | undefined) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 /** A switch is on when its own var is 1, true or on, or when its name is in the FEATURES comma list. */
+/** OPS1: two-step sign in for the operator console. On in production unless "off"; elsewhere only when "on". */
+export function operatorTwoFactor(v: string | undefined, mode: string): boolean {
+  const x = (v ?? "").trim().toLowerCase();
+  if (["on", "1", "true"].includes(x)) return true;
+  if (["off", "0", "false"].includes(x)) return false;
+  return mode === "production";
+}
+
 export const flagOn = (own: string | undefined, name: string, features: string | undefined): boolean =>
   ["1", "true", "on"].includes(String(own ?? "").toLowerCase()) || csv(features).some((s) => s.toUpperCase() === name);
 
@@ -584,6 +598,9 @@ const EnvSchema = z.object({
   SENTRY_DSN_WEB: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
   PLATFORM_ADMIN_EMAILS: z.string().optional(),
+  OPERATOR_REQUIRE_2FA: z.string().optional(), // OPS1
+  OPERATOR_SSO_METHODS: z.string().optional(), // OPS1
+  OPERATOR_FRESH_MINUTES: z.string().regex(/^\d+$/).optional(), // OPS1
   KEEP_DEMO_ORG_IDS: z.string().optional(),
   DEMO_DAILY_LIMIT: z.string().optional(),
   DEMO_PER_IP_DAILY: z.string().optional(),
@@ -929,6 +946,11 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     monitorUrls: csv(env.MONITOR_URLS).filter((u) => /^https?:\/\//.test(u)),
     billingGraceDays: Math.max(0, Math.min(60, Number(env.BILLING_GRACE_DAYS ?? 7) || 7)),
     platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
+    operator: {
+      requireTwoFactor: operatorTwoFactor(env.OPERATOR_REQUIRE_2FA, mode),
+      ssoMethods: env.OPERATOR_SSO_METHODS === undefined ? ["auth0"] : csv(env.OPERATOR_SSO_METHODS).map((m) => m.toLowerCase()),
+      freshMinutes: Math.max(1, Math.min(24 * 60, Number.parseInt(env.OPERATOR_FRESH_MINUTES ?? "15", 10) || 15)),
+    },
     keepDemoOrgIds: csv(env.KEEP_DEMO_ORG_IDS),
     demoDailyLimit: Math.max(0, Number.parseInt(env.DEMO_DAILY_LIMIT ?? "0", 10) || 0),
     demoPerIpDaily: Math.max(0, Number.parseInt(env.DEMO_PER_IP_DAILY ?? "10", 10) || 0),

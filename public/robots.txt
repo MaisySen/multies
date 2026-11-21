@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /app
+Disallow: /console
 Disallow: /api
 Disallow: /invite/
 Disallow: /guest

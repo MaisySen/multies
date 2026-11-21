@@ -267,7 +267,7 @@ export function AppLayout() {
     "/app/approvals": { n: pendingCount, label: `${pendingCount} waiting`, alert: true },
     "/app/mail": { n: mailUnread, label: `${mailUnread} unread in Inbox` },
     "/app/chat": { n: chatUnread.data?.total ?? 0, label: `${chatUnread.data?.total ?? 0} unread messages` },
-    "/app/admin": { n: openReports.data ?? 0, label: `${openReports.data ?? 0} reports to review`, alert: true },
+    "/console": { n: openReports.data ?? 0, label: `${openReports.data ?? 0} reports to review`, alert: true },
   };
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -286,7 +286,7 @@ export function AppLayout() {
       {/* R121 (P2 menu): every section as a tile with its count, then New social post and Settings (plan section 9). */}
       {config.data?.navP2 ? <MoreSheet sections={sections} counts={navCounts} active={section.id} canPost={navFlags.social} onNavigate={() => setDrawer(false)} /> : (
       <nav className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" aria-label={tr("shell.app")}>
-        {navGroups(withOneInbox(!!config.data?.inboxTd6, ([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[]))).map(({ group, items }, gi) => (
+        {navGroups(withOneInbox(!!config.data?.inboxTd6, ([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/console", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[]))).map(({ group, items }, gi) => (
           <div key={group} className={cn(gi > 0 && "pt-4 max-lg:pt-5")}>
           <div data-testid="nav-group" className="px-2.5 pb-1 text-[11.5px] font-semibold text-subtle max-lg:pb-1.5 max-lg:text-[12px] max-lg:uppercase max-lg:tracking-[0.05em]">{tl("nav", GROUP_LABEL[group])}</div>
           {/* R46 mobile: on a phone each group is one rounded card, like the system settings lists. */}
@@ -303,7 +303,7 @@ export function AppLayout() {
               {to === "/app/mail" && mailUnread > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${mailUnread} unread in Inbox`}>{badgeCount(mailUnread)}</span>}
               {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${chatUnread.data?.total} unread messages`}>{badgeCount(chatUnread.data?.total ?? 0)}</span>}
               {to === "/app/triage" && (triageCount.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${triageCount.data} waiting in Triage`}>{badgeCount(triageCount.data ?? 0)}</span>}
-              {to === "/app/admin" && (openReports.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-bad px-1.5 text-[11px] font-semibold tabular-nums text-white" data-badge aria-label={`${openReports.data} reports to review`} data-testid="nav-reports-badge">{openReports.data}</span>}
+              {to === "/console" && (openReports.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-bad px-1.5 text-[11px] font-semibold tabular-nums text-white" data-badge aria-label={`${openReports.data} reports to review`} data-testid="nav-reports-badge">{openReports.data}</span>}
               {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
               </>)}
             </NavLink>

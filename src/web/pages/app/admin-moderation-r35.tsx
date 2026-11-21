@@ -1,5 +1,5 @@
 /**
- * R35 (Apple 1.2): the operator moderation queue at /app/admin/reports. Platform admins only (the API is guarded the
+ * R35 (Apple 1.2): the operator moderation queue, at /console/moderation since OPS1 (/app/admin/reports redirects there). Platform admins only (the API is guarded the
  * same way). Open reports newest first; the age turns amber past 12 hours and red past 24 (Apple's window).
  */
 import { useState } from "react";
@@ -52,7 +52,7 @@ export function ModerationPage() {
   return (
     <div className="space-y-6">
       {dialogs}
-      <Link to="/app/admin" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"><IconBack className="h-4 w-4" aria-hidden />Operator console</Link>
+      <Link to="/console" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"><IconBack className="h-4 w-4" aria-hidden />Overview</Link>
       <PageHeader eyebrow="Platform" title="Moderation" description="Reports of chat messages and people. Act on each within 24 hours: remove the message, suspend the account, or dismiss it." />
       <div className="inline-flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Which reports">
         {(["open", "all"] as const).map((s) => (
@@ -106,7 +106,7 @@ export function ModerationLink() {
   const n = useOpenReportCount(true);
   const open = n.data ?? 0;
   return (
-    <Link to="/app/admin/reports" data-testid="moderation-link" className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-card transition-colors duration-150 hover:bg-hover">
+    <Link to="/console/moderation" data-testid="moderation-link" className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-card transition-colors duration-150 hover:bg-hover">
       <IconFlag className={cn("h-5 w-5", open ? "text-bad" : "text-muted")} aria-hidden />
       <span className="flex-1"><span className="block text-[14px] font-semibold">Moderation</span><span className="block text-[12.5px] text-muted">{open ? `${open} report${open === 1 ? "" : "s"} to review within 24 hours` : "No open reports"}</span></span>
       {open > 0 && <span className="rounded-full bg-bad px-2 text-[12px] font-semibold tabular-nums text-white">{open}</span>}

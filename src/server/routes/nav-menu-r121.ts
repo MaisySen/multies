@@ -4,6 +4,7 @@
  * switches and role. No database read: it answers from config and the session only. Pages tied to a switch the server
  * cannot know without a read (Sites shows once the workspace has one) carry `whenUsed` and the app asks their own route.
  */
+import { isOperatorRole } from "@/shared/operator-permissions";
 import { Hono } from "hono";
 import type { AppEnv, Deps } from "../context";
 import { requireAuth } from "../middleware";
@@ -19,7 +20,7 @@ export function serverNavFlags(deps: Pick<Deps, "config">, who: { role: "owner" 
     tools,
     files: tools && (features.includes("folders") || !!cfg.filesPlus),
     scheduling: !!cfg.schedulingEnabled,
-    operator: who.platformRole === "admin",
+    operator: isOperatorRole(who.platformRole), // OPS1: every operator role
     flows: cfg.flows !== false,
     socialP2: cfg.socialP2 !== false,
     socialP2b: cfg.socialP2 !== false && cfg.socialP2b !== false,

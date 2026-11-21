@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { mockConsoleMe } from "./support/console-me";
 
 /**
- * R32: the operator console shows the account's D1 writes today as a meter. /api/admin/health (QUAL1) and the admin
- * overview are mocked (62% of the budget), so nothing here depends on Cloudflare analytics.
+ * R32: the operator console shows the account's D1 writes today as a meter. /api/admin/health (QUAL1), the console
+ * overview and the operator (OPS1) are mocked (62% of the budget), so nothing here depends on Cloudflare analytics.
  */
 test("operator console shows the D1 write meter at 62%", async ({ page }) => {
   const health = {
@@ -12,7 +13,9 @@ test("operator console shows the D1 write meter at 62%", async ({ page }) => {
       byEnvironment: { production: 21_870, staging: 40_470 }, deferred: { written: 12, coalesced: 40, skipped: 0 } },
   };
   await page.route("**/api/admin/health", (r) => r.fulfill({ json: health }));
-  await page.route("**/api/admin/overview", (r) => r.fulfill({ json: {
+  await mockConsoleMe(page, "admin");
+  await page.route("**/api/console/overview", (r) => r.fulfill({ json: {
+    attention: [],
     totals: { users: 41, workspaces: 12, domains: 9, mailboxes: 23, deliveries24h: 310 }, tenants: [],
     integrations: { sentryApi: true, sentryWeb: true, outbound: "resend", billing: true, billingTestMode: false, auth0: true, google: true, github: false },
   } }));
@@ -23,7 +26,7 @@ test("operator console shows the D1 write meter at 62%", async ({ page }) => {
   await page.getByLabel("Password", { exact: true }).fill("a-strong-password");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/app\/my-work$/, { timeout: 20_000 });
-  await page.goto("/app/admin");
+  await page.goto("/console"); // OPS1: was /app/admin
   const meter = page.getByTestId("write-budget");
   await expect(meter).toBeVisible({ timeout: 15_000 });
   await expect(meter.getByRole("heading", { name: "D1 writes today" })).toBeVisible();

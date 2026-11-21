@@ -171,7 +171,10 @@ export function requestIp(ip: string, localAddresslessUnlimited?: boolean): stri
 }
 
 /** Writes that can change another person's access or end their sessions (R40 sec). */
-const ACCESS_WRITE = /^\/api\/(team|org|admin|invites|account)(\/|$)|^\/api\/auth\/(revoke|change-password|reset-password|organization|admin|two-factor|delete-user)/;
+const ACCESS_WRITE = /^\/api\/(team|org|admin|console|invites|account)(\/|$)|^\/api\/auth\/(revoke|change-password|reset-password|organization|admin|two-factor|delete-user)/;
+
+/** OPS1: the operator routes (console and the older /api/admin), which never charge the operator's own workspace. */
+const isOperatorPath = (p: string) => p === "/api/console" || p.startsWith("/api/console/") || p === "/api/admin" || p.startsWith("/api/admin/");
 
 /** R45 (MB-199): per app, builds the lazily made public API now. Used by the Worker at isolate startup only. */
 export const appPrebuild = new WeakMap<object, () => void>();
@@ -351,6 +354,8 @@ export function createApp(deps: Deps) {
   if (deps.config.workspaceBudget.daily) {
     app.use("/api/*", async (c, next) => {
       if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS") return next();
+      // OPS1: operator actions are platform work, never charged to the operator's own workspace.
+      if (isOperatorPath(c.req.path)) return next();
       const { rows } = await runMetered(() => next());
       const orgId = (c.var as { auth?: { orgId?: string | null } }).auth?.orgId;
       if (!orgId || !rows) return;
@@ -365,6 +370,8 @@ export function createApp(deps: Deps) {
   if (deps.config.writeBudget.strict) {
     app.use("/api/*", async (c, next) => {
       if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS" || c.req.path === "/api/health") return next();
+      // OPS1: the operator console keeps working on a read only staging day, so an operator can still act (and its writes are few).
+      if (c.req.path === "/api/console" || c.req.path.startsWith("/api/console/")) return next();
       // Round 22: presence heartbeats live in memory and write nothing, so they keep working.
       if (PRESENCE_PATH.test(c.req.path)) return next();
       const r = await writeBudget(deps);
@@ -556,6 +563,24 @@ export function createApp(deps: Deps) {
   app.route("/api/admin/app-config", adminAppConfigRoutes()); // R29b: mobile remote config
   app.route("/api/admin/reports", adminReportsRoutes()); // R35: moderation queue (Apple 1.2)
   app.route("/api/admin", adminRoutes());
+  // OPS1: the operator console API, built on its first request (one dynamic import) so other requests load none of it.
+  let consoleApp: import("hono").Hono<AppEnv> | undefined;
+  const consoleVars = new WeakMap<Request, { deps: Deps; ip: string; requestId: string; log: AppEnv["Variables"]["log"] }>();
+  const consoleHandler = async (c: Context<AppEnv>) => {
+    if (!consoleApp) {
+      const { consoleRoutes } = await import("./routes/console");
+      const built = consoleRoutes(consoleVars);
+      built.notFound(notFoundHandler);
+      built.onError(errorHandler);
+      consoleApp = built;
+    }
+    consoleVars.set(c.req.raw, { deps: c.var.deps, ip: c.var.ip, requestId: c.var.requestId, log: c.var.log });
+    let ctx: Parameters<import("hono").Hono<AppEnv>["fetch"]>[2];
+    try { ctx = c.executionCtx; } catch { ctx = undefined; }
+    return consoleApp.fetch(c.req.raw, c.env, ctx);
+  };
+  app.all("/api/console", consoleHandler);
+  app.all("/api/console/*", consoleHandler);
   // Better Auth: sign-up/in, sessions, 2FA, password reset, verification, organizations, OAuth.
   // R39 security hotfix: Better Auth's own organization endpoints (list, read and accept invitations, members,
   // roles) are not used by any client; the app's /api/team and /api/invites routes carry the checks. Closed over HTTP;
@@ -565,6 +590,11 @@ export function createApp(deps: Deps) {
   // PRIV1b (P49): account deletion goes through DELETE /api/account (password, Auth0 user); Better Auth's own endpoint needed only a fresh session.
   app.all("/api/auth/delete-user", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
   app.all("/api/auth/delete-user/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
+  // OPS1: Better Auth's admin endpoints (impersonate, set role, ban, set password, create and remove users) are not used
+  // by any client and skipped the console's role, reason and audit rules. Closed over HTTP; the console calls the ones it
+  // needs in process (auth.api.banUser and friends) after its own guard and audit.
+  app.all("/api/auth/admin", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
+  app.all("/api/auth/admin/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());

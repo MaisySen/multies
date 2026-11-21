@@ -7,6 +7,7 @@ import { describe, it, expect } from "vitest";
 import { and, eq, isNull, like } from "drizzle-orm";
 import { privacyWorld } from "./priv1a-world";
 import { makeTestApp, Client } from "./helpers";
+import { authFor } from "@/server/auth/options";
 import { auditLogs, domains, mailboxes, messages, notifications, oauthGrants, organizations, sessions, users, verifications } from "@/server/db/schema";
 import { pkceChallenge } from "@/server/services/developer/oauth";
 
@@ -216,8 +217,9 @@ describe("PRIV1b (P48): recovery ends OAuth grants; a ban stops tokens and keys"
     const t = await connect(ctx.app, c);
     const o = await connect(ctx.app, bystander);
     const id = (await ctx.db.select({ id: users.id }).from(users).where(eq(users.email, "victim5@acme.io")).get())!.id;
-    const ban = await ops.post("/api/auth/admin/ban-user", { userId: id });
-    expect(ban.status).toBe(200);
+    // OPS1: /api/auth/admin/* is closed over HTTP; the console bans through Better Auth in process, which runs the same hook.
+    expect((await ops.post("/api/auth/admin/ban-user", { userId: id })).status).toBe(404);
+    await authFor(ctx.deps).api.banUser({ headers: new Headers({ cookie: ops.cookie }), body: { userId: id } });
     expect(await ctx.db.select().from(oauthGrants).where(and(eq(oauthGrants.userId, id), isNull(oauthGrants.revokedAt))).get()).toBeFalsy();
     // Lifting the ban does not bring the old grant back.
     await ctx.db.update(users).set({ banned: false }).where(eq(users.id, id));

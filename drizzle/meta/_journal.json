@@ -1030,6 +1030,48 @@
       "when": 1794300170000,
       "tag": "0170_ai_key_problem_qual1",
       "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "6",
+      "when": 1794300171000,
+      "tag": "0171_platform_audit_ops1",
+      "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "6",
+      "when": 1794300172000,
+      "tag": "0172_operator_notes_ops1",
+      "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "6",
+      "when": 1794300173000,
+      "tag": "0173_operator_impersonations_ops1",
+      "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "6",
+      "when": 1794300174000,
+      "tag": "0174_billing_comp_ops1",
+      "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "6",
+      "when": 1794300175000,
+      "tag": "0175_feature_flag_overrides_ops1",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "6",
+      "when": 1794300176000,
+      "tag": "0176_platform_metrics_daily_ops1",
+      "breakpoints": true
     }
   ]
 }

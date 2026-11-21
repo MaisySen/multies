@@ -18,7 +18,7 @@ export function MousyDownload({ compact = false }: { compact?: boolean }) {
         <IconDownload className="h-4 w-4" aria-hidden />Download for macOS
       </a>
       {platform === "other" && <p className="max-w-sm text-xs leading-relaxed text-muted">For your Mac, not this device. Open this page on a Mac with macOS 15 or later.</p>}
-      {!compact && <p className="text-sm text-muted">5.6 MB ZIP · Apple Silicon + Intel · macOS 15+</p>
+      {!compact && <p className="text-sm text-muted">5.6 MB ZIP · Apple Silicon + Intel · macOS 15+</p>}
     </div>
   );
 }

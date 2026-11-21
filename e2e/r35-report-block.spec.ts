@@ -85,7 +85,8 @@ test("report a message, block the person, DM refused, operator dismisses", async
   await expect.poll(() => lastEmailTo("ops-r35@example.com")?.subject ?? "").toContain("Confirm your email");
   await ops.page.goto(lastEmailTo("ops-r35@example.com")!.text.match(/https?:\/\/\S+/)![0]);
   // The report mailed the operator inbox too (at most once per 15 minutes).
-  await ops.page.goto("/app/admin/reports");
+  await ops.page.goto("/app/admin/reports"); // OPS1: the old address opens the console's Moderation section
+  await expect(ops.page).toHaveURL(/\/console\/moderation$/);
   const card = ops.page.getByTestId("moderation-report").filter({ hasText: "You are all useless" });
   await expect(card).toBeVisible();
   await expect(card).toContainText("Harassment or bullying");

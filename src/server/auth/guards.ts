@@ -15,6 +15,7 @@ import { workspaceMark } from "./workspace-mark";
 import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
 import { autoWorkspaceName } from "@/shared/person-name";
 import { REFERRAL_COOKIE } from "@/shared/referral-link";
+import { isOperatorRole } from "@/shared/operator-permissions";
 
 /*
  * Route guards. Every route that acts for a person goes through requireAuth (the session
@@ -116,6 +117,9 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
     userId: s.user.id, email: s.user.email, name: s.user.name, orgId: member.organizationId, role: member.role,
     sessionId: s.session.id, emailVerified: s.user.emailVerified, twoFactor: !!s.user.twoFactorEnabled,
     platformRole,
+    // OPS1: Better Auth's session row carries createdAt, and impersonatedBy from the admin plugin's schema.
+    sessionCreatedAt: s.session.createdAt instanceof Date ? s.session.createdAt : new Date(s.session.createdAt),
+    impersonatedBy: (s.session as { impersonatedBy?: string | null }).impersonatedBy ?? null,
   };
 }
 
@@ -214,7 +218,7 @@ export async function resolveAuthCached(deps: Deps, headers: Headers, method: st
   // only once the address is confirmed, so confirming it in another isolate (or on the phone) shows at once; a new
   // workspace, a switch or signing out are writes, which drop the copy first.
   const me = path === "/api/account/me";
-  const read = (method === "GET" || method === "HEAD") && (me || !path.startsWith("/api/account")) && !path.startsWith("/api/admin");
+  const read = (method === "GET" || method === "HEAD") && (me || !path.startsWith("/api/account")) && !path.startsWith("/api/admin") && !path.startsWith("/api/console");
   if (!key) return resolveAuth(deps, headers);
   const now = Date.now();
   // Multiws: a copy made before this browser switched workspace (in any isolate) carries another mark and is not used.
@@ -255,9 +259,12 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
-/** Operators only (Better Auth admin role). */
+/**
+ * Operators only. OPS1: any operator role (src/shared/operator-permissions.ts) passes; routes that need a particular
+ * permission use requireOperator (auth/operator.ts) instead. Kept for older callers.
+ */
 export const requirePlatformAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (c.var.auth.platformRole !== "admin") throw forbidden("Only platform operators can do that.");
+  if (!isOperatorRole(c.var.auth.platformRole)) throw forbidden("Only platform operators can do that.");
   await next();
 };
 

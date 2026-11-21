@@ -68,7 +68,7 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   { label: "Admin", items: [
     { to: "/app/activity", label: "Activity", icon: IconActivity, tint: "#8E8E93", keywords: "log audit history changes messages who did what" },
     { to: "/app/settings/data-requests", label: "Data requests", icon: IconShieldCheck, tint: "#30B0C7", keywords: "privacy export delete my data erasure access request personal information" }, // R112
-    { to: "/app/admin", label: "Operator", icon: IconShield, tint: "#1C1C1E", keywords: "operator platform admin moderation reports" },
+    { to: "/console", label: "Operator", icon: IconShield, tint: "#1C1C1E", keywords: "operator platform admin moderation reports console" }, // OPS1
   ] },
 ];
 const ALL_PANES = SETTINGS_GROUPS.flatMap((g) => g.items);
@@ -142,7 +142,7 @@ export function SettingsLayout() {
   // R82F (MB-283): the tab title comes from the app shell (pageTitle), the same for every page.
   const config = useConfig();
   const me = useMe();
-  const shown = matchPanes(q).filter(panesFor(config.data, me.data?.organization?.role)).filter((p) => p.to !== "/app/admin" || !!me.data?.user.platformAdmin);
+  const shown = matchPanes(q).filter(panesFor(config.data, me.data?.organization?.role)).filter((p) => p.to !== "/console" || !!me.data?.user.platformAdmin);
   const groups = groupsNow().map((g) => ({ ...g, items: g.items.filter((i) => shown.includes(i)) })).filter((g) => g.items.length);
   const go = () => { if (shown[0]) { navigate(shown[0].to); setQ(""); } };
   return (

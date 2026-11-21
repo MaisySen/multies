@@ -1,3 +1,4 @@
+import { isOperatorRole } from "@/shared/operator-permissions"; // OPS1: any operator role opens the console
 import { optionalWritesPaused } from "../services/write-budget";
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
@@ -246,7 +247,7 @@ export function accountRoutes() {
       // set their own in Settings.
       const established = workspaceOnboarded && (auth.role !== "member" || personPredates(prefs?.createdAt, onboardedAt));
       return c.json({
-        user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: auth.platformRole === "admin", timezone: prefs?.timezone ?? (established ? org?.timezone ?? null : null), locale: prefs?.locale ?? null },
+        user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: isOperatorRole(auth.platformRole), timezone: prefs?.timezone ?? (established ? org?.timezone ?? null : null), locale: prefs?.locale ?? null },
         organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role, timezone: org.timezone, country: org.country, requireSso: org.requireSso, onboarded: workspaceOnboarded } : null,
         // A short onboarding once per person (their zone and language), plus the workspace's name, country and zone for its owner or admins.
         onboarding: {

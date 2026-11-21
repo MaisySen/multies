@@ -1,11 +1,13 @@
 import { test, expect } from "@playwright/test";
+import { mockConsoleMe } from "./support/console-me";
 
 /**
  * R33 premium pass for admins and guests: the operator console asks for a suspend reason and a send cap in
  * themed dialogs (no window.prompt), checks the input before it saves, and destructive row actions take two taps.
- * The admin overview is mocked so no platform admin account is needed.
+ * The console overview and the operator (OPS1: /api/console/me) are mocked so no platform admin account is needed.
  */
 const overview = {
+  attention: [],
   totals: { users: 1204, workspaces: 12, domains: 9, mailboxes: 23, deliveries24h: 310 },
   tenants: [{ id: "org_e2e", name: "Harbour Studio", plan: "team", isDemo: false, createdAt: new Date().toISOString(), members: 4, agents: 1, domains: 2, suspendedAt: null, suspendedReason: null, sendCapDaily: null, pastDueSince: null }],
   integrations: { sentryApi: true, sentryWeb: false, outbound: "resend", billing: true, billingTestMode: false, auth0: false, google: true, github: false },
@@ -22,13 +24,14 @@ async function signUp(page: import("@playwright/test").Page, who: string) {
 
 test("operator console: stat tiles, integrations count, suspend and send cap in themed dialogs", async ({ page }) => {
   const calls: { url: string; body: unknown }[] = [];
-  await page.route("**/api/admin/overview", (r) => r.fulfill({ json: overview }));
+  await page.route("**/api/console/overview", (r) => r.fulfill({ json: overview })); // OPS1: the console's Overview
+  await mockConsoleMe(page, "admin");
   await page.route("**/api/admin/workspaces/org_e2e/**", async (r) => { calls.push({ url: r.request().url(), body: r.request().postDataJSON() }); await r.fulfill({ json: { ok: true } }); });
   let nativeDialog = false;
   page.on("dialog", (d) => { nativeDialog = true; void d.dismiss(); });
   await signUp(page, "Olive Operator");
-  await page.goto("/app/admin");
-  await expect(page.getByRole("heading", { name: "Operator console", level: 1 })).toBeVisible({ timeout: 15_000 });
+  await page.goto("/console"); // OPS1: was /app/admin
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("1,204", { exact: true })).toBeVisible(); // grouped digits on the Users tile
   await expect(page.getByText("4 of 8", { exact: true })).toBeVisible(); // integrations on
 

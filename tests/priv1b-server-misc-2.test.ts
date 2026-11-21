@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { and, eq, isNull } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
+import { authFor } from "@/server/auth/options";
 import { privacyWorld } from "./priv1a-world";
 import { appSettings, domains, invitations, mailboxAccess, mailboxes, mailboxAccessLog, messages, notifications, oauthClients, oauthGrants, organizations, sessions, users, webhookDeliveries } from "@/server/db/schema";
 import { OPENS_PRUNED_KEY, pruneMailboxOpens } from "@/server/services/maintenance";
@@ -110,7 +111,9 @@ describe("CB2: a ban, a report suspension and an account deletion close live soc
     const m = conn(mayaId), o = conn(ownerId);
     hub.join(orgId, m.c); hub.join(orgId, o.c);
     const live = await grantFor(ctx, orgId, mayaId, "ban");
-    expect((await owner.post("/api/auth/admin/ban-user", { userId: mayaId })).status).toBe(200);
+    // OPS1: /api/auth/admin/* is closed over HTTP; the console bans through Better Auth in process, which runs the same hook.
+    expect((await owner.post("/api/auth/admin/ban-user", { userId: mayaId })).status).toBe(404);
+    await authFor(ctx.deps).api.banUser({ headers: new Headers({ cookie: owner.cookie }), body: { userId: mayaId } });
     expect(m.closed).toEqual([CLOSE_REVOKED]);
     expect(o.closed).toEqual([]);
     expect(await live()).toBe(false);

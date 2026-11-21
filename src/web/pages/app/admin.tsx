@@ -16,13 +16,13 @@ import { LOCALE } from "@/shared/locale";
 import { WriteBudgetMeter } from "./admin-write-budget"; // R32
 import { ModerationLink } from "./admin-moderation-r35"; // R35
 
-interface Overview {
+export interface Overview {
   totals: { users: number; workspaces: number; domains: number; mailboxes: number; deliveries24h: number };
   tenants: { id: string; name: string; plan: string; isDemo: boolean; createdAt: string; members: number; agents: number; domains: number; suspendedAt: string | null; suspendedReason: string | null; sendCapDaily: number | null; pastDueSince: string | null; meetingMinutesCap?: number | null; meetingMinutes?: number }[];
   integrations: Record<string, boolean | string>;
 }
 
-const INTEGRATION_LABEL: Record<string, string> = {
+export const INTEGRATION_LABEL: Record<string, string> = {
   sentryApi: "Sentry (API)", sentryWeb: "Sentry (web)", outbound: "Outbound mail", billing: "Stripe billing",
   billingTestMode: "Stripe test mode", auth0: "Auth0 sign-in", google: "Google sign-in", github: "GitHub sign-in",
 };
@@ -129,9 +129,10 @@ export function AdminPage() {
 
 type Tenant = Overview["tenants"][number];
 
-function TenantControls({ t }: { t: Tenant }) {
+/** OPS1: also used by the operator console's Overview (pages/console/overview.tsx), which refreshes its own ["console"] queries. */
+export function TenantControls({ t }: { t: Tenant }) {
   const qc = useQueryClient();
-  const done = (msg: string) => () => { qc.invalidateQueries({ queryKey: ["admin"] }); toast.success(msg); };
+  const done = (msg: string) => () => { qc.invalidateQueries({ queryKey: ["admin"] }); qc.invalidateQueries({ queryKey: ["console"] }); toast.success(msg); };
   const suspend = useMutation({ mutationFn: (reason: string) => api.post(`/admin/workspaces/${t.id}/suspend`, { reason }), onSuccess: done("Workspace suspended"), onError: showError });
   const unsuspend = useMutation({ mutationFn: () => api.post(`/admin/workspaces/${t.id}/unsuspend`), onSuccess: done("Workspace restored"), onError: showError });
   const cap = useMutation({ mutationFn: (v: number | null) => api.put(`/admin/workspaces/${t.id}/send-cap`, { cap: v }), onSuccess: done("Send cap saved"), onError: showError });
@@ -197,10 +198,10 @@ function TenantControls({ t }: { t: Tenant }) {
 
 interface AbuseEvent { id: string; orgId: string; workspace: string; kind: string; score: number; detail: string | null; createdAt: string }
 
-function AbuseQueue() {
+export function AbuseQueue() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["admin", "abuse"], queryFn: () => api.get<{ events: AbuseEvent[] }>("/admin/abuse") });
-  const resolve = useMutation({ mutationFn: (ids: string[]) => api.post("/admin/abuse/resolve", { ids }), onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "abuse"] }), onError: showError });
+  const resolve = useMutation({ mutationFn: (ids: string[]) => api.post("/admin/abuse/resolve", { ids }), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["admin", "abuse"] }); void qc.invalidateQueries({ queryKey: ["console", "overview"] }); }, onError: showError });
   const events = q.data?.events ?? [];
   return (
     <Section title="Abuse signals" description="Held messages and automatic suspensions waiting for review.">
@@ -235,14 +236,14 @@ function formatAge(ms: number) {
 
 interface DeadJob { id: string; type: string; orgId: string | null; attempts: number; lastError: string | null; updatedAt: string }
 
-function JobQueue() {
+export function JobQueue() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const q = useQuery({ queryKey: ["admin", "jobs"], queryFn: () => api.get<{ stats: QueueStats; dead: DeadJob[] }>("/admin/jobs") });
   const stats: Partial<QueueStats> = q.data?.stats ?? {};
   const replay = async (ids: string[]) => {
     setBusy(true);
-    try { const r = await api.post<{ replayed: number }>("/admin/jobs/replay", { ids }); toast.success(`Queued ${r.replayed} again`); qc.invalidateQueries({ queryKey: ["admin", "jobs"] }); }
+    try { const r = await api.post<{ replayed: number }>("/admin/jobs/replay", { ids }); toast.success(`Queued ${r.replayed} again`); qc.invalidateQueries({ queryKey: ["admin", "jobs"] }); qc.invalidateQueries({ queryKey: ["console", "overview"] }); }
     catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const dead = q.data?.dead ?? [];

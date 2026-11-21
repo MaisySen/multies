@@ -199,8 +199,9 @@ describe("R121 GET /api/nav/menu (the model the mobile app reads)", () => {
   });
   it("members never get Operator; a platform admin does; off answers the P1 model", () => {
     const pages = (m: ReturnType<typeof menuFor>) => m.sections.flatMap((s) => s.pages.map((p) => p.to));
-    expect(pages(menuFor(base, { role: "member" }))).not.toContain("/app/admin");
-    expect(pages(menuFor(base, { role: "owner", platformRole: "admin" }))).toContain("/app/admin");
+    expect(pages(menuFor(base, { role: "member" }))).not.toContain("/console"); // OPS1: the operator console moved to /console
+    expect(pages(menuFor(base, { role: "owner", platformRole: "admin" }))).toContain("/console");
+    expect(pages(menuFor(base, { role: "member", platformRole: "ops_readonly" }))).toContain("/console");
     const off = menuFor({ config: { tools: { enabled: false, features: [] } } } as never, { role: "admin" });
     expect(off.navP2).toBe(false);
     expect(off.sections.map((s) => s.id)).toEqual(["home", "mail", "tasks", "docs", "social", "chat", "dashboards", "agents", "workspace"]);

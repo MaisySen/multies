@@ -85,7 +85,7 @@ export const SECTIONS_P1: Section[] = [
     { to: "/app/settings", label: "Settings", icon: "settings" },
     { to: "/app/settings/apps", label: "Connections", icon: "connections" }, // R80C
     { to: "/app/activity", label: "Activity", icon: "activity" },
-    { to: "/app/admin", label: "Operator", icon: "operator", flag: "operator" },
+    { to: "/console", label: "Operator", icon: "operator", flag: "operator" }, // OPS1: the operator console
   ] },
 ];
 

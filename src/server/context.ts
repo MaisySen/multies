@@ -83,10 +83,19 @@ export interface AuthContext {
   loginMethod?: string;
   /** The workspace requires SSO and this session did not use it. */
   ssoBlocked?: boolean;
+  /** OPS1: when this session signed in (Better Auth session.createdAt), for the operator console's fresh sign in rule. */
+  sessionCreatedAt?: Date;
+  /** OPS1: the operator's user id when this session is an impersonation (Better Auth admin plugin), else null. */
+  impersonatedBy?: string | null;
+}
+
+/** OPS1: the operator behind a /api/console (or /api/admin) request, set by operatorSession. */
+export interface OperatorContext {
+  role: import("@/shared/operator-permissions").OperatorRole;
 }
 
 export interface AppEnv {
-  Variables: { deps: Deps; auth: AuthContext; ip: string; requestId: string; log: Logger; apiKeyOrg?: string };
+  Variables: { deps: Deps; auth: AuthContext; ip: string; requestId: string; log: Logger; apiKeyOrg?: string; operator?: OperatorContext };
 }
 
 export type RateLimitScope = "auth" | "api" | "webhooks" | "app" | "handoff";

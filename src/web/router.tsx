@@ -85,8 +85,25 @@ const ResetPasswordPage = lazyPage(() => authPages(), "ResetPasswordPage");
 const EmailVerifiedPage = lazyPage(() => authPages(), "EmailVerifiedPage");
 const OAuthAuthorizePage = lazyPage(() => import("./pages/oauth-authorize"), "OAuthAuthorizePage");
 const AppLayout = lazyPage(() => import("./layouts/app"), "AppLayout");
-const ModerationPage = lazyPage(() => import("./pages/app/admin-moderation-r35"), "ModerationPage"); // R35
-const AdminPage = lazyPage(() => import("./pages/app/admin"), "AdminPage");
+// OPS1: the operator console, its own shell at /console. Every section's page loads on its own.
+const ConsoleLayout = lazyPage(() => import("./layouts/console"), "ConsoleLayout");
+const ConsoleOverviewPage = lazyPage(() => import("./pages/console/overview"), "ConsoleOverviewPage");
+const ConsoleWorkspacesPage = lazyPage(() => import("./pages/console/workspaces/list"), "ConsoleWorkspacesPage");
+const ConsoleWorkspaceDetailPage = lazyPage(() => import("./pages/console/workspaces/detail"), "ConsoleWorkspaceDetailPage");
+const ConsoleUsersPage = lazyPage(() => import("./pages/console/users/list"), "ConsoleUsersPage");
+const ConsoleUserDetailPage = lazyPage(() => import("./pages/console/users/detail"), "ConsoleUserDetailPage");
+const ConsoleBillingPage = lazyPage(() => import("./pages/console/billing"), "ConsoleBillingPage");
+const ConsoleMailPage = lazyPage(() => import("./pages/console/mail"), "ConsoleMailPage");
+const ConsoleAgentsPage = lazyPage(() => import("./pages/console/agents"), "ConsoleAgentsPage");
+const ConsoleDeveloperPage = lazyPage(() => import("./pages/console/developer"), "ConsoleDeveloperPage");
+const ConsoleJobsPage = lazyPage(() => import("./pages/console/jobs"), "ConsoleJobsPage");
+const ConsoleModerationPage = lazyPage(() => import("./pages/console/moderation"), "ConsoleModerationPage");
+const ConsoleFlagsPage = lazyPage(() => import("./pages/console/flags"), "ConsoleFlagsPage");
+const ConsoleSystemPage = lazyPage(() => import("./pages/console/system"), "ConsoleSystemPage");
+const ConsoleMobilePage = lazyPage(() => import("./pages/console/mobile"), "ConsoleMobilePage");
+const ConsoleAnnouncementsPage = lazyPage(() => import("./pages/console/announcements"), "ConsoleAnnouncementsPage");
+const ConsoleOperatorsPage = lazyPage(() => import("./pages/console/operators"), "ConsoleOperatorsPage");
+const ConsoleAuditPage = lazyPage(() => import("./pages/console/audit"), "ConsoleAuditPage");
 const DashboardPage = lazyPage(() => import("./pages/app/dashboard"), "DashboardPage");
 const DomainsPage = lazyPage(() => import("./pages/app/domains"), "DomainsPage");
 const DomainDetailPage = lazyPage(() => import("./pages/app/domain-detail"), "DomainDetailPage");
@@ -395,8 +412,8 @@ export const router = createBrowserRouter([
       { path: "tools/merge/newsletters/:id", element: page(<ToolFeatureGate features={["merge_plus_r109"]}><MergeNewsletterPage /></ToolFeatureGate>) }, // R109
       { path: "tools/merge/journeys/:id", element: page(<ToolFeatureGate features={["merge_plus_r109"]}><MergeJourneyPage /></ToolFeatureGate>) }, // R109
       { path: "deliverability", element: <MovedWhenP2>{page(<DeliverabilityPage />)}</MovedWhenP2> },
-      { path: "admin", element: page(<AdminPage />) },
-      { path: "admin/reports", element: page(<ModerationPage />) }, // R35: moderation queue
+      { path: "admin", element: <Moved to="/console" /> }, // OPS1: the operator console moved to /console
+      { path: "admin/reports", element: <Moved to="/console/moderation" /> }, // OPS1 (was the R35 moderation queue)
       // QUAL1 (audit rows 29, 48, 58): addresses that read a word as an id, or had no page without one, open their list.
       ...APP_MOVES.map((m) => ({ path: m.path, element: <Moved to={m.to} /> })),
       {
@@ -435,6 +452,32 @@ export const router = createBrowserRouter([
           { path: "tours", element: page(<ToursSettings />) }, // R130: tour builder (TOURS_R130, admins)
         ],
       },
+    ],
+  },
+  // OPS1: the operator console. The full tree is here; a section's phase replaces only its own page file.
+  {
+    path: "/console",
+    element: <Suspense fallback={<div className="min-h-dvh bg-bg" aria-busy="true" />}><ConsoleLayout /></Suspense>,
+    errorElement: <RouteError />,
+    children: [
+      { index: true, element: page(<ConsoleOverviewPage />) },
+      { path: "workspaces", element: page(<ConsoleWorkspacesPage />) },
+      { path: "workspaces/:id/:tab?", element: page(<ConsoleWorkspaceDetailPage />) },
+      { path: "users", element: page(<ConsoleUsersPage />) },
+      { path: "users/:id", element: page(<ConsoleUserDetailPage />) },
+      { path: "billing", element: page(<ConsoleBillingPage />) },
+      { path: "mail", element: page(<ConsoleMailPage />) },
+      { path: "agents", element: page(<ConsoleAgentsPage />) },
+      { path: "developer", element: page(<ConsoleDeveloperPage />) },
+      { path: "jobs", element: page(<ConsoleJobsPage />) },
+      { path: "moderation", element: page(<ConsoleModerationPage />) },
+      { path: "flags", element: page(<ConsoleFlagsPage />) },
+      { path: "system", element: page(<ConsoleSystemPage />) },
+      { path: "mobile", element: page(<ConsoleMobilePage />) },
+      { path: "announcements", element: page(<ConsoleAnnouncementsPage />) },
+      { path: "operators", element: page(<ConsoleOperatorsPage />) },
+      { path: "audit", element: page(<ConsoleAuditPage />) },
+      { path: "*", element: <NotFound /> },
     ],
   },
   // Public pages with no site header: a form anyone can fill in, and a meeting guest link.

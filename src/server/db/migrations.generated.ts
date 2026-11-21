@@ -1865,5 +1865,54 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- QUAL1 (audit rows 12, 14): the provider's last refusal of a workspace's own AI key, so Settings, Team AI and the mail\n-- assistant show the real state. Both columns are null while the key works; old code never reads them.\nALTER TABLE `ai_keys` ADD `problem` text;",
       "ALTER TABLE `ai_keys` ADD `problem_at` integer;"
     ]
+  },
+  {
+    "name": "0171_platform_audit_ops1",
+    "statements": [
+      "-- OPS1: the platform audit log for operator actions (console and /api/admin). Append only, no foreign keys.\nCREATE TABLE `platform_audit_logs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`actor_user_id` text,\n\t`actor_email` text,\n\t`actor_role` text,\n\t`action` text NOT NULL,\n\t`target_type` text,\n\t`target_id` text,\n\t`org_id` text,\n\t`reason` text,\n\t`before` text,\n\t`after` text,\n\t`metadata` text,\n\t`ip` text,\n\t`user_agent` text,\n\t`request_id` text,\n\t`impersonation_id` text,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `platform_audit_created_idx` ON `platform_audit_logs` (`created_at`);",
+      "CREATE INDEX `platform_audit_actor_idx` ON `platform_audit_logs` (`actor_user_id`,`created_at`);",
+      "CREATE INDEX `platform_audit_org_idx` ON `platform_audit_logs` (`org_id`,`created_at`);",
+      "CREATE INDEX `platform_audit_target_idx` ON `platform_audit_logs` (`target_id`,`created_at`);",
+      "CREATE INDEX `platform_audit_action_idx` ON `platform_audit_logs` (`action`,`created_at`);"
+    ]
+  },
+  {
+    "name": "0172_operator_notes_ops1",
+    "statements": [
+      "-- OPS1: operators' private notes on a workspace or a person.\nCREATE TABLE `operator_notes` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`target_type` text NOT NULL,\n\t`target_id` text NOT NULL,\n\t`body` text NOT NULL,\n\t`pinned` integer DEFAULT false NOT NULL,\n\t`author_user_id` text,\n\t`author_email` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`deleted_at` integer\n);",
+      "CREATE INDEX `operator_notes_target_idx` ON `operator_notes` (`target_type`,`target_id`,`created_at`);"
+    ]
+  },
+  {
+    "name": "0173_operator_impersonations_ops1",
+    "statements": [
+      "-- OPS1: operator impersonations (view or act as a person), with reason and expiry.\nCREATE TABLE `operator_impersonations` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`operator_user_id` text NOT NULL,\n\t`operator_email` text,\n\t`target_user_id` text NOT NULL,\n\t`target_org_id` text,\n\t`session_id` text,\n\t`mode` text DEFAULT 'view' NOT NULL,\n\t`reason` text NOT NULL,\n\t`started_at` integer NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`ended_at` integer,\n\t`ended_reason` text\n);",
+      "CREATE INDEX `operator_impersonations_session_idx` ON `operator_impersonations` (`session_id`);",
+      "CREATE INDEX `operator_impersonations_operator_idx` ON `operator_impersonations` (`operator_user_id`,`started_at`);",
+      "CREATE INDEX `operator_impersonations_target_idx` ON `operator_impersonations` (`target_user_id`,`started_at`);"
+    ]
+  },
+  {
+    "name": "0174_billing_comp_ops1",
+    "statements": [
+      "-- OPS1: a plain summary on processed billing events, and an end date and note for an operator's comp.\nALTER TABLE `billing_events` ADD `summary` text;",
+      "ALTER TABLE `organizations` ADD `comp_until` integer;",
+      "ALTER TABLE `organizations` ADD `comp_note` text;"
+    ]
+  },
+  {
+    "name": "0175_feature_flag_overrides_ops1",
+    "statements": [
+      "-- OPS1: runtime feature flag overrides. scope_id '' is global, else a workspace id. No rows: env defaults as before.\nCREATE TABLE `feature_flag_overrides` (\n\t`key` text NOT NULL,\n\t`scope_id` text DEFAULT '' NOT NULL,\n\t`value` text NOT NULL,\n\t`locked` integer DEFAULT false NOT NULL,\n\t`note` text,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`key`, `scope_id`)\n);",
+      "CREATE INDEX `feature_flag_overrides_scope_idx` ON `feature_flag_overrides` (`scope_id`);"
+    ]
+  },
+  {
+    "name": "0176_platform_metrics_daily_ops1",
+    "statements": [
+      "-- OPS1: one value per platform metric per UTC day, for the operator console's trends.\nCREATE TABLE `platform_metrics_daily` (\n\t`day` text NOT NULL,\n\t`metric` text NOT NULL,\n\t`value` real DEFAULT 0 NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`day`, `metric`)\n);",
+      "CREATE INDEX `platform_metrics_daily_metric_idx` ON `platform_metrics_daily` (`metric`,`day`);"
+    ]
   }
 ];

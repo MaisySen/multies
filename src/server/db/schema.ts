@@ -73,6 +73,10 @@ export const organizations = sqliteTable("organizations", {
   legacyStorageMb: integer("legacy_storage_mb"),
   /** R62 (0094): the workspace's referral code, made the first time an owner opens the referral link. */
   referralCode: text("referral_code"),
+  /** OPS1 (0174): when an operator's comp (compPlan) ends; null means no end date. Set only from the operator console. */
+  compUntil: ts("comp_until"),
+  /** OPS1 (0174): the operator's note on why this workspace is comped. */
+  compNote: text("comp_note"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("organizations_slug_uq").on(t.slug), uniqueIndex("organizations_referral_code_uq").on(t.referralCode).where(sql`${t.referralCode} IS NOT NULL`)]);
 
@@ -446,6 +450,8 @@ export const billingEvents = sqliteTable("billing_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
   orgId: text("org_id"),
+  /** OPS1 (0174): a short plain summary of the event for the operator console (amount, status, plan), never card details. */
+  summary: text("summary"),
   createdAt: createdAt(),
 });
 
@@ -4872,3 +4878,100 @@ export const userPrefsTd10 = sqliteTable("user_prefs_td10", {
   shortcutsOff: integer("shortcuts_off", { mode: "boolean" }).notNull().default(false),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 }, (t) => [primaryKey({ columns: [t.userId, t.orgId] })]);
+
+// ---- OPS1: operator console (0171 to 0176) ------------------------------------------------------------------------
+
+/**
+ * OPS1 (0171): the platform audit log. One row per operator action in the console (and the older /api/admin routes),
+ * append only. No foreign keys: a row outlives the workspace or person it names. before, after and metadata are JSON.
+ */
+export const platformAuditLogs = sqliteTable("platform_audit_logs", {
+  id: text("id").primaryKey(),
+  actorUserId: text("actor_user_id"),
+  actorEmail: text("actor_email"),
+  /** The operator role at the time (admin, ops_admin, ops_billing, ops_support, ops_readonly). */
+  actorRole: text("actor_role"),
+  /** Dotted verb, e.g. "workspace.suspended", "operator.role_changed". */
+  action: text("action").notNull(),
+  targetType: text("target_type"),
+  targetId: text("target_id"),
+  /** The workspace the action touched, when there is one. */
+  orgId: text("org_id"),
+  reason: text("reason"),
+  before: text("before"),
+  after: text("after"),
+  metadata: text("metadata"),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  requestId: text("request_id"),
+  /** operator_impersonations.id when the action happened during an impersonation. */
+  impersonationId: text("impersonation_id"),
+  createdAt: createdAt(),
+}, (t) => [
+  index("platform_audit_created_idx").on(t.createdAt),
+  index("platform_audit_actor_idx").on(t.actorUserId, t.createdAt),
+  index("platform_audit_org_idx").on(t.orgId, t.createdAt),
+  index("platform_audit_target_idx").on(t.targetId, t.createdAt),
+  index("platform_audit_action_idx").on(t.action, t.createdAt),
+]);
+
+/** OPS1 (0172): an operator's private note on a workspace or a person. Never shown to customers. */
+export const operatorNotes = sqliteTable("operator_notes", {
+  id: text("id").primaryKey(),
+  /** "workspace" or "user". */
+  targetType: text("target_type", { enum: ["workspace", "user"] }).notNull(),
+  targetId: text("target_id").notNull(),
+  body: text("body").notNull(),
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+  authorUserId: text("author_user_id"),
+  authorEmail: text("author_email"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+  /** Soft delete, so the audit trail can still name the note. */
+  deletedAt: ts("deleted_at"),
+}, (t) => [index("operator_notes_target_idx").on(t.targetType, t.targetId, t.createdAt)]);
+
+/** OPS1 (0173): an operator viewing (or acting) as a person, with its reason and time limit. */
+export const operatorImpersonations = sqliteTable("operator_impersonations", {
+  id: text("id").primaryKey(),
+  operatorUserId: text("operator_user_id").notNull(),
+  operatorEmail: text("operator_email"),
+  targetUserId: text("target_user_id").notNull(),
+  targetOrgId: text("target_org_id"),
+  /** The Better Auth session made for the impersonation (sessions.id). */
+  sessionId: text("session_id"),
+  mode: text("mode", { enum: ["view", "act"] }).notNull().default("view"),
+  reason: text("reason").notNull(),
+  startedAt: ts("started_at").notNull(),
+  expiresAt: ts("expires_at").notNull(),
+  endedAt: ts("ended_at"),
+  /** stopped, expired or revoked. */
+  endedReason: text("ended_reason"),
+}, (t) => [
+  index("operator_impersonations_session_idx").on(t.sessionId),
+  index("operator_impersonations_operator_idx").on(t.operatorUserId, t.startedAt),
+  index("operator_impersonations_target_idx").on(t.targetUserId, t.startedAt),
+]);
+
+/**
+ * OPS1 (0175): runtime feature flag overrides. scopeId "" is the global row, otherwise a workspace id. With no rows,
+ * every flag reads its environment default as before. A locked global row is a kill switch workspaces cannot override.
+ */
+export const featureFlagOverrides = sqliteTable("feature_flag_overrides", {
+  key: text("key").notNull(),
+  scopeId: text("scope_id").notNull().default(""),
+  /** "on" or "off" for a switch; other flags may store a short value. */
+  value: text("value").notNull(),
+  locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+  note: text("note"),
+  updatedBy: text("updated_by"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.key, t.scopeId] }), index("feature_flag_overrides_scope_idx").on(t.scopeId)]);
+
+/** OPS1 (0176): one number per platform metric per UTC day ("2026-11-21"), for the console's trend charts. */
+export const platformMetricsDaily = sqliteTable("platform_metrics_daily", {
+  day: text("day").notNull(),
+  metric: text("metric").notNull(),
+  value: real("value").notNull().default(0),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.day, t.metric] }), index("platform_metrics_daily_metric_idx").on(t.metric, t.day)]);

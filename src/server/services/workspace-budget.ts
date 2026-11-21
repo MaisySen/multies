@@ -212,7 +212,9 @@ async function notifyAdmins(deps: Deps, orgId: string, level: "near" | "over", u
 
 /** Paths that keep working when a workspace is over its budget: the person must be able to sign in and out,
  * switch or leave a workspace, export, pay, and keep presence (which writes nothing). */
-const EXEMPT = /^\/api\/(auth\/|account(\/|$)|billing(\/|$)|me(\/|$)|health$|_test-session$|threads\/[^/]+\/presence)/;
+// OPS1: the operator console (/api/console) and the older operator routes (/api/admin) act on the platform, not on the
+// operator's own workspace, so its budget never stops them (operatorSession does not charge one either).
+const EXEMPT = /^\/api\/(auth\/|account(\/|$)|billing(\/|$)|me(\/|$)|health$|_test-session$|threads\/[^/]+\/presence|console(\/|$)|admin(\/|$))/;
 
 export function isBudgetExempt(method: string, path: string) {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return true;
