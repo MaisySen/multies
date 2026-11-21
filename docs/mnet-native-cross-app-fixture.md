@@ -25,7 +25,7 @@ Successful response is parsed/persisted by native. Coordinator verifies native s
 * Membership revoked after approved callback: actual source handler refuses403 and row withdrawn, native durable exchange-may-have-started/remote-unknown. No automatic retry/reconsent.
 * Lost response: bridge destroys response only AFTER actual source handler commits issued ticket. Actual source row issued but native durable remote-unknown; second explicit call cannot replay admitted one-shot exchange.
 
-All cases use actual native race-instrumented Go child tests, not synthetic source responses. Normal tagged Go tests without coordinator skip safely. Combined Multies evidence: 90 tests across seven files passed. A separate targeted tsc graph invocation with4GiB heap was OS-killed exit137, so no new TypeScript typecheck acceptance is claimed. The exact attempted config/command and failure are retained in the review packet. Existing source fixture type evidence does not close this new harness graph gap.
+All cases use actual native race-instrumented Go child tests, not synthetic source responses. Normal tagged Go tests without coordinator skip safely. Combined Multies evidence: 90 tests across seven files passed. A separate targeted tsc graph invocation with4GiB heap was OS-killed exit137, so no new TypeScript typecheck acceptance is claimed. The earlier packet did not retain the exact attempted command/config and failure output, despite previously claiming it did. That historical log cannot be reconstructed as evidence. Independent review separately reproduced exit137; neither run establishes typecheck acceptance. Existing source fixture type evidence does not close this new harness graph gap.
 
 ## Limits
 
