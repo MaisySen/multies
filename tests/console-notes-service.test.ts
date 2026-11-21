@@ -22,7 +22,7 @@ beforeEach(async () => {
   orgB = (await b.get("/api/account/me")).body.organization.id;
   clock = new Date("2026-11-20T00:00:00.000Z").getTime();
   ctx.deps.now = () => new Date((clock += 1000));
-});
+}, 60_000); // two sign ups through the full app: slow on a loaded machine
 
 const pageOf = (limit: number, cursor: PageCursor | null = null, dir: "asc" | "desc" = "desc"): PageRequest<NoteSortField> => ({ limit, cursor, sort: { field: "createdAt", dir } });
 
@@ -62,18 +62,24 @@ describe("operator notes", () => {
   });
 
   it("lists pinned first, then newest, and pages without duplicates or gaps", async () => {
-    const ids: string[] = [];
-    for (let i = 0; i < 12; i++) ids.push((await addNote(ctx.deps, { targetType: "workspace", targetId: orgA, body: `note ${i}`, pinned: i === 2 || i === 9, author })).note.id);
-    // Same time for two notes: the id breaks the tie.
-    const same = clock;
-    ctx.deps.now = () => new Date(same);
-    ids.push((await addNote(ctx.deps, { targetType: "workspace", targetId: orgA, body: "tie a", author })).note.id);
-    ids.push((await addNote(ctx.deps, { targetType: "workspace", targetId: orgA, body: "tie b", author })).note.id);
-    ctx.deps.now = () => new Date((clock += 1000));
+    // Explicit times: note i at base + i minutes, then two notes that share one later time (the id breaks that tie).
+    const base = new Date("2026-11-20T00:00:00.000Z").getTime();
+    const at = (ms: number) => { ctx.deps.now = () => new Date(ms); };
+    for (let i = 0; i < 12; i++) {
+      at(base + i * 60_000);
+      await addNote(ctx.deps, { targetType: "workspace", targetId: orgA, body: `note ${i}`, pinned: i === 2 || i === 9, author });
+    }
+    at(base + 30 * 60_000);
+    const ties = [
+      (await addNote(ctx.deps, { targetType: "workspace", targetId: orgA, body: "tie a", author })).note,
+      (await addNote(ctx.deps, { targetType: "workspace", targetId: orgA, body: "tie b", author })).note,
+    ];
+    expect(ties[0]!.createdAt).toBe(ties[1]!.createdAt);
 
     const full = await all("workspace", orgA, 200);
     expect(full.slice(0, 2).map((n) => n.body)).toEqual(["note 9", "note 2"]);
-    expect(full.slice(2, 4).map((n) => n.body).sort()).toEqual(["tie a", "tie b"]);
+    // Newest first, so the tied pair comes next, in id order (descending, as the keyset breaks ties).
+    expect(full.slice(2, 4).map((n) => n.id)).toEqual(ties.map((n) => n.id).sort().reverse());
     expect(full.slice(4).map((n) => n.body)).toEqual([11, 10, 8, 7, 6, 5, 4, 3, 1, 0].map((i) => `note ${i}`));
     for (const limit of [1, 3, 5]) {
       const paged = await all("workspace", orgA, limit);

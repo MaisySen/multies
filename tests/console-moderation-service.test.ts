@@ -27,7 +27,7 @@ beforeEach(async () => {
   const b = await account("bea@beta.io", "Bea Boss", "Beta Works");
   orgA = a.orgId; orgB = b.orgId; userA = a.userId; userB = b.userId;
   ctx.deps.now = () => new Date(NOW);
-});
+}, 60_000); // two sign ups through the full app: slow on a loaded machine
 
 /** Inserts in batches of 5 rows, under D1's 100 variable limit. */
 async function insertAll<T>(rows: T[], insert: (part: T[]) => Promise<unknown>) {
