@@ -64,7 +64,7 @@ export interface ConsoleMe {
   environment: { mode: "production" | "development"; release: string };
 }
 
-export interface AttentionItem { id: string; label: string; count: number; tone: "bad" | "warn"; to: string }
+export interface AttentionItem { id: string; label: string; count: number; /** Shown instead of the count when set ("85%"). */ value?: string; tone: "bad" | "warn"; to: string }
 
 /** One of the newest workspaces on the Overview. */
 export interface ConsoleNewestWorkspace {
@@ -78,15 +78,6 @@ export interface ConsoleOverview {
   totals: { users: number; workspaces: number; domains: number; mailboxes: number; deliveries24h: number };
   /** The five newest workspaces. */
   newest: ConsoleNewestWorkspace[];
-  /** Legacy (removed with the Overview polish). */
-  tenants: ConsoleTenant[];
-  integrations: Record<string, boolean | string>;
-}
-
-export interface ConsoleTenant {
-  id: string; name: string; plan: string; isDemo: boolean; createdAt: string; members: number; agents: number; domains: number;
-  suspendedAt: string | null; suspendedReason: string | null; sendCapDaily: number | null; pastDueSince: string | null;
-  meetingMinutesCap?: number | null; meetingMinutes?: number;
 }
 
 export interface PlatformAuditEntry {

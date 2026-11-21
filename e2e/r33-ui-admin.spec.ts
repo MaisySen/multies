@@ -4,13 +4,28 @@ import { mockConsoleMe } from "./support/console-me";
 /**
  * R33 premium pass for admins and guests: the operator console asks for a suspend reason and a send cap in
  * themed dialogs (no window.prompt), checks the input before it saves, and destructive row actions take two taps.
- * The console overview and the operator (OPS1: /api/console/me) are mocked so no platform admin account is needed.
+ * Since the OPS1 polish, suspend and the send cap live on the workspace's own console page (the Overview lists only
+ * what needs attention). The workspace, the overview and the operator (OPS1: /api/console/me) are mocked so no
+ * platform admin account is needed.
  */
 const overview = {
   attention: [],
   totals: { users: 1204, workspaces: 12, domains: 9, mailboxes: 23, deliveries24h: 310 },
-  tenants: [{ id: "org_e2e", name: "Harbour Studio", plan: "team", isDemo: false, createdAt: new Date().toISOString(), members: 4, agents: 1, domains: 2, suspendedAt: null, suspendedReason: null, sendCapDaily: null, pastDueSince: null }],
-  integrations: { sentryApi: true, sentryWeb: false, outbound: "resend", billing: true, billingTestMode: false, auth0: false, google: true, github: false },
+  newest: [{ id: "org_e2e", name: "Harbour Studio", plan: "pro", isDemo: false, createdAt: new Date().toISOString(), suspendedAt: null, pastDueSince: null, ownerUserId: "usr_owner", ownerEmail: "owner@harbour.test" }],
+};
+
+const limits = { domains: 5, mailboxes: 10, aliases: 20, storagePerMailboxMb: 1000, storageMb: 10000, dailySends: 500, seats: 10, agentInboxes: 2, agentMessagesMonthly: 1000, agentDailySends: 50, automationRunsMonthly: 100, agentMembers: 2 };
+const workspace = {
+  org: {
+    id: "org_e2e", name: "Harbour Studio", slug: "harbour", plan: "pro", effectivePlan: "pro", compPlan: false, isDemo: false,
+    timezone: "Australia/Sydney", country: "AU", createdAt: new Date().toISOString(), stripeCustomerId: null, stripeSubscriptionId: null,
+    subscriptionStatus: null, billingInterval: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, pastDueSince: null, graceEndsAt: null,
+    requireSso: false, suspendedAt: null, suspendedReason: null, sendCapDaily: null, meetingMinutesCap: null, channelsEnabled: true, legacyStorageMb: null,
+  },
+  limits, addons: {},
+  usage: { domains: 2, mailboxes: 4, agentInboxes: 1, aliases: 0, seats: 4, storageMb: 10, agentMessages: 0 },
+  counts: { members: 4, agentMembers: 1, pendingInvites: 0, agents: 1, apiKeys: 0, webhookEndpoints: 0, webhookEndpointsDisabled: 0, activeOauthGrants: 0, sendsToday: 12, meetingMinutesThisMonth: 0 },
+  writeBudget: { used: 10, budget: 5000, level: "ok", resetAt: new Date(Date.now() + 3600_000).toISOString() },
 };
 
 async function signUp(page: import("@playwright/test").Page, who: string) {
@@ -22,40 +37,52 @@ async function signUp(page: import("@playwright/test").Page, who: string) {
   await expect(page).toHaveURL(/\/app\/my-work$/, { timeout: 20_000 });
 }
 
-test("operator console: stat tiles, integrations count, suspend and send cap in themed dialogs", async ({ page }) => {
-  const calls: { url: string; body: unknown }[] = [];
+test("operator console: stat tiles, then suspend and send cap in themed dialogs on the workspace page", async ({ page }) => {
+  const calls: { method: string; url: string; body: unknown }[] = [];
   await page.route("**/api/console/overview", (r) => r.fulfill({ json: overview })); // OPS1: the console's Overview
   await mockConsoleMe(page, "admin");
-  await page.route("**/api/admin/workspaces/org_e2e/**", async (r) => { calls.push({ url: r.request().url(), body: r.request().postDataJSON() }); await r.fulfill({ json: { ok: true } }); });
+  await page.route((u) => u.pathname.startsWith("/api/console/workspaces/org_e2e"), async (r) => {
+    const req = r.request();
+    const path = new URL(req.url()).pathname;
+    if (req.method() === "GET") return path === "/api/console/workspaces/org_e2e" ? r.fulfill({ json: workspace }) : r.fulfill({ status: 404, json: { error: { code: "not_found", message: "Not found." } } });
+    calls.push({ method: req.method(), url: path, body: req.postDataJSON() });
+    return r.fulfill({ json: { ok: true } });
+  });
   let nativeDialog = false;
   page.on("dialog", (d) => { nativeDialog = true; void d.dismiss(); });
   await signUp(page, "Olive Operator");
   await page.goto("/console"); // OPS1: was /app/admin
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("1,204", { exact: true })).toBeVisible(); // grouped digits on the Users tile
-  await expect(page.getByText("4 of 8", { exact: true })).toBeVisible(); // integrations on
+  await expect(page.getByTestId("console-attention-clear")).toContainText("All clear");
+
+  // The newest workspace opens its console page, where the controls are.
+  await page.getByTestId("console-overview-newest").getByRole("link", { name: "Harbour Studio" }).click();
+  await expect(page).toHaveURL(/\/console\/workspaces\/org_e2e$/);
+  await expect(page.getByRole("heading", { name: "Harbour Studio", level: 1 })).toBeVisible({ timeout: 15_000 });
 
   // Suspend: an empty reason is refused inside the dialog, then a real reason is sent.
-  await page.getByRole("button", { name: "Suspend", exact: true }).click();
+  await page.getByTestId("console-workspaces-suspend").click();
   const suspend = page.getByRole("dialog", { name: "Suspend Harbour Studio?" });
   await expect(suspend).toBeVisible();
   await suspend.getByRole("button", { name: "Suspend workspace" }).click();
-  await expect(suspend.getByRole("alert")).toHaveText("Give a short reason.");
+  await expect(suspend.getByRole("alert")).toHaveText("Give a short reason (at least 3 characters).");
   await suspend.getByLabel("Reason").fill("Unusual sending volume");
   await suspend.getByRole("button", { name: "Suspend workspace" }).click();
   await expect(suspend).toBeHidden();
   await expect.poll(() => calls.find((c) => c.url.endsWith("/suspend"))?.body).toEqual({ reason: "Unusual sending volume" });
 
-  // Send cap: letters are refused, a number is saved, empty means the plan limit.
-  await page.getByRole("button", { name: "Set cap" }).click();
-  const cap = page.getByRole("dialog", { name: "Daily send cap" });
-  await cap.getByLabel("Recipients a day").fill("lots");
-  await cap.getByRole("button", { name: "Save cap" }).click();
-  await expect(cap.getByRole("alert")).toHaveText("Enter a whole number, or leave it empty.");
-  await cap.getByLabel("Recipients a day").fill("250");
-  await cap.getByRole("button", { name: "Save cap" }).click();
+  // Send cap: a negative number can't be saved, a whole number is sent with the reason.
+  await page.getByTestId("console-workspaces-send-cap").click();
+  const cap = page.getByRole("dialog", { name: "Change the daily send cap for Harbour Studio?" });
+  await expect(cap).toBeVisible();
+  await cap.getByTestId("console-workspaces-send-cap-input").fill("-5");
+  await expect(cap.getByRole("button", { name: "Save send cap" })).toBeDisabled();
+  await cap.getByTestId("console-workspaces-send-cap-input").fill("250");
+  await cap.getByLabel("Reason").fill("Ramp up slowly");
+  await cap.getByRole("button", { name: "Save send cap" }).click();
   await expect(cap).toBeHidden();
-  await expect.poll(() => calls.find((c) => c.url.endsWith("/send-cap"))?.body).toEqual({ cap: 250 });
+  await expect.poll(() => calls.find((c) => c.url.endsWith("/send-cap"))).toEqual({ method: "PUT", url: "/api/console/workspaces/org_e2e/send-cap", body: { cap: 250, reason: "Ramp up slowly" } });
   expect(nativeDialog).toBe(false);
 });
 
