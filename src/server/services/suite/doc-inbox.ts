@@ -31,6 +31,7 @@ import {
   DOC_LIMITS as L, DOC_TYPES, isDocType, type DocCounts, type DocDetail, type DocField, type DocFields, type DocList, type DocMatch, type DocRow, type DocRule, type DocStatus, type DocType, type DocView,
 } from "@/shared/doc-inbox";
 import { canOpen, isPersonalOwner, personalInfo, personalOwnership } from "../mail-access-priv1a";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const isAdmin = (a: Actor) => a.role === "owner" || a.role === "admin";
@@ -39,7 +40,8 @@ const ENGINE_USER = "doc-inbox"; // nosemgrep: ajinabraham.njsscan.generic.hardc
 const EXCLUDED = ["vv8k"];
 const FIELDS: DocField[] = ["type", "sender", "docDate", "dueDate", "amount", "gst", "paid"];
 
-export const docInboxOn = (deps: Pick<Deps, "config">) => !!deps.config.docInbox;
+// OPS1 feature flags: for one workspace when orgId is given, else the platform wide value (the cron pass).
+export const docInboxOn = (deps: Pick<Deps, "config" | "db" | "now">, orgId?: string) => featureOn(deps, "docInbox", orgId);
 
 interface InboxRow {
   id: number; item_id: string; org_id: string; source: "upload" | "mail"; mail_attachment_id: string | null; added_by: string; status: DocStatus; job_id: string | null; tries: number;
@@ -85,7 +87,7 @@ async function countRead(db: DB, orgId: string, now: Date) {
 
 /** Puts a drive file in the reading queue (or back in it for a new version or Read again). Files that cannot be read are kept as skipped. */
 export async function enqueue(deps: Deps, a: { orgId: string; userId: string }, item: Pick<ItemRow, "id" | "name" | "sizeBytes" | "kind">, opts: { source?: "upload" | "mail"; mailAttachmentId?: string | null } = {}) {
-  if (!docInboxOn(deps) || item.kind !== "file") return;
+  if (!docInboxOn(deps, a.orgId) || item.kind !== "file") return;
   const now = deps.now().getTime();
   const readable = !!readableKind(item.name) && Number(item.sizeBytes) <= L.maxReadBytes && !(await excludedOrg(deps.db, a.orgId));
   const status: DocStatus = readable ? "queued" : "skipped";
@@ -296,7 +298,7 @@ export async function runDocPass(deps: Deps): Promise<DocPassReport> {
 
 /** When someone opens Documents: collects up to two finished jobs and starts up to two waiting rows of that workspace, so a new upload shows in seconds. */
 export async function nudgeOrg(deps: Deps, orgId: string) {
-  if (!docInboxOn(deps)) return;
+  if (!docInboxOn(deps, orgId)) return;
   try {
     const reading = await deps.db.all<InboxRow>(sql`select * from doc_inbox where org_id = ${orgId} and status = 'reading' order by updated_at limit ${L.collectOnOpen}`);
     for (const row of reading) if ((await collect(deps, row)) === "busy") break;
@@ -649,7 +651,7 @@ export async function ruleFolders(deps: Deps, a: Actor): Promise<{ id: string; n
 export interface DocSearchHit { itemId: string; name: string; snippet: string; at: number; sizeBytes: number }
 /** Documents whose text matches, only ones the caller can open (the same check as Files). */
 export async function searchDocs(deps: Deps, a: Actor, q: string, limit: number): Promise<DocSearchHit[]> {
-  if (!docInboxOn(deps)) return [];
+  if (!docInboxOn(deps, a.orgId)) return [];
   const hits = await textHits(deps, a.orgId, q, Math.min(200, limit * 4));
   if (!hits.size) return [];
   const { rows } = await visibleRows(deps, a, [...hits.keys()]);

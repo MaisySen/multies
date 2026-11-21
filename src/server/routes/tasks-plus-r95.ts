@@ -20,7 +20,7 @@ const SheetQuery = z.object({ week: Ymd, person: z.string().max(100).optional() 
 const SheetList = z.object({ status: z.enum(["submitted", "approved", "returned"]).optional() });
 const SheetStep = z.object({ week: Ymd, person: z.string().max(100).optional(), note: z.string().max(500).optional(), version: z.number().int().optional() });
 
-const gate = async (c: { var: AppEnv["Variables"] }, next: () => Promise<void>) => { if (!tasksPlusOn(c.var.deps)) throw notFound("Page"); await next(); };
+const gate = async (c: { var: AppEnv["Variables"] }, next: () => Promise<void>) => { if (!tasksPlusOn(c.var.deps, c.var.auth.orgId)) throw notFound("Page"); await next(); };
 
 export function myDayRoutes() {
   return new Hono<AppEnv>()

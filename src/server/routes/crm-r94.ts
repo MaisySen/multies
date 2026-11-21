@@ -18,6 +18,7 @@ import {
   CALL_OUTCOMES, IMPORT_BATCH, TIMELINE_KINDS, createCompany, createEntry, createSegment, deleteEntry, deleteSegment, forecast, importBatch, importCheck,
   listSegments, restoreEntry, segmentContacts, setNextStep, timelinePage, updateEntry, updateSegment, type TimelineKind,
 } from "../services/suite/crm-r94";
+import { flagOn } from "../services/console/flag-gate"; // OPS1 feature flags
 
 const EntryBody = z.object({
   entityType: z.enum(["contact", "company", "deal"]), entityId: z.string().min(1).max(64),
@@ -37,7 +38,7 @@ const BatchBody = z.object({ rows: z.array(Row).min(1).max(IMPORT_BATCH), mode: 
 
 export function crmRoutes() {
   return new Hono<AppEnv>()
-    .use("*", async (c, next) => { if (!c.var.deps.config.crmTimeline) throw notFound("Page"); await next(); })
+    .use("*", async (c, next) => { if (!(await flagOn(c, "crmTimeline"))) throw notFound("Page"); await next(); }) // OPS1: per workspace flag
     .use("*", requireAuth)
     .get("/timeline", async (c) => {
       const type = c.req.query("type") === "company" ? "company" : "contact";

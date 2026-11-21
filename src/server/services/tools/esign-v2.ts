@@ -19,6 +19,7 @@ import { sendSystemEmail } from "../system-mail";
 import { SIGN_MAX_DAYS, SIGN_MAX_SIGNERS, type SignField, type SignPage, type SignTemplateInfo, type SignVerifyResult } from "@/shared/share-sign";
 import { changesOf, dropKeptFiles, keepFile, readKeptFile } from "./kept-files";
 import type { RequestRow, SignerRow, SignerView } from "./esign";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const CODE_TTL_MS = 10 * 60_000;
 export const CODE_MAX_TRIES = 5;
@@ -359,7 +360,7 @@ async function createFromTemplate(deps: Deps, auth: AuthContext, t: TemplateRow,
   await deps.db.run(sql`insert into sign_requests (id, org_id, created_by, kind, status, title, subject, message, mailbox_id, in_reply_to_id, order_mode, fields, pages, source_file_id, source_sha256,
       remind_days, expires_at, sent_at, created_at, v2, template_id, bulk_id, pending_send)
     values (${id}, ${auth.orgId}, ${auth.userId}, 'request', 'out', ${t.title}, ${o.subject}, ${o.message}, ${o.mailboxId}, null, ${o.order}, ${t.fields}, ${t.pages}, ${t.source_file_id}, ${t.source_sha256},
-      ${o.remind}, ${until}, ${now}, ${now}, ${deps.config.esignV2 === false ? 0 : 1}, ${t.id}, ${o.bulkId}, ${o.pending ? 1 : 0})`);
+      ${o.remind}, ${until}, ${now}, ${now}, ${!featureOn(deps, "esignV2") ? 0 : 1}, ${t.id}, ${o.bulkId}, ${o.pending ? 1 : 0})`);
   for (let i = 0; i < people.length; i++) {
     await deps.db.run(sql`insert into sign_signers (id, request_id, org_id, position, name, email, status) values (${newId("ssg")}, ${id}, ${auth.orgId}, ${i}, ${people[i].name}, ${people[i].email}, 'waiting')`);
   }

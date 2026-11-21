@@ -18,6 +18,7 @@ import type { ShieldAnswer } from "@/shared/spam-shield";
 import { checkAnswers, checkLogic, cleanLogic, FORM_FIELD_TYPES, isLayout, isUpload, LOGIC_OPS, MAX_ROUTES, normaliseLogic, normaliseRules, pickRoute, TD2_FIELD_TYPES, VALUELESS_OPS, type FieldLogic, type FormFieldType, type FormRoute, type LogicField } from "@/shared/form-logic";
 import { FILE_KINDS, parseTd2, type Td2Settings } from "@/shared/forms-td2";
 import { attachUploads, checkFormImages, releaseUploads, uploadSummary } from "../forms-td2/uploads";
+import { featureOn, featureVariesByWorkspace } from "../console/flags"; // OPS1 feature flags
 
 export type FieldType = FormFieldType;
 /** R31: a field can carry "show this question if" logic and answer rules (src/shared/form-logic.ts). */
@@ -125,14 +126,14 @@ async function formRow(deps: Deps, orgId: string, id: string) {
 
 export async function listForms(deps: Deps, orgId: string) {
   const origin = deps.config.appUrl;
-  return (await deps.db.select().from(forms).where(and(eq(forms.orgId, orgId), isNull(forms.deletedAt))).orderBy(desc(forms.createdAt))).map((f) => present(f, origin, !!deps.config.formsTd2));
+  return (await deps.db.select().from(forms).where(and(eq(forms.orgId, orgId), isNull(forms.deletedAt))).orderBy(desc(forms.createdAt))).map((f) => present(f, origin, featureOn(deps, "formsTd2", orgId)));
 }
 
 export async function getForm(deps: Deps, orgId: string, id: string) {
   const f = await formRow(deps, orgId, id);
   const recent = await deps.db.select().from(formSubmissions).where(eq(formSubmissions.formId, f.id)).orderBy(desc(formSubmissions.createdAt)).limit(50);
   return {
-    form: present(f, deps.config.appUrl, !!deps.config.formsTd2),
+    form: present(f, deps.config.appUrl, featureOn(deps, "formsTd2", orgId)),
     submissions: recent.map((s) => ({ id: s.id, data: JSON.parse(s.data) as Record<string, string>, entityType: s.entityType, entityId: s.entityId, createdAt: s.createdAt.toISOString() })),
   };
 }
@@ -172,12 +173,12 @@ function checkTarget(target: "task" | "contact" | "review", fields: FormField[])
 
 export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
-  if (opts.id && opts.retry && await deps.db.select({ id: forms.id }).from(forms).where(and(eq(forms.id, opts.id), eq(forms.orgId, actor.orgId))).get()) return present(await formRow(deps, actor.orgId, opts.id), deps.config.appUrl, !!deps.config.formsTd2); // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
+  if (opts.id && opts.retry && await deps.db.select({ id: forms.id }).from(forms).where(and(eq(forms.id, opts.id), eq(forms.orgId, actor.orgId))).get()) return present(await formRow(deps, actor.orgId, opts.id), deps.config.appUrl, featureOn(deps, "formsTd2", actor.orgId)); // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   const name = input.name.trim().slice(0, 120);
   if (!name) throw new HttpError(422, "validation_failed", "Give the form a name.");
   const target = input.target ?? "task";
   if (target === "review" && !(await formsPlusOn(deps, actor.orgId))) throw new HttpError(422, "validation_failed", "Calls for submissions aren't on for this workspace.");
-  const td2On = !!deps.config.formsTd2;
+  const td2On = featureOn(deps, "formsTd2", actor.orgId);
   const fields = normaliseFields(input.fields ?? (target === "task" ? DEFAULT_TASK_FIELDS : DEFAULT_TASK_FIELDS.slice(0, 2)), { td2: td2On });
   checkTarget(target, fields);
   if (td2On) await checkFormImages(deps, actor.orgId, fields);
@@ -197,7 +198,7 @@ export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput
     ...createdBy(actor), createdAt: now, updatedAt: now,
   });
   await recordWrite(deps, actor, { entityType: "form", entityId: id, op: "create", verb: "form.created", data: { name } });
-  return present(await formRow(deps, actor.orgId, id), deps.config.appUrl, !!deps.config.formsTd2);
+  return present(await formRow(deps, actor.orgId, id), deps.config.appUrl, featureOn(deps, "formsTd2", actor.orgId));
 }
 
 export async function updateForm(deps: Deps, actor: SuiteActor, id: string, patch: Partial<FormInput>) {
@@ -213,11 +214,11 @@ export async function updateForm(deps: Deps, actor: SuiteActor, id: string, patc
   if (patch.projectId !== undefined) { if (patch.projectId) await getProject(deps, actor.orgId, patch.projectId); set.projectId = patch.projectId; }
   if (patch.assigneeId !== undefined) { const a = parseAssignee(patch.assigneeId); await validateAssignee(deps, actor.orgId, a); set.assigneeType = a?.type ?? null; set.assigneeId = a?.id ?? null; }
   if (patch.fields !== undefined) {
-    const next = normaliseFields(patch.fields, { td2: !!deps.config.formsTd2 });
-    if (deps.config.formsTd2) await checkFormImages(deps, actor.orgId, next);
+    const next = normaliseFields(patch.fields, { td2: featureOn(deps, "formsTd2", actor.orgId) });
+    if (featureOn(deps, "formsTd2", actor.orgId)) await checkFormImages(deps, actor.orgId, next);
     set.fields = JSON.stringify(next);
   }
-  if (patch.td2 !== undefined && deps.config.formsTd2) set.td2 = JSON.stringify(parseTd2({ ...parseTd2(f.td2), ...(patch.td2 ?? {}) }));
+  if (patch.td2 !== undefined && featureOn(deps, "formsTd2", actor.orgId)) set.td2 = JSON.stringify(parseTd2({ ...parseTd2(f.td2), ...(patch.td2 ?? {}) }));
   if (patch.successMessage !== undefined) set.successMessage = patch.successMessage.slice(0, 500);
   if (patch.enabled !== undefined) set.enabled = patch.enabled;
   if (patch.triage !== undefined) set.triage = patch.triage;
@@ -229,7 +230,7 @@ export async function updateForm(deps: Deps, actor: SuiteActor, id: string, patc
   checkTarget((set.target ?? f.target) as "task" | "contact" | "review", JSON.parse(set.fields ?? f.fields) as FormField[]);
   await deps.db.update(forms).set(set).where(eq(forms.id, id));
   await recordWrite(deps, actor, { entityType: "form", entityId: id, op: "update", version: f.version + 1, verb: "form.updated" });
-  return present(await formRow(deps, actor.orgId, id), deps.config.appUrl, !!deps.config.formsTd2);
+  return present(await formRow(deps, actor.orgId, id), deps.config.appUrl, featureOn(deps, "formsTd2", actor.orgId));
 }
 
 export async function deleteForm(deps: Deps, actor: SuiteActor, id: string) {
@@ -242,7 +243,7 @@ export async function deleteForm(deps: Deps, actor: SuiteActor, id: string) {
 
 /** TD7: a public upload to a closed form is refused, and a password form needs its access token first. */
 export async function td7UploadGate(deps: Deps, slug: string, access: unknown) {
-  if (!deps.config.formsTd7) return;
+  if (!featureOn(deps, "formsTd7") && !featureVariesByWorkspace(deps, "formsTd7")) return; // OPS1: td7Guard checks the form's workspace
   await td7Guard(deps, await publicRow(deps, slug), access);
 }
 
@@ -266,7 +267,7 @@ export async function publicForm(deps: Deps, slug: string, opts: { access?: unkn
     name: f.name, description: f.description, fields: JSON.parse(f.fields) as FormField[], workspace: org?.name ?? "", turnstileSiteKey: deps.config.turnstile?.siteKey ?? null,
     ...(plus ? { plus: { mode: f.mode === "chat" ? "chat" : "classic", hiddenFields: plus.hiddenFields, bubbleLabel: plus.bubbleLabel, review: f.target === "review", deadline: plus.review?.deadline ?? null } } : {}),
     // TD2: layout and pages; an image block's file id stays private (the page loads it through the form's own image path).
-    ...(deps.config.formsTd2 ? { td2: parseTd2(f.td2), fields: (JSON.parse(f.fields) as FormField[]).map((x) => (x.type === "image" ? { ...x, imageId: undefined, hasImage: true } : x)) } : {}),
+    ...(featureOn(deps, "formsTd2", f.orgId) ? { td2: parseTd2(f.td2), fields: (JSON.parse(f.fields) as FormField[]).map((x) => (x.type === "image" ? { ...x, imageId: undefined, hasImage: true } : x)) } : {}),
     ...(td7 ? { td7 } : {}),
   };
 }
@@ -326,7 +327,7 @@ export async function submitForm(deps: Deps, slug: string, raw: Record<string, u
     .where(and(eq(formSubmissions.formId, f.id), eq(formSubmissions.ipHash, ipHash), gte(formSubmissions.createdAt, since))).get();
   if (Number(recent?.n ?? 0) >= SUBMISSIONS_PER_WINDOW) throw new HttpError(429, "rate_limited", "That's a lot of submissions. Please try again in a few minutes.");
   // TD2: stricter phone and date checks, and every upload answer tied to this answer before anything is made.
-  const td2On = !!deps.config.formsTd2;
+  const td2On = featureOn(deps, "formsTd2", f.orgId);
   const answers = validateAnswers(fields, raw, { strict: td2On });
   const now = deps.now();
   const sid = sortableId("fsb", now.getTime());
@@ -397,7 +398,7 @@ async function saveSubmission(deps: Deps, f: FormRow, fields: FormField[], answe
     event: "form.submitted", eventData: { formId: f.id, form: f.name, submissionId: sid, answers, created: entity } });
   // R90: flows on "a form is sent".
   await (await import("./flows")).fireFlows(deps, f.orgId, "form_submitted", { formId: f.id, form: f.name, summary: lines.join("\n").slice(0, 4000), email: emailField ? answers[emailField.id] : "", name: nameField ? answers[nameField.id] ?? "" : "", link: `${deps.config.appUrl}/app/forms/${f.id}` }, sid);
-  if (deps.config.teamaiTd8) await (await import("../teamai-td8")).onFormResponse(deps, f.orgId, f.id, sid); // TD8: routines on a form response
+  if (featureOn(deps, "teamaiTd8", f.orgId)) await (await import("../teamai-td8")).onFormResponse(deps, f.orgId, f.id, sid); // TD8: routines on a form response
   // R93: the form's own signed webhook, once, after the answer is saved (never holds up the visitor).
   if (plus && f.webhookUrl && f.webhookSecret && !plus.webhookPaused) {
     const p = deliverWebhook(deps, f, webhookPayload(f, { id: sid, answers, hidden, score: (extras as { score?: number | null }).score ?? null, createdAt: now }), sid)

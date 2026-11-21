@@ -11,6 +11,7 @@ import { getAddons, getOrg, getOrgCached, getPlanCached, overLimits, usage } fro
 import { PLANS, effectiveLimits, isPlanId, PLAN_ORDER } from "@/shared/plans";
 import { badRequest, forbidden, HttpError } from "../lib/errors";
 import { isCountry, isTimeZone } from "@/shared/locale";
+import { flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
 const Q_ORG_1 = z.object({ format: z.enum(["csv", "json"]).default("csv"), from: z.coerce.date().optional(), to: z.coerce.date().optional() });
@@ -103,7 +104,7 @@ export function orgRoutes() {
 
 /** R111: the Audit log filters (area, person, from, to as yyyy-mm-dd UTC days), only while MAIL_ARCHIVE_R111 is on. */
 function auditFilterFrom(c: Context<AppEnv>): AuditFilter | undefined {
-  if (!c.var.deps.config.mailArchive) return undefined;
+  if (!flagOnNow(c, "mailArchive")) return undefined; // OPS1: per workspace flag (after requireAdmin)
   const q = (k: string) => (c.req.query(k) ?? "").trim().slice(0, 254);
   const day = (v: string, add = 0) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(Date.parse(`${v}T00:00:00Z`) + add) : undefined);
   const area = AUDIT_AREAS.find((a) => a.id === q("area"));

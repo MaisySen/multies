@@ -15,8 +15,10 @@ import {
   addDays, clampBlock, clashOf, csvRow, isYmd, planTomorrow, sheetStep, SHEET_LOCKED, validTimeZone, weekStartOf, ymdIn,
   type SheetAction, type SheetStatus,
 } from "../../../shared/tasks-plus-r95";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
-export const tasksPlusOn = (deps: Deps) => !!deps.config.tasksPlus;
+// OPS1 feature flags: for one workspace when orgId is given, else the platform wide value.
+export const tasksPlusOn = (deps: Deps, orgId?: string) => featureOn(deps, "tasksPlus", orgId);
 export const isAdmin = (a: SuiteActor) => !a.agentId && (a.role === "owner" || a.role === "admin");
 
 function memberOf(a: SuiteActor) {
@@ -253,7 +255,7 @@ export async function listSheets(deps: Deps, actor: SuiteActor, status: SheetSta
  * Admins can (to fix a mistake before approving). Only with the flag on.
  */
 export async function assertWeekOpen(deps: Deps, actor: SuiteActor, person: { type: "member" | "agent"; id: string }, at: Date) {
-  if (!tasksPlusOn(deps) || person.type !== "member" || isAdmin(actor)) return;
+  if (!tasksPlusOn(deps, actor.orgId) || person.type !== "member" || isAdmin(actor)) return;
   const week = weekStartOf(ymdIn(at, await orgZone(deps, actor.orgId)));
   const row = await sheetRow(deps, actor.orgId, person.id, week);
   if (row && SHEET_LOCKED.includes(row.status as SheetStatus)) {

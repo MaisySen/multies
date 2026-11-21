@@ -39,8 +39,10 @@ import { PORTAL_SESSION_DAYS, taskStateLabel } from "@/shared/client-portal";
 import { portalTd9TeamRoutes } from "./portal-td9"; // TD9
 import { LIVE_JS, TD9_CSS, formsBody, homeStatsTd9, invoicesBody, projectHtml, projectJson, projectsBody, taskHtml, tasksBodyTd9, td9Tabs, type Td9Tab } from "./portal-td9-pages"; // TD9
 import { addShared as addSharedTd9, clientComment, clientItem, clientProject, clientTask, filterForLevels, levelsFor, td9On } from "../services/portal/portal-td9"; // TD9
+import { featureOn, loadFlagOverridesSafe } from "../services/console/flags"; // OPS1 feature flags
 
-const on = (c: Context<AppEnv>) => !!c.var.deps.config.clientPortal;
+// OPS1 feature flags: the platform wide value (client portals are a global switch).
+const on = (c: Context<AppEnv>) => featureOn(c.var.deps, "clientPortal");
 const MAX_FILE = 25 * 1024 * 1024;
 
 /** File requests in a portal need Tools and its file requests feature on for the workspace. */
@@ -280,6 +282,7 @@ export function portalPublicRoutes() {
   const busy = (c: Context<AppEnv>) => { const m = plain("Too many requests", "Try again in a minute."); return c.html(m.html, 429, { ...PUBLIC_HEADERS, "retry-after": "60" }); };
   const session = (c: Context<AppEnv>, p: PortalRow) => clientFromSession(c.var.deps, p, getCookie(c, COOKIE));
   return new Hono<AppEnv>()
+    .use("*", async (c, next) => { await loadFlagOverridesSafe(c.var.deps); await next(); }) // OPS1: not under /api, so the overrides load here
     .get("/:key", async (c) => {
       if (!opens.take(c.var.ip)) return busy(c);
       const p = await load(c);

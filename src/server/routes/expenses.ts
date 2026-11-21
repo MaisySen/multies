@@ -22,6 +22,7 @@ import { toolFeatureOn } from "../services/tools/features";
 import { docFor, fillInvoices, startEngineJob } from "./tools-ai";
 import { CURRENCIES } from "@/shared/invoices";
 import { EVERY, MAX_SPLITS, RECEIPT_MAX_BYTES } from "@/shared/expenses";
+import { flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const Split = z.object({ category: z.string().min(1).max(60), amountCents: z.number().int(), note: z.string().max(200).nullable().optional() });
@@ -117,8 +118,7 @@ export function expenseRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .use("*", async (c, next) => {
-      const cfg = c.var.deps.config;
-      if (!cfg.invoicesEnabled || !cfg.expensesR106 || (await excludedOrg(c.var.deps, c.var.auth.orgId))) throw notFound("Page");
+      if (!flagOnNow(c, "invoicesEnabled") || !flagOnNow(c, "expensesR106") || (await excludedOrg(c.var.deps, c.var.auth.orgId))) throw notFound("Page"); // OPS1: per workspace flags
       await next();
     })
     .get("/", async (c) => c.json(await listExpenses(c.var.deps, c.var.auth, view(c))))

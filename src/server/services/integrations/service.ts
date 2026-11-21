@@ -16,6 +16,7 @@ import { HttpError, forbidden, tooMany } from "../../lib/errors";
 import { RateLimiter } from "../../lib/rate-limit";
 import { APP_NAME_OVERRIDES, canPostTo, type AccountStatus, type ConnectedAccountView } from "@/shared/integrations";
 import { composioFrom, IntegrationError, type Composio, type CpAccount, type CpToolkit } from "./composio";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const isAdmin = (a: Pick<AuthContext, "role">) => a.role === "owner" || a.role === "admin";
 
@@ -98,7 +99,7 @@ export async function listAccounts(deps: Deps, auth: AuthContext): Promise<Conne
     } catch (err) { deps.log?.warn("social.profiles_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
   }
   // SOC1: whether LinkedIn granted organization access (company Pages), read from the login's granted scope.
-  const soc1 = deps.config.socialMultiSoc1 === true;
+  const soc1 = featureOn(deps, "socialMultiSoc1");
   const orgScope = (a: CpAccount) => { const v = (a as unknown as { state?: { val?: { scope?: unknown; scopes?: unknown } } }).state?.val; const sc = v?.scope ?? v?.scopes; return /w_organization_social/.test(typeof sc === "string" ? sc : Array.isArray(sc) ? sc.join(",") : ""); };
   return mine
     .filter((a) => !merged.has(a.id))
@@ -212,7 +213,7 @@ export async function disconnect(deps: Deps, auth: AuthContext, accountId: strin
   const a = await ownAccount(cp, auth.orgId, accountId);
   try { await cp.remove(a.id); } catch (err) { return toHttp(err); }
   // SOC1: the Pages chosen through this login go with it.
-  if (deps.config.socialMultiSoc1 === true) await (await import("./social-pages-soc1")).dropForAccount(deps, auth.orgId, a.id).catch(() => 0);
+  if (featureOn(deps, "socialMultiSoc1")) await (await import("./social-pages-soc1")).dropForAccount(deps, auth.orgId, a.id).catch(() => 0);
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "integration.disconnected", targetType: "integration", targetId: a.id, metadata: { app: a.toolkit?.slug ?? null }, ip: ip ?? null });
   return { ok: true };
 }
@@ -259,7 +260,7 @@ export async function listTargets(deps: Deps, auth: AuthContext, accountId: stri
   try {
     if (app === "facebook") {
       // SOC1: once an admin chose Pages for this login, only those are offered (the phone app uses this list too).
-      if (deps.config.socialMultiSoc1 === true) {
+      if (featureOn(deps, "socialMultiSoc1")) {
         const chosen = await (await import("./social-pages-soc1")).chosenFor(deps, auth.orgId, a.id);
         if (chosen.length) return chosen;
       }

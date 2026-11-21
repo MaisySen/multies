@@ -10,6 +10,7 @@ import { badRequest } from "../../lib/errors";
 import { audit } from "../audit";
 import { AI_PROVIDER_INFO, byoProvider, keyProblemOf, type AiProvider, type AiProviderId } from "./providers";
 import { aiKeyProblemText, type AiKeyProblem } from "../../../shared/ai-connect-ai2";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export interface AiKeyStatus {
   connected: boolean;
@@ -36,7 +37,8 @@ const hostOf = (u: string | null | undefined) => { try { return u ? new URL(u).h
  * its own provider, so its text goes to another processor only when the operator has turned this on. Settings, AI
  * trust names the stand-in whenever this is true, before any refusal. The one check every AI path uses.
  */
-export const keyFallbackOn = (deps: Pick<Deps, "config" | "ai">): boolean => deps.config.aiKeyFallback === true && !!deps.config.aiConnectAi2 && !!deps.ai;
+// OPS1: the platform wide flag values (a global switch; the callers have no workspace at hand).
+export const keyFallbackOn = (deps: Pick<Deps, "config" | "ai" | "db" | "now">): boolean => featureOn(deps, "aiKeyFallback") && featureOn(deps, "aiConnectAi2") && !!deps.ai;
 
 export async function aiKeyStatus(deps: Deps, orgId: string): Promise<AiKeyStatus> {
   const row = await deps.db.select().from(aiKeys).where(eq(aiKeys.orgId, orgId)).get();

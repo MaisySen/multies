@@ -27,7 +27,8 @@ import { authFor } from "./auth";
 import { clearAuthCache, forgetCachedAuth } from "./auth/guards";
 import { forgetProjectCounts } from "./services/suite/tasks";
 import { forgetOrgCache } from "./services/plans";
-import { clientFlags, loadFlagOverridesSafe } from "./services/console/flags"; // OPS1 feature flags
+import { clientFlags, featureOn, featureVariesByWorkspace, loadFlagOverridesSafe } from "./services/console/flags"; // OPS1 feature flags
+import { flagOn, formsPlusAnywhere, formsPlusForEmbed } from "./services/console/flag-gate";
 import { forgetUserCaches } from "./lib/isolate-cache";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
@@ -216,7 +217,8 @@ export function createApp(deps: Deps) {
   // the response, so answers land in seconds; the cron pass picks up anything left. Nothing happens with the flag off.
   app.use("/api/*", async (c, next) => {
     await next();
-    if (!deps.config.teamaiTd8) return;
+    // OPS1 feature flags: on for the platform or for some workspace (only workspaces with it on queue a run).
+    if (!featureOn(deps, "teamaiTd8") && !featureVariesByWorkspace(deps, "teamaiTd8")) return;
     const { takePending, drainPending } = await import("./services/teamai-td8");
     const orgs = takePending();
     if (!orgs.length) return;
@@ -291,8 +293,8 @@ export function createApp(deps: Deps) {
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
     if (p === "/auth/mobile/web") { c.res.headers.set("referrer-policy", "no-referrer"); c.res.headers.set("cache-control", "no-store"); c.res.headers.set("content-security-policy", apiHeaders["content-security-policy"]); } // MH1: a bodiless redirect: the code never leaks onward or into a cache, and the strictest policy (nothing may load)
     if (p.startsWith("/api/ai/oauth/")) c.res.headers.set("referrer-policy", "no-referrer"); // AI2 (MB-322): the OpenRouter sign in start and callback carry a state and a code; neither may leak onward
-    // R93: only the form inside the website bubble may be framed by other sites.
-    if (EMBED_FORM_PATH.test(p) && deps.config.formsPlus) { c.res.headers.delete("x-frame-options"); c.res.headers.set("content-security-policy", frameableCsp(formPageHeaders["content-security-policy"])); }
+    // R93: only the form inside the website bubble may be framed by other sites. OPS1: while Forms plus is on for the form's workspace.
+    if (EMBED_FORM_PATH.test(p) && (await formsPlusForEmbed(c))) { c.res.headers.delete("x-frame-options"); c.res.headers.set("content-security-policy", frameableCsp(formPageHeaders["content-security-policy"])); }
   });
   app.use("/api/*", async (c, next) => {
     await next();
@@ -622,10 +624,10 @@ export function createApp(deps: Deps) {
   app.route("/api/crm-td10", crmTd10Routes()); // TD10: CRM suggestions from mail, saved analyses, shortcut switch
   app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)
   // R116: translate a mail, doc or chat message (TRANSLATE_R116). Off: no such endpoint, as before. Loaded on first use.
-  app.post("/api/translate", async (c, next) => (c.var.deps.config.translateR116 ? next() : notFoundHandler(c)), requireAuth,
+  app.post("/api/translate", async (c, next) => ((await flagOn(c, "translateR116")) ? next() : notFoundHandler(c)), requireAuth, // OPS1: per workspace flag
     async (c) => (await import("./routes/translate-r116")).translateHandler(c));
   // R104: workspace admins suggest a better wording for a translated string (LANG_R104). Off: no such endpoint. Loaded on first use.
-  app.on(["GET", "POST"], "/api/i18n/suggestions", async (c, next) => (c.var.deps.config.langR104 ? next() : notFoundHandler(c)), requireAuth,
+  app.on(["GET", "POST"], "/api/i18n/suggestions", async (c, next) => ((await flagOn(c, "langR104")) ? next() : notFoundHandler(c)), requireAuth, // OPS1: per workspace flag
     async (c) => (await import("./routes/i18n-r104")).suggestionsHandler(c));
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests
@@ -644,7 +646,7 @@ export function createApp(deps: Deps) {
   app.route("/api/pub/data-request", dataRequestPublicRoutes()); // R112: data requests with a one time email link
   app.route("/api/reporting", reportingRoutes()); // R112: cases for admins and their handlers
   app.route("/api/data-requests", dataRequestRoutes()); // R112: export or delete a person's data (admins)
-  app.get("/forms-embed.js", (c) => (c.var.deps.config.formsPlus ? c.body(FORMS_EMBED_JS, 200, FORMS_EMBED_HEADERS) : c.notFound())); // R93
+  app.get("/forms-embed.js", async (c) => ((await formsPlusAnywhere(c)) ? c.body(FORMS_EMBED_JS, 200, FORMS_EMBED_HEADERS) : c.notFound())); // R93; OPS1: on for the platform or some workspace (the form itself checks its own)
   app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign
   app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)
   app.route("/api/tools/campaigns", campaignRoutes()); // R109 (flag merge_plus_r109)

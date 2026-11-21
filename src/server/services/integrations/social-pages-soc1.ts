@@ -15,6 +15,7 @@ import type { Composio, CpAccount } from "./composio";
 import { isAdmin, limitRead, limitWrite, ownAccount, platform, platformForId, platformUserId, statusOf, toHttp } from "./service";
 import { graph, linkedinGet, PublishError, type PublishCtx } from "./social";
 import { SOC1_PAGE_KEY, soc1KeyOf, type Soc1AvailablePage, type Soc1AvailableView, type Soc1PageView } from "@/shared/social-soc1";
+import { featureOn } from "../console/flags";
 
 /** Graph answers at most 100 Pages a call; we follow the cursor up to this many calls (3,000 Pages). */
 export const SOC1_MAX_PAGE_CALLS = 30;
@@ -22,7 +23,7 @@ export const SOC1_MAX_PAGE_CALLS = 30;
 export const SOC1_MAX_SAVE = 500;
 const ORG_SCOPE = /w_organization_social/;
 
-export function soc1On(deps: Deps): boolean { return deps.config.socialMultiSoc1 === true; }
+export function soc1On(deps: Deps): boolean { return featureOn(deps, "socialMultiSoc1"); } // OPS1 feature flags: the platform wide value (a global switch)
 function needOn(deps: Deps) { if (!soc1On(deps)) throw new HttpError(404, "not_found", "Not found."); }
 
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);

@@ -10,6 +10,7 @@ import { HttpError } from "../../lib/errors";
 import { enqueue, registerJob } from "../jobs";
 import { inIds } from "../../lib/sql-chunks";
 import { webPushToUsers } from "./web-push-r32";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const TOKEN_RE = /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]{10,}\]$/;
@@ -27,7 +28,7 @@ export async function registerDevice(deps: Deps, auth: { userId: string; orgId: 
   const now = deps.now();
   await deps.db.insert(pushDevices).values({ token: input.token, userId: auth.userId, orgId: auth.orgId, platform: input.platform, createdAt: now, lastSeenAt: now })
     .onConflictDoUpdate({ target: pushDevices.token, set: { userId: auth.userId, orgId: auth.orgId, platform: input.platform, lastSeenAt: now } });
-  return { ok: true, enabled: deps.config.push.enabled };
+  return { ok: true, enabled: featureOn(deps, "pushNotifications") }; // OPS1: the platform wide flag
 }
 
 export async function unregisterDevice(deps: Deps, auth: { userId: string }, token: string) {
@@ -46,7 +47,7 @@ export async function pushToUsers(deps: Deps, orgId: string, userIds: string[], 
   if (deps.config.webPush && userIds.length) {
     try { await webPushToUsers(deps, orgId, userIds, event); } catch (err) { deps.reportError?.(err, { where: "web-push" }); }
   }
-  if (!deps.config.push.enabled || !userIds.length) return;
+  if (!featureOn(deps, "pushNotifications") || !userIds.length) return; // OPS1: the platform wide flag
   const devices = await deps.db.select({ token: pushDevices.token }).from(pushDevices).where(and(eq(pushDevices.orgId, orgId), inIds(pushDevices.userId, [...new Set(userIds)])));
   if (!devices.length) return;
   const job: PushJob = { orgId, tokens: devices.map((d) => d.token), event: pushPayload(event) };

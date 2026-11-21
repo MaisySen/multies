@@ -32,6 +32,7 @@ import { containsAny } from "../lib/like-search";
 import { notBlockedBy } from "./suite/reports-r35"; // R35
 import { searchAttachmentText } from "./tools/attachment-index"; // Tools P2 (17)
 import { safeSnippet } from "./agents/platform-mail"; // AIS1 (row 32): pre-fix previews of the platform's own mail
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 // Tools P2 (17): "attachments" (text inside mail attachments) is listed only while the deployment has the index feature on.
 export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals", "attachments"] as const;
@@ -252,7 +253,7 @@ export function parseTypes(raw: string | string[] | null | undefined, r98 = fals
  */
 export async function searchEverything(deps: Deps, v: SearchViewer, rawQuery: string, opts: { types?: SearchType[]; limit?: number; budgetMs?: number; filters?: import("./search-r98").SearchFilters; strict?: boolean } = {}): Promise<SearchResult> {
   // R98 (SEARCH_R98): typo tolerant, filtered and ranked, with files and notes. Off: the round 20 search below, unchanged.
-  if (deps.config.searchR98) return (await import("./search-r98")).searchR98(deps, v, rawQuery, opts);
+  if (featureOn(deps, "searchR98", v.kind === "guest" ? v.orgId : v.actor.orgId)) return (await import("./search-r98")).searchR98(deps, v, rawQuery, opts);
   const started = Date.now();
   const term = normaliseQuery(rawQuery);
   if (!term) throw new HttpError(422, "validation_failed", `Type at least ${SEARCH_MIN_CHARS} characters to search.`);

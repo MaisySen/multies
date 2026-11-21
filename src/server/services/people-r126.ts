@@ -15,6 +15,7 @@ import {
   type Asset, type AssetEvent, type AssetKind, type AssetStatus, type AwayEntry, type ItemOwner, type OnboardingTemplate, type RunKind,
   type RunProgress, type StaffPerson, type TemplateItem,
 } from "../../shared/people-r126";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 type A = Pick<AuthContext, "orgId" | "userId" | "email" | "name" | "role">;
 type Body = Record<string, unknown>;
@@ -39,7 +40,7 @@ export function isPeopleExcluded(org: { id: string; slug?: string | null; name?:
 }
 
 export async function assertPeopleOpen(deps: Deps, a: Partial<A>): Promise<void> {
-  if (!deps.config.peopleR126) throw notFound();
+  if (!a.orgId || !featureOn(deps, "peopleR126", a.orgId)) throw notFound(); // OPS1: per workspace flag
   if (!a.userId || !a.orgId || !a.role) throw notFound();
   const [o] = await deps.db.all<{ id: string; slug: string | null; name: string | null }>(sql`select id, slug, name from organizations where id = ${a.orgId} limit 1`);
   if (!o || isPeopleExcluded(o, deps.config.peopleExclude ?? "")) throw notFound();

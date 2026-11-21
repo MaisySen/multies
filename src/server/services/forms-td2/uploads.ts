@@ -15,6 +15,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { isUpload, MULTI_SEPARATOR, UPLOAD_ID, type LogicField } from "@/shared/form-logic";
 import { allowedKinds, cleanFileName, FILE_KINDS, fieldMaxBytes, fieldMaxFiles, formatBytes, sniffType, UPLOAD_LIMITS } from "@/shared/forms-td2";
 import { blobsFor, currentBytes } from "../suite/drive-r101";
+import { featureOn, featureVariesByWorkspace } from "../console/flags"; // OPS1 feature flags
 
 const ALNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 /** fu_ plus 24 random letters and digits (about 143 bits): knowing the id is the only way to use an upload. */
@@ -27,9 +28,10 @@ const blobKey = (orgId: string, id: string) => `fu/${orgId}/${id}`;
 export const senderHash = async (deps: Deps, ip: string) => (await hmacSha256Hex(deps.config.appSecret, `form:${ip}`)).slice(0, 32);
 
 async function liveForm(deps: Deps, slug: string) {
-  if (!deps.config.formsTd2) throw notFound("Form");
+  // OPS1 feature flags: on for the form's workspace (no read at all while it is off everywhere, as before).
+  if (!featureOn(deps, "formsTd2") && !featureVariesByWorkspace(deps, "formsTd2")) throw notFound("Form");
   const f = await deps.db.select().from(forms).where(and(eq(forms.slug, slug.toLowerCase()), isNull(forms.deletedAt))).get();
-  if (!f || !f.enabled) throw notFound("Form");
+  if (!f || !f.enabled || !featureOn(deps, "formsTd2", f.orgId)) throw notFound("Form");
   return f;
 }
 
@@ -124,7 +126,7 @@ export const uploadSummary = (f: Pick<LogicField, "type">, text: string) => {
 
 /** The files of some responses (signed in, this workspace only), for the responses table. */
 export async function filesFor(deps: Deps, orgId: string, formId: string, submissionIds: string[]) {
-  if (!deps.config.formsTd2 || !submissionIds.length) return {} as Record<string, { id: string; name: string; size: number; type: string; kind: string; fieldId: string }[]>;
+  if (!featureOn(deps, "formsTd2", orgId) || !submissionIds.length) return {} as Record<string, { id: string; name: string; size: number; type: string; kind: string; fieldId: string }[]>;
   const rows = await deps.db.select().from(formUploads).where(and(eq(formUploads.orgId, orgId), eq(formUploads.formId, formId), inIds(formUploads.submissionId, submissionIds.slice(0, 200)))).all();
   const out: Record<string, { id: string; name: string; size: number; type: string; kind: string; fieldId: string }[]> = {};
   for (const r of rows) (out[r.submissionId!] ??= []).push({ id: r.id, name: r.name, size: r.size, type: r.contentType, kind: r.kind, fieldId: r.fieldId });
@@ -133,7 +135,7 @@ export async function filesFor(deps: Deps, orgId: string, formId: string, submis
 
 /** One uploaded file for a signed in member of the form's workspace (anyone else: not found). */
 export async function openUpload(deps: Deps, orgId: string, formId: string, uploadId: string) {
-  if (!deps.config.formsTd2 || !UPLOAD_ID.test(uploadId)) throw notFound("File");
+  if (!featureOn(deps, "formsTd2", orgId) || !UPLOAD_ID.test(uploadId)) throw notFound("File");
   const r = await deps.db.select().from(formUploads).where(and(eq(formUploads.id, uploadId), eq(formUploads.orgId, orgId), eq(formUploads.formId, formId))).get();
   if (!r || !r.submissionId) throw notFound("File");
   return { name: r.name, type: r.contentType, size: r.size, stream: blobsFor(deps).read(blobKey(r.orgId, r.id), Number(r.parts), r.size) };

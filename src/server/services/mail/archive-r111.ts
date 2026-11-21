@@ -22,6 +22,7 @@ import {
   type ArchiveFilters, type ArchiveHit, type LegalHoldView, type MailCaseView, type RetentionPreview, type RetentionView,
 } from "@/shared/mail-archive";
 import { containsText } from "../../lib/like-search";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
@@ -162,7 +163,7 @@ export async function runRetentionForOrg(deps: Deps, orgId: string): Promise<{ d
   const now = deps.now();
   const row = await policyRow(deps, orgId);
   // Rule 1: only an explicit policy, switched on by that workspace, past its grace.
-  if (!deps.config.mailArchive) return { deleted: 0, skipped: "flag_off" };
+  if (!featureOn(deps, "mailArchive", orgId)) return { deleted: 0, skipped: "flag_off" }; // OPS1: per workspace flag
   if (!row || !row.enabled || row.keepYears == null) return { deleted: 0, skipped: "no_policy" };
   if (!row.startsAt || row.startsAt > now) return { deleted: 0, skipped: "grace" };
   const cutoff = retentionCutoff(now, row.keepYears, await orgZone(deps, orgId));
@@ -198,7 +199,7 @@ export async function runRetentionForOrg(deps: Deps, orgId: string): Promise<{ d
 
 /** The cron pass: workspaces with a policy on, past grace, due (a day since the last pass, or a backlog left). */
 export async function runRetentionPass(deps: Deps, opts: { maxOrgs?: number } = {}) {
-  if (!deps.config.mailArchive) return { orgs: 0, deleted: 0 };
+  if (!featureOn(deps, "mailArchive")) return { orgs: 0, deleted: 0 }; // OPS1: the platform wide value (a cron pass)
   const now = deps.now();
   const due = await deps.db.select({ orgId: mailRetentionPolicies.orgId }).from(mailRetentionPolicies)
     .where(and(eq(mailRetentionPolicies.enabled, true), lte(mailRetentionPolicies.startsAt, now),
@@ -255,13 +256,13 @@ async function anyHeld(deps: Deps, orgId: string, boxIds: string[], senders: str
 }
 /** Guard for every person driven permanent delete: 409 when any (non draft) message is under a legal hold. */
 export async function assertNotHeld(deps: Deps, orgId: string, rows: HeldRow[]) {
-  if (!deps.config.mailArchive) return;
+  if (!featureOn(deps, "mailArchive", orgId)) return; // OPS1: per workspace flag
   const kept = rows.filter((r) => r.folder !== "drafts");
   if (!kept.length) return;
   if (await anyHeld(deps, orgId, kept.map((r) => r.mailboxId), kept.map((r) => r.sentByUserId).filter((u): u is string => !!u))) throw legalHold("mail");
 }
 export async function assertMailboxNotHeld(deps: Deps, orgId: string, mailboxId: string) {
-  if (!deps.config.mailArchive) return;
+  if (!featureOn(deps, "mailArchive", orgId)) return; // OPS1: per workspace flag
   if (await anyHeld(deps, orgId, [mailboxId], [])) throw legalHold("mailbox");
 }
 

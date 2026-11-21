@@ -12,6 +12,7 @@ import { flows, flowWatches } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { isPublicHost } from "../../lib/ssrf";
 import { changeSummary, diffLines, watchBackoff } from "@/shared/flows";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const WATCH_MAX_BYTES = 512 * 1024;
 export const WATCH_TIMEOUT_MS = 10_000;
@@ -255,7 +256,7 @@ export async function checkWatch(deps: Deps, w: WatchRow, opts: { manual?: boole
 
 /** From the maintenance pass: a few due watches, oldest first. One indexed read when none are due. */
 export async function runDueWatches(deps: Deps, limit = 5) {
-  if (deps.config.flows === false) return 0;
+  if (!featureOn(deps, "flows")) return 0; // OPS1: the platform wide value (a cron pass)
   const due = await deps.db.select().from(flowWatches).where(and(isNotNull(flowWatches.nextCheckAt), lte(flowWatches.nextCheckAt, deps.now()))).orderBy(asc(flowWatches.nextCheckAt)).limit(limit);
   let started = 0;
   for (const w of due) started += (await checkWatch(deps, w)).started;

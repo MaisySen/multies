@@ -13,6 +13,7 @@ import type { SuiteActor } from "./common";
 import { normaliseFields, updateForm, type FormField } from "./forms";
 import { containsText } from "../../lib/like-search";
 import { filesFor } from "../forms-td2/uploads";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 /** Rows read per page while building a summary or an export. */
 export const RESULTS_PAGE = 500;
@@ -72,7 +73,7 @@ export async function formResponses(deps: Deps, orgId: string, formId: string, q
     fields: fields.map((f) => ({ id: f.id, label: f.label, type: f.type })),
     responses: rows.map(present), total: Number(total?.n ?? 0), limit, offset,
     // TD2: each response's files and signatures (names and sizes only; bytes open through the signed in file path).
-    ...(deps.config.formsTd2 ? { files: await filesFor(deps, orgId, formId, rows.map((r) => r.id)) } : {}),
+    ...(featureOn(deps, "formsTd2", orgId) ? { files: await filesFor(deps, orgId, formId, rows.map((r) => r.id)) } : {}),
   };
 }
 
@@ -158,11 +159,11 @@ export async function setFieldLogic(deps: Deps, actor: SuiteActor, formId: strin
     if (i !== at) return f;
     const out: FormField = { ...f };
     if (input.required !== undefined) out.required = !!input.required;
-    if (input.logic !== undefined) { const l = normaliseLogic(input.logic, { td2: !!deps.config.formsTd2 }); if (l) out.logic = l; else delete out.logic; }
+    if (input.logic !== undefined) { const l = normaliseLogic(input.logic, { td2: featureOn(deps, "formsTd2", actor.orgId) }); if (l) out.logic = l; else delete out.logic; }
     if (input.rules !== undefined) { const r = normaliseRules(f.type, input.rules); if (r) out.rules = r; else delete out.rules; }
     return out;
   });
-  normaliseFields(next, { td2: !!deps.config.formsTd2 }); // throws 422 with the problem before anything is written
+  normaliseFields(next, { td2: featureOn(deps, "formsTd2", actor.orgId) }); // throws 422 with the problem before anything is written
   const form = await updateForm(deps, actor, formId, { fields: next });
   return { form, field: form.fields.find((f) => f.id === fieldId)! };
 }

@@ -22,6 +22,7 @@ import {
   BULK_MAX, INBOX_SOURCES, INBOX_VIEWS, RULES_MAX, mailRead, ruleKey, ruleLabel, sortItem, sourceOfNote, viewOf,
   type InboxKind, type InboxLane, type InboxSource, type InboxView,
 } from "@/shared/inbox-td6";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 type A = Pick<AuthContext, "userId" | "orgId" | "role">;
 export const MAIL_DAYS = 14;
@@ -48,7 +49,7 @@ export async function inboxAiAllowed(deps: Deps, orgId: string): Promise<boolean
 }
 
 export async function assertInboxOpen(deps: Deps, a: Partial<A>): Promise<void> {
-  if (!deps.config.inboxTd6) throw notFound();
+  if (!a.orgId || !featureOn(deps, "inboxTd6", a.orgId)) throw notFound(); // OPS1: per workspace flag
   if (!a.userId || !a.orgId || !a.role) throw notFound();
   const [o] = await deps.db.all<{ id: string; slug: string | null; name: string | null }>(sql`select id, slug, name from organizations where id = ${a.orgId} limit 1`);
   if (!o || isPeopleExcluded(o, "")) throw notFound();

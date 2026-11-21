@@ -25,6 +25,7 @@ import {
 import { appLabel, platform, platformUserId, statusOf } from "./service";
 import type { Composio } from "./composio";
 import { PublishError, dig, graph, proxyCall, type PublishCtx } from "./social";
+import { featureOn } from "../console/flags"; // OPS1 feature flags (socialP2b: the platform wide value)
 
 type ItemRow = typeof socialInboxItems.$inferSelect;
 type Role = AuthContext["role"];
@@ -39,7 +40,7 @@ const STATS_PER_PASS = 40;
 const lastAsk = new Map<string, number>();
 
 export function requireP2b(deps: Deps) {
-  if (deps.config.socialP2b === false) throw new HttpError(404, "not_found", "Not found.");
+  if (!featureOn(deps, "socialP2b")) throw new HttpError(404, "not_found", "Not found.");
 }
 const isManager = (role: Role) => role === "owner" || role === "admin";
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -569,7 +570,7 @@ export async function removeSavedReply(deps: Deps, auth: AuthContext, id: string
 
 /** Rings the bell for owners and admins once when an account breaks; clears when it works again. */
 export async function noteHealth(deps: Deps, orgId: string, rows: { accountId: string; app: string; code: string | null }[]) {
-  if (deps.config.socialP2b === false || !rows.length) return;
+  if (!featureOn(deps, "socialP2b") || !rows.length) return;
   const states = await deps.db.select().from(socialAccountState).where(and(eq(socialAccountState.orgId, orgId), inIds(socialAccountState.accountId, rows.map((r) => r.accountId)))).all();
   const broken = rows.filter((r) => r.code && r.code !== "check_failed");
   let who: string[] | null = null;
@@ -763,7 +764,7 @@ export async function analytics(deps: Deps, auth: AuthContext, rangeRaw: string 
 
 /** Every 15 minutes: pulls up to 3 workspaces whose inbox is used and is due, and results for up to 2. One read when none. */
 export async function runSocialP2bPass(deps: Deps) {
-  if (deps.config.socialP2b === false) return { inbox: 0, stats: 0 };
+  if (!featureOn(deps, "socialP2b")) return { inbox: 0, stats: 0 };
   const now = deps.now().getTime();
   const due = await deps.db.selectDistinct({ orgId: socialAccountState.orgId }).from(socialAccountState)
     .where(lt(socialAccountState.inboxSyncedAt, new Date(now - CRON_INBOX_MS))).limit(3).all();

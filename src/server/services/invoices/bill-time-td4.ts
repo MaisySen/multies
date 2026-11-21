@@ -21,6 +21,7 @@ import { csvCell } from "@/shared/expenses";
 import {
   billTimeOn, MAX_RATE_CENTS, MAX_RUN_DAYS, MAX_RUN_ENTRIES, ROUNDINGS, groupRun, lineDescription, pickRate, roundSeconds, validDate, type RunEntry,
 } from "@/shared/bill-time-td4";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export type Actor = SuiteActor & { role?: "owner" | "admin" | "member" };
 const WS = ""; // the workspace default row in bill_projects and bill_rates
@@ -30,7 +31,8 @@ export { billTimeOn };
 
 /** 404 when the feature is off or this is the client portal workspace; 403 for members. */
 export async function guard(deps: Deps, a: Actor) {
-  if (!billTimeOn(deps.config)) throw notFound("Page");
+  // OPS1 feature flags: both on for this workspace (billTimeOn(config) is the env value of the same pair).
+  if (!featureOn(deps, "invoicesEnabled", a.orgId) || !featureOn(deps, "billTd4", a.orgId)) throw notFound("Page");
   const [o] = await deps.db.all<{ id: string; slug: string | null; name: string | null }>(sql`select id, slug, name from organizations where id = ${a.orgId} limit 1`);
   if (!o || isAskExcluded(o)) throw notFound("Page");
   if (a.role !== "owner" && a.role !== "admin") throw new HttpError(403, "billing_only", "Only owners and admins can bill time.");

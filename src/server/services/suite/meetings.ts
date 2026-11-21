@@ -16,6 +16,7 @@ import { link, resolveTaskId } from "./tasks";
 import { admittedGuest, cleanGuestName } from "./meeting-lobby-r32";
 import { vtimezone } from "./vtimezone";
 import { assertZone, describeRecurrence, expandWeekly, normaliseRecurrence, parseRrule, toRrule, weekdayIn, type Recurrence, type RecurrenceInput } from "./meeting-recurrence";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 type MeetingRow = typeof meetings.$inferSelect;
 export type MeetingSource = { type: "thread" | "task" | "contact"; id: string };
@@ -362,7 +363,7 @@ export async function joinMeeting(deps: Deps, actor: SuiteActor, id: string, opt
   await minutesLeftForRoom(deps, m);
   const identity = actor.agentId ? `agent-${actor.agentId}` : `member-${actor.userId}`;
   // R114: in a webinar only hosts and panelists speak; other members watch.
-  const stage = deps.config.webinar ? await (await import("./webinar-r114")).stageRole(deps, actor, m) : null;
+  const stage = featureOn(deps, "webinar") ? await (await import("./webinar-r114")).stageRole(deps, actor, m) : null;
   const host = stage ? stage.host : true;
   return { meeting: out(deps, m), webinarRole: stage ? (stage.host ? "host" : stage.publish ? "panelist" : "attendee") : null, ...(await livekitToken(deps, m.room, { identity, name: cleanGuestName(opts.name) || actor.name || actor.email || "Host", host, publish: stage ? stage.publish : true })) };
 }
@@ -389,7 +390,7 @@ export async function guestJoin(deps: Deps, token: string, name: string, lobbyId
   if (!clean) throw new HttpError(422, "validation_failed", "Tell the others your name.");
   await minutesLeftForRoom(deps, m);
   // R114: in a webinar a guest from the meeting link watches only.
-  const stage = deps.config.webinar ? await (await import("./webinar-r114")).stageRole(deps, null, m) : null;
+  const stage = featureOn(deps, "webinar") ? await (await import("./webinar-r114")).stageRole(deps, null, m) : null;
   return { title: m.title, ...(await livekitToken(deps, m.room, { identity: `guest-${urlToken(6)}`, name: clean, host: false, publish: stage ? stage.publish : true })) };
 }
 

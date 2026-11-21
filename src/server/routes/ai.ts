@@ -9,6 +9,7 @@ import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { AI_PROVIDERS, AI_PROVIDER_INFO, BYO_AI_MESSAGE, aiKeyStatus, canFallBack, deleteAiKey, draftReply, invoiceChase, saveAiKey, summariseThread, triageMessage } from "../services/ai";
 import { LEGACY_AI_PROVIDERS } from "../services/ai/providers";
 import { AI2_PROVIDERS, AI2_PROVIDER_CARDS } from "../../shared/ai-connect-ai2";
+import { flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
 
 const MessageRef = z.object({ messageId: z.string().min(1) });
 
@@ -53,7 +54,7 @@ export function aiRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/status", async (c) => {
-      const ai2 = !!c.var.deps.config.aiConnectAi2;
+      const ai2 = flagOnNow(c, "aiConnectAi2"); // OPS1: per workspace flag
       return c.json({
         ...(await aiKeyStatus(c.var.deps, c.var.auth.orgId)),
         providers: (ai2 ? AI_PROVIDERS : LEGACY_AI_PROVIDERS).map((id) => AI_PROVIDER_INFO[id]),
@@ -66,7 +67,7 @@ export function aiRoutes() {
       const b = await parseBody(c, KeyInput);
       // AI2: with built-in AI as the default, an unproven key must never replace it (MB-321), so this older save
       // goes through the same proof as /connect. Flag off: today's save exactly.
-      if (!c.var.deps.config.aiConnectAi2) return c.json(await saveAiKey(c.var.deps, c.var.auth, b));
+      if (!flagOnNow(c, "aiConnectAi2")) return c.json(await saveAiKey(c.var.deps, c.var.auth, b));
       await ai2Limit(c);
       return c.json(await (await connect()).connectWithKey(c.var.deps, c.var.auth, { apiKey: b.apiKey, provider: b.provider, model: b.model || undefined }));
     })
@@ -138,6 +139,6 @@ export function aiRoutes() {
 }
 
 async function ai2Only(c: Context<AppEnv>, next: () => Promise<void>) {
-  if (!c.var.deps.config.aiConnectAi2) return c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404);
+  if (!flagOnNow(c, "aiConnectAi2")) return c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404); // OPS1: per workspace flag
   await next();
 }

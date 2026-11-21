@@ -23,6 +23,7 @@ import {
   diffRefs, parseRefs, PICK_TYPES, rankByRecency, refKey, REFS_PAGE, refUrl, RESOLVE_MAX,
   type ItemType, type RecordRef, type RefItem, type RefType, type ResolvedRef, type SourceType,
 } from "../../shared/mentions-td5";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 type A = SuiteActor;
 const notFound = () => new HttpError(404, "not_found", "Page not found.");
@@ -40,7 +41,7 @@ export function isMentionsExcluded(org: { id: string; slug?: string | null; name
 const openCache = new Map<string, { ok: boolean; at: number }>();
 /** True when mentions are on for this workspace (flag on and not excluded). Cached per isolate for 5 minutes. */
 export async function mentionsOn(deps: Deps, orgId: string): Promise<boolean> {
-  if (!deps.config.mentionsTd5 || !orgId) return false;
+  if (!orgId || !featureOn(deps, "mentionsTd5", orgId)) return false; // OPS1: per workspace flag
   const hit = openCache.get(orgId);
   const now = Date.now();
   if (hit && now - hit.at < 300_000) return hit.ok;
@@ -53,7 +54,7 @@ export async function mentionsOn(deps: Deps, orgId: string): Promise<boolean> {
 
 /** People only: a signed in member of a workspace with mentions on. Everything else is a 404. */
 export async function assertMentionsOpen(deps: Deps, a: Partial<A>): Promise<void> {
-  if (!deps.config.mentionsTd5) throw notFound();
+  if (!a.orgId || !featureOn(deps, "mentionsTd5", a.orgId)) throw notFound(); // OPS1: per workspace flag
   if (!a.userId || !a.orgId || !a.role || a.agentId || a.apiKeyId) throw notFound();
   if (!(await mentionsOn(deps, a.orgId))) throw notFound();
 }
@@ -169,7 +170,7 @@ export async function syncDocRefs(deps: Deps, orgId: string, docId: string, link
 /** A deleted source leaves no rows. */
 export async function removeSource(deps: Deps, orgId: string, source: { type: SourceType; id: string }): Promise<void> {
   try {
-    if (!deps.config.mentionsTd5) return;
+    if (!featureOn(deps, "mentionsTd5", orgId)) return; // OPS1: per workspace flag
     await deps.db.delete(recordRefs).where(and(eq(recordRefs.orgId, orgId), eq(recordRefs.sourceType, source.type), eq(recordRefs.sourceId, source.id)));
   } catch (err) {
     deps.reportError?.(err, { where: "mentions-td5.remove", sourceType: source.type });

@@ -11,6 +11,7 @@ import { HttpError } from "../lib/errors";
 import { audit } from "./audit";
 import { keyFallbackOn } from "./ai/keys"; // QUAL1
 import { AI_OFF_MESSAGE, whereOf } from "@/shared/ask-td1";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 export interface AiTrustState {
   /** Whether the trust controls are live (ASK_TD1). */
@@ -38,7 +39,7 @@ async function rows(deps: Deps, orgId: string) {
 
 /** Whether AI may run in this workspace. Never throws on a read failure: a failed read counts as off when the controls are live. */
 export async function aiAllowed(deps: Deps, orgId: string): Promise<boolean> {
-  if (!deps.config.askTd1) return true;
+  if (!featureOn(deps, "askTd1", orgId)) return true; // OPS1: per workspace flag
   try {
     const trust = await trustRow(deps, orgId);
     return trust ? !!trust.enabled : true;
@@ -54,7 +55,9 @@ export async function assertAiAllowed(deps: Deps, orgId: string): Promise<void> 
 
 export async function aiTrustState(deps: Deps, orgId: string, role: string): Promise<AiTrustState> {
   const { trust, key } = await rows(deps, orgId);
-  const on = !deps.config.askTd1 ? true : trust ? !!trust.enabled : true;
+  const td1 = featureOn(deps, "askTd1", orgId); // OPS1: per workspace flags
+  const ask = featureOn(deps, "askR110", orgId);
+  const on = !td1 ? true : trust ? !!trust.enabled : true;
   const builtin = whereOf("builtin");
   const own = key ? whereOf(key.provider) : null;
   // QUAL1 (audit row 14): where the deployment lets built-in AI answer while the provider refuses the saved key
@@ -64,17 +67,17 @@ export async function aiTrustState(deps: Deps, orgId: string, role: string): Pro
     ? [{ use: key.problem ? "In their place now, while your key is refused" : "In their place if your provider refuses your key", ...builtin }]
     : [];
   const providers = own
-    ? [...(deps.config.askR110 ? [{ use: "Ask", ...builtin }] : []), { use: "Mail, meetings and Tools AI", ...own }, ...standIn]
-    : [{ use: [deps.config.askR110 ? "Ask" : null, "Tools AI", deps.config.aiConnectAi2 ? "mail" : null].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " and $1"), ...builtin }];
+    ? [...(ask ? [{ use: "Ask", ...builtin }] : []), { use: "Mail, meetings and Tools AI", ...own }, ...standIn]
+    : [{ use: [ask ? "Ask" : null, "Tools AI", featureOn(deps, "aiConnectAi2", orgId) ? "mail" : null].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " and $1"), ...builtin }];
   return {
-    controls: !!deps.config.askTd1, on, source: trust ? "admin" : "default",
-    canChange: !!deps.config.askTd1 && (role === "owner" || role === "admin"),
+    controls: td1, on, source: trust ? "admin" : "default",
+    canChange: td1 && (role === "owner" || role === "admin"),
     updatedAt: trust ? new Date(trust.updatedAt).toISOString() : null, providers,
   };
 }
 
 export async function setAiTrust(deps: Deps, auth: { orgId: string; userId: string; email: string; role: string }, enabled: boolean): Promise<AiTrustState> {
-  if (!deps.config.askTd1) throw new HttpError(404, "not_found", "Page not found.");
+  if (!featureOn(deps, "askTd1", auth.orgId)) throw new HttpError(404, "not_found", "Page not found.");
   if (auth.role !== "owner" && auth.role !== "admin") throw new HttpError(403, "forbidden", "Only an admin can turn AI on or off.");
   const values = { enabled, updatedBy: auth.userId || null, updatedAt: deps.now() };
   await deps.db.insert(aiTrust).values({ orgId: auth.orgId, ...values }).onConflictDoUpdate({ target: aiTrust.orgId, set: values });

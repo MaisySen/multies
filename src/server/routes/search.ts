@@ -10,11 +10,13 @@ import { HttpError } from "../lib/errors";
 import { myWork, parseTypes, searchEverything } from "../services/search";
 import { parseFilters, searchIndex } from "../services/search-r98"; // R98
 import { GUEST_COOKIE, resolveGuest, type GuestContext } from "../services/suite/guests";
+import { flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
+import { featureOn } from "../services/console/flags";
 
 const limitOf = (raw: string | undefined) => (raw && /^\d{1,2}$/.test(raw) ? Number(raw) : undefined);
 
 /** R98: person, from, to, project and strict, read only while SEARCH_R98 is on (ignored otherwise, as before). */
-const r98Opts = (deps: AppEnv["Variables"]["deps"], q: (k: string) => string | undefined) => (deps.config.searchR98
+const r98Opts = (on: boolean, q: (k: string) => string | undefined) => (on
   ? { filters: parseFilters({ person: q("person"), from: q("from"), to: q("to"), project: q("project") }), strict: q("strict") === "1" }
   : {});
 
@@ -24,7 +26,7 @@ export function searchRoutes() {
     .use("*", requireAuth)
     // R98: the titles the command menu indexes in the browser for instant results (404 unless SEARCH_R98).
     .get("/index", async (c) => {
-      if (!c.var.deps.config.searchR98) throw new HttpError(404, "not_found", "Page not found.");
+      if (!flagOnNow(c, "searchR98")) throw new HttpError(404, "not_found", "Page not found."); // OPS1: per workspace flag
       const out = await searchIndex(c.var.deps, c.var.auth);
       c.header("Cache-Control", "private, no-store");
       c.header("Server-Timing", `searchindex;dur=${out.tookMs}`);
@@ -32,7 +34,8 @@ export function searchRoutes() {
     })
     .get("/", async (c) => {
       const { deps, auth } = c.var;
-      const out = await searchEverything(deps, { kind: "actor", actor: auth }, c.req.query("q") ?? "", { types: parseTypes(c.req.query("types"), !!deps.config.searchR98), limit: limitOf(c.req.query("limit")), ...r98Opts(deps, (k) => c.req.query(k)) });
+      const r98 = flagOnNow(c, "searchR98"); // OPS1: per workspace flag
+      const out = await searchEverything(deps, { kind: "actor", actor: auth }, c.req.query("q") ?? "", { types: parseTypes(c.req.query("types"), r98), limit: limitOf(c.req.query("limit")), ...r98Opts(r98, (k) => c.req.query(k)) });
       c.var.log?.info("search", { ms: out.tookMs, groups: out.groups.length, partial: out.partial });
       c.header("Server-Timing", `search;dur=${out.tookMs}`);
       return c.json(out);
@@ -65,6 +68,6 @@ export function guestSearchRoutes() {
     .use("*", requireGuest)
     .get("/", async (c) => {
       const g = c.var.guest.guest;
-      return c.json(await searchEverything(c.var.deps, { kind: "guest", orgId: g.orgId, projectId: g.projectId }, c.req.query("q") ?? "", { ...r98Opts(c.var.deps, (k) => c.req.query(k)), types: parseTypes(c.req.query("types"), !!c.var.deps.config.searchR98), limit: limitOf(c.req.query("limit")) }));
+      return c.json(await searchEverything(c.var.deps, { kind: "guest", orgId: g.orgId, projectId: g.projectId }, c.req.query("q") ?? "", { ...r98Opts(featureOn(c.var.deps, "searchR98", g.orgId), (k) => c.req.query(k)), types: parseTypes(c.req.query("types"), featureOn(c.var.deps, "searchR98", g.orgId)), limit: limitOf(c.req.query("limit")) }));
     });
 }

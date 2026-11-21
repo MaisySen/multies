@@ -30,6 +30,7 @@ import {
   TEAMAI_CAPS as CAP, FINISHED_RUN_STATUSES, REASON_TEXT, ROUTINE_OUTPUTS, ROUTINE_TRIGGERS, citedNumbers, cleanText, dayStart, mentionsAssistant, nextRunAt, questionOf,
   FREE_LIMIT_REPLY, freeWindowStart, type InstructionSet, type MemoryEntry, type Routine, type RoutineOutput, type RoutineTrigger, type RunEntry, type RunKind, type RunStatus, type TeamAiState,
 } from "@/shared/teamai-td8";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 type A = SuiteActor;
 const isAdmin = (a: A) => a.role === "owner" || a.role === "admin";
@@ -48,14 +49,14 @@ async function orgRow(deps: Deps, orgId: string) {
   return o ?? null;
 }
 async function orgOpen(deps: Deps, orgId: string): Promise<boolean> {
-  if (!deps.config.teamaiTd8) return false;
+  if (!featureOn(deps, "teamaiTd8", orgId)) return false; // OPS1: per workspace flag
   const o = await orgRow(deps, orgId);
   return !!o && !isAskExcluded(o, deps.config.askExclude ?? "");
 }
 
 /** Signed in members of an open workspace only; everything else is 404 (flag off, keys, agents, guests, vv8k). */
 export async function assertTeamAiOpen(deps: Deps, a: Partial<A>): Promise<void> {
-  if (!deps.config.teamaiTd8 || !a.userId || !a.orgId || !a.role || a.system || a.agentId || a.apiKeyId) throw notFound();
+  if (!a.orgId || !featureOn(deps, "teamaiTd8", a.orgId) || !a.userId || !a.role || a.system || a.agentId || a.apiKeyId) throw notFound();
   if (!(await orgOpen(deps, a.orgId))) throw notFound();
 }
 function needAdmin(a: A) { if (!isAdmin(a)) throw forbidden("Only workspace admins can do that."); }
@@ -455,7 +456,7 @@ async function triggerRoutines(deps: Deps, orgId: string, trigger: RoutineTrigge
 
 /** A task was made (tasks.ts). One indexed read when no routine listens. Never throws. */
 export async function onTaskCreated(deps: Deps, actor: A, task: { id: string; projectId?: string | null }): Promise<void> {
-  if (!deps.config.teamaiTd8) return;
+  if (!featureOn(deps, "teamaiTd8", actor.orgId)) return; // OPS1: per workspace flag
   try {
     await triggerRoutines(deps, actor.orgId, "task_created", (r) => !r.project_id || r.project_id === (task.projectId ?? null), task.id, { taskId: task.id },
       { id: actor.system ? null : actor.userId || null, name: actor.name || "Someone" });
@@ -464,7 +465,7 @@ export async function onTaskCreated(deps: Deps, actor: A, task: { id: string; pr
 
 /** A form got a response (forms.ts). Never throws. */
 export async function onFormResponse(deps: Deps, orgId: string, formId: string, submissionId: string): Promise<void> {
-  if (!deps.config.teamaiTd8) return;
+  if (!featureOn(deps, "teamaiTd8", orgId)) return; // OPS1: per workspace flag
   try {
     await triggerRoutines(deps, orgId, "form_response", (r) => r.form_id === formId, submissionId, { formId, submissionId }, { id: null, name: "Form" });
   } catch (err) { deps.reportError?.(err, { where: "teamai.on_form_response" }); }
@@ -472,7 +473,7 @@ export async function onFormResponse(deps: Deps, orgId: string, formId: string, 
 
 /** A person posted in a channel (chat.ts). "@assistant" queues an answer in that thread. Never throws. */
 export async function onChatPosted(deps: Deps, a: A, channel: { id: string; kind: string; orgId: string }, message: { id: string; body: string; parentId?: string | null }): Promise<void> {
-  if (!deps.config.teamaiTd8 || channel.kind !== "channel" || a.system || a.agentId || a.apiKeyId || !a.userId) return;
+  if (!featureOn(deps, "teamaiTd8", channel.orgId) || channel.kind !== "channel" || a.system || a.agentId || a.apiKeyId || !a.userId) return;
   try {
     if (!mentionsAssistant(message.body)) return;
     if (!(await orgOpen(deps, channel.orgId))) return;
@@ -719,7 +720,7 @@ export async function drainPending(deps: Deps, orgIds: string[]): Promise<void> 
 
 /** The cron pass: queue due scheduled routines, run what waits, close stuck runs, prune the log. */
 export async function runTeamAiPass(deps: Deps): Promise<{ queued: number; ran: number }> {
-  if (!deps.config.teamaiTd8) return { queued: 0, ran: 0 };
+  if (!featureOn(deps, "teamaiTd8")) return { queued: 0, ran: 0 }; // OPS1: the platform wide value (a cron pass)
   const now = deps.now().getTime();
   let queued = 0, ran = 0;
   const due = await deps.db.all<RoutineRow & { org_id: string }>(sql`select * from teamai_routines where enabled = 1 and next_run_at is not null and next_run_at <= ${now} order by next_run_at asc limit 50`);

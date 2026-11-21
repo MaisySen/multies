@@ -8,6 +8,7 @@ import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { idempotency, idempotentId, idempotentRetry, sessionIdempotencyScope } from "../lib/idempotency";
 import { HttpError } from "../lib/errors";
+import { featureOn } from "../services/console/flags"; // OPS1 feature flags
 
 const svc = () => import("../services/channels/service");
 
@@ -35,7 +36,7 @@ const MockAge = z.object({ conversationId: z.string().max(64), hours: z.number()
  * (the app's own 404 body) before auth, parsing or any service import, so nothing is read, stored or fetched.
  */
 const channelsGate: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (!c.var.deps.config.channels.enabled) return c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404);
+  if (!featureOn(c.var.deps, "chatChannels")) return c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404); // OPS1: the platform wide flag
   await next();
 };
 

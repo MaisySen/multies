@@ -11,6 +11,7 @@ import { sendSystemEmail } from "../system-mail";
 import { CATEGORIES, categoryOf, linkFor, LOST_MAIL_TITLE, lostMailNotifications, mergePrefs, type Category } from "./notify";
 import { inboxWhere } from "./notify-triage";
 import { DIGEST_MAX_ITEMS, nextDigestAt, readDelivery } from "../../../shared/notification-centre";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const CATEGORY_TITLES: Record<Category, string> = {
   mention: "Mentions", assignment: "Assigned to you", comment: "Comments", approval: "Approvals",
@@ -91,7 +92,7 @@ export async function sendDigest(deps: Deps, row: { userId: string; orgId: strin
 
 /** The cron pass: due digests only (index on digest_due_at), then each row's clock moves to its next moment. */
 export async function runNotificationDigests(deps: Deps, limit = DIGEST_BATCH) {
-  if (deps.config.notificationCentre === false) return { due: 0, sent: 0 };
+  if (!featureOn(deps, "notificationCentre")) return { due: 0, sent: 0 }; // OPS1: the platform wide value (a cron pass)
   const now = deps.now();
   const due = await deps.db.select({ userId: notificationPrefs.userId, orgId: notificationPrefs.orgId, settings: notificationPrefs.settings, delivery: notificationPrefs.delivery, digestLastAt: notificationPrefs.digestLastAt })
     .from(notificationPrefs).where(and(isNotNull(notificationPrefs.digestDueAt), lte(notificationPrefs.digestDueAt, now)))

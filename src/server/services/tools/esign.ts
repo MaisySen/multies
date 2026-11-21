@@ -29,6 +29,7 @@ const SIGN_IMAGES_FIELD = "images";
 import { isPdf, type SourceFile } from "./p2-sources";
 import { cleanName } from "./share";
 import { SIGN_MAX_DAYS, SIGN_MAX_PAGES, SIGN_MAX_SIGNERS, type SignEventRow, type SignField, type SignPage, type SignRequestInfo, type SignRequestStatus, type SignSignerInfo, type SignerStatus } from "@/shared/share-sign";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export interface RequestRow {
   id: string; org_id: string; created_by: string; kind: "self" | "request"; status: SignRequestStatus; title: string; subject: string | null; message: string | null;
@@ -355,7 +356,7 @@ export async function sendRequest(deps: Deps, auth: AuthContext, id: string, inp
   await dropKeptFiles(deps, r.org_id, [oldSource]);
   await deps.db.run(sql`update sign_requests set kind = 'request', status = 'out', subject = ${subject}, message = ${(input.message ?? "").slice(0, 2000) || null},
     mailbox_id = ${mailboxId}, in_reply_to_id = ${parent?.id ?? null}, order_mode = ${input.order === "sequence" ? "sequence" : "any"}, fields = ${JSON.stringify(fields)},
-    pages = ${pagesJson}, source_file_id = ${newSource}, remind_days = ${remind}, expires_at = ${until}, sent_at = ${now}, v2 = ${deps.config.esignV2 === false ? 0 : 1} where id = ${r.id}`);
+    pages = ${pagesJson}, source_file_id = ${newSource}, remind_days = ${remind}, expires_at = ${until}, sent_at = ${now}, v2 = ${!featureOn(deps, "esignV2") ? 0 : 1} where id = ${r.id}`);
   for (let i = 0; i < signers.length; i++) {
     await deps.db.run(sql`insert into sign_signers (id, request_id, org_id, position, name, email, status) values (${newId("ssg")}, ${r.id}, ${r.org_id}, ${i}, ${signers[i].name}, ${signers[i].email}, 'waiting')`);
   }

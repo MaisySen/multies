@@ -21,6 +21,7 @@ import { randomToken, sha256Hex } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
 import { cloudWords, isOpenPoll } from "../../../shared/chat-plus";
+import { featureOn } from "../console/flags";
 
 export const ROOM_PEOPLE_LIMIT = 100;
 export const SHARED_CACHE_MS = 3_000;
@@ -45,7 +46,7 @@ const invalid = (msg: string) => new HttpError(422, "validation_failed", msg);
 const isAdmin = (a: SuiteActor) => a.role === "owner" || a.role === "admin";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-export function webinarOn(deps: Deps) { return !!deps.config.webinar; }
+export function webinarOn(deps: Deps) { return featureOn(deps, "webinar"); } // OPS1 feature flags: the platform wide value (a global switch)
 function gate(deps: Deps) { if (!webinarOn(deps)) throw notFound("Page"); }
 
 // ------------------------------------------------------------------ pure helpers

@@ -11,13 +11,14 @@ import { forbidden, HttpError, notFound } from "../../lib/errors";
 import { audit } from "../audit";
 import { isPerson } from "../suite/calendar-sync";
 import { sortableId, type SuiteActor } from "../suite/common";
+import { featureOn } from "../console/flags";
 
 export const MAX_APP_PASSWORDS = 10;
 /** last_used_at is written at most this often, so a phone polling every few minutes costs no write. */
 export const LAST_USED_EVERY_MS = 10 * 60_000;
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
-export function davEnabled(deps: Deps) { return !!deps.config.davSync; }
+export function davEnabled(deps: Deps) { return featureOn(deps, "davSync"); } // OPS1 feature flags: the platform wide value (a global switch)
 export function assertDavEnabled(deps: Deps) {
   if (!davEnabled(deps)) throw new HttpError(404, "feature_off", "Calendar and contacts sync is not turned on here yet.");
 }

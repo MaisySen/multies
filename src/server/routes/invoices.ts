@@ -11,7 +11,7 @@
  */
 import { Hono } from "hono";
 import { z } from "zod";
-import type { AppEnv } from "../context";
+import type { AppEnv, Deps } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import {
@@ -20,6 +20,9 @@ import {
 } from "../services/invoices/invoices";
 import { pdfForDoc, pdfForToken, publicView, sendDoc } from "../services/invoices/deliver";
 import { basQuarter, CURRENCIES, PAYMENT_METHODS } from "@/shared/invoices";
+import { flagOnForOwner, flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
+import { eq } from "drizzle-orm";
+import { invoiceDocs } from "../db/schema";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const str = (n: number) => z.string().max(n);
@@ -49,7 +52,7 @@ const RepeatBody = z.object({ every: z.enum(["week", "fortnight", "month", "quar
 export function invoiceRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .use("*", async (c, next) => { if (!c.var.deps.config.invoicesEnabled) throw new HttpError(404, "not_found", "Not found."); await next(); })
+    .use("*", async (c, next) => { if (!flagOnNow(c, "invoicesEnabled")) throw new HttpError(404, "not_found", "Not found."); await next(); }) // OPS1: per workspace flag
     .get("/settings", async (c) => c.json({ settings: presentSettings(await getSettings(c.var.deps, c.var.auth.orgId)), canManage: c.var.auth.role === "owner" || c.var.auth.role === "admin" }))
     .put("/settings", async (c) => c.json({ settings: await saveSettings(c.var.deps, c.var.auth, await parseBody(c, SettingsBody)) }))
     .get("/items", async (c) => c.json({ items: await listItems(c.var.deps, c.var.auth.orgId, c.req.query("q") || undefined) }))
@@ -89,13 +92,21 @@ function pdfResponse(p: { bytes: Uint8Array; name: string }, download: boolean) 
     "content-disposition": `${download ? "attachment" : "inline"}; filename="${p.name}"` } });
 }
 
+/** OPS1 feature flags: the workspace that issued the document behind a view link (one indexed read), or null. */
+async function tokenOwner(deps: Deps, path: string): Promise<string | null> {
+  const token = /^\/api\/invoice-view\/([A-Za-z0-9_-]{16,64})(?:\/|$)/.exec(path)?.[1];
+  if (!token) return null;
+  return (await deps.db.select({ orgId: invoiceDocs.orgId }).from(invoiceDocs).where(eq(invoiceDocs.viewToken, token)).get())?.orgId ?? null;
+}
+
 /**
  * Logged out view link for one issued document (the buyer's copy): GET /api/invoice-view/:token, GET .../pdf, POST .../answer
  * (quotes only: accept or decline). Shows that one document only; drafts, bills and unknown tokens are 404.
  */
 export function invoicePublicRoutes() {
   return new Hono<AppEnv>()
-    .use("*", async (c, next) => { if (!c.var.deps.config.invoicesEnabled) throw new HttpError(404, "not_found", "Not found."); await next(); c.header("x-robots-tag", "noindex"); c.header("cache-control", "private, no-store"); })
+    // OPS1: per workspace flag, for the workspace that issued the linked document (read only when values differ).
+    .use("*", async (c, next) => { if (!(await flagOnForOwner(c, "invoicesEnabled", () => tokenOwner(c.var.deps, c.req.path)))) throw new HttpError(404, "not_found", "Not found."); await next(); c.header("x-robots-tag", "noindex"); c.header("cache-control", "private, no-store"); })
     .get("/:token", async (c) => {
       const f = await findByToken(c.var.deps, c.req.param("token"));
       if (!f || f.raw.kind === "bill") throw new HttpError(404, "not_found", "This link is not valid. Ask the sender for a new one.");

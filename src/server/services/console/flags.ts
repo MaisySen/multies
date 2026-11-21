@@ -113,7 +113,9 @@ let lastLoadWarn = 0;
  */
 export async function loadFlagOverridesSafe(deps: FlagDeps & Partial<Pick<Deps, "log">>): Promise<void> {
   try {
-    await loadFlagOverrides(deps);
+    // The memo's age is measured on the wall clock here, never through deps.now: the request path must not consume
+    // a deployment's (or a test's stepping) clock, so every request sees the same deps.now() calls as before.
+    await loadFlagOverrides({ db: deps.db, config: deps.config, now: () => new Date() });
   } catch (err) {
     const now = Date.now();
     if (now - lastLoadWarn >= FLAG_MEMO_MS) {
@@ -166,6 +168,22 @@ function evaluate(def: FlagDef, config: AppConfig, memo: Memo | undefined, orgId
 /** Whether a flag is on, for one workspace when orgId is given. Synchronous over the loaded memo. */
 export function featureOn(deps: FlagDeps, key: FlagKey, orgId?: string | null): boolean {
   return evaluate(mustDef(key), deps.config, currentMemo(deps.db), orgId);
+}
+
+/**
+ * Whether some workspace's value of this flag differs from the platform wide value (an operator's workspace row
+ * that is not shadowed by a locked global row). A route gate that runs before the session is read needs the
+ * workspace only then; otherwise the platform wide value is every workspace's value.
+ */
+export function featureVariesByWorkspace(deps: FlagDeps, key: FlagKey): boolean {
+  const def = mustDef(key);
+  const memo = currentMemo(deps.db);
+  if (!memo || !def.runtime || def.scope !== "workspace") return false;
+  const rows = memo.workspace.get(def.key);
+  if (!rows?.size || memo.global.get(def.key)?.locked) return false;
+  const all = evaluate(def, deps.config, memo);
+  for (const r of rows.values()) if (r.value !== all) return true;
+  return false;
 }
 
 /** Every flag's value, globally or for one workspace. */

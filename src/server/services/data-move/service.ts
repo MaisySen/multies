@@ -34,6 +34,7 @@ import { previewImport, runImport, type RunInput } from "../work-import/service"
 import { base64Bytes, pageBody, pageTitle, ZIP_PREFIX } from "../work-import/parse";
 import { MoveFileError, parseIcsEvents, readContacts, type ContactIn, type EventIn } from "./formats";
 import { dropKeptFile, keepImportInput } from "./kept-file"; // R43 imports finish after the page closes
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const EXPORT_LINK_HOURS = 24;
 /** One export a workspace every 10 minutes: an export reads everything, so a loop of them would be costly. */
@@ -532,7 +533,7 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   }
   // PRIV1b (P44): Undo never deletes mail under a legal hold; checked before anything is removed.
   // The scope is read once, then each chunk is tested in memory.
-  const held = c.messages?.length && deps.config.mailArchive ? await heldScope(deps, actor.orgId) : null;
+  const held = c.messages?.length && featureOn(deps, "mailArchive", actor.orgId) ? await heldScope(deps, actor.orgId) : null;
   if (held?.active && c.messages) {
     for (let i = 0; i < c.messages.length; i += 90) {
       const rows = await deps.db.select({ mailboxId: messages.mailboxId, folder: messages.folder, sentByUserId: messages.sentByUserId }).from(messages)

@@ -19,6 +19,7 @@ import { keyFallbackOn, keyFor } from "./keys";
 import { AI_PROVIDER_INFO, AiProviderError, keyProblemOf, type AiCompletion, type AiProviderId } from "./providers";
 import { assertAiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 import { AI_KEY_FIX_PATH, aiFallbackText, aiKeyProblemText, type AiKeyProblem } from "../../../shared/ai-connect-ai2";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export { AI_PROVIDERS, AI_PROVIDER_INFO, byoProvider, isAiProviderId, type AiCompletion, type AiProvider, type AiProviderId } from "./providers";
 export { aiKeyStatus, deleteAiKey, saveAiKey } from "./keys";
@@ -87,7 +88,7 @@ async function ask(deps: Deps, orgId: string, req: AiCompletion): Promise<AskRes
   const key = await keyFor(deps, orgId);
   if (!key) {
     // AI2: with no key of its own, a workspace's assistant runs on built-in AI inside the free daily budget.
-    if (deps.config.aiConnectAi2 && deps.ai) return (await import("./builtin-ai2")).askBuiltin(deps, orgId, req);
+    if (featureOn(deps, "aiConnectAi2", orgId) && deps.ai) return (await import("./builtin-ai2")).askBuiltin(deps, orgId, req);
     throw aiKeyRequired();
   }
   try {

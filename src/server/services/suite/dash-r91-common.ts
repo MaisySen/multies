@@ -9,11 +9,12 @@ import { members, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { dateFormat } from "../../lib/intl-cache";
 import type { SuiteActor } from "./common";
+import { featureOn } from "../console/flags";
 
 export const DAY = 86_400_000;
 
 export function plusEnabled(deps: Deps): boolean {
-  return !!deps.config.dashboardsPlus;
+  return featureOn(deps, "dashboardsPlus"); // OPS1 feature flags: the platform wide value (a global switch)
 }
 export function assertPlus(deps: Deps) {
   if (!plusEnabled(deps)) throw new HttpError(404, "not_found", "Not found.");

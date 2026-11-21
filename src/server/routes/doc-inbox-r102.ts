@@ -23,6 +23,7 @@ import {
   addDriveFile, addFromMail, addableMailboxes, checkDocs, createRule, deleteRule, docInboxOn, getDoc, listDocs, listRules, readAgain, reorderRules, ruleFolders, rulesNow, updateDoc, updateRule,
 } from "../services/suite/doc-inbox";
 import { DOC_LIMITS, DOC_MATCH, DOC_TYPES, isDocView } from "@/shared/doc-inbox";
+import { flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
 
 const Id = z.string().min(1).max(80);
 const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
@@ -43,7 +44,7 @@ export function docInboxRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .use("*", async (c, next) => {
-      if (!c.var.deps.config.filesPlus || !docInboxOn(c.var.deps)) throw notFound("Page");
+      if (!flagOnNow(c, "filesPlus") || !docInboxOn(c.var.deps, c.var.auth.orgId)) throw notFound("Page"); // OPS1: per workspace flags
       await next();
     })
     .get("/list", async (c) => {

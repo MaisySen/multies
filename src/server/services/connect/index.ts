@@ -28,6 +28,7 @@ import { nodeSocketOpenerLazy } from "./default-socket";
 import { classifyProblem, ConnectFailed } from "./problems";
 import { smtpVerify } from "./smtp";
 import { backfillProgress } from "./backfill-progress";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 /** The shared domain row every connected mailbox sits on. Never resolvable, never sent from. */
 export const CONNECTED_DOMAIN = "connected.multies.invalid";
@@ -48,7 +49,8 @@ export interface ConnectInput {
 const EMAIL_RE = /^[^\s@]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 const HOST_RE = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
-export function connectEnabled(deps: Deps) { return deps.config.mailConnect.enabled; }
+// OPS1 feature flags: the platform wide value (a global switch).
+export function connectEnabled(deps: Deps) { return featureOn(deps, "mailConnect"); }
 
 function assertEnabled(deps: Deps) {
   if (!connectEnabled(deps)) throw new HttpError(404, "connect_off", "Connecting an existing mailbox isn't switched on here.");

@@ -2,16 +2,19 @@ import type { Context } from "hono";
 import type { AppEnv, Deps } from "../../context";
 import { notFound } from "../../lib/errors";
 import type { ToolFeature } from "@/shared/tool-features";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 /**
  * The P2 features this deployment really has: TOOLS_FEATURES, minus "index" (search inside attachments) when
  * the separate index database (INDEX_DB) is not bound, so the UI hides the search and the routes answer 404.
  */
-export function activeToolFeatures(deps: Pick<Deps, "config" | "indexDb">): ToolFeature[] {
+export function activeToolFeatures(deps: Pick<Deps, "config" | "indexDb"> & Partial<Pick<Deps, "db" | "now">>): ToolFeature[] {
+  // OPS1 feature flags: Ask and the vault follow their platform wide flag value (a database handle is needed for overrides).
+  const flagOn = (key: "askR110" | "vaultR128") => (deps.db ? featureOn(deps as Deps, key) : !!deps.config[key]);
   // R110: Ask has its own switch (ASK_R110); it shows in the Tools directory while that is on.
-  const f0 = deps.config.askR110 ? [...deps.config.tools.features.filter((x) => x !== "ask_r110"), "ask_r110" as const] : deps.config.tools.features.filter((x) => x !== "ask_r110");
+  const f0 = flagOn("askR110") ? [...deps.config.tools.features.filter((x) => x !== "ask_r110"), "ask_r110" as const] : deps.config.tools.features.filter((x) => x !== "ask_r110");
   // R128: the vault has its own switch (VAULT_R128) too.
-  const f = deps.config.vaultR128 ? [...f0.filter((x) => x !== "vault_r128"), "vault_r128" as const] : f0.filter((x) => x !== "vault_r128");
+  const f = flagOn("vaultR128") ? [...f0.filter((x) => x !== "vault_r128"), "vault_r128" as const] : f0.filter((x) => x !== "vault_r128");
   return deps.indexDb ? f : f.filter((x) => x !== "index");
 }
 

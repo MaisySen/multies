@@ -21,6 +21,7 @@ import {
   EVERY, EXPENSE_CATEGORIES, EXPENSE_MAX_CENTS, RECEIPT_MAX_BYTES, RECEIPT_TYPES, RECEIPTS_LOCAL_RE, SPLIT_PROBLEM_TEXT, canClaimGst, expensesCsv, gstOfTotal, guessEvery,
   needsTaxInvoice, nextExpected, perYear, receiptsLocal, splitGst, splitProblems, type Every, type ExpenseSource, type Split,
 } from "@/shared/expenses";
+import { featureOn, featureVariesByWorkspace } from "../console/flags"; // OPS1 feature flags
 
 export type Actor = SuiteActor & { role?: "owner" | "admin" | "member" };
 type Row = typeof expenses.$inferSelect;
@@ -498,9 +499,13 @@ export async function receiveReceiptMail(deps: Deps, m: MailReceipt): Promise<Ma
   const tok = local?.match(RECEIPTS_LOCAL_RE)?.[1];
   if (!domain || host !== domain || !tok) return { handled: false };
   const no = (reason: string): MailOutcome => ({ handled: true, accepted: false, reason, created: [] });
-  if (!deps.config.expensesR106 || !deps.config.invoicesEnabled) return no("No mailbox here.");
+  // OPS1 feature flags: both on for the receiving workspace. With no operator override that is the env value, read
+  // before any query as before; when some workspace differs, the receiving workspace is looked up first.
+  const on = (org?: string) => featureOn(deps, "expensesR106", org) && featureOn(deps, "invoicesEnabled", org);
+  const varies = featureVariesByWorkspace(deps, "expensesR106") || featureVariesByWorkspace(deps, "invoicesEnabled");
+  if (!varies && !on()) return no("No mailbox here.");
   const s = await deps.db.select({ orgId: expenseSettings.orgId }).from(expenseSettings).where(eq(expenseSettings.receiptsToken, tok)).get();
-  if (!s || (await excludedOrg(deps, s.orgId))) return no("No mailbox here.");
+  if (!s || !on(s.orgId) || (await excludedOrg(deps, s.orgId))) return no("No mailbox here.");
   if (m.dmarcFail) return no("This mail did not pass sender checks.");
   const from = m.fromAddress.trim().toLowerCase();
   const who = await deps.db.select({ id: users.id, email: users.email, name: users.name, role: members.role }).from(members).innerJoin(users, eq(users.id, members.userId))

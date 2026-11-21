@@ -15,6 +15,7 @@ import { listFolders, setFolderSync } from "../services/connect/folders";
 import { directOAuthRoutes } from "./direct-social";
 import { oauthAvailable, oauthFinish, oauthStart, type OAuthProvider } from "../services/connect/oauth";
 import { PRESET_ORDER } from "@/shared/mail-connect";
+import { featureOn } from "../services/console/flags"; // OPS1 feature flags
 
 const server = z.object({
   host: z.string().trim().max(253).optional(),
@@ -67,7 +68,7 @@ export function connectionRoutes() {
       // PRIV1b (P46): only connections this person can open, then the cap (an older connection of their own still gets live mail).
       let list = (await openableConnections(deps, auth)).filter((x) => ["active", "error", "syncing"].includes(x.status)).slice(0, 5);
       const modes = new Map<string, LiveMode>();
-      if (b.poke && deps.config.mailConnect.enabled && deps.config.mailConnect.live && pokes.take(auth.userId)) {
+      if (b.poke && featureOn(deps, "mailConnect") && featureOn(deps, "mailLive") && pokes.take(auth.userId)) {
         const touch = deps.liveMail ?? ((id: string, sec: number) => localLiveMail(deps).touch(id, sec));
         await Promise.all(list.map(async (x) => {
           try { modes.set(x.id, (await touch(x.id, LIVE_WINDOW_SECONDS)).mode); } catch (err) {
@@ -78,7 +79,7 @@ export function connectionRoutes() {
       // A long poll: wait for any live window to store new mail, then answer the new counts.
       // `since` is the count the app last saw: when mail came in between two heartbeats, answer at once.
       const stampNow = list.reduce((n, x) => n + x.messagesSynced, 0);
-      if (b.wait && list.length && deps.config.mailConnect.enabled && deps.config.mailConnect.live && (b.since === undefined || b.since === stampNow)) {
+      if (b.wait && list.length && featureOn(deps, "mailConnect") && featureOn(deps, "mailLive") && (b.since === undefined || b.since === stampNow)) {
         const wait = deps.liveWait ?? ((id: string, ms: number) => localLiveMail(deps).waitForMail(id, ms));
         const stored = await Promise.race([
           ...list.map((x) => wait(x.id, b.wait!).then((v) => (v ? true : new Promise<boolean>(() => {})))),
@@ -87,7 +88,7 @@ export function connectionRoutes() {
         if (stored) list = (await openableConnections(deps, auth)).filter((x) => list.some((y) => y.id === x.id));
       }
       return c.json({
-        live: deps.config.mailConnect.live,
+        live: featureOn(deps, "mailLive"), // OPS1: the platform wide flag
         connections: list.map((x) => ({ id: x.id, mode: modes.get(x.id) ?? null, messagesSynced: x.messagesSynced, lastSyncAt: x.lastSyncAt, status: x.status })),
         stamp: list.reduce((n, x) => n + x.messagesSynced, 0),
       }, 200, { "cache-control": "no-store" });

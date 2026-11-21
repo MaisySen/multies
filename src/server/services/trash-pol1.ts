@@ -17,6 +17,7 @@ import { assertWritable, recordWrite, type SuiteActor } from "./suite/common";
 import { assertTablesOn } from "./tables-r125";
 import { assertCoursesOn } from "./courses-r129";
 import { canTrash, type TrashKind } from "./trash-rules-pol1";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 export { canTrash, type TrashKind };
 
@@ -24,8 +25,9 @@ export const TRASH_DAYS = 30;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const DAY = 86_400_000;
 
-export function assertPolishOn(deps: Deps) {
-  if (!deps.config.polishPol1) throw notFound("Page");
+// OPS1 feature flags: for the actor's workspace.
+export function assertPolishOn(deps: Deps, orgId: string) {
+  if (!featureOn(deps, "polishPol1", orgId)) throw notFound("Page");
 }
 
 const isAdmin = (a: SuiteActor) => a.role === "owner" || a.role === "admin";
@@ -50,7 +52,7 @@ const refuse = (kind: TrashKind) => forbidden(kind === "table"
 
 /** Move a table or a course to the trash. */
 export async function trashDoc(deps: Deps, actor: SuiteActor, kind: TrashKind, docId: string) {
-  assertPolishOn(deps);
+  assertPolishOn(deps, actor.orgId);
   await assertKindOn(deps, actor.orgId, kind);
   assertWritable(actor);
   if (!ID.test(docId)) throw notFound(label(kind));
@@ -63,7 +65,7 @@ export async function trashDoc(deps: Deps, actor: SuiteActor, kind: TrashKind, d
 
 /** The generic docs delete, while the flag is on: a table or a course follows the trash rules above. */
 export async function guardDocDelete(deps: Deps, actor: SuiteActor, docId: string) {
-  if (!deps.config.polishPol1 || !ID.test(docId)) return;
+  if (!featureOn(deps, "polishPol1", actor.orgId) || !ID.test(docId)) return; // OPS1: per workspace flag
   const d = await deps.db.select({ kind: docs.kind }).from(docs).where(and(eq(docs.id, docId), eq(docs.orgId, actor.orgId))).get();
   if (!d || (d.kind !== "table" && d.kind !== "course")) return;
   if (!canTrash(actor, d.kind, await ownerOf(deps, actor.orgId, d.kind, docId))) throw refuse(d.kind);
@@ -71,7 +73,7 @@ export async function guardDocDelete(deps: Deps, actor: SuiteActor, docId: strin
 
 /** Bring a trashed table or course back (within 30 days). */
 export async function restoreDoc(deps: Deps, actor: SuiteActor, docId: string) {
-  assertPolishOn(deps);
+  assertPolishOn(deps, actor.orgId);
   assertWritable(actor);
   if (!ID.test(docId)) throw notFound("Page");
   const d = await deps.db.select({ id: docs.id, kind: docs.kind, title: docs.title, deletedAt: docs.deletedAt, version: docs.version }).from(docs).where(and(eq(docs.id, docId), eq(docs.orgId, actor.orgId), isNotNull(docs.deletedAt))).get();
@@ -86,7 +88,7 @@ export async function restoreDoc(deps: Deps, actor: SuiteActor, docId: string) {
 
 /** The trash: tables and courses deleted in the last 30 days that this person may restore. Read only when opened. */
 export async function listTrash(deps: Deps, actor: SuiteActor) {
-  assertPolishOn(deps);
+  assertPolishOn(deps, actor.orgId);
   if (actor.scope === "read") return { items: [], days: TRASH_DAYS };
   const since = new Date(deps.now().getTime() - TRASH_DAYS * DAY);
   const rows = await deps.db.select({ id: docs.id, title: docs.title, kind: docs.kind, deletedAt: docs.deletedAt }).from(docs)
@@ -98,7 +100,7 @@ export async function listTrash(deps: Deps, actor: SuiteActor) {
     const m = await deps.db.select({ docId: docTables.docId, createdBy: docTables.createdBy }).from(docTables).where(and(eq(docTables.orgId, actor.orgId), inIds(docTables.docId, tableIds)));
     for (const x of m) owners.set(x.docId, x.createdBy);
   }
-  const on = { table: !!deps.config.tablesR125, course: !!deps.config.coursesR129 };
+  const on = { table: featureOn(deps, "tablesR125", actor.orgId), course: featureOn(deps, "coursesR129", actor.orgId) }; // OPS1: per workspace flags
   const items = rows
     .filter((r) => (r.kind === "table" || r.kind === "course") && on[r.kind] && canTrash(actor, r.kind, owners.get(r.id)))
     .slice(0, 50)

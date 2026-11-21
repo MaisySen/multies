@@ -13,6 +13,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, sortableId, type SuiteActor } from "../suite/common";
 import { validTimezone, zonedDate, zonedTime } from "../suite/scheduling";
 import { RESOURCE_KINDS, WEEK_DAYS, durationLabel, ruleProblem, rulesProblem, toMinutes, type ResourceKind, type WeekDay } from "@/shared/booking-plus";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 type ResourceRow = typeof bookingResources.$inferSelect;
 type BookingRow = typeof resourceBookings.$inferSelect;
@@ -20,7 +21,8 @@ const ACTIVE = ["pending", "confirmed"] as const;
 export const MAX_RESOURCES = 200;
 
 export function assertBookingPlus(deps: Deps) {
-  if (!deps.config.bookingPlus) throw new HttpError(404, "not_found", "Not found.");
+  // OPS1 feature flags: the platform wide values (a global switch; these helpers have no workspace at hand).
+  if (!featureOn(deps, "bookingPlus") || !featureOn(deps, "schedulingEnabled")) throw new HttpError(404, "not_found", "Not found.");
 }
 const isAdmin = (a: SuiteActor) => a.role === "owner" || a.role === "admin";
 function requireAdminActor(a: SuiteActor) {

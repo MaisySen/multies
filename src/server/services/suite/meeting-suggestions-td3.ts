@@ -22,6 +22,7 @@ import { TRUNCATED_NOTE } from "./meeting-recordings";
 import { createTask, deleteTask, getTask, link, validateAssignee } from "./tasks";
 import { parseDue, type ActionPerson } from "@/shared/action-items";
 import { followUpEmail, groundQuote, normalise, parseSuggestions, splitSummary, SUGGEST_INPUT_CHARS, SUGGEST_SYSTEM, QUOTE_MAX, TITLE_MAX } from "@/shared/meeting-suggest-td3";
+import { featureOn } from "../console/flags";
 
 type Row = typeof meetingSuggestions.$inferSelect;
 export type SuggestSource = "recording" | "notes" | "pasted";
@@ -36,7 +37,7 @@ const DUE = /^\d{4}-\d{2}-\d{2}$/;
 export const AI_OFF_TEXT = "AI is off for this workspace. You can still pick lines and make tasks by hand.";
 export const AI_NO_KEY_TEXT = "Add an AI key in Settings to get suggestions. You can still pick lines and make tasks by hand.";
 
-export function meetTd3Enabled(deps: Deps) { return !!deps.config.meetTd3; }
+export function meetTd3Enabled(deps: Deps) { return featureOn(deps, "meetTd3"); } // OPS1 feature flags: the platform wide value (a global switch)
 
 /**
  * The one gate in front of every provider call. "off": the workspace switched AI off (TD1's switch); "no_key": no key and no built in AI; "ready": a call may go out.
@@ -54,7 +55,7 @@ export async function aiGateView(deps: Deps, orgId: string): Promise<{ state: "r
   if (!(await workspaceAiOn(deps, orgId))) return { state: "off", message: AI_OFF_TEXT };
   const { aiKeyStatus } = await import("../ai/keys");
   const k = await aiKeyStatus(deps, orgId);
-  if (!k.connected) return builtinReady(deps) ? { state: "ready", message: null } : { state: "no_key", message: AI_NO_KEY_TEXT };
+  if (!k.connected) return builtinReady(deps, orgId) ? { state: "ready", message: null } : { state: "no_key", message: AI_NO_KEY_TEXT };
   if (!k.problemMessage) return { state: "ready", message: null };
   const { canFallBack } = await import("../ai");
   return canFallBack(deps)
@@ -64,7 +65,7 @@ export async function aiGateView(deps: Deps, orgId: string): Promise<{ state: "r
 /** TD1's per workspace AI switch (the same gate ask() uses): off means no provider call. */
 async function workspaceAiOn(deps: Deps, orgId: string): Promise<boolean> { return (await import("../ai-trust-td1")).aiAllowed(deps, orgId); }
 /** Built in AI (AI2): the same check ask() uses to route to it (flag on and the existing binding present). Its meter decides each call; it never bills. */
-function builtinReady(deps: Deps): boolean { return !!deps.config.aiConnectAi2 && !!deps.ai; }
+function builtinReady(deps: Deps, orgId: string): boolean { return featureOn(deps, "aiConnectAi2", orgId) && !!deps.ai; } // OPS1: per workspace flag
 
 function present(r: Row, people: Map<string, ActionPerson>, task: { id: string; ref: string; title: string } | null) {
   const who = r.assigneeId ? people.get(`${r.assigneeType}:${r.assigneeId}`) ?? null : null;

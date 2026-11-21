@@ -24,6 +24,7 @@ import {
   cellText, coerceCell, convertValue, FIELD_TYPES, isComputed, LIMITS, newOptionLabels, OPTION_COLOURS, opsFor, searchTextOf, TEMPLATES, toCsv,
   type LinkLabel, type TCell, type TField, type TFieldConfig, type TFieldType, type TFilter, type TSort, type ViewConfig, type ViewType,
 } from "@/shared/tables-r125";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 export type Viewer = { kind: "member"; actor: SuiteActor } | { kind: "guest"; actor: SuiteActor; projectId: string };
 type Meta = typeof docTables.$inferSelect;
@@ -43,7 +44,7 @@ export function isTablesExcluded(org: { id: string; slug?: string | null; name?:
   return words.some((x) => hay.some((h) => h === x || h.includes(x)));
 }
 export async function assertTablesOn(deps: Deps, orgId: string) {
-  if (!deps.config.tablesR125) throw notFound("Page");
+  if (!featureOn(deps, "tablesR125", orgId)) throw notFound("Page"); // OPS1: per workspace flag
   const o = await deps.db.select({ id: organizations.id, slug: organizations.slug, name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).get();
   if (!o || isTablesExcluded(o, deps.config.tablesExclude ?? "")) throw notFound("Page");
 }
@@ -109,7 +110,7 @@ export async function tableDetail(deps: Deps, viewer: Viewer, docId: string) {
   for (const [id, t] of targets) linked[id] = { title: t.title, fields: id === docId ? fields : await fieldsOf(deps, viewer.actor.orgId, id) };
   return {
     table: { id: docId, title, editAccess: meta.editAccess, rowCount: meta.rowCount, canEdit: canEdit(viewer, meta), canManage: viewer.kind === "member" && viewer.actor.scope !== "read" && (viewer.actor.role === "owner" || viewer.actor.role === "admin" || viewer.actor.userId === meta.createdBy), guest: viewer.kind === "guest",
-      canDelete: !!deps.config.polishPol1 && viewer.kind === "member" && canTrash(viewer.actor, "table", meta.createdBy) }, // POL1
+      canDelete: featureOn(deps, "polishPol1", viewer.actor.orgId) && viewer.kind === "member" && canTrash(viewer.actor, "table", meta.createdBy) }, // POL1
     fields, views, linked,
   };
 }

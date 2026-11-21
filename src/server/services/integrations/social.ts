@@ -24,6 +24,7 @@ import {
 } from "@/shared/social-p2";
 import { cleanP3, pinArgs, p3SourceApps } from "@/shared/social-p3";
 import { isPageKey } from "@/shared/social-soc1"; // SOC1
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 /** Due posts one cron pass takes; the rest wait for the next pass. */
 export const SOCIAL_PASS_LIMIT = 10;
@@ -989,7 +990,7 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
   // A fresh check is still held back 30 seconds, so a page that asks often does not hammer the networks.
   if (hit && now - hit.at < (opts.fresh ? 30_000 : HEALTH_TTL_MS)) return hit.rows;
   // R118: the staging only test network has its own health row, and works without the platform.
-  const p2b = deps.config.socialP2b !== false || deps.config.socialTestNetwork === true ? await import("./social-p2b") : null;
+  const p2b = featureOn(deps, "socialP2b") || deps.config.socialTestNetwork === true ? await import("./social-p2b") : null;
   const testRows: AccountHealthView[] = deps.config.socialTestNetwork === true && p2b ? await p2b.testHealthRows(deps, auth.orgId) : [];
   if (!deps.config.integrations.composio) {
     await p2b?.noteHealth(deps, auth.orgId, testRows).catch(() => undefined);
@@ -1003,7 +1004,7 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
   // R132: YouTube (and Business Profile when its held flag is on) get health rows too.
   const p3 = deps.config.socialP3R132 === true ? await import("./social-p3") : null;
   // SOC1: the Facebook check reads the whole paged Page list, and each chosen Page gets its own row.
-  const soc1 = deps.config.socialMultiSoc1 === true ? await import("./social-pages-soc1") : null;
+  const soc1 = featureOn(deps, "socialMultiSoc1") ? await import("./social-pages-soc1") : null;
   const reachable = new Map<string, Set<string> | null>();
   const loginCodes = new Map<string, string | null>();
   const extraApps = p3 ? p3SourceApps(p3.p3Flags(deps)) : [];

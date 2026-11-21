@@ -17,6 +17,7 @@ import { organizations } from "../db/schema";
 import { FieldLogicSchema, FieldRulesSchema, FormRouteSchema } from "./forms-r31";
 import { ShieldBody } from "./booking-plus";
 import { eq } from "drizzle-orm";
+import { flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
 const Q_SUITE_R7_1 = z.object({ upcoming: z.string().optional(), sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional() });
@@ -81,7 +82,7 @@ export function timeRoutes() {
     .get("/", async (c) => c.json({ entries: await listEntries(c.var.deps, c.var.auth, parseQuery(c, TimeQuery)) }))
     .get("/running", async (c) => c.json({ entry: await runningTimer(c.var.deps, c.var.auth) }))
     .get("/export.csv", async (c) => { // R95: the filtered entries as a CSV file
-      if (!c.var.deps.config.tasksPlus) return c.json({ error: { code: "not_found", message: "Not found." } }, 404);
+      if (!flagOnNow(c, "tasksPlus")) return c.json({ error: { code: "not_found", message: "Not found." } }, 404); // OPS1: per workspace flag
       const tz = await orgTimeZone(c);
       const rows = await listEntries(c.var.deps, c.var.auth, parseQuery(c, TimeQuery));
       const q = parseQuery(c, TimeQuery);

@@ -12,6 +12,7 @@ import { UnsafeUrlError, assertPublicHost, checkUrlShape } from "../../lib/safe-
 import { sortableId, type SuiteActor } from "../suite/common";
 import { csatOf, npsOf, normalisePlus, parsePlus, scoreField, WEBHOOK_PAUSE_AFTER, WEBHOOK_TIMEOUT_MS, type FormMode, type FormPlus } from "@/shared/forms-plus";
 import { ratingRange, type LogicField } from "@/shared/form-logic";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 type FormRow = typeof forms.$inferSelect;
 
@@ -27,7 +28,7 @@ export function isFormsPlusExcluded(org: { id: string; slug?: string | null; nam
 
 /** Whether Forms plus is on for this workspace: the flag, and never for vv8k. Cached for a minute per isolate. */
 export async function formsPlusOn(deps: Deps, orgId: string): Promise<boolean> {
-  if (!deps.config.formsPlus) return false;
+  if (!featureOn(deps, "formsPlus", orgId)) return false; // OPS1: per workspace flag
   const hit = cache.get(orgId);
   const now = Date.now();
   if (hit && hit.until > now) return hit.on;

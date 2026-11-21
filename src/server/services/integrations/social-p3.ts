@@ -18,10 +18,12 @@ import {
 } from "@/shared/social-p3";
 import { NETWORK_RULES } from "@/shared/social-p2";
 import { assertAiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
+import { featureOn } from "../console/flags";
 
 export function p3Flags(deps: Deps): P3Flags {
   const p3 = deps.config.socialP3R132 === true;
-  return { p3, youtubeUpload: p3 && deps.config.socialYoutubeUploadR132 === true, gbp: p3 && deps.config.socialGbpR132 === true };
+  // OPS1 feature flags: the held networks follow their platform wide value (Social P3 itself is set at deploy).
+  return { p3, youtubeUpload: p3 && featureOn(deps, "socialYoutubeUploadR132"), gbp: p3 && featureOn(deps, "socialGbpR132") };
 }
 export function requireP3(deps: Deps) {
   if (deps.config.socialP3R132 !== true) throw new HttpError(404, "not_found", "Not found.");

@@ -18,10 +18,12 @@ import {
   CODE_ALPHABET, REPORT_LIMITS as L, caseFlags, formatCaseNo, formatPassphrase, isReportStatus, lockMsFor, normaliseCaseNo, normalisePassphrase, reportDeadlines,
   type ReportCaseDetail, type ReportCaseRow, type ReportChannelView, type ReportFileView, type ReportMessageView, type ReportStatus, type ReporterThread,
 } from "@/shared/reporting-r112";
+import { featureOn } from "../console/flags";
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role" | "name">;
 export const isAdmin = (a: Pick<AuthContext, "role">) => a.role === "owner" || a.role === "admin";
-export const reportingOn = (deps: Pick<Deps, "config">) => !!deps.config.reporting;
+// OPS1 feature flags: the platform wide value (a global switch; the public pages find the workspace only from a link).
+export const reportingOn = (deps: Pick<Deps, "config" | "db" | "now">) => featureOn(deps, "reporting");
 
 export interface UploadFile { name: string; type: string; bytes: Uint8Array }
 

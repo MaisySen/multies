@@ -38,6 +38,7 @@ import { SIGN_PAGE_JS, VERIFY_PAGE_JS } from "../services/tools/sign-page-script
 import { TOOLS_UPLOAD_HEADER } from "./tools";
 import { ESIGN_NOTE, SIGN_BULK_MAX, SIGN_MAX_SIGNERS, type SignField } from "@/shared/share-sign";
 import { BULK_MAX_ROWS, bulkSend, checkCode, deleteTemplate, eventCtx, isVerified, listTemplates, maskEmail, parseList, recordJson, saveTemplate, sendCode, sendFromTemplate, verifyByHash } from "../services/tools/esign-v2";
+import { featureOn } from "../services/console/flags"; // OPS1 feature flags (esignV2: the platform wide value)
 
 const Field = z.object({ signer: z.number().int().min(0).max(SIGN_MAX_SIGNERS - 1).default(0), kind: z.enum(["signature", "initials", "date", "text", "checkbox"]), page: z.number().int().min(1).max(500), x: z.number().finite(), y: z.number().finite(), w: z.number().finite().positive(), h: z.number().finite().positive(), label: z.string().max(40).optional() });
 const SelfBody = z.object({ fields: z.array(Field).min(1).max(60), images: z.array(z.string().max(450_000)).min(1).max(60) });
@@ -73,9 +74,9 @@ export function toolsEsignRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .use("*", async (c, next) => { await gateP2(c, "esign"); await next(); })
-    .get("/", async (c) => c.json({ requests: await listRequests(c.var.deps, c.var.auth), usage: await keptUsage(c.var.deps, c.var.auth.orgId), note: ESIGN_NOTE, v2: c.var.deps.config.esignV2 !== false }))
+    .get("/", async (c) => c.json({ requests: await listRequests(c.var.deps, c.var.auth), usage: await keptUsage(c.var.deps, c.var.auth.orgId), note: ESIGN_NOTE, v2: featureOn(c.var.deps, "esignV2") }))
     // R107: templates and bulk send (ESIGN_V2).
-    .use("/templates/*", async (c, next) => { if (c.var.deps.config.esignV2 === false) throw new HttpError(404, "not_found", "Not found."); await next(); })
+    .use("/templates/*", async (c, next) => { if (!featureOn(c.var.deps, "esignV2")) throw new HttpError(404, "not_found", "Not found."); await next(); })
     .get("/templates", async (c) => c.json({ templates: await listTemplates(c.var.deps, c.var.auth) }))
     .post("/templates/parse-list", async (c) => {
       const b = await json(c, z.object({ text: z.string().max(20_000) }));
@@ -93,7 +94,7 @@ export function toolsEsignRoutes() {
       return c.json(await bulkSend(c.var.deps, c.var.auth, c.req.param("tid"), b, c.var.ip));
     })
     .post("/:id/template", async (c) => {
-      if (c.var.deps.config.esignV2 === false) throw new HttpError(404, "not_found", "Not found.");
+      if (!featureOn(c.var.deps, "esignV2")) throw new HttpError(404, "not_found", "Not found.");
       const b = await json(c, TemplateBody);
       return c.json(await saveTemplate(c.var.deps, c.var.auth, c.req.param("id"), { ...b, fields: b.fields as SignField[] }, c.var.ip), 201);
     })
@@ -233,7 +234,7 @@ export function esignPublicRoutes() {
     // R107: anyone holding a signed copy can check it; the PDF is hashed in the browser and only the hash is sent.
     .get("/_/verify.js", () => new Response(VERIFY_PAGE_JS, { headers: { "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff" } }))
     .get("/verify", (c) => {
-      if (!publicOn(c, "esign") || c.var.deps.config.esignV2 === false) return gone(c);
+      if (!publicOn(c, "esign") || !featureOn(c.var.deps, "esignV2")) return gone(c);
       return c.html(shell("Check a signed document", `<div class="card"><h1>Check a signed document</h1>
 <p class="muted">Choose a PDF that was signed with Multies. It stays on your device: only its fingerprint (SHA-256) is checked.</p>
 <label for="vf">Signed PDF</label><input id="vf" type="file" accept="application/pdf,.pdf">
@@ -241,7 +242,7 @@ export function esignPublicRoutes() {
 <p class="note">A match means this exact file is the copy made when everyone signed. Any change to the file, even one character, gives a different fingerprint.</p></div>`, "/sign/_/verify.js"), 200, PUBLIC_HEADERS);
     })
     .get("/verify/:sha", async (c) => {
-      if (!publicOn(c, "esign") || c.var.deps.config.esignV2 === false) return c.json({ message: "Not found." }, 404);
+      if (!publicOn(c, "esign") || !featureOn(c.var.deps, "esignV2")) return c.json({ message: "Not found." }, 404);
       if (!checks.take(c.var.ip)) return c.json({ message: "Too many checks. Try again in a minute." }, 429);
       const sha = c.req.param("sha").toLowerCase();
       if (!/^[a-f0-9]{64}$/.test(sha)) return c.json({ message: "That is not a document fingerprint." }, 400);

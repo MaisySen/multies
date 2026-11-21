@@ -23,8 +23,10 @@ import {
   COMMENT_TD9_MAX, DEFAULT_LEVELS, MILESTONE_MAX, PORTAL_AREAS, areaOf, canComment, canView, privateLabel,
   type PortalArea, type PortalLevel, type Td9AccessHistory, type Td9Comment, type Td9Kind, type Td9Milestone, type Td9Recipient,
 } from "@/shared/portal-td9";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
-export const td9On = (deps: Deps) => !!(deps.config.clientPortal && deps.config.portalTd9);
+// OPS1 feature flags: the platform wide values (client portals are a global switch).
+export const td9On = (deps: Deps) => featureOn(deps, "clientPortal") && featureOn(deps, "portalTd9");
 const isAdmin = (auth: Pick<AuthContext, "role">) => auth.role === "owner" || auth.role === "admin";
 const iso = (ms: number) => new Date(ms).toISOString();
 const inList = (xs: string[]) => sql.join(xs.map((x) => sql`${x}`), sql`, `);

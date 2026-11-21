@@ -22,6 +22,7 @@ import {
   checkQuestions, clampMark, courseProgress as progressOf, learnerStatus, LIMITS, publicQuestions, reminderDue, safeLink, scoreQuiz, STATUS_LABEL, toCsv,
   type Answer, type LessonType, type Question,
 } from "@/shared/courses-r129";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 export type Viewer = { kind: "member"; actor: SuiteActor } | { kind: "guest"; actor: SuiteActor; projectId: string };
 type Meta = typeof docCourses.$inferSelect;
@@ -50,7 +51,7 @@ export function isCoursesExcluded(org: { id: string; slug?: string | null; name?
   return words.some((x) => hay.some((h) => h === x || h.includes(x)));
 }
 export async function assertCoursesOn(deps: Deps, orgId: string) {
-  if (!deps.config.coursesR129) throw notFound("Page");
+  if (!featureOn(deps, "coursesR129", orgId)) throw notFound("Page"); // OPS1: per workspace flag
   const o = await deps.db.select({ id: organizations.id, slug: organizations.slug, name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).get();
   if (!o || isCoursesExcluded(o, deps.config.coursesExclude ?? "")) throw notFound("Page");
 }
@@ -140,7 +141,7 @@ export async function courseDetail(deps: Deps, viewer: Viewer, docId: string) {
     course: {
       id: docId, title, status: meta.status, passMark: meta.passMark, certificate: meta.certificate,
       ...(builder ? { editors: ids(meta.editors), managers: ids(meta.managers), createdBy: meta.createdBy } : {}),
-      canBuild: builder, canDelete: !!deps.config.polishPol1 && member && canTrash(a, "course", meta.createdBy), canSeeProgress: member && canSeeProgress(a, meta), canLearn: member && !!a.userId && a.scope !== "read", guest: !member, // POL1: canDelete
+      canBuild: builder, canDelete: featureOn(deps, "polishPol1", a.orgId) && member && canTrash(a, "course", meta.createdBy), canSeeProgress: member && canSeeProgress(a, meta), canLearn: member && !!a.userId && a.scope !== "read", guest: !member, // POL1: canDelete
     },
     lessons: lessons.map((l) => lessonFor(l, builder)),
     me,
@@ -529,7 +530,7 @@ export async function renderCertificate(c: { person: string; course: string; wor
 
 /** Due soon and overdue reminders, one of each per learner, 100 a pass. */
 export async function runCourseReminders(deps: Deps) {
-  if (!deps.config.coursesR129) return { sent: 0 };
+  if (!featureOn(deps, "coursesR129")) return { sent: 0 }; // OPS1: the platform wide value (a cron pass)
   const now = deps.now();
   const horizon = new Date(now.getTime() + 48 * 3600_000);
   const rows = await deps.db.select({ l: courseLearners, title: docs.title }).from(courseLearners)

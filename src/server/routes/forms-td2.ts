@@ -13,6 +13,9 @@ import { HttpError, notFound } from "../lib/errors";
 import { MAX_UPLOAD_BYTES } from "@/shared/forms-td2";
 import { deleteResponse, formImage, openUpload, receiveUpload } from "../services/forms-td2/uploads";
 import { td7UploadGate } from "../services/suite/forms"; // TD7
+import { flagOnForOwner, flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
+import { eq } from "drizzle-orm";
+import { forms } from "../db/schema";
 
 /** Reads the raw body with a hard cap, so a huge upload never sits in memory whole. */
 async function readCapped(c: Context<AppEnv>, cap: number): Promise<Uint8Array> {
@@ -41,18 +44,22 @@ const fileName = (c: Context<AppEnv>) => { try { return decodeURIComponent(c.req
 const FILE_CSP = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox";
 const INLINE = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
+/** OPS1 feature flags: Forms pro for the workspace that owns the public form (its slug read only when values differ). */
+const formsTd2OnForSlug = (c: Context<AppEnv>) => flagOnForOwner(c, "formsTd2", async () =>
+  (await c.var.deps.db.select({ orgId: forms.orgId }).from(forms).where(eq(forms.slug, (c.req.param("slug") ?? "").toLowerCase())).get())?.orgId);
+
 export function formsTd2PublicRoutes() {
   return new Hono<AppEnv>()
     // Handlers check the flag themselves: a "*" middleware here would run for every /api/public path.
     .post("/forms/:slug/uploads", async (c) => {
-      if (!c.var.deps.config.formsTd2) throw notFound("Form");
+      if (!(await formsTd2OnForSlug(c))) throw notFound("Form"); // OPS1: per workspace flag (the form's workspace)
       await td7UploadGate(c.var.deps, c.req.param("slug"), c.req.header("x-form-access")); // TD7: closed 410, password 401, before any bytes are read
       const bytes = await readCapped(c, MAX_UPLOAD_BYTES);
       const out = await receiveUpload(c.var.deps, { slug: c.req.param("slug"), fieldId: (c.req.query("field") ?? "").slice(0, 40), name: fileName(c), bytes, ip: c.var.ip });
       return c.json(out, 201);
     })
     .get("/forms/:slug/images/:fieldId", async (c) => {
-      if (!c.var.deps.config.formsTd2) throw notFound("Form");
+      if (!(await formsTd2OnForSlug(c))) throw notFound("Form"); // OPS1: per workspace flag (the form's workspace)
       const img = await formImage(c.var.deps, c.req.param("slug"), c.req.param("fieldId"));
       return new Response(img.bytes.slice(), { headers: {
         "content-type": img.type, "content-length": String(img.bytes.length), "cache-control": "public, max-age=300",
@@ -64,7 +71,7 @@ export function formsTd2PublicRoutes() {
 export function formsTd2Routes() {
   return new Hono<AppEnv>()
     .get("/:id/uploads/:uploadId", requireAuth, async (c) => {
-      if (!c.var.deps.config.formsTd2) throw notFound("Form");
+      if (!flagOnNow(c, "formsTd2")) throw notFound("Form"); // OPS1: per workspace flag
       const f = await openUpload(c.var.deps, c.var.auth.orgId, c.req.param("id"), c.req.param("uploadId"));
       const inline = c.req.query("inline") === "1" && INLINE.includes(f.type);
       const ascii = f.name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "");
@@ -75,5 +82,6 @@ export function formsTd2Routes() {
         "content-security-policy": FILE_CSP, "cross-origin-resource-policy": "same-origin",
       } });
     })
-    .delete("/:id/responses/:sid", requireAuth, requireAdmin, async (c) => { if (!c.var.deps.config.formsTd2) throw notFound("Form"); return c.json(await deleteResponse(c.var.deps, c.var.auth.orgId, c.req.param("id"), c.req.param("sid"))); });
+    // OPS1: per workspace flag.
+    .delete("/:id/responses/:sid", requireAuth, requireAdmin, async (c) => { if (!flagOnNow(c, "formsTd2")) throw notFound("Form"); return c.json(await deleteResponse(c.var.deps, c.var.auth.orgId, c.req.param("id"), c.req.param("sid"))); });
 }

@@ -18,6 +18,7 @@ import {
   caseFileName, caseForExport, createCase, deleteCase, exportCase, holdTargets, listCases, listHolds, placeHold, previewRetention, releaseHold,
   retentionView, savePolicy, searchArchive,
 } from "../services/mail/archive-r111";
+import { flagOn } from "../services/console/flag-gate"; // OPS1 feature flags
 
 const Years = z.number().int().min(MIN_KEEP_YEARS).max(MAX_KEEP_YEARS).nullable();
 const PolicyBody = z.object({ enabled: z.boolean(), keepYears: Years, confirmEligible: z.number().int().min(0).optional() });
@@ -29,7 +30,7 @@ export function mailArchiveRoutes() {
   const exports = new RateLimiter(20, 60 * 60_000); // case exports a person can start in an hour
   const searches = new RateLimiter(120, 60 * 60_000);
   return new Hono<AppEnv>()
-    .use("*", async (c, next) => { if (!c.var.deps.config.mailArchive) throw notFound("Page"); await next(); })
+    .use("*", async (c, next) => { if (!(await flagOn(c, "mailArchive"))) throw notFound("Page"); await next(); }) // OPS1: per workspace flag
     .use("*", requireAuth)
     .get("/policy", async (c) => c.json({ policy: await retentionView(c.var.deps, c.var.auth) }))
     .post("/policy/preview", async (c) => {

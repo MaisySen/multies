@@ -28,6 +28,7 @@ import type { PlanId } from "@/shared/plans";
 import { aiAllowed, assertAiAllowed } from "./ai-trust-td1"; // TD1
 import { resolveAbout, retrieveTd1 } from "./ask-td1"; // TD1
 import { AI_OFF_MEMBER, AI_OFF_MESSAGE, type AskCoverage } from "@/shared/ask-td1"; // TD1
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 // ---------------------------------------------------------------- caps (the only place these numbers live)
 
@@ -251,7 +252,7 @@ export async function present(deps: Deps, actor: SuiteActor, rows: MsgRow[]): Pr
       id: r.id, question: r.question, answer: lost ? RESTRICTED_MESSAGE : r.answer, status: lost ? "restricted" : (r.status as MessageOut["status"]),
       sources: visible, cards: myCards, createdAt: new Date(r.created_at).toISOString(),
     };
-    if (deps.config.askTd1) {
+    if (featureOn(deps, "askTd1", actor.orgId)) { // OPS1: per workspace flag
       // TD1: say how many cited sources are gone (never which), what the answer read, and the about item if still open.
       const meta = parseJson<{ coverage?: AskCoverage; about?: boolean }>(r.meta ?? "", {});
       out.gone = src.filter((s) => s.cited && !ok.has(`${s.type}:${s.id}`)).length;
@@ -279,7 +280,7 @@ export async function askQuestion(deps: Deps, actor: SuiteActor, input: { questi
   if (question.length < 3) throw new HttpError(422, "validation_failed", "Type a question of at least 3 characters.");
   if (question.length > ASK_QUESTION_MAX) throw new HttpError(422, "validation_failed", `Keep the question under ${ASK_QUESTION_MAX} characters.`);
   if (await excluded(deps, actor.orgId)) throw new HttpError(403, "ask_unavailable", EXCLUDED_MESSAGE);
-  const td1 = !!deps.config.askTd1;
+  const td1 = featureOn(deps, "askTd1", actor.orgId); // OPS1: per workspace flag
   if (td1) await assertAiAllowed(deps, actor.orgId); // TD1: AI off means nothing is read and no provider call
   const threadId = input.threadId ? String(input.threadId) : null;
   const thread = threadId ? await threadOf(deps, actor.orgId, userId, threadId) : null;
@@ -499,7 +500,7 @@ export async function deletePrompt(deps: Deps, actor: SuiteActor, id: string) {
 export async function askState(deps: Deps, actor: SuiteActor) {
   assertPerson(actor);
   if (await excluded(deps, actor.orgId)) return { available: false, reason: EXCLUDED_MESSAGE };
-  if (deps.config.askTd1 && !(await aiAllowed(deps, actor.orgId))) {
+  if (featureOn(deps, "askTd1", actor.orgId) && !(await aiAllowed(deps, actor.orgId))) {
     // TD1: an admin turned AI off. Admins get the switch; members get who to ask.
     const admin = actor.role === "owner" || actor.role === "admin";
     return { available: false, reason: admin ? AI_OFF_MESSAGE : AI_OFF_MEMBER, aiOff: true, canEnable: admin };

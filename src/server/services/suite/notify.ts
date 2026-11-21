@@ -13,6 +13,7 @@ import { inChunks, inIds } from "../../lib/sql-chunks";
 import { alertAllowed, applyDeliveryPatch, nextDigestAt, readDelivery, type Delivery, type DeliveryPatch } from "../../../shared/notification-centre"; // R97
 import { deferrableWrite } from "../write-priority";
 import { inboxWhere, VIEW_ORDER, viewCountsFor, viewWhere, type TriageView } from "./notify-triage"; // R31 triage
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const CATEGORIES = ["mention", "assignment", "comment", "approval", "due_soon", "chat", "email", "status"] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -67,7 +68,8 @@ export async function getPrefs(deps: Deps, orgId: string, userId: string): Promi
   return mergePrefs((await prefRow(deps, orgId, userId))?.settings);
 }
 
-const centreOn = (deps: Deps) => deps.config.notificationCentre !== false;
+// OPS1 feature flags: the notification centre for one workspace.
+const centreOn = (deps: Deps, orgId: string) => featureOn(deps, "notificationCentre", orgId);
 
 export async function setPrefs(deps: Deps, orgId: string, userId: string, patch: Partial<Record<string, { inApp?: boolean; push?: boolean; mail?: boolean }>>) {
   const cur = await getPrefs(deps, orgId, userId);
@@ -117,7 +119,7 @@ export function decide(prefs: Prefs, delivery: Delivery | null, category: Catego
  */
 export async function alertRecipients(deps: Deps, orgId: string, userIds: string[], type: string): Promise<string[]> {
   const ids = [...new Set(userIds)];
-  if (!ids.length || !centreOn(deps)) return ids;
+  if (!ids.length || !centreOn(deps, orgId)) return ids;
   const cat = categoryOf(type);
   const rows = await inChunks(ids, (chunk) => deps.db.select({ userId: notificationPrefs.userId, settings: notificationPrefs.settings, delivery: notificationPrefs.delivery })
     .from(notificationPrefs).where(and(eq(notificationPrefs.orgId, orgId), inIds(notificationPrefs.userId, chunk))));
@@ -137,7 +139,7 @@ export async function notify(deps: Deps, orgId: string, userId: string, n: { typ
     const row = await prefRow(deps, orgId, userId);
     const cat = categoryOf(n.type);
     const now = deps.now();
-    const d = decide(mergePrefs(row?.settings), centreOn(deps) ? readDelivery(row?.delivery) : null, cat, now);
+    const d = decide(mergePrefs(row?.settings), centreOn(deps, orgId) ? readDelivery(row?.delivery) : null, cat, now);
     // PRIV1b (P37): account security notices can't be muted: always in the inbox and always pushed.
     if (n.type.startsWith("security.")) { d.inApp = true; d.push = true; }
     if (d.inApp) {

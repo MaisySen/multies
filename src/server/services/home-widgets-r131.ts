@@ -8,6 +8,8 @@ import { homeLayouts } from "../db/schema";
 import { forbidden } from "../lib/errors";
 import { builtinLayout, HomeLayout, normalizeLayout, WIDGET_IDS, type HomeWidgetsView, type WidgetId } from "@/shared/home-widgets-r131";
 import { billTimeOn } from "@/shared/bill-time-td4"; // TD4
+import { envDefault, featureOn } from "./console/flags"; // OPS1 feature flags
+import type { FlagKey } from "@/shared/feature-flags";
 
 const WORKSPACE = "";
 type Actor = Pick<AuthContext, "orgId" | "userId" | "role">;
@@ -15,9 +17,11 @@ type Actor = Pick<AuthContext, "orgId" | "userId" | "role">;
 const isManager = (a: Actor) => a.role === "owner" || a.role === "admin";
 
 /** Widgets this workspace can show: social and feeds only where those areas are on; the rest read the person's own data. */
-export function availableWidgets(deps: Pick<Deps, "config">, a?: Pick<Actor, "role">): WidgetId[] {
-  return WIDGET_IDS.filter((id) => (id === "social" ? deps.config.socialP2b !== false : id === "feeds" ? deps.config.flows !== false
-    : id === "billing" ? billTimeOn(deps.config) && !!a && isManager(a as Actor) : true)); // TD4: time to bill, owners and admins with BILL_TD4
+export function availableWidgets(deps: Pick<Deps, "config"> & Partial<Pick<Deps, "db" | "now">>, a?: Pick<Actor, "role"> & Partial<Pick<Actor, "orgId">>): WidgetId[] {
+  // OPS1 feature flags: the workspace's values when a database handle is at hand (the overrides), else the env defaults.
+  const on = (key: FlagKey) => (deps.db && deps.now ? featureOn(deps as Deps, key, a?.orgId) : envDefault(deps.config, key));
+  return WIDGET_IDS.filter((id) => (id === "social" ? on("socialP2b") : id === "feeds" ? on("flows")
+    : id === "billing" ? (deps.db ? on("invoicesEnabled") && on("billTd4") : billTimeOn(deps.config)) && !!a && isManager(a as Actor) : true)); // TD4: time to bill, owners and admins with BILL_TD4
 }
 
 function parse(raw: string | null | undefined): unknown {

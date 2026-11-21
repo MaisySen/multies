@@ -28,6 +28,7 @@ import {
 } from "./search";
 import { containsAny, containsText } from "../lib/like-search";
 import { safeSnippet } from "./agents/platform-mail"; // AIS1 (row 32): pre-fix previews of the platform's own mail
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 // ---------------------------------------------------------------- words, typos, ranking (pure)
 
@@ -371,7 +372,7 @@ async function fileGroup(c: Ctx): Promise<Candidate[]> {
     .orderBy(desc(chatFiles.createdAt)).limit(n) : Promise.resolve([]);
   // R102: Files > Documents whose text matches, only those the person can open (the drive's own check). People only; no person or project filter.
   const me = userOf(c.v);
-  const inDocs = c.v.kind === "actor" && me && c.deps.config.filesPlus && c.deps.config.docInbox && !c.person && !c.f.project && !c.f.from && !c.f.to
+  const inDocs = c.v.kind === "actor" && me && featureOn(c.deps, "filesPlus", orgOf(c.v)) && featureOn(c.deps, "docInbox", orgOf(c.v)) && !c.person && !c.f.project && !c.f.from && !c.f.to
     ? searchDocs(c.deps, { orgId, userId: me, email: c.v.actor.email ?? "", role: c.v.actor.role ?? "member" }, c.words.join(" "), n).catch(() => [])
     : Promise.resolve([]);
   const [a, b, d] = await Promise.all([onTasks, inChat, inDocs]);
@@ -445,7 +446,7 @@ function allowedTypes(deps: Deps, v: SearchViewer, requested?: SearchType[]): Se
   else if (isKey(v.actor)) types = types.filter((t) => t !== "notes");
   const tools = deps.config.tools;
   if (!(tools.enabled && tools.features.includes("index") && deps.indexDb)) types = types.filter((t) => t !== "attachments");
-  if (!deps.config.crmTimeline) types = types.filter((t) => t !== "notes");
+  if (!featureOn(deps, "crmTimeline", orgOf(v))) types = types.filter((t) => t !== "notes"); // OPS1: per workspace flag
   return types;
 }
 

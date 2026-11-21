@@ -17,6 +17,7 @@ import {
   VAULT_MAX_FOLDERS, VAULT_MAX_ITEMS_PER_FOLDER, VAULT_MAX_ITEM_CT, VAULT_MAX_MEMBERS_PER_FOLDER, VAULT_MAX_NAME_CT, lockoutMs,
   type VaultAccess, type VaultFolderDto, type VaultItemDto, type VaultPersonDto, type VaultStateDto,
 } from "@/shared/vault-r128";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 export type VaultAuth = Pick<AuthContext, "orgId" | "userId" | "email" | "name" | "role">;
 type Body = Record<string, unknown>;
@@ -43,7 +44,7 @@ export function isVaultExcluded(org: { id: string; slug?: string | null; name?: 
 }
 
 export async function assertVaultOpen(deps: Deps, a: VaultAuth): Promise<void> {
-  if (!deps.config.vaultR128) throw new HttpError(404, "not_found", "Page not found.");
+  if (!featureOn(deps, "vaultR128", a.orgId)) throw new HttpError(404, "not_found", "Page not found."); // OPS1: per workspace flag
   if (!a.userId) throw forbidden("Vault is for people signed in to the workspace.");
   const [o] = await deps.db.all<{ id: string; slug: string | null; name: string | null }>(sql`select id, slug, name from organizations where id = ${a.orgId} limit 1`);
   if (!o || isVaultExcluded(o, deps.config.vaultExclude ?? "")) throw new HttpError(404, "not_found", "Page not found.");

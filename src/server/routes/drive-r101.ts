@@ -27,6 +27,7 @@ import {
 } from "../services/suite/drive-r101";
 import { enqueue as docEnqueue } from "../services/suite/doc-inbox";
 import { DRIVE_LIMITS, DRIVE_SPACES, inlineSafe, isDriveView, parseRange, type DriveSpace } from "@/shared/drive";
+import { flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
 
 const Space = z.enum(DRIVE_SPACES);
 const Ids = z.array(z.string().min(1).max(80)).min(1).max(DRIVE_LIMITS.bulk);
@@ -40,7 +41,7 @@ const SharesBody = z.object({ shares: z.array(z.object({ userId: z.string().min(
 const actor = (c: Context<AppEnv>) => c.var.auth;
 
 function on(c: Context<AppEnv>) {
-  if (!c.var.deps.config.filesPlus) throw notFound("Page");
+  if (!flagOnNow(c, "filesPlus")) throw notFound("Page"); // OPS1: per workspace flag (after requireAuth)
 }
 
 /** Reads a raw upload with a hard cap, so a huge body never sits in memory whole. */

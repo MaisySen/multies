@@ -39,6 +39,8 @@ import { getBoardSettings, setBoardSettings } from "../services/suite/board-sett
 import { BoardPatchSchema } from "./board-schema-r34";
 import { idempotency, idempotentId, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 import { guardDocDelete, listTrash, restoreDoc } from "../services/trash-pol1"; // POL1
+import { flagOnNow } from "../services/console/flag-gate"; // OPS1 feature flags
+import { featureOn } from "../services/console/flags";
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
 // T1G (T1-3): a search longer than 200 characters is cut to 200 like every other list search, never refused.
@@ -234,12 +236,12 @@ export function notificationRoutes() {
     .get("/settings", async (c) => {
       const { deps, auth } = c.var;
       const settings = await getPrefs(deps, auth.orgId, auth.userId);
-      if (deps.config.notificationCentre === false) return c.json({ settings: stripMail(settings) });
+      if (!flagOnNow(c, "notificationCentre")) return c.json({ settings: stripMail(settings) }); // OPS1: per workspace flag
       return c.json({ settings, delivery: await getDelivery(deps, auth.orgId, auth.userId) });
     })
     .put("/settings", async (c) => {
       const { deps, auth } = c.var;
-      const centre = deps.config.notificationCentre !== false;
+      const centre = flagOnNow(c, "notificationCentre"); // OPS1: per workspace flag
       const b = await parseBody(c, z.object({
         settings: z.record(z.string(), z.object({ inApp: z.boolean().optional(), push: z.boolean().optional(), mail: z.boolean().optional() })).optional(),
         delivery: DeliveryPatch.optional(),
@@ -255,7 +257,7 @@ export function notificationRoutes() {
 export function pushRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .get("/devices", async (c) => c.json({ enabled: c.var.deps.config.push.enabled, devices: await listDevices(c.var.deps, c.var.auth) }))
+    .get("/devices", async (c) => c.json({ enabled: featureOn(c.var.deps, "pushNotifications"), devices: await listDevices(c.var.deps, c.var.auth) }))
     .post("/devices", async (c) => c.json(await registerDevice(c.var.deps, c.var.auth, await parseBody(c, PushDevice)), 201))
     .delete("/devices/:token", async (c) => c.json(await unregisterDevice(c.var.deps, c.var.auth, decodeURIComponent(c.req.param("token")))));
 }

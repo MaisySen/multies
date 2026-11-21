@@ -19,13 +19,14 @@ import {
   AcceptEdits, AnalysisCreate, AnalysisPatch, FiltersInput, TemplateName, acceptSuggestion, createAnalysis, deleteAnalysis, discardSuggestion,
   getPrefs, listAnalyses, listSuggestions, runAnalysis, runSaved, scanMail, setPrefs, undoDiscard, updateAnalysis,
 } from "../services/crm-td10";
+import { flagOn } from "../services/console/flag-gate"; // OPS1 feature flags
 
 const IdParam = /^[A-Za-z0-9_-]{1,64}$/;
 const zone = (tz: unknown) => (typeof tz === "string" && validZone(tz) ? tz : "UTC");
 
 export function crmTd10Routes() {
   return new Hono<AppEnv>()
-    .use("*", async (c, next) => { if (!c.var.deps.config.crmTd10) throw new HttpError(404, "not_found", "Page not found."); await next(); })
+    .use("*", async (c, next) => { if (!(await flagOn(c, "crmTd10"))) throw new HttpError(404, "not_found", "Page not found."); await next(); }) // OPS1: per workspace flag
     .use("*", requireAuth)
     .use("*", async (c, next) => {
       c.header("Cache-Control", "private, no-store");

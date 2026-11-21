@@ -15,6 +15,7 @@ import { inIds } from "../../lib/sql-chunks";
 import { BULK_LOCAL_PARTS, SPLITS_MAX, type MailSplit, type SplitRuleT, type SplitTab } from "@/shared/mail-splits";
 import { snoozeHiddenCond } from "./schedules";
 import { BUILT_IN_TABS, NOT_PROMO_WORDS, PROMO_LOCAL_PARTS, PROMO_WORDS, parsePins, type TabPins, type TabStyle } from "@/shared/mail-rules-r85";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export interface SplitActor { orgId: string; userId: string; agentId?: string | null; scope?: string }
 
@@ -233,7 +234,7 @@ export async function splitTabs(deps: Deps, a: SplitActor, q: { mailboxId?: stri
   if (st?.style === "off") return [];
   if (st && (st.style === "categories" || hasPins(st.pins))) return generalTabs(deps, a, q, list, st);
   // R61a kill switch (MAIL_SPLIT_COUNTS=off): the tabs stay, their unread counts read as 0 and no count runs.
-  if (!deps.config.mailSplitCounts) {
+  if (!featureOn(deps, "mailSplitCounts")) { // OPS1: the platform wide flag
     return [
       { id: "important", name: "Important", builtIn: true, unread: 0 },
       { id: "other", name: "Other", builtIn: true, unread: 0 },
@@ -356,7 +357,7 @@ async function generalTabs(deps: Deps, a: SplitActor, q: { mailboxId?: string; s
   const style = st.style === "off" ? "classic" : st.style;
   const builtIn = BUILT_IN_TABS[style];
   const tabs = [...builtIn.map((t) => ({ id: t.id, name: t.name, builtIn: true })), ...list.map((s) => ({ id: s.id, name: s.name, builtIn: false }))];
-  if (!deps.config.mailSplitCounts) return tabs.map((t) => ({ ...t, unread: 0 }));
+  if (!featureOn(deps, "mailSplitCounts")) return tabs.map((t) => ({ ...t, unread: 0 }));
   const cols: Record<string, SQL<number>> = {};
   tabs.forEach((t, i) => { cols[`t${i}`] = sql<number>`coalesce(sum(case when ${tabCondsFor(a.orgId, list, st, t.id)!} then 1 else 0 end), 0)`; });
   const row = (await deps.db.select(cols).from(messages).where(and(

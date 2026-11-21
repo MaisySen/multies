@@ -11,10 +11,11 @@ import { assertWritable, createdBy, iso, parseDate, recordWrite, sortableId, typ
 import { resolveTaskId } from "./tasks";
 import { inIds } from "../../lib/sql-chunks";
 import { cleanTags } from "../../../shared/tasks-plus-r95";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 /** R95: the timesheet lock (a submitted or approved week), loaded lazily so time.ts keeps no new import cycle. */
 async function weekOpen(deps: Deps, actor: SuiteActor, person: Person, at: Date) {
-  if (!deps.config.tasksPlus) return;
+  if (!featureOn(deps, "tasksPlus", actor.orgId)) return; // OPS1: per workspace flag
   const { assertWeekOpen } = await import("./tasks-plus-r95");
   await assertWeekOpen(deps, actor, person, at);
 }

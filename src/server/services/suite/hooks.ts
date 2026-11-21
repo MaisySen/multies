@@ -7,6 +7,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { tasks } from "../../db/schema";
 import { recordWrite, type SuiteActor } from "./common";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 interface StoredMail {
   orgId: string; mailboxId: string; messageId: string; threadId: string; direction: "inbound" | "outbound";
@@ -58,7 +59,7 @@ export async function onMailStored(deps: Deps, m: StoredMail) {
     await runMailRules(deps, { orgId: m.orgId, mailboxId: m.mailboxId, messageId: m.messageId });
   });
   await step("push", async () => {
-    if (!deps.config.push.enabled) return;
+    if (!featureOn(deps, "pushNotifications")) return; // OPS1: the platform wide flag
     const { pushToUsers } = await import("./push");
     const { usersWhoCanOpen } = await import("../team");
     // R97 one place: a Mail phone switch turned off, a pause and quiet hours hold new mail alerts too.

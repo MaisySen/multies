@@ -30,6 +30,7 @@ import { headerEnd, pickFolders, type FetchedMessage, type FolderPaths, type Ima
 import type { Folder } from "@/shared/mail";
 import type { ConnectPresetId } from "@/shared/mail-connect";
 import { inIds } from "../../lib/sql-chunks";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 interface FolderState {
   path: string; v: string; last: number;
@@ -595,7 +596,7 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
  * so one connection's mail can't use up the others' request budget), or runs them inline on Node.
  */
 export async function runDueMailSyncs(deps: Deps, limit = 20) {
-  if (!deps.config.mailConnect.enabled) return { dispatched: 0 };
+  if (!featureOn(deps, "mailConnect")) return { dispatched: 0 }; // OPS1: the platform wide flag
   const { dueConnections } = await import(".");
   const due = await dueConnections(deps, limit);
   let dispatched = 0;

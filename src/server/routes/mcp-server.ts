@@ -86,6 +86,7 @@ import { registerAuthEmailSettingsTools } from "./mcp-r28-auth-email-settings"; 
 
 export type Scoped = Actor & { scope?: string; toolList?: "scoped" | "all" }; // R36: "full", "read" or a per area list (lib/api-scopes.ts). R37: toolList "scoped" hides tools the key can't use from tools/list
 import { registerReportsR35Tools } from "./reports-r35"; // R35
+import { featureOn } from "../services/console/flags"; // OPS1 feature flags
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
 const fail = (message: string) => ({ content: [{ type: "text" as const, text: message }], isError: true });
@@ -845,7 +846,7 @@ function registerR11Tools(server: McpServer, deps: Deps, actor: Scoped, writable
     const { createIncomingHook } = await import("../services/suite/integrations");
     return createIncomingHook(deps, a, { name: x.name, action: x.action, config: { projectId: x.projectId, channelId: x.channelId, mapping: x.mapping } }, await mcpCreate("ihk")); // R54 (MB-239)
   }));
-  if (deps.config.schedulingEnabled) {
+  if (featureOn(deps, "schedulingEnabled")) { // OPS1: the platform wide flag
     server.registerTool("list_bookings", {
       title: "List meeting bookings", annotations: ro,
       description: "Bookings made through the workspace's public booking pages, with time, guest name and email, status and the meeting.",

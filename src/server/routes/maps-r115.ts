@@ -12,6 +12,7 @@ import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { badRequest, notFound } from "../lib/errors";
 import { getPlace, lookup, removePlace, setPlace, visitCandidates, type PlaceEntity } from "../services/maps-r115";
+import { flagOn } from "../services/console/flag-gate"; // OPS1 feature flags
 
 const ENTITIES = ["contact", "company", "scheduling_page"] as const;
 const PlaceBody = z.object({
@@ -26,7 +27,7 @@ function entity(q: (k: string) => string | undefined): { type: PlaceEntity; id: 
 
 export function mapsRoutes() {
   return new Hono<AppEnv>()
-    .use("*", async (c, next) => { if (!c.var.deps.config.mapsR115) throw notFound("Page"); await next(); })
+    .use("*", async (c, next) => { if (!(await flagOn(c, "mapsR115"))) throw notFound("Page"); await next(); }) // OPS1: per workspace flag
     .use("*", requireAuth)
     .get("/lookup", async (c) => {
       const q = (c.req.query("q") ?? "").slice(0, 300);

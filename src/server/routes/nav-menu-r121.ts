@@ -10,29 +10,41 @@ import type { AppEnv, Deps } from "../context";
 import { requireAuth } from "../middleware";
 import { activeToolFeatures } from "../services/tools/features";
 import { COUNT_KEYS, FOURTH_TABS, MAIL_SETUP, MENU_VERSION, SECTIONS_P1, SECTIONS_P2, visibleIn, type NavFlagSet } from "@/shared/nav-menu";
+import { envDefault, featureOn, type FlagDeps } from "../services/console/flags"; // OPS1 feature flags
+import type { FlagKey } from "@/shared/feature-flags";
+
+type NavDeps = Pick<Deps, "config"> & Partial<Pick<Deps, "db" | "now">>;
+type NavWho = { role: "owner" | "admin" | "member"; platformRole?: string; orgId?: string };
+
+/**
+ * OPS1 feature flags: a flag's value for the person's workspace (the operator overrides the /api/* middleware loaded).
+ * Called with a bare config (no database handle), the env default as before.
+ */
+const navFlag = (deps: NavDeps, key: FlagKey, orgId?: string) => (deps.db && deps.now ? featureOn(deps as FlagDeps, key, orgId) : envDefault(deps.config, key));
 
 /** The switches this person has, as the web shell computes them (app.tsx navFlags), minus the per workspace Sites read. */
-export function serverNavFlags(deps: Pick<Deps, "config">, who: { role: "owner" | "admin" | "member"; platformRole?: string }): NavFlagSet & { social: boolean } {
+export function serverNavFlags(deps: NavDeps, who: NavWho): NavFlagSet & { social: boolean } {
   const cfg = deps.config;
+  const on = (key: FlagKey) => navFlag(deps, key, who.orgId);
   const tools = !!cfg.tools?.enabled;
   const features = tools ? activeToolFeatures(deps as Deps) : [];
   return {
     tools,
-    files: tools && (features.includes("folders") || !!cfg.filesPlus),
-    scheduling: !!cfg.schedulingEnabled,
+    files: tools && (features.includes("folders") || on("filesPlus")),
+    scheduling: on("schedulingEnabled"),
     operator: isOperatorRole(who.platformRole), // OPS1: every operator role
-    flows: cfg.flows !== false,
-    socialP2: cfg.socialP2 !== false,
-    socialP2b: cfg.socialP2 !== false && cfg.socialP2b !== false,
-    helpCenter: !!cfg.helpCenter,
-    docsPlus: !!cfg.docsPlus,
-    sites: !!cfg.sites, // shown only once the workspace has a site: see whenUsed
-    social: who.role === "owner" || who.role === "admin" || cfg.socialP2 !== false,
+    flows: on("flows"),
+    socialP2: on("socialP2"),
+    socialP2b: on("socialP2") && on("socialP2b"),
+    helpCenter: on("helpCenter"),
+    docsPlus: on("docsPlus"),
+    sites: on("sites"), // shown only once the workspace has a site: see whenUsed
+    social: who.role === "owner" || who.role === "admin" || on("socialP2"),
   };
 }
 
-export function menuFor(deps: Pick<Deps, "config">, who: { role: "owner" | "admin" | "member"; platformRole?: string }) {
-  const p2 = !!deps.config.navP2R121;
+export function menuFor(deps: NavDeps, who: NavWho) {
+  const p2 = navFlag(deps, "navP2R121");
   const flags = serverNavFlags(deps, who);
   const sections = visibleIn(p2 ? SECTIONS_P2 : SECTIONS_P1, flags).map((s) => ({
     id: s.id, label: s.label, icon: s.icon, to: s.to,

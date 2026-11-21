@@ -17,6 +17,7 @@ import {
   type Branch, type ConditionConfig, type FlowAction, type FlowGraph, type FlowNode, type FlowTrigger,
 } from "@/shared/flows";
 import type { SuiteActor } from "./common";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 type FlowRow = typeof flows.$inferSelect;
 type RunRow = typeof flowRuns.$inferSelect;
@@ -27,8 +28,9 @@ const notFound = (what: string) => new HttpError(404, "not_found", `${what} not 
 /** Steps one pass walks before it hands the rest to the next maintenance pass. */
 export const STEPS_PER_PASS = 25;
 
-export function assertFlows(deps: Deps) {
-  if (deps.config.flows === false) throw new HttpError(404, "not_found", "Not found.");
+// OPS1 feature flags: for the workspace; the cron passes below use the platform wide value.
+export function assertFlows(deps: Deps, orgId: string) {
+  if (!featureOn(deps, "flows", orgId)) throw new HttpError(404, "not_found", "Not found.");
 }
 
 export function parseGraph(raw: string): FlowGraph {
@@ -65,14 +67,14 @@ async function getFlowRow(deps: Deps, orgId: string, id: string) {
 // ---------------------------------------------------------------- CRUD
 
 export async function listFlows(deps: Deps, orgId: string) {
-  assertFlows(deps);
+  assertFlows(deps, orgId);
   const rows = await deps.db.select().from(flows).where(and(eq(flows.orgId, orgId), isNull(flows.deletedAt))).orderBy(desc(flows.updatedAt)).limit(MAX_FLOWS);
   const { automationUsage } = await import("./automations");
   return { flows: rows.map((f) => presentFlow(f)), usage: await automationUsage(deps, orgId) };
 }
 
 export async function getFlow(deps: Deps, orgId: string, id: string) {
-  assertFlows(deps);
+  assertFlows(deps, orgId);
   const f = await getFlowRow(deps, orgId, id);
   const w = await deps.db.select().from(flowWatches).where(eq(flowWatches.flowId, f.id)).get();
   return { flow: presentFlow(f, w) };
@@ -121,7 +123,7 @@ function checkShape(input: { name?: string; graph?: FlowGraph }) {
 }
 
 export async function createFlow(deps: Deps, actor: SuiteActor, input: { name: string; description?: string; graph: FlowGraph }) {
-  assertFlows(deps);
+  assertFlows(deps, actor.orgId);
   checkShape(input);
   const [{ n }] = await deps.db.select({ n: sql<number>`count(*)` }).from(flows).where(and(eq(flows.orgId, actor.orgId), isNull(flows.deletedAt)));
   if (n >= MAX_FLOWS) throw bad(`A workspace can have up to ${MAX_FLOWS} flows. Delete one you no longer use.`);
@@ -138,7 +140,7 @@ export async function createFlow(deps: Deps, actor: SuiteActor, input: { name: s
 }
 
 export async function updateFlow(deps: Deps, actor: SuiteActor, id: string, patch: { name?: string; description?: string | null; graph?: FlowGraph; enabled?: boolean }) {
-  assertFlows(deps);
+  assertFlows(deps, actor.orgId);
   checkShape(patch);
   const f = await getFlowRow(deps, actor.orgId, id);
   const graph = patch.graph ?? parseGraph(f.graph);
@@ -160,7 +162,7 @@ export async function updateFlow(deps: Deps, actor: SuiteActor, id: string, patc
 }
 
 export async function deleteFlow(deps: Deps, actor: SuiteActor, id: string) {
-  assertFlows(deps);
+  assertFlows(deps, actor.orgId);
   const f = await getFlowRow(deps, actor.orgId, id);
   await deps.db.update(flows).set({ deletedAt: deps.now(), enabled: false }).where(eq(flows.id, f.id));
   await deps.db.delete(flowWatches).where(eq(flowWatches.flowId, f.id));
@@ -408,7 +410,7 @@ export function nextDigestTime(now: number, timeZone: string, every: "daily" | "
 // ---------------------------------------------------------------- people acting on runs
 
 export async function listRuns(deps: Deps, orgId: string, q: { flowId?: string; status?: string; before?: string; limit?: number }) {
-  assertFlows(deps);
+  assertFlows(deps, orgId);
   const limit = Math.min(100, Math.max(1, q.limit ?? 50));
   const conds = [eq(flowRuns.orgId, orgId)];
   if (q.flowId) conds.push(eq(flowRuns.flowId, q.flowId));
@@ -420,7 +422,7 @@ export async function listRuns(deps: Deps, orgId: string, q: { flowId?: string; 
 }
 
 export async function getRun(deps: Deps, orgId: string, runId: string) {
-  assertFlows(deps);
+  assertFlows(deps, orgId);
   const row = await deps.db.select({ r: flowRuns, f: flows }).from(flowRuns).innerJoin(flows, eq(flows.id, flowRuns.flowId)).where(and(eq(flowRuns.id, runId), eq(flowRuns.orgId, orgId))).get();
   if (!row) throw notFound("Run");
   const steps = await deps.db.select().from(flowRunSteps).where(eq(flowRunSteps.runId, runId)).orderBy(flowRunSteps.startedAt, flowRunSteps.attempt).limit(200);
@@ -429,7 +431,7 @@ export async function getRun(deps: Deps, orgId: string, runId: string) {
 
 /** Retry a failed run from the step that failed (a new attempt of that step; earlier steps are not run again). */
 export async function retryRun(deps: Deps, actor: SuiteActor, runId: string) {
-  assertFlows(deps);
+  assertFlows(deps, actor.orgId);
   const run = await deps.db.select().from(flowRuns).where(and(eq(flowRuns.id, runId), eq(flowRuns.orgId, actor.orgId))).get();
   if (!run) throw notFound("Run");
   if (run.status !== "failed") throw bad("Only a failed run can be tried again.");
@@ -445,7 +447,7 @@ export async function retryRun(deps: Deps, actor: SuiteActor, runId: string) {
 }
 
 export async function cancelRun(deps: Deps, actor: SuiteActor, runId: string) {
-  assertFlows(deps);
+  assertFlows(deps, actor.orgId);
   const done = await deps.db.update(flowRuns).set({ status: "cancelled", finishedAt: deps.now(), resumeAt: null, error: `Stopped by ${actor.name || "a person"}.` })
     .where(and(eq(flowRuns.id, runId), eq(flowRuns.orgId, actor.orgId), inArray(flowRuns.status, ["waiting", "waiting_approval", "failed"]))).returning({ id: flowRuns.id, flowId: flowRuns.flowId });
   if (!done.length) throw bad("Only a waiting or failed run can be stopped.");
@@ -455,7 +457,7 @@ export async function cancelRun(deps: Deps, actor: SuiteActor, runId: string) {
 
 /** Runs waiting for this person's OK (admins see every one; a chosen approver sees theirs). */
 export async function listApprovals(deps: Deps, actor: SuiteActor & { role?: string }) {
-  assertFlows(deps);
+  assertFlows(deps, actor.orgId);
   const rows = await deps.db.select({ r: flowRuns, f: flows }).from(flowRuns).innerJoin(flows, eq(flows.id, flowRuns.flowId))
     .where(and(eq(flowRuns.orgId, actor.orgId), eq(flowRuns.status, "waiting_approval"))).orderBy(desc(flowRuns.startedAt)).limit(50);
   const out = [];
@@ -476,7 +478,7 @@ function canDecide(actor: { userId: string; role?: string }, node: FlowNode) {
 }
 
 export async function decideApproval(deps: Deps, actor: SuiteActor & { role?: string }, runId: string, decision: "approve" | "reject", note?: string) {
-  assertFlows(deps);
+  assertFlows(deps, actor.orgId);
   const row = await deps.db.select({ r: flowRuns, f: flows }).from(flowRuns).innerJoin(flows, eq(flows.id, flowRuns.flowId)).where(and(eq(flowRuns.id, runId), eq(flowRuns.orgId, actor.orgId))).get();
   if (!row) throw notFound("Run");
   if (row.r.status !== "waiting_approval") throw bad("This run is not waiting for an OK any more.");
@@ -497,7 +499,7 @@ export async function decideApproval(deps: Deps, actor: SuiteActor & { role?: st
 }
 
 export async function runNow(deps: Deps, actor: SuiteActor, id: string, note?: string) {
-  assertFlows(deps);
+  assertFlows(deps, actor.orgId);
   const f = await getFlowRow(deps, actor.orgId, id);
   const g = parseGraph(f.graph);
   const problems = validateGraph(g);
@@ -526,7 +528,7 @@ export function taskData(deps: Deps, task: Record<string, unknown> | { id: strin
 
 /** One indexed read: the workspace's flows that are on for this trigger. */
 async function flowsFor(deps: Deps, orgId: string, trigger: FlowTrigger) {
-  if (deps.config.flows === false) return [];
+  if (!featureOn(deps, "flows", orgId)) return [];
   return deps.db.select().from(flows).where(and(eq(flows.orgId, orgId), eq(flows.triggerKind, trigger), eq(flows.enabled, true), isNull(flows.deletedAt))).limit(MAX_FLOWS);
 }
 
@@ -550,7 +552,7 @@ export async function fireFlows(deps: Deps, orgId: string, trigger: FlowTrigger,
 
 /** Resumes waits whose time has come and runs left over from a full pass. At most `limit` per call. */
 export async function resumeDueRuns(deps: Deps, limit = 20) {
-  if (deps.config.flows === false) return 0;
+  if (!featureOn(deps, "flows")) return 0; // OPS1: the platform wide value (a cron pass)
   const due = await deps.db.select({ id: flowRuns.id, currentNode: flowRuns.currentNode, resumeAt: flowRuns.resumeAt }).from(flowRuns).where(and(eq(flowRuns.status, "waiting"), lte(flowRuns.resumeAt, deps.now()))).limit(limit);
   let n = 0;
   for (const r of due) {
@@ -571,7 +573,7 @@ export async function resumeDueRuns(deps: Deps, limit = 20) {
 
 /** Sends digests that are due: one mail per digest step per person, then marks the items sent. */
 export async function sendDueDigests(deps: Deps, limit = 300) {
-  if (deps.config.flows === false) return 0;
+  if (!featureOn(deps, "flows")) return 0; // OPS1: the platform wide value (a cron pass)
   const items = await deps.db.select().from(flowDigestItems).where(and(isNull(flowDigestItems.sentAt), lte(flowDigestItems.sendAt, deps.now()))).limit(limit);
   if (!items.length) return 0;
   const groups = new Map<string, typeof items>();

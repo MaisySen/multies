@@ -19,6 +19,7 @@ import {
 import { ShieldBody } from "./booking-plus";
 import { requireShield } from "../services/spam-shield";
 import type { SuiteActor } from "../services/suite/common";
+import { featureOn } from "../services/console/flags"; // OPS1 feature flags
 
 const Event = z.string().refine((e) => e === "*" || (WEBHOOK_EVENTS as readonly string[]).includes(e), "Unknown event.");
 export const ConnectBody = z.object({ connector: z.string().max(40), url: z.string().url().max(2000), events: z.array(Event).max(60).optional(), name: z.string().max(80).optional() });
@@ -125,7 +126,7 @@ export function bookRoutes() {
     .post("/:slug", writes, async (c) => {
       const b = await parseBody(c, BookBody);
       // R92: with Booking plus on, the booking page carries the spam shield (signed challenge, proof of work, honeypot).
-      if (c.var.deps.config.bookingPlus) await requireShield(c.var.deps, "book", b.shield);
+      if (featureOn(c.var.deps, "bookingPlus") && featureOn(c.var.deps, "schedulingEnabled")) await requireShield(c.var.deps, "book", b.shield);
       return c.json(await bookSlot(c.var.deps, c.req.param("slug"), b), 201);
     });
 }

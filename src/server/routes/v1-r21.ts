@@ -12,6 +12,7 @@ import type { SuiteActor } from "../services/suite/common";
 import { myWork, parseTypes, searchEverything } from "../services/search";
 import { searchChat, toggleReaction } from "../services/suite/chat-reactions";
 import { ChatSearchQuery, ReactionToggle } from "./chat-r20";
+import { featureOn } from "../services/console/flags"; // OPS1 feature flags
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -50,7 +51,7 @@ export function registerR21Routes(api: OpenAPIHono<AppEnv>, keyAuth: MiddlewareH
     { request: { query: SearchQ } }),
   async (c) => {
     const q = c.req.query("q") ?? "";
-    const out = await searchEverything(c.var.deps, { kind: "actor", actor: actor(c) }, q, { types: parseTypes(c.req.query("types"), !!c.var.deps.config.searchR98), limit: limitOf(c.req.query("limit"), 20) });
+    const out = await searchEverything(c.var.deps, { kind: "actor", actor: actor(c) }, q, { types: parseTypes(c.req.query("types"), featureOn(c.var.deps, "searchR98", actor(c).orgId)), limit: limitOf(c.req.query("limit"), 20) });
     return send(c, out);
   });
 

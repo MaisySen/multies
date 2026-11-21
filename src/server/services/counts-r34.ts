@@ -21,6 +21,7 @@ import { scopeCond } from "./mail-access-priv1a";
 import { DEFAULT_SNOOZE_ZONE, inboxWhere } from "./suite/notify-triage";
 import { triageCountQuery } from "./suite/triage";
 import type { MailSplit } from "@/shared/mail-splits";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 export interface Counts {
   mail: { inbox: number; important: number; other: number };
@@ -96,7 +97,7 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   }
 
   // R61a kill switch (MAIL_SPLIT_COUNTS=off): Important and Other read 0 and their rule is not evaluated at all.
-  const splitsOn = deps.config.mailSplitCounts;
+  const splitsOn = featureOn(deps, "mailSplitCounts"); // OPS1: the platform wide flag
   const tabsMine = splitsOn
     ? await splitsCopy.getOr(`${a.userId}:${a.orgId}`, async () => {
       const actor = { orgId: a.orgId, userId: a.userId };

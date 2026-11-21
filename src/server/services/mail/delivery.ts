@@ -17,6 +17,7 @@ import { operatorDecision } from "../suite/operator-inbox";
 import { isBulkMail } from "@/shared/mail-splits";
 import { isWithheld, NOT_FORWARDED_TO_AGENT, storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
 import { makeSnippet } from "./mime";
+import { featureOn, featureVariesByWorkspace } from "../console/flags"; // OPS1 feature flags
 
 export type RecipientRoute =
   | { kind: "mailbox"; mailbox: typeof mailboxes.$inferSelect; domain: typeof domains.$inferSelect }
@@ -104,7 +105,8 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
   const { db } = deps;
   const rcpt = baseAddress(d.rcptTo);
   // R106: a forward to the workspace receipts address becomes draft expenses for the member who sent it.
-  if (deps.config.expensesR106 && /^receipts\./i.test(rcpt)) {
+  // OPS1: on for the platform, or for some workspace (receiveReceiptMail then checks the receiving workspace).
+  if ((featureOn(deps, "expensesR106") || featureVariesByWorkspace(deps, "expensesR106")) && /^receipts\./i.test(rcpt)) {
     const { receiveReceiptMail } = await import("../expenses/expenses");
     const r = await receiveReceiptMail(deps, { rcpt, fromAddress: d.email.from?.address ?? d.envelopeFrom, subject: d.email.subject ?? null, dmarcFail: d.email.authResults?.dmarc === "fail", attachments: d.email.attachments });
     if (r.handled) return { accepted: r.accepted, code: r.accepted ? 250 : 550, reason: r.reason, storedIn: [], forwardedTo: [] };

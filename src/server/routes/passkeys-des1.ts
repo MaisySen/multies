@@ -19,6 +19,7 @@ import {
   CHALLENGE_TTL_MS, PK_COOKIE, authenticationOptions, listPasskeys, registerPasskey, registrationOptions, removePasskey, renamePasskey,
   verifyAuthentication, type Who,
 } from "../services/passkeys-des1";
+import { featureOn } from "../services/console/flags"; // OPS1 feature flags
 
 const PATH = "/api/passkeys";
 
@@ -67,7 +68,7 @@ export function passkeyDes1Routes() {
 
   return new Hono<AppEnv>()
     .use("*", async (c, next) => {
-      if (!c.var.deps.config.passkeyDes1) throw new HttpError(404, "not_found", "Page not found.");
+      if (!featureOn(c.var.deps, "passkeyDes1")) throw new HttpError(404, "not_found", "Page not found."); // OPS1: the platform wide flag
       c.header("Cache-Control", "private, no-store");
       await next();
     })

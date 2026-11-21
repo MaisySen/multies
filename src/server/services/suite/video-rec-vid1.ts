@@ -8,11 +8,12 @@ import type { Deps } from "../../context";
 import { HttpError, notFound } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { getMeeting } from "./meetings";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const VIDEO_ADMIN_ONLY = "Only workspace owners and admins can record video.";
 
 export async function videoRecordingPermit(deps: Deps, a: SuiteActor, meetingId: string) {
-  if (!deps.config.videoRecVid1 || !deps.config.meetings) throw notFound("Page");
+  if (!featureOn(deps, "videoRecVid1", a.orgId) || !deps.config.meetings) throw notFound("Page"); // OPS1: per workspace flag
   if (a.agentId || a.apiKeyId || !a.userId) throw new HttpError(403, "forbidden", "People record video from the meeting room.");
   const meeting = await getMeeting(deps, a, meetingId);
   if (a.role !== "owner" && a.role !== "admin") throw new HttpError(403, "video_recording_admin_only", VIDEO_ADMIN_ONLY);

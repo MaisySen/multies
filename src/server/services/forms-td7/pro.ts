@@ -14,6 +14,7 @@ import { isFormsPlusExcluded } from "../forms-plus/plus";
 import { aiAllowed } from "../ai-trust-td1";
 import { assertWritable, recordWrite, type SuiteActor } from "../suite/common";
 import { cleanDraft, closedReason, closedText, dropOff, parseTd7, completionRate, PASSWORD_MAX, PASSWORD_MIN, type ClosedReason, type Td7Settings } from "@/shared/forms-td7";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 type FormRow = typeof forms.$inferSelect;
 export const ACCESS_TTL_MS = 2 * 60 * 60_000;
@@ -28,7 +29,7 @@ const PROMPT_MAX = 500;
 const cache = new Map<string, { on: boolean; until: number }>();
 /** Whether TD7 is on for this workspace: the flag, and never for the excluded workspaces. Cached for a minute. */
 export async function td7On(deps: Deps, orgId: string): Promise<boolean> {
-  if (!deps.config.formsTd7) return false;
+  if (!featureOn(deps, "formsTd7", orgId)) return false; // OPS1: per workspace flag
   const hit = cache.get(orgId); const now = Date.now();
   if (hit && hit.until > now) return hit.on;
   const o = await deps.db.select({ id: organizations.id, slug: organizations.slug, name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).get();
@@ -46,7 +47,7 @@ export async function formsAiGate(deps: Deps, orgId: string): Promise<"ready" | 
   if (!(await formsAiAllowed(deps, orgId))) return "off";
   const { providerFor } = await import("../ai/keys");
   if (await providerFor(deps, orgId)) return "ready";
-  return deps.config.aiConnectAi2 && deps.ai ? "ready" : "no_key";
+  return featureOn(deps, "aiConnectAi2", orgId) && deps.ai ? "ready" : "no_key"; // OPS1: per workspace flag
 }
 
 async function ownForm(deps: Deps, orgId: string, id: string): Promise<FormRow> {

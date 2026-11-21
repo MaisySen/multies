@@ -25,6 +25,7 @@ import { deferrableWrite } from "../write-priority";
 import { messageIdForClient } from "./chat-ack-r33";
 import { containsText } from "../../lib/like-search";
 import { assertCanPostInDm, assertNotBlockedInDm, blockedIds, notBlockedBy } from "./reports-r35"; // R35: blocks
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 type ChannelRow = typeof chatChannels.$inferSelect;
 type MessageRow = typeof chatMessages.$inferSelect;
@@ -581,7 +582,7 @@ export async function postMessageAcked(deps: Deps, a: SuiteActor, channelId: str
   const out = await writeMessage(deps, a, c, { type: who.type === "system" ? "system" : who.type, id: who.id, name: who.name || "Someone" }, { ...input, id: fixedId, clientMsgId: fixedId && fixedId !== opts.id ? input.clientMsgId : undefined });
   // R24.4: chat_message_posted rules (channels only; posts made by rules never come back here).
   // TD8: "@assistant" in a channel queues an answer (TEAMAI_TD8; never throws, never calls a provider here).
-  if (c.kind === "channel" && !a.system && deps.config.teamaiTd8) await (await import("../teamai-td8")).onChatPosted(deps, a, c, out);
+  if (c.kind === "channel" && !a.system && featureOn(deps, "teamaiTd8", c.orgId)) await (await import("../teamai-td8")).onChatPosted(deps, a, c, out);
   if (c.kind === "channel" && !a.system) await (await import("./automations-r24")).runChatPosted(deps, a, { id: out.id, text: out.body, channelId: c.id, channelName: c.name, author: who.name || "Someone", authorId: who.id });
   return { message: out, deduped: false };
 }

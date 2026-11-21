@@ -15,13 +15,15 @@ import { emitEvent } from "../developer/webhooks";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
 import { buildIcs } from "./meetings";
 import { expandWeekly, parseRrule } from "./meeting-recurrence";
+import { featureOn } from "../console/flags"; // OPS1 feature flags
 
 export const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 export type Day = (typeof DAYS)[number];
 export type WeeklyHours = Partial<Record<Day, [string, string][]>>;
 export const SLOT_LENGTHS = [15, 30, 45, 60] as const;
 
-export function schedulingEnabled(deps: Deps) { return !!deps.config.schedulingEnabled; }
+// OPS1 feature flags: the platform wide value (a global switch; most callers find the workspace only from a public slug).
+export function schedulingEnabled(deps: Deps) { return featureOn(deps, "schedulingEnabled"); }
 export function assertScheduling(deps: Deps) {
   if (!schedulingEnabled(deps)) throw new HttpError(404, "not_found", "Not found.");
 }
@@ -219,7 +221,7 @@ export async function publicAvailability(deps: Deps, slug: string, q: { from?: s
     deps.db.select({ name: users.name }).from(users).where(eq(users.id, p.userId)).get(),
     deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, p.orgId)).get(),
     // R115: the meeting place the host set (MAPS_R115 only; one indexed read).
-    deps.config.mapsR115 ? import("../maps-r115").then((m) => m.bookingPlace(deps, p.orgId, p.id)) : Promise.resolve(null),
+    featureOn(deps, "mapsR115", p.orgId) ? import("../maps-r115").then((m) => m.bookingPlace(deps, p.orgId, p.id)) : Promise.resolve(null),
   ]);
   const slots = computeSlots(rulesOf(p), await busyFor(deps, p, from, to), now, from, to);
   return { page: { slug: p.slug, title: p.title, description: p.description, timezone: p.timezone, slotMin: p.slotMin, video: p.video, host: host?.name ?? "", organization: org?.name ?? "", maxDaysAhead: p.maxDaysAhead, ...(location ? { location } : {}) }, slots };
