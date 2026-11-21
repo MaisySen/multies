@@ -18,6 +18,8 @@ export interface Me {
   hasPassword?: boolean;
   /** R39 (MB-202): invitations for this person's confirmed address, in workspaces they haven't joined yet. */
   pendingInvites?: { token: string; organization: { name: string }; role: "admin" | "member"; invitedBy: string | null }[];
+  /** OPS1 feature flags: the /api/config flag booleans whose value differs for this workspace (useConfig merges them). */
+  flags?: Record<string, boolean>;
 }
 
 export interface PublicConfig {

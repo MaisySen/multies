@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useMemo, useSyncExternalStore } from "react";
 import { api } from "./api";
 import { clearMeCache, isSignedOut, meRetry, meRetryDelay, readMeCache, writeMeCache } from "./me-cache";
 import type { Alias, Dashboard, Domain, Mailbox, MailboxOverview, Me, OrgInfo, PublicConfig, TeamInfo, Workspace } from "./types";
@@ -57,7 +58,45 @@ export const useMe = () => useQuery({
   staleTime: 60_000,
   refetchInterval: (query) => (query.state.status === "error" && !isSignedOut(query.state.error) ? 15_000 : false),
 });
-export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity });
+/**
+ * OPS1 feature flags: the workspace's flag differences from a fetched /account/me (an operator's workspace override),
+ * read from the query cache without starting a request, so signed out pages (no /me) are untouched. A copy painted
+ * from the saved me (initialData, updatedAt 0) is not used: it can belong to another workspace or be old.
+ */
+export function meFlagsFrom(qc: QueryClient): Record<string, boolean> | undefined {
+  const state = qc.getQueryState<Me>(qk.me);
+  if (!state?.dataUpdatedAt || !state.data) return undefined;
+  const flags = state.data.flags;
+  return flags && Object.keys(flags).length ? flags : undefined;
+}
+
+/** The public config with the workspace's flag differences on top (the same object when there are none). */
+export function mergeConfigFlags(config: PublicConfig | undefined, flags: Record<string, boolean> | undefined): PublicConfig | undefined {
+  if (!config || !flags) return config;
+  return { ...config, ...flags } as PublicConfig;
+}
+
+function useMeFlags(): Record<string, boolean> | undefined {
+  const qc = useQueryClient();
+  return useSyncExternalStore(
+    (onChange) => qc.getQueryCache().subscribe((e) => { if (e.query.queryHash === ME_HASH) onChange(); }),
+    () => meFlagsFrom(qc),
+    () => undefined,
+  );
+}
+const ME_HASH = JSON.stringify(qk.me);
+
+/**
+ * The public config (fetched once). OPS1: merged with /account/me's `flags` for signed in people, so every call site
+ * sees its workspace's value. A workspace switch clears the query cache (layouts/app.tsx), so /me, and with it the
+ * merge, is evaluated again for the new workspace.
+ */
+export const useConfig = () => {
+  const query = useQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity });
+  const flags = useMeFlags();
+  const data = useMemo(() => mergeConfigFlags(query.data, flags), [query.data, flags]);
+  return data === query.data ? query : ({ ...query, data } as typeof query);
+};
 export const useDashboard = () => useQuery({ queryKey: qk.dashboard, queryFn: () => api.get<Dashboard>("/dashboard") });
 export const useDomains = () => useQuery({ queryKey: qk.domains, queryFn: async () => (await api.get<{ domains: Domain[] }>("/domains")).domains });
 export const useDomain = (id: string) => useQuery({ queryKey: qk.domain(id), queryFn: async () => (await api.get<{ domain: Domain }>(`/domains/${id}`)).domain });

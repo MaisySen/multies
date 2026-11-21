@@ -24,6 +24,7 @@ import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } fro
 import { markWorkspace } from "../auth/workspace-mark";
 import { cleanLocale, isCountry, isTimeZone } from "@/shared/locale";
 import { autoWorkspaceName } from "@/shared/person-name";
+import { clientFlagDiff } from "../services/console/flags"; // OPS1 feature flags
 
 /**
  * Product-level account endpoints. Sign-up, sign-in, sessions, 2FA, password reset
@@ -264,6 +265,9 @@ export function accountRoutes() {
         },
         hasPassword: extras.hasPassword,
         pendingInvites: imp ? [] : extras.pendingInvites,
+        // OPS1 feature flags: only the /api/config flags whose value for this workspace differs from the platform wide
+        // one (an operator's workspace override); the web app's useConfig merges them over /api/config.
+        flags: clientFlagDiff(c.var.deps, auth.orgId),
       });
     })
     .post("/onboarding", async (c) => {
