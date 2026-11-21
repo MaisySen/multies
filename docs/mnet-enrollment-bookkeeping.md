@@ -143,3 +143,51 @@ node-control credential protocol, proof descriptor/adapter, atomic Store crash
 behavior, legacy reusable-key isolation, audit delivery, physical cross-host and
 OS acceptance and release authority remain unimplemented/unapproved here. The
 exact implemented checkpoint must be reviewed before any Store/daemon connection.
+
+## Exact-source vector reconciliation and explicit receipt scope
+
+A later review reported562bytes and a missing platform element. Inspection of the
+retained8d35ae28archive and matching committed source shows platform already
+present after redirectUri; file SHA256 was
+bda74a533d4e2b71566c597b36f8aa37caa4e4c0a91b8ea5beaf54dd43c1fef2.
+The original vector test reran successfully before any edit. A full affected
+66test suite also reran successfully. Reviewer execution versus transferred
+archive reconciliation remains pending externally; this document does not infer
+that the review reproduction actually ran this exact function.
+
+The encoding has NOT changed. A named byte serialization helper now exposes the
+same fixed-array bytes so tests assert570bytes,19fields, callback at index11,
+platform at index12, and a changed platform producing a different digest. The
+original expected digest is unchanged. No shorter vector was adopted to make a
+failure disappear. This helper is not a proof adapter or consumer connection.
+
+Receipt IDs are scoped to the exact immutable handoff/reserve/descriptor/service
+record, not globally unique across all rows. No unique receipt index exists.
+Every read/ack requires those pinned identifiers and active service scope.
+A receipt ID alone is never a lookup credential, global commit identity or proof
+of enrollment. A future real Store receipt protocol must either define its own
+global scope/uniqueness or preserve this qualified tuple explicitly before a
+consumer is connected. No implicit global uniqueness may be claimed from the
+current field name.
+
+A concurrent ack can lose its conditional update to deadline uncertainty and
+return403even with an otherwise matching receipt. The caller must retry the
+SAME exact receipt/descriptor; it must not allocate a new reserve or infer absent
+commit. This is bounded fail-closed bookkeeping availability, not idempotent
+success for every racing request. Current tests allow that403and verify exact
+winner retry plus a single sequence. No renewed authority follows from retry.
+
+### Next connected slice, still a plan rather than implementation
+
+Before Store/daemon connection, use the existing real Store and daemon lifecycle
+owner rather than another parallel fake registrar store. First inspect and design
+single-writer locking, local persistence directory sync/post-rename uncertainty,
+node+receipt+credential-digest atomicity and exact revocation/legacy-rejoin checks.
+Use isolated failing-first Store tests for one exact descriptor/idempotent commit,
+changed descriptor/receipt conflict, persistence failure boundaries and reopen.
+That does not activate a routed consumer. Native pending intent/trust-map
+snapshot/selection and credential protocol remain a separately grounded piece;
+no service response can configure new origins. Only after these actual boundaries
+and proof descriptor/adapter review could an installed local full journey be
+attempted, followed by physical two-host acceptance. Service source reviews and
+local SQL emulation do not replace those gates or production policy approval.
