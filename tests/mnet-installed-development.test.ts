@@ -15,7 +15,8 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const installed=process.env.MNET_DEVELOPMENT_SETUP_BINARY;
 const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
-const dashboard=process.env.MNET_DEVELOPMENT_DASHBOARD==="1";
+const connectionCrash=process.env.MNET_CONNECT_EXISTING_CRASH==="1";
+const dashboard=process.env.MNET_DEVELOPMENT_DASHBOARD==="1"&&!connectionCrash;
 const networkCase=variant.startsWith("network-tcp");
 const anchorInstalledPeers=networkCase||process.env.MNET_RETAINED_BROWSER==="1";
 const networkStopped=variant==="network-tcp-cancel"||variant==="network-tcp-expiry";
@@ -24,7 +25,7 @@ const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
 (repo&&installed?it:it.skip).each(["success"])("explicit installed disposable setup with actual browser %s",async(mode)=>{
  const dir=await mkdtemp(join(tmpdir(),"mnet-workflow-cross-"));await chmod(dir,0o700);
- const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;
+ const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;let forbiddenSourceHTTP=0;
  const key=join(dir,"key.pem"),cert=join(dir,"cert.pem");
  execFileSync("openssl",["req","-x509","-newkey","rsa:2048","-nodes","-keyout",key,"-out",cert,"-days","1","-subj","/CN=127.0.0.1","-addext","subjectAltName=IP:127.0.0.1"],{stdio:"pipe"});await chmod(key,0o600);
  const vite=await createViteServer({server:{middlewareMode:true,fs:{allow:[process.cwd(),"/tmp/multies-mnet-integration/node_modules"]}},appType:"spa",optimizeDeps:{noDiscovery:true,include:["react","react-dom/client","react/jsx-runtime","react-router","@tanstack/react-query"]}});
@@ -33,6 +34,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   if(!req.url?.startsWith("/api/")){vite.middlewares(req,res);return;}
 
   try{
+   if(process.env.MNET_CONNECT_EXISTING_FIXTURE==="1"){try{await readFile(join(dir,"installed-setup","no-http-window"));forbiddenSourceHTTP++;}catch{/* no forbidden window */}}
    const service=req.url==="/api/mnet-enrollment-service-v1/reserve-evidence-v2";
 
    if(service){reserveCalls++;if(mode==="source-denied")await e.db.delete(members).where(eq(members.userId,e.user.id));}else if(req.url==="/api/mnet-enrollment-v1/exchange-v2")exchangeCalls++;
@@ -46,8 +48,8 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address();if(!address||typeof address==="string")throw new Error("missing TLS address");
   e.deps.config.appUrl=`https://127.0.0.1:${address.port}`;
   const nativeBinary=join(dir,"native-fixture.test");
-  if(mode!=="source-denied")execFileSync("go",["test","-race","-tags","multies_native_fixture","-c","-o",nativeBinary,"./internal/daemon"],{cwd:repo,stdio:"pipe"});
-  child=spawn("go",["test","-race","-tags","multies_native_fixture","./internal/control","-run","^TestActualMultiesRegistrarWorkflowFixture$","-count=1","-timeout","60s"],{cwd:repo,env:{...process.env,MNET_WORKFLOW_FIXTURE_DIR:dir,MNET_NATIVE_WORKFLOW_BINARY:nativeBinary,SSL_CERT_FILE:cert,SSL_CERT_DIR:join(dir,"no-extra-roots")},stdio:["ignore","pipe","pipe"]});
+  if(mode!=="source-denied")execFileSync("go",["test","-race","-tags",process.env.MNET_CONNECT_EXISTING_FIXTURE==="1"?"multies_native_fixture,mnet_enrollment_development":"multies_native_fixture","-c","-o",nativeBinary,"./internal/daemon"],{cwd:repo,stdio:"pipe"});
+  child=spawn("go",["test","-race","-tags","multies_native_fixture","./internal/control","-run","^TestActualMultiesRegistrarWorkflowFixture$",...(process.env.MNET_CONNECT_EXISTING_FIXTURE==="1"?["-v"]:[]),"-count=1","-timeout","60s"],{cwd:repo,env:{...process.env,MNET_WORKFLOW_FIXTURE_DIR:dir,MNET_NATIVE_WORKFLOW_BINARY:nativeBinary,SSL_CERT_FILE:cert,SSL_CERT_DIR:join(dir,"no-extra-roots")},stdio:["ignore","pipe","pipe"]});
   child.stdout!.on("data",b=>{output+=b.toString();});child.stderr!.on("data",b=>{output+=b.toString();});const completion=new Promise<number|null>((resolve,reject)=>{child!.on("error",reject);child!.on("close",code=>{done=true;resolve(code);});});
   const publicInput=JSON.parse(await waitFile(join(dir,"launch.json"),()=>done));
   const operator=e.deps.config.mnetEnrollmentOperator!;operator.bindings[0].networkId=publicInput.networkId;operator.registrarOrigin=publicInput.registrarOrigin;e.deps.config.mnetEnrollmentServiceFixture!.keys[0].registrarOrigin=publicInput.registrarOrigin;
@@ -163,7 +165,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     if(variant==="network-tcp-expiry")await live.getByText("The original approved peer lease ended.",{exact:false}).waitFor();
     await live.screenshot({path:`/downloads/mnet-live-dashboard-ended-${variant}.png`,fullPage:true});
    }
-   if(!dashboard&&networkCase&&(!networkStopped||variant==="network-tcp-expiry")){
+   if(!connectionCrash&&!dashboard&&networkCase&&(!networkStopped||variant==="network-tcp-expiry")){
     let networkResult;
     for(let i=0;i<(variant==="network-tcp-expiry"?500:200)&&!networkResult;i++){networkResult=context.pages().find(p=>p.url().endsWith("/network-result.html"));if(!networkResult)await sleep(50);}
     if(!networkResult)throw new Error("actual ended TCP result did not open");
@@ -179,7 +181,8 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
 
 
   }
-  const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
+  expect(forbiddenSourceHTTP).toBe(0);
+  const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);expect(forbiddenSourceHTTP).toBe(0);
   if(process.env.MNET_RETAINED_BROWSER==="1"){
    const root=join(dir,"installed-setup");
    const before=await readFile(join(root,"native","state.json"));
@@ -212,6 +215,18 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     if(committed)expect(outcome.remoteCommitted).toBe(true);
     if(variant==="map-failure")expect(outcome.nativeSavedBeforeFailure).toBe(true);
     console.log("PASS stopped actual installed browser",variant);return;
+  }
+  if(process.env.MNET_CONNECT_EXISTING_FIXTURE==="1"){console.log("CONNECT-EXISTING REGISTRAR EVIDENCE",output);console.log("CONNECT-EXISTING SOURCE forbidden",forbiddenSourceHTTP);}
+  if(connectionCrash){
+   expect(outcome).toMatchObject({connectionReservedCrash:true,networkVerified:false,networkStarted:false,inputAuthorized:false});
+   const context=browser!.contexts()[0];
+   let historical;
+   for(let i=0;i<100&&!historical;i++){historical=context.pages().find(p=>p.url().includes("mnet-retained-result-"));if(!historical)await sleep(25);}
+   expect(historical).toBeDefined();
+   await historical!.getByText("The entire 14-request local development connection slice was spent.",{exact:false}).waitFor();
+   expect(await historical!.locator("button,a,input,form").count()).toBe(0);
+   await historical!.screenshot({path:"/downloads/mnet-connect-existing-crash-historical.png",fullPage:true});
+   console.log("PASS actual public connect API killed after durable reservation before HTTP/device; inspected spent/no controls");return;
   }
   if(networkStopped){expect(outcome).toMatchObject({developmentInstalled:true,networkTCPVerified:true,networkStopped:true,nativeSavedBeforeFailure:true,inputAuthorized:false});expect(exchangeCalls).toBe(3);expect(reserveCalls).toBe(3);console.log("PASS installed network active stop",variant);return;}
   expect(outcome).toMatchObject({developmentInstalled:true,nativeOwnedKeyConfirmed:true,nativeProofStateUnchanged:true,nativeStateFinalized:true,nodeDeleted:true,inputAuthorized:false});
