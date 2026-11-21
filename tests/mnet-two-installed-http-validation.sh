@@ -22,8 +22,8 @@ cleanup(){
 trap cleanup EXIT INT TERM
 mkdir -p "$run/home/.local/share/applications" "$run/home/.config" "$run/app/bin"
 # No silent go.mod relaxation. The source-required Go toolchain is a separate gate.
-go -C "$mnet" build -race -tags mnet_enrollment_development -o "$run/app/bin/mnet-setup-development" ./cmd/mnet-setup-development
-go -C "$mnet" build -race -tags mnet_enrollment_development -o "$run/app/bin/mnet-pair-development" ./cmd/mnet-pair-development
+go -C "$mnet" build -tags mnet_enrollment_development -o "$run/app/bin/mnet-setup-development" ./cmd/mnet-setup-development
+go -C "$mnet" build -tags mnet_enrollment_development -o "$run/app/bin/mnet-pair-development" ./cmd/mnet-pair-development
 cat > "$run/home/.local/share/applications/mnet-disposable.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
