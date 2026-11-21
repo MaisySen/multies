@@ -75,7 +75,9 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     browser=await chromium.connectOverCDP(`ws://127.0.0.1:${port}${path}`,{timeout:500});
    }catch{await sleep(100);}}
    if(!browser)throw new Error("system browser did not open "+output);
-   const context=browser.contexts()[0];let page=context.pages().find(p=>p.url().includes("/mnet/enroll-v1")||p.url().includes("/login"));
+   const context=browser.contexts()[0];
+   if(variant!=="launcher-hang"){
+   let page=context.pages().find(p=>p.url().includes("/mnet/enroll-v1")||p.url().includes("/login"));
    for(let i=0;i<100&&!page;i++){await sleep(100);page=context.pages().find(p=>p.url().includes("/mnet/enroll-v1")||p.url().includes("/login"));}
    if(!page)throw new Error("installed joining browser page missing");
    page.on("response",response=>{if(response.url().includes("/api/")&&response.status()>=400)console.log("HTTP",response.status(),response.url());});
@@ -100,6 +102,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    if(variant==="changed-policy"){await page.getByText("Mnet callback unavailable.",{exact:false}).waitFor();await writeFile(join(dir,"installed-cancel-request"),"retire refused callback attempt");}
    }
    await page.screenshot({path:"/downloads/mnet-development-installed-callback.png",fullPage:true});
+   }
    let resultPage;
    for(let i=0;i<100&&!resultPage;i++){resultPage=context.pages().find(p=>p.url().endsWith("/setup-result.html"));if(!resultPage)await sleep(50);}
    if(!resultPage)throw new Error("actual native result page did not open");
