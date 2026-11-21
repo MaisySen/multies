@@ -8,6 +8,7 @@ import { Worker } from 'node:worker_threads';
 import { createRequire } from 'node:module';
 import { approvalBatch, witnessSql, ownRevokeSql, DB_NOW_MS } from '../experiments/mnet-relationship-store/store';
 import { sourceSchema, seedSql } from '../experiments/mnet-relationship-store/fixture';
+import { witnessCases } from '../experiments/mnet-relationship-store/witness-cases';
 const schema=readFileSync('experiments/mnet-relationship-store/schema.sql','utf8');
 const dbs: Database.Database[]=[];
 function fresh(file=':memory:') {const d=new Database(file);dbs.push(d);d.exec(sourceSchema);d.exec(schema);d.exec(seedSql);return d;}
@@ -17,6 +18,11 @@ function status(d:Database.Database){return d.prepare('SELECT status FROM rel_ap
 function epoch(d:Database.Database){return d.prepare('SELECT generation FROM rel_security LIMIT 1').pluck().get() as number;}
 afterEach(()=>{for(const d of dbs.splice(0))d.close();});
 describe('isolated authoritative relationship store',()=>{
+ for(const c of witnessCases)it(`approved-status witness refuses ${c.name}`,()=>{
+  const d=fresh();d.exec(c.before);approve(d);expect(status(d)).toBe('approved');expect(witness(d,'approval_a','before')).toBe(1);
+  d.exec(c.mutation);expect(status(d)).toBe('approved');expect(witness(d,'approval_a','after')).toBe(0);
+ });
+
  it('initializes first approval atomically, explicit self-session only, and emits witness DATA only',()=>{
   const d=fresh();approve(d,'not_explicit',false);expect(d.prepare('SELECT count(*) FROM rel_approvals').pluck().get()).toBe(0);
   approve(d);expect(epoch(d)).toBe(0);expect(witness(d)).toBe(1);expect(d.prepare('SELECT * FROM rel_witness').get()).toEqual({id:'witness_a',approval_id:'approval_a'});

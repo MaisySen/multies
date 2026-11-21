@@ -155,3 +155,29 @@ Reproduce from repo with existing dependencies:
 Independent exact-artifact review is required before any further integration.
 Production migration/rollout and actual explicit operator/device approval remain
 closed. This proof solves local storage/order mechanics, not product activation.
+
+## Witness predicate gap closure, separate test-only delta
+
+Five added Node cases explicitly keep status approved after a positive witness,
+then change only the targeted facts: fence generation, disabled fence, impersonated
+session, current SSO policy and approval-time login versus current session login.
+Source invalidation triggers are deliberately removed only where needed to keep
+approved status, proving refusal comes from the witness WHERE clause rather than
+sticky auto-revoke. Five fresh local D1 databases run the same cases as one test.
+This is narrow changed-boundary parity, not the full40-case SQLite matrix on D1.
+
+check-witness-mutants.py changes only the witnessSql source section, independently
+removing generation equality, disabled=false, impersonation refusal or SSO policy,
+and replacing approval login with current session login. All five mutants fail by
+assertion in both Node and local D1, ten mutant executions total. It restores the
+original store bytes in finally; the exact production SQL/schema are unchanged by
+this delta. After mutation checks, one relevant grouped run passes42/42 (40 Node
+store tests plus2 local-D1 tests). Scoped typecheck and changed-file ESLint pass.
+Original auth/legacy suites were not redundantly rerun for this test-only change.
+
+Unchanged limitations remain: active-session deletion globally fences candidate
+approvals; noncredential OAuth unlink is not covered by credential-delete fence;
+duplicate device approvals remain an undecided product rule (two different IDs
+can both approve); REPLACE scan is textual source checking, not dynamic SQL or
+trusted writer/migration coverage; snapshot restore rolls authority back. No live
+wiring, access consumer or expanded product security guarantee is introduced.
