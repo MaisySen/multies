@@ -15,6 +15,7 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const installed=process.env.MNET_DEVELOPMENT_SETUP_BINARY;
 const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
+const displayUnavailable=["result-preexisting","result-write-failure","result-open-failure"].includes(variant);
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
 (repo&&installed?it:it.skip).each(["success"])("explicit installed disposable setup with actual browser %s",async(mode)=>{
@@ -90,6 +91,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    expect(await page.getByTestId("mnet-handoff-key").textContent()).toBe(nativeLaunch.devicePublicKey);
    await page.getByRole("combobox").selectOption(workspaceId);
    await page.screenshot({path:"/downloads/mnet-development-installed-consent.png",fullPage:true});
+   if(variant==="result-write-failure")await chmod(join(dir,"installed-setup"),0o500);
    if(variant==="cancel")await writeFile(join(dir,"installed-cancel-request"),"cancel only this disposable process");
    if(variant==="changed-policy"){const path=join(dir,"installed-setup","native","enrollment-policy-v2.json");const data=JSON.parse(await readFile(path,"utf8"));data.revision+="-changed";await writeFile(path,JSON.stringify(data));}
    if(variant!=="cancel"){
@@ -103,11 +105,13 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    }
    await page.screenshot({path:"/downloads/mnet-development-installed-callback.png",fullPage:true});
    }
+   if(!displayUnavailable){
    let resultPage;
    for(let i=0;i<100&&!resultPage;i++){resultPage=context.pages().find(p=>p.url().endsWith("/setup-result.html"));if(!resultPage)await sleep(50);}
    if(!resultPage)throw new Error("actual native result page did not open");
    await resultPage.getByRole("heading",{name:variant==="success"?"Joining saved. Not connected.":variant==="decline"?"Computer not approved":"Setup did not finish",exact:true}).waitFor();
    await resultPage.screenshot({path:`/downloads/mnet-development-installed-final-${variant}.png`,fullPage:true});
+   }else await waitFile(join(dir,"installed-output-ended"),()=>done);
    const late=new URL(nativeLaunch.redirectUri);late.searchParams.set("state",nativeLaunch.state);late.searchParams.set("attemptId",nativeLaunch.attemptId);late.searchParams.set("code","A".repeat(43));
    let callbackClosed=false;try{await context.request.get(late.href,{timeout:1000});}catch{callbackClosed=true;}
    expect(callbackClosed,"ended setup still owns callback listener").toBe(true);
@@ -117,7 +121,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
 
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
-  if(variant!=="success"){
+  if(variant!=="success"&&!displayUnavailable){
     const committed=variant==="lost-response"||variant==="map-failure";
     expect(outcome).toMatchObject({developmentStopped:true,noNativeCredential:variant!=="map-failure",noRegistrarNode:!committed,inputAuthorized:false});
     expect(exchangeCalls).toBe(committed?3:2);expect(reserveCalls).toBe(committed?3:2);
