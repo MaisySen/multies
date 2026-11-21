@@ -1882,5 +1882,16 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE UNIQUE INDEX mnet_enrollment_attempt_uq ON mnet_enrollment_decisions(attempt_id);",
       "CREATE INDEX mnet_enrollment_owner_idx ON mnet_enrollment_decisions(user_id,expires_at);"
     ]
+  },
+  {
+    "name": "0173_mnet_enrollment_handoff",
+    "statements": [
+      "-- New enrollment-only local journal. No FK cascades and no preview/List conversion.\nCREATE TABLE mnet_enrollment_handoffs (\n id text PRIMARY KEY NOT NULL, attempt_hash text NOT NULL,\n version integer NOT NULL CHECK(version=1), purpose text NOT NULL CHECK(purpose='mnet-enrollment'),\n user_id text, session_id text, workspace_id text,\n attempt_id text, device_public_key text, credential_digest text,\n issuer text, registrar_origin text, audience text, network_id text, mapping_revision text,\n challenge text, state text, platform text, redirect_uri text,\n status text NOT NULL CHECK(status IN ('pending','approved','declined','issued','expired','withdrawn')),\n code_hash text, ticket_hash text,\n created_at integer NOT NULL, expires_at integer NOT NULL, code_expires_at integer, ticket_expires_at integer,\n terminal_at integer, scrubbed_at integer\n);",
+      "CREATE UNIQUE INDEX mnet_handoff_attempt_uq ON mnet_enrollment_handoffs(attempt_hash);",
+      "CREATE UNIQUE INDEX mnet_handoff_code_uq ON mnet_enrollment_handoffs(code_hash);",
+      "CREATE UNIQUE INDEX mnet_handoff_ticket_uq ON mnet_enrollment_handoffs(ticket_hash);",
+      "CREATE INDEX mnet_handoff_owner_idx ON mnet_enrollment_handoffs(user_id,status);",
+      "CREATE INDEX mnet_handoff_retention_idx ON mnet_enrollment_handoffs(terminal_at,scrubbed_at);"
+    ]
   }
 ];

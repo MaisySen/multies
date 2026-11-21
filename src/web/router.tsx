@@ -1,3 +1,4 @@
+import { MnetEnrollHandoffPage } from "./pages/mnet-enroll-handoff";
 import { Suspense, useState, type ReactNode } from "react";
 import { Navigate, createBrowserRouter, useLocation, useParams } from "react-router";
 import { RouteError } from "./components/route-error";
@@ -297,6 +298,7 @@ export const router = createBrowserRouter([
       { path: "/email-verified", element: <EmailVerifiedPage /> },
       { path: "/mnet/devices", element: <MnetDevicesPage /> },
       { path: "/mnet/authorize", element: <MnetAuthorizePage /> },
+      { path: "/mnet/enroll-v1", element: <MnetEnrollHandoffPage /> },
       { path: "/mnet/enroll", element: <MnetEnrollPage /> },
       { path: "/oauth/authorize", element: <OAuthAuthorizePage /> },
     ],

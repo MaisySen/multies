@@ -1,3 +1,4 @@
+import { enrollmentHandoffFixtureConfig, type EnrollmentHandoffFixture } from "./services/mnet-enrollment-handoff-config";
 import { enrollmentOperatorConfig, type EnrollmentOperatorConfig } from "./services/mnet-enrollment-config";
 import { productAnalyticsConfig, type ProductAnalyticsConfig } from "./services/product-analytics";
 import { testNetworkAllowed } from "@/shared/social-p2b";
@@ -324,6 +325,9 @@ export interface AppConfig {
   /** Separate branch-only network consent. No registrar redemption is enabled. */
   mnetEnrollmentConsent?: boolean;
   mnetEnrollmentOperator?: EnrollmentOperatorConfig;
+  /** Local-development journal/PKCE only. Explicit fixture policy, no registrar. */
+  mnetEnrollmentHandoff?: boolean;
+  mnetEnrollmentHandoffFixture?: EnrollmentHandoffFixture;
   /** R99: calendar and contacts sync, CalDAV and CardDAV at /dav with app passwords (DAV_SYNC_R99=on). Off unless set. */
   davSync?: boolean;
   /** R103: Docs plus (link library, web clipper, doc comments, spell check), DOCS_PLUS_R103=on. */
@@ -499,6 +503,8 @@ const EnvSchema = z.object({
   MNET_DEVICE_BRIDGE: z.string().optional(),
   MNET_ENROLLMENT_CONSENT: z.string().optional(),
   MNET_ENROLLMENT_OPERATOR: z.string().optional(),
+  MNET_ENROLLMENT_HANDOFF: z.string().optional(),
+  MNET_ENROLLMENT_HANDOFF_FIXTURE: z.string().optional(),
   MOBILE_WEB_LINK: z.string().optional(), // MH1
   DAV_SYNC_R99: z.string().optional(),
   DOCS_PLUS_R103: z.string().optional(),
@@ -989,7 +995,9 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     navP2R121: ["on", "true", "1"].includes(String(env.NAV_P2_R121 ?? "").toLowerCase()), // R121
     mnetDeviceBridge: env.MNET_DEVICE_BRIDGE === "on",
     mnetEnrollmentConsent: env.MNET_ENROLLMENT_CONSENT === "on",
-    mnetEnrollmentOperator: env.MNET_ENROLLMENT_CONSENT === "on" ? enrollmentOperatorConfig(env.MNET_ENROLLMENT_OPERATOR) : undefined,
+    mnetEnrollmentOperator: env.MNET_ENROLLMENT_CONSENT === "on" || env.MNET_ENROLLMENT_HANDOFF === "on" ? enrollmentOperatorConfig(env.MNET_ENROLLMENT_OPERATOR) : undefined,
+    mnetEnrollmentHandoff: env.MNET_ENROLLMENT_HANDOFF === "on",
+    mnetEnrollmentHandoffFixture: enrollmentHandoffFixtureConfig(env.MNET_ENROLLMENT_HANDOFF === "on", mode, env.MNET_ENROLLMENT_HANDOFF_FIXTURE),
     mobileWebLink: ["on", "true", "1"].includes(String(env.MOBILE_WEB_LINK ?? "").toLowerCase()), // MH1
     davSync: ["on", "true", "1"].includes(String(env.DAV_SYNC_R99 ?? "").toLowerCase()),
     docsPlus: ["on", "true", "1"].includes(String(env.DOCS_PLUS_R103 ?? "").toLowerCase()),

@@ -38,3 +38,10 @@ it("does not reuse a cached enrollment person or mapping on a new mount", () => 
  const html = render(client, createElement(MnetEnrollPage), "/mnet/enroll?attemptId=old");
  expect(html).not.toContain("old-private"); expect(html).not.toContain("Old private"); expect(html).toContain("Checking computer joining request"); client.clear();
 });
+
+it("does not expose a previous handoff person or mapping from query cache", async()=>{
+ const {MnetEnrollHandoffPage}=await import("@/web/pages/mnet-enroll-handoff");
+ const client=new QueryClient();client.setQueryData(["mnet-enrollment-v1","attemptId=old"],{email:"old-private-person@example.test",workspaces:[{id:"old",name:"Old private network"}]});
+ const html=render(client,createElement(MnetEnrollHandoffPage),"/mnet/enroll-v1?attemptId=old");
+ expect(html).not.toContain("old-private-person");expect(html).not.toContain("Old private network");expect(html).toContain("Checking computer joining handoff");client.clear();
+});
