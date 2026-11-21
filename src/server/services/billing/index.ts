@@ -14,6 +14,7 @@ import type { Stripe } from "./stripe";
 import { loadStripe } from "./stripe-lazy";
 import { onInvoicePaid, onPaymentFailed, sendingPausedForPayment } from "./dunning";
 import { onReferralPayment, onReferralRefund } from "./referrals";
+import { billingEventSummaryField, summarizeStripeEvent } from "./ops1-0174";
 
 /** The subscription fields Multies mirrors. */
 export type StripePrice = { id: string; lookup_key?: string | null; metadata?: Record<string, string> | null; recurring?: { interval?: string } | null };
@@ -27,7 +28,16 @@ export type StripeSubscription = Pick<Stripe.Subscription, "id" | "status" | "ca
 
 export const notConnected = () => new HttpError(409, "billing_not_connected", "Billing isn't connected on this deployment. Add-ons apply instantly and nothing is charged.");
 
-async function client(deps: Deps): Promise<Stripe> {
+/**
+ * OPS1: who changes billing and on which workspace. The owner routes pass their own workspace and themselves; the
+ * operator console passes any workspace and the operator, after its own permission check.
+ */
+export type BillingActor = { userId: string | null; email: string | null };
+export type BillingTarget = { orgId: string; actor: BillingActor };
+const targetOf = (auth: AuthContext): BillingTarget => ({ orgId: auth.orgId, actor: { userId: auth.userId, email: auth.email } });
+
+/** The Stripe client, or `billing_not_connected` when billing is off or has no secret key. */
+export async function client(deps: Deps): Promise<Stripe> {
   const b = deps.config.billing;
   if (!b.enabled || !b.stripeSecretKey) throw notConnected();
   const { stripeClient } = await loadStripe();
@@ -167,22 +177,24 @@ export function isMissingInStripe(err: unknown) {
  * Runs `fn` with the workspace's Stripe customer. A stored customer id Stripe no longer knows (a test mode
  * customer once the keys are live) is replaced by a fresh customer once, then `fn` runs again.
  */
-async function withCustomer<T>(deps: Deps, auth: AuthContext, fn: (customer: string) => Promise<T>): Promise<T> {
-  const customer = await ensureCustomer(deps, auth);
+type CustomerFor = { orgId: string; email: string | null };
+
+async function withCustomer<T>(deps: Deps, who: CustomerFor, fn: (customer: string) => Promise<T>): Promise<T> {
+  const customer = await ensureCustomer(deps, who);
   try {
     return await fn(customer);
   } catch (err) {
     if (!isMissingInStripe(err)) throw err;
-    await deps.db.update(organizations).set({ stripeCustomerId: null }).where(eq(organizations.id, auth.orgId));
-    return fn(await ensureCustomer(deps, auth));
+    await deps.db.update(organizations).set({ stripeCustomerId: null }).where(eq(organizations.id, who.orgId));
+    return fn(await ensureCustomer(deps, who));
   }
 }
 
-async function ensureCustomer(deps: Deps, auth: AuthContext) {
-  const org = await getOrg(deps.db, auth.orgId);
+async function ensureCustomer(deps: Deps, who: CustomerFor) {
+  const org = await getOrg(deps.db, who.orgId);
   if (org.stripeCustomerId) return org.stripeCustomerId;
   const c = await (await client(deps)).customers.create({
-    email: auth.email, name: org.name, metadata: { orgId: org.id },
+    email: who.email ?? undefined, name: org.name, metadata: { orgId: org.id },
     // The workspace country pre-fills checkout; en-AU receipts and invoices.
     address: { country: org.country }, preferred_locales: ["en-AU"],
   });
@@ -237,7 +249,7 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
   const interval = intervalFor(addons, 0, opts.interval);
   const items = await addonItems(deps, stripe, addons, interval);
   const base = `${deps.config.appUrl}/app/settings/billing`;
-  const session = await withCustomer(deps, auth, (customer) => stripe.checkout.sessions.create({
+  const session = await withCustomer(deps, { orgId: auth.orgId, email: auth.email }, (customer) => stripe.checkout.sessions.create({
     mode: "subscription", customer, client_reference_id: auth.orgId,
     line_items: items.map((i) => ({ price: i.price, quantity: i.quantity })),
     subscription_data: { metadata: { orgId: auth.orgId } },
@@ -253,10 +265,9 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
 }
 
 /** Builds the item changes that turn a live subscription into `addons` (and optionally drops a legacy plan). */
-async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
-  assertOwner(auth);
+async function plannedItems(deps: Deps, orgId: string, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
   const addons = cleanAddons(input);
-  const org = await getOrg(deps.db, auth.orgId);
+  const org = await getOrg(deps.db, orgId);
   if (org.compPlan) throw new HttpError(409, "comp_plan", "This workspace is on an internal plan. Its plan doesn't change here.");
   if (!org.stripeSubscriptionId || !LIVE.has(org.subscriptionStatus ?? "")) throw new HttpError(409, "no_subscription", "There's no active subscription to change. Start one with checkout.");
   const stripe = await client(deps);
@@ -264,7 +275,7 @@ async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string,
   const planItem = sub.items.data.find((i) => planForPrice(deps, i.price));
   const keepPlan = planItem && !opts.dropLegacyPlan;
   const nextPlan: PlanId = keepPlan ? planForPrice(deps, planItem.price)! : "starter";
-  await assertFits(deps, auth.orgId, nextPlan, addons, org);
+  await assertFits(deps, orgId, nextPlan, addons, org);
   // R62: the interval the customer chose now, else the one the subscription bills at (monthly or yearly stays as it is).
   const currentInterval = sub.items.data[0]?.price?.recurring?.interval;
   const chosen = opts.interval ?? (currentInterval === "year" || currentInterval === "month" ? currentInterval : org.billingInterval);
@@ -287,7 +298,7 @@ async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string,
   if (!changes.some((c) => !c.deleted) && !keepPlan) {
     throw badRequest("That would remove everything you pay for. Cancel the subscription from the billing portal instead.");
   }
-  const before = await getAddons(deps.db, auth.orgId);
+  const before = await getAddons(deps.db, orgId);
   const baseBefore = PLANS[org.plan].legacy ? PLANS[org.plan].priceMonthly : 0;
   const more = chargeFor(addons, keepPlan ? PLANS[nextPlan].priceMonthly : 0).monthly >= chargeFor(before, baseBefore).monthly;
   // Additions are charged now for the rest of the period; reductions credit the next invoice.
@@ -297,7 +308,13 @@ async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string,
 
 /** What an add-on change costs today, from Stripe's own proration maths. */
 export async function previewAddons(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
-  const { stripe, org, sub, changes, interval, proration, more, addons, nextPlan, dropDiscounts } = await plannedItems(deps, auth, input, opts);
+  assertOwner(auth);
+  return previewAddonsFor(deps, auth.orgId, input, opts);
+}
+
+/** OPS1: `previewAddons` for any workspace; the caller has checked who may. */
+export async function previewAddonsFor(deps: Deps, orgId: string, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
+  const { stripe, org, sub, changes, interval, proration, more, addons, nextPlan, dropDiscounts } = await plannedItems(deps, orgId, input, opts);
   const preview = await stripe.invoices.createPreview({
     customer: org.stripeCustomerId!, subscription: sub.id, ...(dropDiscounts ? { discounts: "" as const } : {}),
     subscription_details: { items: changes, proration_behavior: proration, proration_date: Math.floor(deps.now().getTime() / 1000) },
@@ -309,21 +326,30 @@ export async function previewAddons(deps: Deps, auth: AuthContext, input: Record
 /** Changes add-ons on the one subscription in place, with proration. The webhook syncs too. */
 export async function updateAddons(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
   if (!deps.config.billing.enabled) return startAddonCheckout(deps, auth, input, opts);
-  const { stripe, org, sub, changes, addons, interval, proration, dropDiscounts } = await plannedItems(deps, auth, input, opts);
+  assertOwner(auth);
+  return updateAddonsFor(deps, targetOf(auth), input, opts);
+}
+
+/**
+ * OPS1: `updateAddons` for any workspace with a live subscription; the caller has checked who may. Needs Stripe
+ * (`billing_not_connected` otherwise): applying add-ons instantly without billing stays with the owner's checkout.
+ */
+export async function updateAddonsFor(deps: Deps, target: BillingTarget, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
+  const { actor } = target;
+  const { stripe, org, sub, changes, addons, interval, proration, dropDiscounts } = await plannedItems(deps, target.orgId, input, opts);
   const updated = await stripe.subscriptions.update(sub.id, {
     items: changes, proration_behavior: proration, payment_behavior: "pending_if_incomplete", ...(dropDiscounts ? { discounts: "" as const } : {}),
     metadata: { ...(sub.metadata ?? {}), orgId: org.id },
   });
   await syncSubscription(deps, updated as unknown as StripeSubscription);
-  await audit(deps.db, { orgId: org.id, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.addons_changed", metadata: { addons, interval, proration, dropLegacyPlan: !!opts.dropLegacyPlan, droppedDiscount: dropDiscounts } });
+  await audit(deps.db, { orgId: org.id, actorUserId: actor.userId, actorEmail: actor.email, action: "billing.addons_changed", metadata: { addons, interval, proration, dropLegacyPlan: !!opts.dropLegacyPlan, droppedDiscount: dropDiscounts } });
   return { applied: true as const, url: null, interval, pending: !!(updated as unknown as { pending_update?: unknown }).pending_update };
 }
 
 /** The live subscription and its legacy plan item, for moving between Pro and Business. */
-async function liveItem(deps: Deps, auth: AuthContext, plan: PlanId) {
-  assertOwner(auth);
+async function liveItem(deps: Deps, orgId: string, plan: PlanId) {
   if (!PAID.includes(plan as PaidPlan)) throw badRequest("To move to Free, keep the add-ons you want and drop the legacy plan from Billing.");
-  const org = await getOrg(deps.db, auth.orgId);
+  const org = await getOrg(deps.db, orgId);
   if (org.compPlan) throw new HttpError(409, "comp_plan", "This workspace is on an internal plan. Its plan doesn't change here.");
   if (!org.stripeSubscriptionId || !LIVE.has(org.subscriptionStatus ?? "")) throw new HttpError(409, "no_subscription", "There's no active subscription to change.");
   if (!PLANS[org.plan].legacy) throw new HttpError(410, "plan_retired", "Pro and Business are no longer sold. Add only what you need from the add-ons.");
@@ -335,7 +361,7 @@ async function liveItem(deps: Deps, auth: AuthContext, plan: PlanId) {
   const price = await resolvePrice(deps, stripe, plan as PaidPlan);
   const upgrade = PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(org.plan);
   if (!upgrade) {
-    const over = overLimits(await usage(deps.db, auth.orgId, deps.now()), effectiveLimits(PLANS[plan], await getAddons(deps.db, auth.orgId), org));
+    const over = overLimits(await usage(deps.db, orgId, deps.now()), effectiveLimits(PLANS[plan], await getAddons(deps.db, orgId), org));
     if (over.length) throw badRequest(`Remove some ${over.join(" and ")} before moving to ${PLANS[plan].name}.`);
   }
   const proration = upgrade ? ("always_invoice" as const) : ("create_prorations" as const);
@@ -344,7 +370,13 @@ async function liveItem(deps: Deps, auth: AuthContext, plan: PlanId) {
 
 /** What a legacy plan change costs today. */
 export async function previewPlanChange(deps: Deps, auth: AuthContext, plan: PlanId) {
-  const { stripe, org, sub, item, price, upgrade, proration } = await liveItem(deps, auth, plan);
+  assertOwner(auth);
+  return previewPlanChangeFor(deps, auth.orgId, plan);
+}
+
+/** OPS1: `previewPlanChange` for any workspace; the caller has checked who may. */
+export async function previewPlanChangeFor(deps: Deps, orgId: string, plan: PlanId) {
+  const { stripe, org, sub, item, price, upgrade, proration } = await liveItem(deps, orgId, plan);
   const preview = await stripe.invoices.createPreview({
     customer: org.stripeCustomerId!, subscription: sub.id,
     subscription_details: { items: [{ id: item.id, price }], proration_behavior: proration, proration_date: Math.floor(deps.now().getTime() / 1000) },
@@ -355,22 +387,38 @@ export async function previewPlanChange(deps: Deps, auth: AuthContext, plan: Pla
 
 /** Moves a legacy subscriber between Pro and Business in place, with proration. */
 export async function changePlan(deps: Deps, auth: AuthContext, plan: PlanId) {
-  const { stripe, org, sub, item, price, upgrade, proration } = await liveItem(deps, auth, plan);
+  assertOwner(auth);
+  return changePlanFor(deps, targetOf(auth), plan);
+}
+
+/** OPS1: `changePlan` for any workspace; the caller has checked who may. The audit row names `target.actor`. */
+export async function changePlanFor(deps: Deps, target: BillingTarget, plan: PlanId) {
+  const { actor } = target;
+  const { stripe, org, sub, item, price, upgrade, proration } = await liveItem(deps, target.orgId, plan);
   const updated = await stripe.subscriptions.update(sub.id, {
     items: [{ id: item.id, price }], proration_behavior: proration, payment_behavior: "pending_if_incomplete",
     metadata: { ...(sub.metadata ?? {}), orgId: org.id },
   });
   await syncSubscription(deps, updated as unknown as StripeSubscription);
-  await audit(deps.db, { orgId: org.id, actorUserId: auth.userId, actorEmail: auth.email, action: `plan.${upgrade ? "upgraded" : "downgraded"}`, metadata: { from: org.plan, to: plan, proration } });
+  await audit(deps.db, { orgId: org.id, actorUserId: actor.userId, actorEmail: actor.email, action: `plan.${upgrade ? "upgraded" : "downgraded"}`, metadata: { from: org.plan, to: plan, proration } });
   return { plan: PLANS[plan], pending: !!updated.pending_update };
 }
 
 export async function openPortal(deps: Deps, auth: AuthContext) {
   if (auth.role !== "owner") throw forbidden("Only the workspace owner can change billing.");
+  return openPortalFor(deps, targetOf(auth));
+}
+
+/**
+ * OPS1: a portal session for any workspace; the caller has checked who may. A workspace without a Stripe customer gets
+ * one, with `customerEmail` (default: the actor's email) as its billing email.
+ */
+export async function openPortalFor(deps: Deps, target: BillingTarget & { customerEmail?: string | null }) {
   const stripe = await client(deps);
   // STRIPE_PORTAL_CONFIG: Multies' own portal settings, so a Stripe account shared with other businesses keeps its default.
   const configuration = deps.config.billing.portalConfigId;
-  const portal = await withCustomer(deps, auth, (customer) => stripe.billingPortal.sessions.create({
+  const who = { orgId: target.orgId, email: target.customerEmail !== undefined ? target.customerEmail : target.actor.email };
+  const portal = await withCustomer(deps, who, (customer) => stripe.billingPortal.sessions.create({
     customer, return_url: `${deps.config.appUrl}/app/settings/billing`, ...(configuration ? { configuration } : {}),
   }));
   return { url: portal.url };
@@ -543,6 +591,7 @@ export async function handleStripeWebhook(deps: Deps, rawBody: string, signature
     default:
       break;
   }
-  await deps.db.insert(billingEvents).values({ id: event.id, type: event.type, orgId }).onConflictDoNothing();
+  // OPS1-0174: the plain summary is stored once billing_events.summary exists (./ops1-0174.ts); until then it is dropped.
+  await deps.db.insert(billingEvents).values({ id: event.id, type: event.type, orgId, ...billingEventSummaryField(summarizeStripeEvent(event.type, obj)) }).onConflictDoNothing();
   return { duplicate: false, type: event.type, orgId };
 }
