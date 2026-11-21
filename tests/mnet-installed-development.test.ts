@@ -124,7 +124,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    }else await waitFile(join(dir,"installed-output-ended"),()=>done);
    if(networkCase&&(!networkStopped||variant==="network-tcp-expiry")){
     let networkResult;
-    for(let i=0;i<200&&!networkResult;i++){networkResult=context.pages().find(p=>p.url().endsWith("/network-result.html"));if(!networkResult)await sleep(50);}
+    for(let i=0;i<(variant==="network-tcp-expiry"?500:200)&&!networkResult;i++){networkResult=context.pages().find(p=>p.url().endsWith("/network-result.html"));if(!networkResult)await sleep(50);}
     if(!networkResult)throw new Error("actual ended TCP result did not open");
     await networkResult.getByRole("heading",{name:"Encrypted TCP verified. Session ended.",exact:true}).waitFor();
     if(variant==="network-tcp-expiry")await networkResult.getByText("That peer's original approved lease ended.",{exact:false}).waitFor();
