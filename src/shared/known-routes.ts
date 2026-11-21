@@ -7,7 +7,7 @@ import { SWITCH_SLUGS } from "./switch-sources";
 import { AREA_SLUGS } from "./marketing-areas";
 
 const EXACT = new Set([
-  "/", "/pricing", "/agents", "/developers", "/developers/mcp", "/check", "/trust", "/security", "/status", "/changelog", "/privacy", "/support", "/delete-account", "/terms", "/acceptable-use", "/dpa",
+  "/", "/mousy", "/pricing", "/agents", "/developers", "/developers/mcp", "/check", "/trust", "/security", "/status", "/changelog", "/privacy", "/support", "/delete-account", "/terms", "/acceptable-use", "/dpa",
   "/login", "/signup", "/forgot-password", "/reset-password", "/email-verified", "/guest", "/thanks", "/contact", "/thank-you", "/oauth/authorize",
 ]);
 // R58 (MB-237): the free plan page, the switch list, and one switch page per tool the import reads (unknown tools are a 404).

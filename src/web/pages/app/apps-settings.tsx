@@ -11,7 +11,7 @@
 import { lazyPage } from "@/web/components/lazy-page";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
@@ -165,7 +165,7 @@ function TabFallback() { return <div className="space-y-3" aria-busy="true"><Ske
  * Download for the Mousy macOS companion build. The archive ships in this repo at
  * public/downloads/Mousy.app.zip and is served as a plain static asset (like /samples/*),
  * so this path works on staging and production with no extra infrastructure. Replace the
- * zip in a new commit to ship a newer build. Set-up notes live at /downloads/mousy.html.
+ * zip in a new commit to ship a newer build. Setup lives in the Multies /mousy route.
  */
 export const MOUSY_DOWNLOAD_URL = "/downloads/Mousy.app.zip";
 
@@ -404,14 +404,14 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
       </section>
 
       <section aria-labelledby="apps-companions">
-        <h2 id="apps-companions" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Companion apps</h2>
+        <h2 id="apps-companions" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Multies for your devices</h2>
         <Card className="flex flex-wrap items-center gap-3 p-4 md:px-5" data-testid="companion-mousy">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-fill text-muted" aria-hidden><IconMonitor className="h-4 w-4" /></span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-medium">Mousy for macOS</p>
-            <p className="text-[13px] text-muted">Turn your head to point, rest to click. Hands-free pointing on macOS 15+, private by design. <a href="/downloads/mousy.html" target="_blank" rel="noopener" className="text-brand underline">Set-up notes</a></p>
+            <p className="truncate text-[15px] font-medium">Mousy · Hands-free pointing</p>
+            <p className="text-[13px] text-muted">A Multies feature for your Mac. Point with your head and pause to click. macOS 15+ and head-tracking headphones required. <Link to="/mousy" className="text-brand underline">Setup and requirements</Link></p>
           </div>
-          <Button variant="outline" size="sm" className="max-sm:w-full" disabled={!MOUSY_DOWNLOAD_URL} onClick={() => { if (MOUSY_DOWNLOAD_URL) window.open(MOUSY_DOWNLOAD_URL, "_blank", "noopener"); }} aria-label="Download Mousy for macOS">
+          <Button variant="outline" size="sm" className="max-sm:w-full" disabled={!MOUSY_DOWNLOAD_URL} onClick={() => { if (MOUSY_DOWNLOAD_URL) window.open(MOUSY_DOWNLOAD_URL, "_blank", "noopener"); }} aria-label="Download Mousy for macOS, ZIP archive">
             <IconDownload className="h-4 w-4" aria-hidden />{MOUSY_DOWNLOAD_URL ? "Download" : "Coming soon"}
           </Button>
         </Card>

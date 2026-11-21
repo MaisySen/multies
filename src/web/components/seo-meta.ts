@@ -23,6 +23,7 @@ const TRUST_META = { title: "Security and data | Multies", description: "Where M
 
 export const PUBLIC_META: Record<string, PageMeta> = {
   "/": DEFAULT,
+  "/mousy": { title: "Mousy: hands-free pointing for Mac | Multies", description: "Mousy is a Multies feature for hands-free pointing on macOS 15 or later, using head-tracking headphones. Download the early build and read the setup steps." },
   "/pricing": { title: "Pricing | Multies", description: "Free for one domain and three mailboxes. Add-ons cost A$1 to A$5 a month for the whole business, never per person. Prices in AUD. Try it with the live demo or a free test address, no client mailbox needed.", image: `${SITE_URL}/og/home.jpg` },
   "/agents": { title: "Email inboxes for AI agents | Multies", description: "Give each AI agent its own address with one API call. Mail arrives as clean JSON, replies stay in the thread, and a person approves what agents send." },
   // R76: /developers/mcp shipped in R36 without an entry here, so its title, link previews and search results read
