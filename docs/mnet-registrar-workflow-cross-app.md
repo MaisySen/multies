@@ -54,3 +54,26 @@ sole native State bytes remain unchanged, no usable credential/client/tunnel is
 installed, no production registrar route or native trigger is enabled. Actual
 native State finalization/restart reconciliation and prior production/O(history),
 lease/revocation, D1/runtime and physical acceptance limits remain.
+
+## Actual sole native State continuation
+
+After its proof-only unchanged-State checkpoint, the third daemon now performs
+explicit private SAME-confirmed-runtime finalization. It syncs one pending
+finalization identity, publishes a private dedicated credential in the existing
+sole State, completes exact correlation, closes and reopens the actual owner.
+It then updates its own fixture endpoint and receives the real actual Store map
+with both other approved peers. Separate nativeStateFinalized:true and
+nativeCurrentPeers:2 flags are asserted. The old nativeStateUnchanged flag is now renamed nativeProofStateUnchanged,
+explicitly marking only the pre-finalization proof checkpoint, not final State.
+
+The new client/State/pending protocol is Mnet code. This Multies delta changes
+only fixture assertions and this document, no app/source/route/migration. The
+registrar test bridge is unregistered, normal verified TLS. No private key or
+saved native credential crosses to the coordinator; the expected service receives
+the dedicated header normally. No legacy token/client/tunnel starts, source ack
+is not invented and all production/ingress/physical limits remain.
+
+Pending-only restart and lost-remote-response recovery are deliberately still
+held for authenticated SAME-attempt history reconciliation. Exact existing
+native State plus prepared pending history can complete local bookkeeping,
+never create a missing native credential, renew the finite lease or reconsent.
