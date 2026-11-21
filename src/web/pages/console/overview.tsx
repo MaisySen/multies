@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { consoleApi, consoleKeys } from "@/web/lib/console-api";
 import { sendSentryTest, sentryEnabled } from "@/web/lib/sentry";
+import { fullDate, timeAgo } from "@/web/lib/format";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, StatTile, tableStyles as T } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { IconBuilding, IconChevronRight, IconGlobe, IconInbox, IconSend, IconShieldCheck, IconTeam, IconWarning } from "@/web/components/ui/icon";
@@ -138,7 +139,7 @@ export function ConsoleOverviewPage() {
                 <tr key={t.id} className={T.row}>
                   <td className={T.td}>
                     <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium">{t.name}</span>
+                      <Link to={`/console/workspaces/${encodeURIComponent(t.id)}`} className="font-medium hover:underline">{t.name}</Link>
                       {t.isDemo && <Badge>demo</Badge>}{t.suspendedAt && <Badge tone="bad" dot>suspended</Badge>}{t.pastDueSince && <Badge tone="warn" dot>past due</Badge>}
                     </span>
                     {t.suspendedReason && t.suspendedAt && <span className="mt-0.5 block max-w-xs truncate text-xs text-subtle" title={t.suspendedReason}>{t.suspendedReason}</span>}
@@ -146,7 +147,7 @@ export function ConsoleOverviewPage() {
                   <td className={T.td}><Badge tone={t.plan === "free" ? "neutral" : "brand"} className="capitalize">{t.plan}</Badge></td>
                   <td className={`${T.td} text-right tabular-nums`}>{t.members}</td><td className={`${T.td} text-right tabular-nums`}>{t.agents}</td>
                   <td className={`${T.td} text-right tabular-nums`}>{t.domains}</td>
-                  <td className={`${T.td} whitespace-nowrap text-muted`}>{new Date(t.createdAt).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" })}</td>
+                  <td className={`${T.td} whitespace-nowrap text-muted`} title={fullDate(t.createdAt)}>{timeAgo(t.createdAt)}</td>
                   <td className={`${T.td} text-right`}><PermissionGate permission="workspaces.limits"><TenantControls t={t} /></PermissionGate></td>
                 </tr>
               ))}

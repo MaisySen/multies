@@ -38,7 +38,7 @@ function QueuedSends({ orgId }: { orgId: string }) {
           { key: "from", header: "From", cell: (s) => <span className="[overflow-wrap:anywhere]">{s.mailboxAddress ?? "Unknown mailbox"}</span> },
           { key: "why", header: "Why it was held", cell: (s) => <span className="line-clamp-2 max-w-xs">{s.reason}</span> },
           { key: "to", header: "Recipients", align: "right", cell: (s) => <span className="tabular-nums">{s.recipients}</span> },
-          { key: "due", header: "Sends", sort: "dueAt", cell: (s) => (s.forced ? <Badge tone="brand">Sending now</Badge> : <When at={s.dueAt} />) },
+          { key: "due", header: "Sends", sort: "dueAt", cell: (s) => (s.forced ? <Badge tone="ok" dot>Sending now</Badge> : <When at={s.dueAt} />) },
           {
             key: "act", header: "", align: "right",
             cell: (s) => (s.forced ? null : (

@@ -3,6 +3,7 @@
  * Filters: action (prefix), actor, workspace id, date range. Owners can download the filtered log as CSV.
  */
 import { useState } from "react";
+import { Link } from "react-router";
 import { Badge, PageHeader } from "@/web/components/ui/misc";
 import { Button, buttonClass } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -49,6 +50,13 @@ const WINDOWS: FilterDef = {
   options: [{ value: "", label: "Any time" }, { value: "1", label: "Last 24 hours" }, { value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }],
 };
 const FILTERS = [AREAS, WINDOWS];
+
+/** A workspace or user target links to its console page; anything else shows its id. */
+function Target({ type, id }: { type: string | null; id: string | null }) {
+  if (!id) return <span className="text-subtle">None</span>;
+  const to = type === "workspace" ? `/console/workspaces/${encodeURIComponent(id)}` : type === "user" ? `/console/users/${encodeURIComponent(id)}` : null;
+  return to ? <Link to={to} className="font-mono text-xs hover:underline">{id}</Link> : <span className="font-mono text-xs">{id}</span>;
+}
 
 /** "workspace.send_cap_changed" reads as "Workspace send cap changed". */
 export const actionLabel = (a: string) => {
@@ -112,8 +120,8 @@ export function ConsoleAuditPage() {
         columns={[
           { key: "when", header: "When", cell: (r) => <span className="whitespace-nowrap text-muted" title={fullDate(r.createdAt)}>{timeAgo(r.createdAt)}</span> },
           { key: "action", header: "Action", cell: (r) => <span className="font-medium">{actionLabel(r.action)}</span> },
-          { key: "actor", header: "Operator", cell: (r) => <span className="flex flex-col"><span>{r.actorEmail ?? "System"}</span>{r.actorRole && <span className="text-xs text-subtle">{operatorRoleLabel(r.actorRole)}</span>}</span> },
-          { key: "target", header: "Target", cell: (r) => (r.targetId ? <span className="font-mono text-xs">{r.targetId}</span> : <span className="text-subtle">None</span>) },
+          { key: "actor", header: "Operator", cell: (r) => <span className="flex flex-col"><span>{r.actorUserId ? <Link to={`/console/users/${encodeURIComponent(r.actorUserId)}`} className="hover:underline">{r.actorEmail ?? r.actorUserId}</Link> : r.actorEmail ?? "System"}</span>{r.actorRole && <span className="text-xs text-subtle">{operatorRoleLabel(r.actorRole)}</span>}</span> },
+          { key: "target", header: "Target", cell: (r) => <Target type={r.targetType} id={r.targetId} /> },
           { key: "reason", header: "Reason", cell: (r) => (r.reason ? <span className="line-clamp-2 max-w-xs">{r.reason}</span> : <Badge>No reason</Badge>) },
           { key: "open", header: "", align: "right", cell: (r) => <Button size="sm" variant="ghost" onClick={() => setOpen(r)}>Details</Button> },
         ]}
