@@ -155,6 +155,31 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
 
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
+  if(process.env.MNET_RETAINED_BROWSER==="1"){
+   const root=join(dir,"installed-setup");
+   const before=await readFile(join(root,"native","state.json"));
+   const inspect=JSON.parse(execFileSync(installed!,["--disposable-root",root,"--inspect-retained","--open-browser"],{encoding:"utf8"}));
+   expect(inspect).toMatchObject({joiningSaved:true,networkVerified:false,recovery:"none-saved"});
+   const context=browser!.contexts()[0];
+   let historical;
+   for(let i=0;i<100&&!historical;i++){historical=context.pages().find(p=>p.url().includes("mnet-retained-result-"));if(!historical)await sleep(25);}
+   if(!historical)throw new Error("actual CLI inspection historical page not opened");
+   await historical.getByRole("heading",{name:"Joining saved. Not connected.",exact:true}).waitFor();
+   expect(await historical.locator("button,a,input,form").count()).toBe(0);
+   await historical.screenshot({path:"/downloads/mnet-retained-saved-inspection.png",fullPage:true});
+   await historical.close();
+   await sleep(16000);
+   const recovered=JSON.parse(execFileSync(installed!,["--disposable-root",root,"--recover-retained","--open-browser"],{encoding:"utf8"}));
+   expect(recovered).toMatchObject({inspection:{joiningSaved:true,originalLeaseEnded:true,networkVerified:false},historicalRecovered:false,joiningFinalized:false,networkVerified:false});
+   let expired;
+   for(let i=0;i<100&&!expired;i++){expired=context.pages().find(p=>p.url().includes("mnet-retained-result-"));if(!expired)await sleep(25);}
+   if(!expired)throw new Error("actual CLI expired saved-result page not opened");
+   await expired.getByText("The original approved interval has ended.",{exact:false}).waitFor();
+   expect(await expired.locator("button,a,input,form").count()).toBe(0);
+   await expired.screenshot({path:"/downloads/mnet-retained-expired-saved.png",fullPage:true});
+   expect(await readFile(join(root,"native","state.json"))).toEqual(before);
+   console.log("PASS actual installed retained CLI: saved inspection and expired idempotent recovery, no controls or State mutation");
+  }
   if(variant!=="success"&&!networkCase&&!displayUnavailable){
     const committed=variant==="lost-response"||variant==="map-failure";
     expect(outcome).toMatchObject({developmentStopped:true,noNativeCredential:variant!=="map-failure",noRegistrarNode:!committed,inputAuthorized:false});
