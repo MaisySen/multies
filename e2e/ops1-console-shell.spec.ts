@@ -45,7 +45,7 @@ test("a customer sees the operators-only card, and the old addresses open the co
 test("an operator sees the grouped sidebar, attention first, and the sections open", async ({ page }) => {
   await mockConsoleMe(page, "admin");
   await page.route("**/api/console/overview", (r) => r.fulfill({ json: overview }));
-  await page.route("**/api/console/audit?*", (r) => r.fulfill({ json: { items: [{
+  await page.route((u) => u.pathname === "/api/console/audit", (r) => r.fulfill({ json: { items: [{
     id: "paud_1", actorUserId: "usr_1", actorEmail: "olive@example.com", actorRole: "admin", action: "workspace.suspended", targetType: "workspace",
     targetId: "org_1", orgId: "org_1", reason: "Phishing reports", before: { suspendedAt: null }, after: null, metadata: null,
     ip: null, userAgent: null, requestId: null, impersonationId: null, createdAt: new Date().toISOString(),
