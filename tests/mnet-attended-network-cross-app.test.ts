@@ -13,7 +13,7 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
-(repo?it:it.skip).each(["deny","withdraw-pending"])("actual enrolled WireGuard/proofnet attended fakeUI %s, no capture or input",async(caseName)=>{
+(repo?it:it.skip).each(["deny","withdraw-pending",...(process.env.MNET_ATTENDED_REAL_DIALOG==="1"?["deny-real-dialog"]:[])])("actual enrolled WireGuard/proofnet attended %s, no capture or input",async(caseName)=>{
  const mode="direct-transport" as string;
  const dir=await mkdtemp(join(tmpdir(),"mnet-workflow-cross-"));await chmod(dir,0o700);
  const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;
@@ -65,7 +65,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
   expect(exchangeCalls).toBe(mode!=="source-denied"?3:1);expect(reserveCalls).toBe(mode!=="source-denied"?3:1);expect(reserveStatus).toBe(mode!=="source-denied"?200:403);expect(outcome.inputAuthorized).toBe(false);
-  if(caseName==="deny"){expect(outcome).toEqual({version:1,fake_ui:true,attendedDenied:true,actualEnrolledPeers:true,joined:true,inputAuthorized:false});}else{expect(outcome).toMatchObject({version:1,fake_ui:true,case:caseName,attendedDenied:true,actualEnrolledPeers:true,joined:true,inputAuthorized:false,promptCancelled:true});expect(["explicit-protocol-refusal","closed-after-authority-withdrawal","local-close-after-verified-store-withdrawal"]).toContain(outcome.transportClass);}
+  if(caseName==="deny-real-dialog"){expect(outcome).toEqual({version:1,fake_ui:false,case:caseName,ui_kind:"real-zenity",attendedDenied:true,actualEnrolledPeers:true,joined:true,inputAuthorized:false,dialogClosedWithoutAllow:true,allowAttempts:0});}else if(caseName==="deny"){expect(outcome).toEqual({version:1,fake_ui:true,attendedDenied:true,actualEnrolledPeers:true,joined:true,inputAuthorized:false});}else{expect(outcome).toMatchObject({version:1,fake_ui:true,case:caseName,attendedDenied:true,actualEnrolledPeers:true,joined:true,inputAuthorized:false,promptCancelled:true});expect(["explicit-protocol-refusal","closed-after-authority-withdrawal","local-close-after-verified-store-withdrawal"]).toContain(outcome.transportClass);}
   const row=await e.db.select().from(journal).where(eq(journal.id,prepared.body.id)).get();expect(row!.status).toBe("reserved");
   const state=JSON.parse(await readFile(join(dir,"control","state.json"),"utf8"));expect(Object.keys(state.nodes)).toHaveLength(0);expect(Object.keys(state.node_tokens)).toHaveLength(0);
 
