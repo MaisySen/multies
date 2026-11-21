@@ -1,3 +1,4 @@
+import {chromium} from "playwright";
 import {it,expect} from "vitest";
 import {createServer} from "node:https";
 import {spawn,execFileSync} from "node:child_process";
@@ -15,11 +16,12 @@ const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
 (repo?it:it.skip).each(["success","history-recovery","history-finalize","prepared-finalize","prepared-history-finalize","direct-transport","relay-transport","source-denied"])("actual Multies approval/source to atomic registrar workflow %s",async(mode)=>{
  const dir=await mkdtemp(join(tmpdir(),"mnet-workflow-cross-"));await chmod(dir,0o700);
- const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;
+ const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;let bookkeepingSourceHTTP=0;
  const key=join(dir,"key.pem"),cert=join(dir,"cert.pem");
  execFileSync("openssl",["req","-x509","-newkey","rsa:2048","-nodes","-keyout",key,"-out",cert,"-days","1","-subj","/CN=127.0.0.1","-addext","subjectAltName=IP:127.0.0.1"],{stdio:"pipe"});await chmod(key,0o600);
  const server=createServer({key:await readFile(key),cert:await readFile(cert)},async(req,res)=>{
   try{
+   try{await readFile(join(dir,"bookkeeping-only-window"));bookkeepingSourceHTTP++;}catch{/* No active local bookkeeping window. */}
    const service=req.url==="/api/mnet-enrollment-service-v1/reserve-evidence-v2";
    if(req.method!=="POST"||!service&&req.url!=="/api/mnet-enrollment-v1/exchange-v2"){res.writeHead(404).end();return;}
    if(service){reserveCalls++;if(mode==="source-denied")await e.db.delete(members).where(eq(members.userId,e.user.id));}else exchangeCalls++;
@@ -64,6 +66,25 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
   expect(exchangeCalls).toBe(mode!=="source-denied"?3:1);expect(reserveCalls).toBe(mode!=="source-denied"?3:1);expect(reserveStatus).toBe(mode!=="source-denied"?200:403);expect(outcome.inputAuthorized).toBe(false);
+  if(process.env.MNET_BOOKKEEPING_BROWSER==="1"){
+   const endpoint=(await readFile(process.env.MNET_DEVELOPMENT_SETUP_DEVTOOLS_FILE!,"utf8")).trim().split("\n");
+   const browser=await chromium.connectOverCDP(`ws://127.0.0.1:${endpoint[0]}${endpoint[1]}`);
+   try{
+    const pages=browser.contexts()[0].pages();
+    for(const [heading,suffix]of [["Joining saved. Bookkeeping pending. Not connected.","pending"],["Original bookkeeping completed. Not connected.","completed"]]){
+     let target;
+     for(const page of pages){if(await page.getByRole("heading",{name:heading,exact:true}).count()){target=page;break;}}
+     if(!target)throw new Error("actual bookkeeping CLI page missing: "+heading);
+     expect(await target.locator("button,a,input,form").count()).toBe(0);
+     await target.screenshot({path:`/downloads/mnet-bookkeeping-${suffix}.png`,fullPage:true});
+    }
+   }finally{try{await(await browser.newBrowserCDPSession()).send("Browser.close");}catch{/* Isolated profile only. */}await browser.close();}
+  }
+  if(process.env.MNET_DEVELOPMENT_BOOKKEEPING_FIXTURE==="1"&&process.env.MNET_BOOKKEEPING_EXPIRED==="1"){
+   expect(bookkeepingSourceHTTP).toBe(0);expect(mode).toBe("success");expect(outcome).toMatchObject({bookkeepingExpired:true,bookkeepingCompleted:true,historyRequests:0,networkVerified:false,nodeDeleted:true,inputAuthorized:false});
+   console.log("PASS actual expired post-rename bookkeeping-only recovery; no history requests or renewed current authority");return;
+  }
+  if(process.env.MNET_DEVELOPMENT_BOOKKEEPING_FIXTURE==="1")expect(bookkeepingSourceHTTP).toBe(0);
   const row=await e.db.select().from(journal).where(eq(journal.id,prepared.body.id)).get();
   if(mode!=="source-denied"){
    expect(outcome).toMatchObject({sourceDenied:false,nodeCreated:true,nodeDeleted:true,currentMapBeforeDelete:true,legacyTokenCreated:false,bidirectionalActualPeers:true,journalWorkflowReceiptPinned:true,nativeOwnedKeyConfirmed:mode!=="history-recovery"&&mode!=="history-finalize"&&mode!=="prepared-finalize"&&mode!=="prepared-history-finalize",threeActualPeers:true,nativeProofStateUnchanged:true,nativeStateFinalized:mode!=="history-recovery",nativeCurrentPeers:mode==="history-recovery"?0:2,nativeEncryptedDirect:mode==="direct-transport",nativeEncryptedRelay:mode==="relay-transport",nativeHistoryRecovered:mode==="history-recovery"||mode==="history-finalize"||mode==="prepared-finalize"||mode==="prepared-history-finalize"});

@@ -17,6 +17,7 @@ const installed=process.env.MNET_DEVELOPMENT_SETUP_BINARY;
 const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
 const dashboard=process.env.MNET_DEVELOPMENT_DASHBOARD==="1";
 const networkCase=variant.startsWith("network-tcp");
+const anchorInstalledPeers=networkCase||process.env.MNET_RETAINED_BROWSER==="1";
 const networkStopped=variant==="network-tcp-cancel"||variant==="network-tcp-expiry";
 const displayUnavailable=["result-preexisting","result-write-failure","result-open-failure"].includes(variant);
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
@@ -69,7 +70,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    const peerChoice=await e.person.post(`/api/mnet-enrollment-v1/authorizations/${peerPrepared.body.id}/decision`,{decision:"allow"});expect(peerChoice.status).toBe(200);
    await writeFile(join(dir,"peer-code.tmp"),JSON.stringify({code:new URL(peerChoice.body.redirectTo).searchParams.get("code")}),{mode:0o600});await rename(join(dir,"peer-code.tmp"),join(dir,"peer-code.json"));
    };
-   if(!networkCase)await approveDisposableCounterpart();
+   if(!anchorInstalledPeers)await approveDisposableCounterpart();
    const nativeLaunch=JSON.parse(await waitFile(join(dir,"native-launch.json"),()=>done));
    // The installed native command opens the system browser. CDP drives that
    // actual opened page, not an API shortcut or a separately invented URL.
@@ -105,7 +106,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     await page!.getByRole("button",{name:"Return to Mnet",exact:true}).waitFor();
     await page!.screenshot({path:"/downloads/mnet-development-installed-return.png",fullPage:true});
    };
-   if(networkCase){
+   if(anchorInstalledPeers){
     await prepareApprovedReturn();
     await writeFile(join(dir,"installed-consent-ready"),"actual owned browser login and workspace selection completed",{mode:0o600});
     await approveDisposableCounterpart();
@@ -121,7 +122,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    if(variant==="cancel")await writeFile(join(dir,"installed-cancel-request"),"cancel only this disposable process");
    if(variant==="changed-policy"){const path=join(dir,"installed-setup","native","enrollment-policy-v2.json");const data=JSON.parse(await readFile(path,"utf8"));data.revision+="-changed";await writeFile(path,JSON.stringify(data));}
    if(variant!=="cancel"){
-   if(!networkCase)await prepareApprovedReturn();
+   if(!anchorInstalledPeers)await prepareApprovedReturn();
    await page.getByRole("button",{name:"Return to Mnet",exact:true}).click();
    if(variant==="success")await page.getByText("Approval returned to Mnet.",{exact:false}).waitFor();
    if(variant==="decline")await page.getByText("Computer not approved.",{exact:false}).waitFor();
