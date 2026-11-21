@@ -135,7 +135,7 @@ export function QueryTabs<T extends DetailTab>({ tabs, label = "Sections", testI
 }
 
 /** The panel under QueryTabs, labelled by the current tab. Remounts on a tab change so each tab starts fresh. */
-export function TabPanel({ testIdPrefix, current, children, className, testId }: { testIdPrefix: string; current: string; children: ReactNode; className?: string; testId?: string }) {
+export function TabPanel({ testIdPrefix, current, children, className, testId }: { testIdPrefix: string; current: string; children?: ReactNode; className?: string; testId?: string }) {
   return (
     <div key={current} role="tabpanel" id={`${testIdPrefix}-panel`} aria-labelledby={tabDomId(testIdPrefix, current)} className={className} data-testid={testId}>
       {children}
