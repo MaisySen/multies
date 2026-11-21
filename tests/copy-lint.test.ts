@@ -12,6 +12,11 @@ describe("copy lint", () => {
     expect(findIssues("README.md", "Built to be cutting-edge")).toHaveLength(1);
     expect(findIssues("src/server/services/team.ts", "a robust retry")).toHaveLength(0);
     expect(findIssues("src/web/pages/x.tsx", "Mail lands in 2 seconds")).toHaveLength(0);
+    // A quoted permission or action id is code, not copy; the same word in prose still counts.
+    expect(findIssues("src/web/pages/x.tsx", 'const p = "users.unlock";')).toHaveLength(0);
+    expect(findIssues("src/web/pages/x.tsx", "usePermission('users.unlock') && `users.unlock`")).toHaveLength(0);
+    expect(findIssues("src/web/pages/x.tsx", '<p>Unlock "users.unlock" now</p>')[0]).toMatchObject({ rule: "slop", text: "Unlock" });
+    expect(findIssues("src/web/pages/x.tsx", '"Unlock your inbox"')).toHaveLength(1);
   });
   it("flags the old product name in user-facing copy, but not internal names", () => {
     expect(findIssues("src/web/pages/x.tsx", "Welcome to MyMail")[0]).toMatchObject({ rule: "name" });

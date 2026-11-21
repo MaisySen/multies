@@ -12,9 +12,8 @@ import { useConsoleMe, usePermission } from "../guard";
 import { usersApi, type ConsoleUserDetail, type ConsoleUserSession } from "./users-api";
 import type { Permission } from "@/shared/operator-permissions";
 
-// The "clear a sign in lockout" permission. Written in two parts only because the copy lint's stock phrase list
-// (scripts/check-copy.ts) matches the word inside it in web files; the type check still pins it to the real name.
-const CLEAR_LOCKOUT = `users.un${"lock"}` as const satisfies Permission;
+/** The "clear a sign in lockout" permission. */
+const CLEAR_LOCKOUT = "users.unlock" satisfies Permission;
 
 const BAN_LENGTHS = [
   { value: "", label: "Until someone lifts it" },

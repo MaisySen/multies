@@ -37,11 +37,8 @@ export interface SuspendedWorkspace {
 
 export interface Lockout { email: string; userId: string | null; failures: number; windowStart: string; lockedUntil: string | null; locked: boolean; unlocksInMs: number }
 
-/**
- * The permission to clear a sign in lockout. Spelled in two parts only because the copy lint (scripts/check-copy.ts)
- * reads the id's second word as marketing copy in web files (the permission is named in operator-permissions.ts).
- */
-export const CLEAR_LOCKOUT = ["users", "un" + "lock"].join(".") as Permission;
+/** The permission to clear a sign in lockout. */
+export const CLEAR_LOCKOUT = "users.unlock" satisfies Permission;
 
 const enc = encodeURIComponent;
 
