@@ -328,3 +328,21 @@ export async function revokeOAuthGrant(deps: Deps, id: string): Promise<RevokedO
   const g = await revokeGrant(deps, { orgId: row.orgId, userId: "", role: "admin" }, id);
   return { id: g.id, orgId: g.orgId, clientId: g.clientId, userId: g.userId };
 }
+
+// ---------------------------------------------------------------- audit targets
+
+export type DeveloperTargetKind = "apiKey" | "webhookEndpoint" | "webhookDelivery" | "oauthGrant";
+
+/**
+ * The workspace a target belongs to, read before a change so the route can name it in the platform and workspace
+ * audit rows. A primary key read; an unknown id is a 404 named like the change's own.
+ */
+export async function developerTargetOrg(deps: Deps, kind: DeveloperTargetKind, id: string): Promise<string> {
+  const db = deps.db;
+  const row = kind === "apiKey" ? await db.select({ orgId: apiKeys.orgId }).from(apiKeys).where(eq(apiKeys.id, id)).get()
+    : kind === "webhookEndpoint" ? await db.select({ orgId: webhookEndpoints.orgId }).from(webhookEndpoints).where(eq(webhookEndpoints.id, id)).get()
+      : kind === "webhookDelivery" ? await db.select({ orgId: webhookDeliveries.orgId }).from(webhookDeliveries).where(eq(webhookDeliveries.id, id)).get()
+        : await db.select({ orgId: oauthGrants.orgId }).from(oauthGrants).where(eq(oauthGrants.id, id)).get();
+  const what = { apiKey: "API key", webhookEndpoint: "Webhook endpoint", webhookDelivery: "Webhook delivery", oauthGrant: "Connected app" }[kind];
+  return found(row, what).orgId;
+}
