@@ -55,6 +55,7 @@ function pageOf<F extends string>(c: Context<AppEnv>, defaultSort: `${F}:${"asc"
 
 const answer = <T>(p: ConsolePageResult<T>) => ({ items: p.items, nextCursor: p.next ? encodeCursor(p.next) : null });
 
+// "any", the console's older word for all, is still accepted.
 const LockoutsQuery = z.object({ status: z.enum(["locked", "all", "any"]).default("locked") }).passthrough();
 
 export function systemRoutes() {

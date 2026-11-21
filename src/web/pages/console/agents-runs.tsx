@@ -19,7 +19,7 @@ const FILTERS: FilterDef[] = [
       { value: "attention", label: "Needs attention" },
       { value: "failed", label: "Failed" },
       { value: "long_running", label: "Long running" },
-      { value: "any", label: "All" },
+      { value: "all", label: "All", send: true },
     ],
   },
   {

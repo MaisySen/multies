@@ -8,6 +8,9 @@
  *   <FilterBar filters={filters} values={url.values} onChange={url.set} search={{ placeholder: "Search workspaces" }} />
  *
  * `initial` is the value used while the address has none (lists open on their most useful filter). "" means unset.
+ * What reaches the server (see `filterQuery`): "" never does; "all" does not either (it means "no filter"), unless the
+ * option says `send: true` because the server's own default is narrower (a list that opens on failures, say, where
+ * "all" must be asked for). Any other value is sent.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -15,8 +18,26 @@ import { ChipSelect } from "@/web/components/ui/chip-select";
 import { Input } from "@/web/components/ui/input";
 import { IconSearch } from "@/web/components/ui/icon";
 
-export interface FilterOption { value: string; label: string }
+export interface FilterOption {
+  value: string; label: string;
+  /** Whether the value goes to the server. Defaults to true, except for "" and "all" (see the module note). */
+  send?: boolean;
+}
 export interface FilterDef { key: string; label: string; options: FilterOption[]; initial?: string }
+
+/** Whether a filter value is sent to the server: the option decides; "" and "all" are left out unless it says otherwise. */
+export function sendsValue(filter: FilterDef | undefined, value: string): boolean {
+  if (!value) return false;
+  const send = filter?.options.find((o) => o.value === value)?.send;
+  return send ?? value !== "all";
+}
+
+/** The query a list sends for the address's values: search and sort as they are, each filter by `sendsValue`. */
+export function filterQuery(filters: FilterDef[], values: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(values)) if (sendsValue(filters.find((f) => f.key === k), v)) out[k] = v;
+  return out;
+}
 
 /** Reads and writes q, sort and each filter in the address bar. */
 export function useUrlParams(filters: FilterDef[] = [], defaults: { sort?: string } = {}) {

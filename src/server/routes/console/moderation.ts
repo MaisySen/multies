@@ -4,8 +4,8 @@
  * Reads (moderation.read):
  *   GET  /reports            { items, nextCursor }  ?status=open|resolved|dismissed|all (open) &reason &workspace &q &sort=createdAt:dir
  *   GET  /reports/counts     { open, olderThan12h, olderThan24h, oldestAt }
- *   GET  /abuse              { items, nextCursor }  ?status=open|resolved|all (open; "any" is all too: the console's
- *                            list sends no "all" filter) &kind &workspace &sort=createdAt|score:dir
+ *   GET  /abuse              { items, nextCursor }  ?status=open|resolved|all (open; "any", the console's
+ *                            older word for all, is still accepted) &kind &workspace &sort=createdAt|score:dir
  *   GET  /abuse/summary      { items }  workspaces with open signals, highest score first
  *   GET  /suspended          { items, nextCursor }  ?sort=suspendedAt|name:dir
  * Changes (each takes a reason and writes a platform audit row):
