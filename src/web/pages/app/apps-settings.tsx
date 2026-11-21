@@ -20,7 +20,7 @@ import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Input } from "@/web/components/ui/input";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
-import { IconClock, IconKey, IconLock, IconMegaphone, IconPlug, IconRefresh, IconSearch, IconTrash } from "@/web/components/ui/icon";
+import { IconClock, IconDownload, IconKey, IconLock, IconMegaphone, IconMonitor, IconPlug, IconRefresh, IconSearch, IconTrash } from "@/web/components/ui/icon";
 import { APP_GROUPS, SOCIAL_FIRST, type AppAvailability, type AppGroup, type ConnectedAccountView } from "@/shared/integrations";
 import { DIRECT_NAMES, type DirectAccountView, type DirectStatusResponse } from "@/shared/direct-social";
 import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
@@ -160,6 +160,14 @@ function Tabs({ current }: { current: ConnectionsTab }) {
 }
 
 function TabFallback() { return <div className="space-y-3" aria-busy="true"><Skeleton className="h-11 rounded-lg" /><Skeleton className="h-40 rounded-xl" /></div>; }
+
+/**
+ * Download for the Mousy macOS companion build. The archive ships in this repo at
+ * public/downloads/Mousy.app.zip and is served as a plain static asset (like /samples/*),
+ * so this path works on staging and production with no extra infrastructure. Replace the
+ * zip in a new commit to ship a newer build. Set-up notes live at /downloads/mousy.html.
+ */
+export const MOUSY_DOWNLOAD_URL = "/downloads/Mousy.app.zip";
 
 export function AppsSettings() {
   const loc = useLocation();
@@ -393,6 +401,20 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
             <IconMegaphone className="h-4 w-4" aria-hidden />Write a social post
           </Button>
         )}
+      </section>
+
+      <section aria-labelledby="apps-companions">
+        <h2 id="apps-companions" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Companion apps</h2>
+        <Card className="flex flex-wrap items-center gap-3 p-4 md:px-5" data-testid="companion-mousy">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-fill text-muted" aria-hidden><IconMonitor className="h-4 w-4" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-medium">Mousy for macOS</p>
+            <p className="text-[13px] text-muted">Turn your head to point, rest to click. Hands-free pointing on macOS 15+, private by design. <a href="/downloads/mousy.html" target="_blank" rel="noopener" className="text-brand underline">Set-up notes</a></p>
+          </div>
+          <Button variant="outline" size="sm" className="max-sm:w-full" disabled={!MOUSY_DOWNLOAD_URL} onClick={() => { if (MOUSY_DOWNLOAD_URL) window.open(MOUSY_DOWNLOAD_URL, "_blank", "noopener"); }} aria-label="Download Mousy for macOS">
+            <IconDownload className="h-4 w-4" aria-hidden />{MOUSY_DOWNLOAD_URL ? "Download" : "Coming soon"}
+          </Button>
+        </Card>
       </section>
 
       <section aria-labelledby="apps-all" className="space-y-3">
