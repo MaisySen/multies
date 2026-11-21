@@ -77,3 +77,25 @@ Pending-only restart and lost-remote-response recovery are deliberately still
 held for authenticated SAME-attempt history reconciliation. Exact existing
 native State plus prepared pending history can complete local bookkeeping,
 never create a missing native credential, renew the finite lease or reconsent.
+
+## Committed submit-response loss and immutable history
+
+The opt-in workflow suite adds history-recovery beside success/source-denied.
+The third actual native proof really commits in Store, then the test bridge drops
+its response. Actual daemon closes/reopens its existing State/Journal, waits past
+challenge/access expiry and retrieves immutable exact history after that node is
+deleted by the bridge. Same original full challenge/header secret only, separate
+history purpose, no new source exchange/reserve/submit. Source call counts stay
+three, one per original approved device. Source bookkeeping ack is not invented.
+
+For history-recovery, nativeOwnedKeyConfirmed:false correctly says no confirmation
+was delivered; nativeHistoryRecovered:true means historical DATA was pinned.
+NativeStateFinalized is false and nativeCurrentPeers zero. Original key/sole State
+are unchanged, no legacy client/tunnel/current-access renewal or finalization
+readiness. Success still covers actual sole-State finalization/current two peers;
+source denial still creates none. The full regression is now seven tests across
+the two existing cross-app files. No production source/app/route/migration change.
+
+This does not bypass record5 loader conflicts or solve pending-only finalization.
+Begin loss without full pinned challenge remains held. Production ingress,
+lease/revocation, availability/cost, D1 and physical/native acceptance limits stay.

@@ -13,7 +13,7 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
-(repo?it:it.skip).each(["success","source-denied"])("actual Multies approval/source to atomic registrar workflow %s",async(mode)=>{
+(repo?it:it.skip).each(["success","history-recovery","source-denied"])("actual Multies approval/source to atomic registrar workflow %s",async(mode)=>{
  const dir=await mkdtemp(join(tmpdir(),"mnet-workflow-cross-"));await chmod(dir,0o700);
  const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;
  const key=join(dir,"key.pem"),cert=join(dir,"cert.pem");
@@ -32,7 +32,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
  try{
   await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address();if(!address||typeof address==="string")throw new Error("missing TLS address");
   const nativeBinary=join(dir,"native-fixture.test");
-  if(mode==="success")execFileSync("go",["test","-race","-tags","multies_native_fixture","-c","-o",nativeBinary,"./internal/daemon"],{cwd:repo,stdio:"pipe"});
+  if(mode!=="source-denied")execFileSync("go",["test","-race","-tags","multies_native_fixture","-c","-o",nativeBinary,"./internal/daemon"],{cwd:repo,stdio:"pipe"});
   child=spawn("go",["test","-race","-tags","multies_native_fixture","./internal/control","-run","^TestActualMultiesRegistrarWorkflowFixture$","-count=1","-timeout","60s"],{cwd:repo,env:{...process.env,MNET_WORKFLOW_FIXTURE_DIR:dir,MNET_NATIVE_WORKFLOW_BINARY:nativeBinary,SSL_CERT_FILE:cert,SSL_CERT_DIR:join(dir,"no-extra-roots")},stdio:["ignore","pipe","pipe"]});
   child.stdout!.on("data",b=>{output+=b.toString();});child.stderr!.on("data",b=>{output+=b.toString();});const completion=new Promise<number|null>((resolve,reject)=>{child!.on("error",reject);child!.on("close",code=>{done=true;resolve(code);});});
   const publicInput=JSON.parse(await waitFile(join(dir,"launch.json"),()=>done));
@@ -48,7 +48,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   // production default, immediate account-revocation promise or activation.
   const workflow={version:1,mode:"development",revision:"workflow-fixture-r1",source_id:"fixture",policy,challenge_ms:10000,max_lease_ms:15000,max_observation_age_ms:20000,clock_uncertainty_ms:1,max_live_per_principal:4,max_proof_attempts:4,max_live:4,max_attempts:8,max_records:8,max_state_bytes:1048576};
   await writeFile(join(dir,"coordinator.tmp"),JSON.stringify({mode,code:new URL(choice.body.redirectTo).searchParams.get("code"),sources,workflow}),{mode:0o600});await rename(join(dir,"coordinator.tmp"),join(dir,"coordinator.json"));
-  if(mode==="success"){
+  if(mode!=="source-denied"){
    const peerLaunch=JSON.parse(await waitFile(join(dir,"peer-launch.json"),()=>done));
    const peerPrepared=await e.person.post("/api/mnet-enrollment-v1/authorizations",{...peerLaunch,workspaceId,displayed});expect(peerPrepared.status).toBe(201);
    const peerChoice=await e.person.post(`/api/mnet-enrollment-v1/authorizations/${peerPrepared.body.id}/decision`,{decision:"allow"});expect(peerChoice.status).toBe(200);
@@ -63,10 +63,10 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
 
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done));const code=await completion;expect(code,output).toBe(0);
-  expect(exchangeCalls).toBe(mode==="success"?3:1);expect(reserveCalls).toBe(mode==="success"?3:1);expect(reserveStatus).toBe(mode==="success"?200:403);expect(outcome.inputAuthorized).toBe(false);
+  expect(exchangeCalls).toBe(mode!=="source-denied"?3:1);expect(reserveCalls).toBe(mode!=="source-denied"?3:1);expect(reserveStatus).toBe(mode!=="source-denied"?200:403);expect(outcome.inputAuthorized).toBe(false);
   const row=await e.db.select().from(journal).where(eq(journal.id,prepared.body.id)).get();
-  if(mode==="success"){
-   expect(outcome).toMatchObject({sourceDenied:false,nodeCreated:true,nodeDeleted:true,currentMapBeforeDelete:true,legacyTokenCreated:false,bidirectionalActualPeers:true,journalWorkflowReceiptPinned:true,nativeOwnedKeyConfirmed:true,threeActualPeers:true,nativeProofStateUnchanged:true,nativeStateFinalized:true,nativeCurrentPeers:2});
+  if(mode!=="source-denied"){
+   expect(outcome).toMatchObject({sourceDenied:false,nodeCreated:true,nodeDeleted:true,currentMapBeforeDelete:true,legacyTokenCreated:false,bidirectionalActualPeers:true,journalWorkflowReceiptPinned:true,nativeOwnedKeyConfirmed:mode!=="history-recovery",threeActualPeers:true,nativeProofStateUnchanged:true,nativeStateFinalized:mode!=="history-recovery",nativeCurrentPeers:mode==="history-recovery"?0:2,nativeHistoryRecovered:mode==="history-recovery"});
    expect(row!.status).toBe("reserved");expect(row!.reserveId).toBe(outcome.reserveId);expect(row!.descriptorDigest).toBe(outcome.descriptorDigest);expect(row!.devicePublicKey).toBe(publicInput.launch.devicePublicKey);expect(JSON.parse(row!.events)).toHaveLength(1);
    // No fabricated source acknowledgement: real Store receipt is separate and
    // source remains reserved. Bookkeeping/ack does not create network authority.
