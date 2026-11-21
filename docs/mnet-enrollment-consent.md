@@ -138,3 +138,16 @@ and combined server/page strict entry typecheck pass, and actual font-loaded
 browser approval/decline is rerun with inspected ready/not-enrolled pixels. The
 earlier34test broader checkpoint remains its own source checkpoint, not a new
 full-suite claim for this small guard change.
+
+## Provisional handoff parser preparation
+
+`mnet-enrollment-handoff-shape.ts` is an unrouted parser for the unaffected
+version/purpose/native callback/PKCE core only. It is imported by no production
+module. Its distinct fixed `/mnet/enrollment/callback` path cannot be used by
+the current List handoff. Four focused tests cover exact fields, purpose/version,
+omissions, callback aliases/port boundaries, canonical digest/verifier shape,
+strict decoded duplicates and rejection by both current List and preview schemas.
+Changed-source lint passes. This is not PKCE exchange implementation, proof of
+key possession, ticket issuance or enrollment. Credential/recovery-dependent
+fields and durable journal schema remain provisional pending the focused design
+review, rather than being frozen by this parser preparation.
