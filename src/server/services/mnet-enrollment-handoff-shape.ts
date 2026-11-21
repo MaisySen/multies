@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Provisional parser preparation only. No route imports this module. This does
+// Shared enrollment-only parser. Routed handoff uses the core. This does
 // not choose journal, credential issuance/recovery, expiry or activation policy.
 const digest = z.string().regex(/^[A-Za-z0-9_-]{43}$/).refine((s) => {
  try {

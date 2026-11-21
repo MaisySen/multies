@@ -1,3 +1,4 @@
+import { serviceFixtureConfig, type ServiceFixture } from "./services/mnet-enrollment-service-config";
 import { enrollmentHandoffFixtureConfig, type EnrollmentHandoffFixture } from "./services/mnet-enrollment-handoff-config";
 import { enrollmentOperatorConfig, type EnrollmentOperatorConfig } from "./services/mnet-enrollment-config";
 import { productAnalyticsConfig, type ProductAnalyticsConfig } from "./services/product-analytics";
@@ -327,6 +328,8 @@ export interface AppConfig {
   mnetEnrollmentOperator?: EnrollmentOperatorConfig;
   /** Local-development journal/PKCE only. Explicit fixture policy, no registrar. */
   mnetEnrollmentHandoff?: boolean;
+  mnetEnrollmentService?: boolean;
+  mnetEnrollmentServiceFixture?: ServiceFixture;
   mnetEnrollmentHandoffFixture?: EnrollmentHandoffFixture;
   /** R99: calendar and contacts sync, CalDAV and CardDAV at /dav with app passwords (DAV_SYNC_R99=on). Off unless set. */
   davSync?: boolean;
@@ -504,6 +507,8 @@ const EnvSchema = z.object({
   MNET_ENROLLMENT_CONSENT: z.string().optional(),
   MNET_ENROLLMENT_OPERATOR: z.string().optional(),
   MNET_ENROLLMENT_HANDOFF: z.string().optional(),
+  MNET_ENROLLMENT_SERVICE: z.string().optional(),
+  MNET_ENROLLMENT_SERVICE_FIXTURE: z.string().optional(),
   MNET_ENROLLMENT_HANDOFF_FIXTURE: z.string().optional(),
   MOBILE_WEB_LINK: z.string().optional(), // MH1
   DAV_SYNC_R99: z.string().optional(),
@@ -998,6 +1003,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     mnetEnrollmentConsent: env.MNET_ENROLLMENT_CONSENT === "on",
     mnetEnrollmentOperator: env.MNET_ENROLLMENT_CONSENT === "on" || env.MNET_ENROLLMENT_HANDOFF === "on" ? enrollmentOperatorConfig(env.MNET_ENROLLMENT_OPERATOR) : undefined,
     mnetEnrollmentHandoff: env.MNET_ENROLLMENT_HANDOFF === "on",
+    mnetEnrollmentService: env.MNET_ENROLLMENT_SERVICE === "on",
+    mnetEnrollmentServiceFixture: serviceFixtureConfig(env.MNET_ENROLLMENT_SERVICE === "on", mode, env.MNET_ENROLLMENT_SERVICE_FIXTURE),
     mnetEnrollmentHandoffFixture: enrollmentHandoffFixtureConfig(env.MNET_ENROLLMENT_HANDOFF === "on", mode, env.MNET_ENROLLMENT_HANDOFF_FIXTURE),
     mobileWebLink: ["on", "true", "1"].includes(String(env.MOBILE_WEB_LINK ?? "").toLowerCase()), // MH1
     davSync: ["on", "true", "1"].includes(String(env.DAV_SYNC_R99 ?? "").toLowerCase()),

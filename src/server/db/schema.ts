@@ -4899,8 +4899,8 @@ export const mnetEnrollmentDecisions = sqliteTable("mnet_enrollment_decisions", 
 }, (t) => [uniqueIndex("mnet_enrollment_attempt_uq").on(t.attemptId), index("mnet_enrollment_owner_idx").on(t.userId, t.expiresAt)]);
 
 // Versioned local enrollment journal. Provenance is not a cascading entitlement.
-// Retention strips full tuples; attempt hash tombstones refuse reuse. No reserve
-// or receipt fields until their separate authenticated service boundary exists.
+// Retention strips pre-reservation tuples; attempt hash tombstones refuse reuse.
+// Reserve/event fields are local-only; no receipt/status/ack state exists.
 export const mnetEnrollmentHandoffs = sqliteTable("mnet_enrollment_handoffs", {
  id: text("id").primaryKey(), attemptHash: text("attempt_hash").notNull(),
  version: integer("version").notNull(), purpose: text("purpose").notNull(),
@@ -4908,8 +4908,9 @@ export const mnetEnrollmentHandoffs = sqliteTable("mnet_enrollment_handoffs", {
  attemptId: text("attempt_id"), devicePublicKey: text("device_public_key"), credentialDigest: text("credential_digest"),
  issuer: text("issuer"), registrarOrigin: text("registrar_origin"), audience: text("audience"), networkId: text("network_id"), mappingRevision: text("mapping_revision"),
  challenge: text("challenge"), state: text("state"), platform: text("platform"), redirectUri: text("redirect_uri"),
- status: text("status", { enum: ["pending", "approved", "declined", "issued", "expired", "withdrawn"] }).notNull(),
+ status: text("status", { enum: ["pending", "approved", "declined", "issued", "expired", "withdrawn", "reserved"] }).notNull(),
+ serviceId: text("service_id"), reserveId: text("reserve_id"), descriptorDigest: text("descriptor_digest"), reserveDeadline: ts("reserve_deadline"), events: text("events").notNull().default("[]"),
  codeHash: text("code_hash"), ticketHash: text("ticket_hash"),
  createdAt: ts("created_at").notNull(), expiresAt: ts("expires_at").notNull(), codeExpiresAt: ts("code_expires_at"), ticketExpiresAt: ts("ticket_expires_at"),
  terminalAt: ts("terminal_at"), scrubbedAt: ts("scrubbed_at"),
-}, (t) => [uniqueIndex("mnet_handoff_attempt_uq").on(t.attemptHash), uniqueIndex("mnet_handoff_code_uq").on(t.codeHash), uniqueIndex("mnet_handoff_ticket_uq").on(t.ticketHash), index("mnet_handoff_owner_idx").on(t.userId,t.status), index("mnet_handoff_retention_idx").on(t.terminalAt,t.scrubbedAt)]);
+}, (t) => [uniqueIndex("mnet_handoff_reserve_uq").on(t.reserveId), uniqueIndex("mnet_handoff_attempt_uq").on(t.attemptHash), uniqueIndex("mnet_handoff_code_uq").on(t.codeHash), uniqueIndex("mnet_handoff_ticket_uq").on(t.ticketHash), index("mnet_handoff_owner_idx").on(t.userId,t.status), index("mnet_handoff_retention_idx").on(t.terminalAt,t.scrubbedAt)]);

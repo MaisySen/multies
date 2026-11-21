@@ -1,3 +1,4 @@
+import { mnetEnrollmentReserveRoutes } from "./routes/mnet-enrollment-reserve";
 import { mnetEnrollmentHandoffRoutes } from "./routes/mnet-enrollment-handoff";
 import { mnetEnrollmentRoutes } from "./routes/mnet-enrollment";
 import { mnetRoutes } from "./routes/mnet";
@@ -554,6 +555,7 @@ export function createApp(deps: Deps) {
 
   // ANALYTICS-PH: a successful key action (send mail, new task, invite...) is recorded after the response (off unless ANALYTICS_PH).
   app.use("/api/*", productAnalyticsActions);
+  app.route("/api/mnet-enrollment-service-v1", mnetEnrollmentReserveRoutes());
   app.route("/api/mnet-enrollment-v1", mnetEnrollmentHandoffRoutes());
   app.route("/api/mnet-enrollment", mnetEnrollmentRoutes());
   app.route("/api/mnet", mnetRoutes());

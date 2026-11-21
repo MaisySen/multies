@@ -1893,5 +1893,20 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX mnet_handoff_owner_idx ON mnet_enrollment_handoffs(user_id,status);",
       "CREATE INDEX mnet_handoff_retention_idx ON mnet_enrollment_handoffs(terminal_at,scrubbed_at);"
     ]
+  },
+  {
+    "name": "0174_mnet_enrollment_reserve",
+    "statements": [
+      "-- Local-only reserve extension. CHECK needs a table rebuild, no FK cascades.\n-- New enrollment-only local journal. No FK cascades and no preview/List conversion.\nCREATE TABLE mnet_enrollment_handoffs_next (\n id text PRIMARY KEY NOT NULL, attempt_hash text NOT NULL,\n version integer NOT NULL CHECK(version=1), purpose text NOT NULL CHECK(purpose='mnet-enrollment'),\n user_id text, session_id text, workspace_id text,\n attempt_id text, device_public_key text, credential_digest text,\n issuer text, registrar_origin text, audience text, network_id text, mapping_revision text,\n challenge text, state text, platform text, redirect_uri text,\n status text NOT NULL CHECK(status IN ('pending','approved','declined','issued','expired','withdrawn','reserved')),\n code_hash text, ticket_hash text,\n created_at integer NOT NULL, expires_at integer NOT NULL, code_expires_at integer, ticket_expires_at integer,\n terminal_at integer, scrubbed_at integer,\n service_id text, reserve_id text, descriptor_digest text, reserve_deadline integer,\n events text NOT NULL DEFAULT '[]' CHECK(json_valid(events) AND json_type(events)='array' AND json_array_length(events)<=8)\n);",
+      "INSERT INTO mnet_enrollment_handoffs_next (id,attempt_hash,version,purpose,user_id,session_id,workspace_id,attempt_id,device_public_key,credential_digest,issuer,registrar_origin,audience,network_id,mapping_revision,challenge,state,platform,redirect_uri,status,code_hash,ticket_hash,created_at,expires_at,code_expires_at,ticket_expires_at,terminal_at,scrubbed_at) SELECT id,attempt_hash,version,purpose,user_id,session_id,workspace_id,attempt_id,device_public_key,credential_digest,issuer,registrar_origin,audience,network_id,mapping_revision,challenge,state,platform,redirect_uri,status,code_hash,ticket_hash,created_at,expires_at,code_expires_at,ticket_expires_at,terminal_at,scrubbed_at FROM mnet_enrollment_handoffs;",
+      "DROP TABLE mnet_enrollment_handoffs;",
+      "ALTER TABLE mnet_enrollment_handoffs_next RENAME TO mnet_enrollment_handoffs;",
+      "CREATE UNIQUE INDEX mnet_handoff_attempt_uq ON mnet_enrollment_handoffs(attempt_hash);",
+      "CREATE UNIQUE INDEX mnet_handoff_code_uq ON mnet_enrollment_handoffs(code_hash);",
+      "CREATE UNIQUE INDEX mnet_handoff_ticket_uq ON mnet_enrollment_handoffs(ticket_hash);",
+      "CREATE INDEX mnet_handoff_owner_idx ON mnet_enrollment_handoffs(user_id,status);",
+      "CREATE INDEX mnet_handoff_retention_idx ON mnet_enrollment_handoffs(terminal_at,scrubbed_at);",
+      "CREATE UNIQUE INDEX mnet_handoff_reserve_uq ON mnet_enrollment_handoffs(reserve_id);"
+    ]
   }
 ];
