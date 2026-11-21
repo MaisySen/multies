@@ -1,17 +1,17 @@
 /**
  * OPS1: shared pieces for the Workspaces section of the console: the wire types of /api/console/workspaces, the
- * workspace query, state badges, relative times, simple section frames and the limit actions (send cap, sending
- * switch, call minutes cap) used by both the page header and the Overview tab.
+ * workspace query, state badges, plan wording, simple section frames and the limit actions (send cap, sending switch,
+ * call minutes cap) used by both the page header and the Overview tab. Dates, empty values, links and error states
+ * come from ../components/format.
  */
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, errorMessage } from "@/web/lib/api";
-import { fullDate, timeAgo } from "@/web/lib/format";
-import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
-import { Button } from "@/web/components/ui/button";
+import { api } from "@/web/lib/api";
+import { consoleGet } from "@/web/lib/console-api";
+import { Badge, Skeleton } from "@/web/components/ui/misc";
 import { Field, Input } from "@/web/components/ui/input";
-import { IconWarning } from "@/web/components/ui/icon";
 import { useOperatorAction } from "../components/reason-dialog";
+import { StatusBadge, compPlanLabel, planLabel } from "../components/format";
 
 // ---------------------------------------------------------------- wire types
 
@@ -20,7 +20,7 @@ export type PlanId = "starter" | "pro" | "business";
 export interface WorkspaceRow {
   id: string; name: string; slug: string | null; plan: PlanId; effectivePlan: PlanId; compPlan: boolean; isDemo: boolean;
   subscriptionStatus: string | null; pastDueSince: string | null; graceEndsAt: string | null; suspendedAt: string | null;
-  suspendedReason: string | null; sendCapDaily: number | null; createdAt: string; ownerEmail: string | null;
+  suspendedReason: string | null; sendCapDaily: number | null; createdAt: string; ownerEmail: string | null; ownerUserId?: string | null;
   members: number; agentMembers: number; domains: number;
 }
 
@@ -40,6 +40,8 @@ export interface WorkspaceOverview {
     pastDueSince: string | null; graceEndsAt: string | null; requireSso: boolean; suspendedAt: string | null; suspendedReason: string | null;
     sendCapDaily: number | null; meetingMinutesCap: number | null; channelsEnabled: boolean; legacyStorageMb: number | null;
   };
+  /** The first owner; missing on an older server answer. */
+  owner?: { userId: string; email: string; name: string } | null;
   limits: PlanLimits;
   addons: Record<string, number>;
   usage: UsageTotals;
@@ -50,50 +52,49 @@ export interface WorkspaceOverview {
   writeBudget: { used: number; budget: number; level: string; resetAt: string };
 }
 
-export const PLAN_LABEL: Record<PlanId, string> = { starter: "Starter", pro: "Pro", business: "Business" };
-
 export const workspaceKey = (id: string) => ["console", "workspace", id] as const;
 export const wsPath = (id: string) => `/console/workspaces/${encodeURIComponent(id)}`;
 export const apiPath = (id: string, rest = "") => `/console/workspaces/${encodeURIComponent(id)}${rest}`;
 
 export function useWorkspace(id: string) {
-  return useQuery({ queryKey: workspaceKey(id), queryFn: () => api.get<WorkspaceOverview>(apiPath(id)) });
+  return useQuery({ queryKey: workspaceKey(id), queryFn: () => consoleGet<WorkspaceOverview>(apiPath(id)) });
 }
 
 /** A detail read of one tab, keyed under the workspace so a change refreshes it. */
 export function useWorkspacePart<T>(id: string, part: string, rest = `/${part}`) {
-  return useQuery({ queryKey: [...workspaceKey(id), part, rest], queryFn: () => api.get<T>(apiPath(id, rest)) });
+  return useQuery({ queryKey: [...workspaceKey(id), part, rest], queryFn: () => consoleGet<T>(apiPath(id, rest)) });
 }
 
 // ---------------------------------------------------------------- small pieces
 
+/** The plan in the customer app's words; a plan given for free reads "Free Business plan". */
+export const workspacePlanLabel = (w: { plan: string; effectivePlan: string; compPlan: boolean }) =>
+  (w.compPlan ? compPlanLabel(w.effectivePlan) : planLabel(w.plan));
+
 const isPastDue = (w: { pastDueSince: string | null; subscriptionStatus: string | null }) => !!w.pastDueSince || w.subscriptionStatus === "past_due";
 
-/** Suspended (red), past due (amber), comp and demo (grey). Nothing when the workspace is in good standing. */
-export function StateBadges({ w, showActive }: { w: { suspendedAt: string | null; pastDueSince: string | null; subscriptionStatus: string | null; compPlan: boolean; isDemo: boolean }; showActive?: boolean }) {
-  const any = !!w.suspendedAt || isPastDue(w) || w.compPlan || w.isDemo;
+/**
+ * Suspended (red), past due (amber) and demo (grey), each on one line. Nothing when the workspace is in good standing
+ * unless `showActive`. A free plan is said by the plan label, not here.
+ */
+export function StateBadges({ w, showActive }: { w: { suspendedAt: string | null; pastDueSince: string | null; subscriptionStatus: string | null; isDemo: boolean }; showActive?: boolean }) {
+  const any = !!w.suspendedAt || isPastDue(w) || w.isDemo;
+  if (!any && !showActive) return null;
   return (
     <span className="inline-flex flex-wrap items-center gap-1" data-testid="console-workspaces-state">
-      {w.suspendedAt && <Badge tone="bad" dot>Suspended</Badge>}
-      {isPastDue(w) && <Badge tone="warn" dot>Past due</Badge>}
-      {w.compPlan && <Badge>Comp</Badge>}
-      {w.isDemo && <Badge>Demo</Badge>}
-      {!any && showActive && <Badge tone="ok" dot>Active</Badge>}
+      {w.suspendedAt && <StatusBadge state="suspended" label="Suspended" />}
+      {isPastDue(w) && <StatusBadge state="past_due" label="Past due" />}
+      {w.isDemo && <Badge className="whitespace-nowrap">Demo</Badge>}
+      {!any && showActive && <StatusBadge state="active" label="Active" />}
     </span>
   );
-}
-
-/** Relative time with the exact time on hover. */
-export function When({ at, empty = "Never" }: { at: string | null | undefined; empty?: string }) {
-  if (!at) return <span className="text-subtle">{empty}</span>;
-  return <span className="whitespace-nowrap" title={fullDate(at)}>{timeAgo(at)}</span>;
 }
 
 export function Section({ title, description, actions, children, testId }: { title: string; description?: ReactNode; actions?: ReactNode; children: ReactNode; testId?: string }) {
   return (
     <section className="space-y-2" data-testid={testId}>
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 basis-60">
           <h2 className="text-[15px] font-semibold">{title}</h2>
           {description && <p className="text-[13px] text-muted">{description}</p>}
         </div>
@@ -112,19 +113,7 @@ export function LoadingBlock({ rows = 3 }: { rows?: number }) {
   );
 }
 
-export function ErrorBlock({ error, retry }: { error: unknown; retry: () => void }) {
-  return (
-    <Card className="p-0">
-      <EmptyState icon={<IconWarning />} title="Couldn't load this" body={errorMessage(error as Error)} action={<Button variant="secondary" onClick={retry}>Try again</Button>} />
-    </Card>
-  );
-}
-
-export function EmptyBlock({ title, body, icon }: { title: string; body: ReactNode; icon?: ReactNode }) {
-  return <Card className="p-0"><EmptyState icon={icon} title={title} body={body} /></Card>;
-}
-
-/** "Plan default" for null, the number otherwise. */
+/** "Plan default" for null, "Off" for 0, the number otherwise. */
 export const capText = (cap: number | null, unit: string) => (cap === null ? "Plan default" : cap === 0 ? "Off" : `${cap.toLocaleString()} ${unit}`);
 
 // ---------------------------------------------------------------- limit actions

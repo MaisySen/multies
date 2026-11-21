@@ -10,17 +10,17 @@
 import { useState, type FormEvent } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, errorMessage } from "@/web/lib/api";
+import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
-import { listQuery, type Page } from "@/web/lib/console-api";
-import { fullDate, timeAgo } from "@/web/lib/format";
+import { consoleGet, listQuery, type Page } from "@/web/lib/console-api";
 import { Badge, Card, EmptyState } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Field, Textarea } from "@/web/components/ui/input";
-import { IconPin, IconPinOff, IconStickyNote, IconTrash, IconWarning } from "@/web/components/ui/icon";
+import { IconPin, IconPinOff, IconStickyNote, IconTrash } from "@/web/components/ui/icon";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { cn } from "@/web/lib/cn";
 import { useOperatorAction } from "./components/reason-dialog";
+import { LoadError, PersonLink, RelTime } from "./components/format";
 import { PermissionGate, useConsoleMe } from "./guard";
 
 export interface OperatorNote {
@@ -88,8 +88,8 @@ function NoteItem({ note, targetType, targetId, onDelete }: { note: OperatorNote
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-subtle">
         <span className="inline-flex flex-wrap items-center gap-2">
           {note.pinned && <Badge tone="brand">Pinned</Badge>}
-          <span className="[overflow-wrap:anywhere]">{note.authorEmail ?? "Unknown operator"}</span>
-          <span title={fullDate(note.createdAt)}>{timeAgo(note.createdAt)}</span>
+          {note.authorEmail || note.authorUserId ? <PersonLink id={note.authorUserId} email={note.authorEmail} className="max-w-[16rem]" /> : <span>Unknown operator</span>}
+          <RelTime at={note.createdAt} />
         </span>
         <PermissionGate permission="workspaces.notes">
           <span className="inline-flex items-center gap-1">
@@ -113,7 +113,7 @@ function NoteItem({ note, targetType, targetId, onDelete }: { note: OperatorNote
 export function NotesPanel({ targetType, targetId }: { targetType: "workspace" | "user"; targetId: string }) {
   const list = useInfiniteQuery({
     queryKey: notesKey(targetType, targetId),
-    queryFn: ({ pageParam }) => api.get<Page<OperatorNote>>(`/console/workspaces/notes${listQuery({ targetType, targetId, cursor: pageParam })}`),
+    queryFn: ({ pageParam }) => consoleGet<Page<OperatorNote>>(`/console/workspaces/notes${listQuery({ targetType, targetId, cursor: pageParam })}`),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
   });
@@ -130,9 +130,7 @@ export function NotesPanel({ targetType, targetId }: { targetType: "workspace" |
     <div className="space-y-4" data-testid="console-notes">
       <PermissionGate permission="workspaces.notes"><AddNote targetType={targetType} targetId={targetId} /></PermissionGate>
       {list.isPending ? <SkeletonRows rows={3} label="Loading notes" /> : list.error ? (
-        <Card className="p-0">
-          <EmptyState icon={<IconWarning />} title="Couldn't load notes" body={errorMessage(list.error)} action={<Button variant="secondary" onClick={() => void list.refetch()}>Try again</Button>} />
-        </Card>
+        <LoadError error={list.error} retry={() => void list.refetch()} what="notes" />
       ) : !notes.length ? (
         <Card className="p-0">
           <EmptyState icon={<IconStickyNote />} title="No notes yet" body={`Notes help the next operator understand this ${targetType === "workspace" ? "workspace" : "person"}: past issues, promises made, who to contact.`} />

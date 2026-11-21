@@ -127,6 +127,8 @@ export interface WorkspaceListItem {
   createdAt: string;
   /** The first owner's address (null when the workspace has no owner row). */
   ownerEmail: string | null;
+  /** The same owner's user id, so the console can link to them (null when there is no owner row). */
+  ownerUserId: string | null;
   /** People (human members). */
   members: number;
   /** AI agent members. */
@@ -136,6 +138,7 @@ export interface WorkspaceListItem {
 
 // Hand qualified: Drizzle renders columns unqualified in a one table select, which would bind to the inner table.
 const OWNER_EMAIL = sql<string | null>`(select u."email" from "members" m join "users" u on u."id" = m."user_id" where m."organization_id" = "organizations"."id" and m."role" = 'owner' order by m."created_at", m."id" limit 1)`;
+const OWNER_USER_ID = sql<string | null>`(select m."user_id" from "members" m where m."organization_id" = "organizations"."id" and m."role" = 'owner' order by m."created_at", m."id" limit 1)`;
 
 /** Workspaces matching a search (name, id, slug, an owner's address, a domain) and filters, one page at a time. */
 export async function listWorkspaces(deps: Pick<Deps, "db">, input: ListWorkspacesInput): Promise<Paged<WorkspaceListItem>> {
@@ -162,6 +165,7 @@ export async function listWorkspaces(deps: Pick<Deps, "db">, input: ListWorkspac
     graceEndsAt: organizations.graceEndsAt, suspendedAt: organizations.suspendedAt, suspendedReason: organizations.suspendedReason,
     sendCapDaily: organizations.sendCapDaily, createdAt: organizations.createdAt,
     ownerEmail: OWNER_EMAIL,
+    ownerUserId: OWNER_USER_ID,
     members: sql<number>`(select count(*) from "members" m where m."organization_id" = "organizations"."id" and m."kind" = 'human')`,
     agentMembers: sql<number>`(select count(*) from "members" m where m."organization_id" = "organizations"."id" and m."kind" = 'agent')`,
     domains: sql<number>`(select count(*) from "domains" d where d."org_id" = "organizations"."id")`,
@@ -170,7 +174,7 @@ export async function listWorkspaces(deps: Pick<Deps, "db">, input: ListWorkspac
     id: r.id, name: r.name, slug: r.slug, plan: r.plan, effectivePlan: effectivePlanId(r), compPlan: !!r.compPlan, isDemo: !!r.isDemo,
     subscriptionStatus: r.subscriptionStatus, pastDueSince: iso(r.pastDueSince), graceEndsAt: iso(r.graceEndsAt),
     suspendedAt: iso(r.suspendedAt), suspendedReason: r.suspendedReason, sendCapDaily: r.sendCapDaily, createdAt: iso(r.createdAt)!,
-    ownerEmail: r.ownerEmail ?? null, members: num(r.members), agentMembers: num(r.agentMembers), domains: num(r.domains),
+    ownerEmail: r.ownerEmail ?? null, ownerUserId: r.ownerUserId ?? null, members: num(r.members), agentMembers: num(r.agentMembers), domains: num(r.domains),
   }));
 }
 
@@ -188,6 +192,8 @@ export interface WorkspaceOverview {
     suspendedAt: string | null; suspendedReason: string | null; sendCapDaily: number | null; meetingMinutesCap: number | null;
     channelsEnabled: boolean; legacyStorageMb: number | null;
   };
+  /** The first owner (the person the console header links to), null when the workspace has no owner row. */
+  owner: { userId: string; email: string; name: string } | null;
   limits: PlanLimits;
   addons: AddonQuantities;
   usage: WorkspaceUsageTotals;
@@ -209,7 +215,7 @@ export async function getWorkspaceOverview(deps: Deps, orgId: string): Promise<W
   const now = deps.now();
   const midnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const period = periodOf(now);
-  const [plan, used, budget, c] = await Promise.all([
+  const [plan, used, budget, c, ownerRow] = await Promise.all([
     getPlan(deps.db, orgId),
     usage(deps.db, orgId, now),
     workspaceUsage(deps, orgId),
@@ -225,6 +231,8 @@ export async function getWorkspaceOverview(deps: Deps, orgId: string): Promise<W
       sends: sql<number>`(select count(*) from "deliveries" d where d."org_id" = ${orgId} and d."direction" = 'outbound' and d."created_at" >= ${midnight})`,
       meeting: sql<number>`(select coalesce(sum(u."count"), 0) from "usage_counters" u where u."org_id" = ${orgId} and u."period" = ${period} and u."metric" = 'meeting_participant_minutes')`,
     }).from(sql`(select 1)`).get(),
+    deps.db.select({ userId: users.id, email: users.email, name: users.name }).from(members).innerJoin(users, eq(users.id, members.userId))
+      .where(and(eq(members.organizationId, orgId), eq(members.role, "owner"))).orderBy(asc(members.createdAt), asc(members.id)).limit(1).get(),
   ]);
   return {
     org: {
@@ -236,6 +244,7 @@ export async function getWorkspaceOverview(deps: Deps, orgId: string): Promise<W
       suspendedAt: iso(org.suspendedAt), suspendedReason: org.suspendedReason, sendCapDaily: org.sendCapDaily, meetingMinutesCap: org.meetingMinutesCap,
       channelsEnabled: !!org.channelsEnabled, legacyStorageMb: org.legacyStorageMb,
     },
+    owner: ownerRow ? { userId: ownerRow.userId, email: ownerRow.email, name: ownerRow.name ?? "" } : null,
     limits: plan.limits,
     addons: plan.addons,
     usage: used,

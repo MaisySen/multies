@@ -21,9 +21,9 @@ const now = new Date().toISOString();
 const row = {
   id: "org_e2e", name: "Zephyr Rockets", slug: null, plan: "pro", effectivePlan: "pro", compPlan: false, isDemo: false,
   subscriptionStatus: "active", pastDueSince: null, graceEndsAt: null, suspendedAt: null, suspendedReason: null, sendCapDaily: null,
-  createdAt: now, ownerEmail: "boss@zephyr.example", members: 4, agentMembers: 1, domains: 2,
+  createdAt: now, ownerEmail: "boss@zephyr.example", ownerUserId: "usr_boss", members: 4, agentMembers: 1, domains: 2,
 };
-const suspendedRow = { ...row, id: "org_susp", name: "Spammy Ltd", plan: "starter", effectivePlan: "starter", suspendedAt: now, suspendedReason: "Phishing", ownerEmail: "ops@spammy.example" };
+const suspendedRow = { ...row, id: "org_susp", name: "Spammy Ltd", plan: "starter", effectivePlan: "starter", suspendedAt: now, suspendedReason: "Phishing", ownerEmail: "ops@spammy.example", ownerUserId: "usr_spam" };
 const limits = {
   domains: 5, mailboxes: 20, aliases: 50, storagePerMailboxMb: 10240, storageMb: 102400, dailySends: 2000, seats: 20, agentInboxes: 5,
   agentMessagesMonthly: 5000, agentDailySends: 200, automationRunsMonthly: 10000, agentMembers: 5,
@@ -35,10 +35,17 @@ const overview = {
     cancelAtPeriodEnd: false, pastDueSince: null, graceEndsAt: null, requireSso: false, suspendedAt: null, suspendedReason: null, sendCapDaily: null,
     meetingMinutesCap: null, channelsEnabled: true, legacyStorageMb: null,
   },
+  owner: { userId: "usr_boss", email: "boss@zephyr.example", name: "Bo Boss" },
   limits, addons: {},
   usage: { domains: 2, mailboxes: 6, agentInboxes: 1, aliases: 3, seats: 4, storageMb: 120, agentMessages: 40 },
   counts: { members: 4, agentMembers: 1, pendingInvites: 0, agents: 1, apiKeys: 2, webhookEndpoints: 1, webhookEndpointsDisabled: 0, activeOauthGrants: 0, sendsToday: 12, meetingMinutesThisMonth: 30 },
   writeBudget: { used: 1200, budget: 50000, level: "ok", resetAt: now },
+};
+
+const suspendedOverview = {
+  ...overview,
+  org: { ...overview.org, id: "org_susp", name: "Spammy Ltd", plan: "starter", effectivePlan: "starter", suspendedAt: now, suspendedReason: "Phishing" },
+  owner: { userId: "usr_spam", email: "ops@spammy.example", name: "" },
 };
 
 interface Calls { method: string; path: string; body: unknown }
@@ -62,6 +69,8 @@ async function mockWorkspaces(page: Page, calls: Calls[]) {
       return route.fulfill({ json: { items: [{ id: "onote_1", targetType: "workspace", targetId: "org_e2e", body: "Promised a call back on Monday", pinned: true, authorUserId: "usr_other", authorEmail: "sam@example.com", createdAt: now, updatedAt: now }], nextCursor: null } });
     }
     if (p === "/api/console/workspaces/org_e2e") return route.fulfill({ json: overview });
+    if (p === "/api/console/workspaces/org_susp") return route.fulfill({ json: suspendedOverview });
+    if (p === "/api/console/workspaces/org_e2e/mail") return route.fulfill({ status: 500, json: { error: { code: "internal", message: "The mail read failed." } } });
     if (p === "/api/console/workspaces/org_e2e/members") {
       return route.fulfill({ json: { items: [{ id: "mem_1", userId: "usr_boss", email: "boss@zephyr.example", name: "Bo Boss", role: "owner", kind: "human", title: null, emailVerified: true, twoFactorEnabled: true, banned: false, lastLoginMethod: "email", disabledAt: null, joinedAt: now }], nextCursor: null } });
     }
@@ -81,7 +90,9 @@ test("the list filters through the address bar and a row opens the workspace", a
   await page.goto("/console/workspaces");
   await expect(page.getByRole("heading", { name: "Workspaces", level: 1 })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("link", { name: "Zephyr Rockets" })).toBeVisible();
-  await expect(page.getByText("boss@zephyr.example")).toBeVisible();
+  // The owner links to their console page (the service now returns the owner's user id).
+  await expect(page.getByRole("link", { name: "boss@zephyr.example" })).toHaveAttribute("href", "/console/users/usr_boss");
+  await expect(page.getByRole("combobox", { name: "State" }).locator("option[value=comp]")).toHaveText("Free Business plan");
 
   await page.getByRole("combobox", { name: "State" }).selectOption("suspended");
   await expect(page).toHaveURL(/state=suspended/);
@@ -93,6 +104,9 @@ test("the list filters through the address bar and a row opens the workspace", a
   await expect(page).toHaveURL(/\/console\/workspaces\/org_e2e$/);
   await expect(page.getByRole("heading", { name: "Zephyr Rockets", level: 1 })).toBeVisible();
   await expect(page.getByTestId("console-workspaces-id")).toContainText("org_e2e");
+  await expect(page.getByRole("button", { name: "Copy workspace id" })).toBeVisible();
+  await expect(page.getByTestId("console-workspaces-owner").getByRole("link", { name: "Bo Boss" })).toHaveAttribute("href", "/console/users/usr_boss");
+  await expect(page.getByTestId("console-back-link")).toHaveText("All workspaces");
 });
 
 test("Suspend asks for a reason and sends it; the sending switch and notes work", async ({ page }) => {
@@ -119,13 +133,40 @@ test("Suspend asks for a reason and sends it; the sending switch and notes work"
 
   await page.getByRole("link", { name: "Members" }).click();
   await expect(page).toHaveURL(/\/console\/workspaces\/org_e2e\/members$/);
-  await expect(page.getByRole("link", { name: "Bo Boss" })).toHaveAttribute("href", "/console/users/usr_boss");
+  await expect(page.getByTestId("console-workspaces-members").getByRole("link", { name: "Bo Boss" })).toHaveAttribute("href", "/console/users/usr_boss?org=org_e2e");
 
   await page.getByRole("link", { name: "Notes" }).click();
   await expect(page.getByText("Promised a call back on Monday")).toBeVisible();
   await page.getByTestId("console-notes-input").fill("Called them about the bounce rate");
   await page.getByTestId("console-notes-add").click();
   await expect.poll(() => calls.find((c) => c.path.endsWith("/notes"))?.body).toEqual({ targetType: "workspace", targetId: "org_e2e", body: "Called them about the bounce rate", pinned: false });
+});
+
+test("a suspended workspace shows sending stopped; tabs are merged; a failed tab keeps the header", async ({ page }) => {
+  const calls: Calls[] = [];
+  await open(page, "admin", calls);
+  await page.goto("/console/workspaces/org_susp");
+  await expect(page.getByRole("heading", { name: "Spammy Ltd", level: 1 })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("console-workspaces-sending-state")).toContainText("Stopped while suspended");
+  await expect(page.getByTestId("admin-sending-toggle")).toBeDisabled();
+  await expect(page.getByTestId("console-workspaces-restore")).toBeVisible();
+  await page.getByTestId("console-workspaces-more").click();
+  await expect(page.getByRole("menuitem", { name: "Change daily send cap" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /Turn sending/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Usage holds the old Trends, Audit reads Activity (its address stays /audit).
+  const tabs = page.getByRole("navigation", { name: "Sections" }).getByRole("link");
+  await expect(tabs).toHaveText(["Overview", "Members", "Billing", "Usage", "Mail", "Agents", "Developer", "Flags", "Activity", "Notes"]);
+  await expect(page.getByRole("link", { name: "Activity" })).toHaveAttribute("href", "/console/workspaces/org_susp/audit");
+  await expect(page.getByTestId("console-workspaces-overview")).not.toContainText("Usage against limits");
+  await expect(page.getByTestId("console-workspaces-overview")).not.toContainText("Counts");
+
+  // A tab whose read fails shows the error in the tab; the header and back link stay.
+  await page.goto("/console/workspaces/org_e2e/mail");
+  await expect(page.getByTestId("console-load-error")).toContainText("The mail read failed.", { timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "Zephyr Rockets", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("console-back-link")).toBeVisible();
 });
 
 test("a read only operator sees the workspace but no actions", async ({ page }) => {

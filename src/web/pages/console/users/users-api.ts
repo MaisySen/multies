@@ -3,6 +3,7 @@
  * Lists go through DataTable; these are the detail read and the changes, each with a reason.
  */
 import { api } from "@/web/lib/api";
+import { consoleGet } from "@/web/lib/console-api";
 
 export interface ConsoleUserRow {
   id: string; email: string; name: string; emailVerified: boolean; role: string | null; operator: boolean;
@@ -38,7 +39,7 @@ export const userKey = (id: string) => ["console", "user", id] as const;
 const base = (id: string) => `/console/users/${encodeURIComponent(id)}`;
 
 export const usersApi = {
-  detail: (id: string) => api.get<ConsoleUserDetail>(base(id)),
+  detail: (id: string) => consoleGet<ConsoleUserDetail>(base(id)),
   revokeSession: (id: string, sessionId: string, reason: string) => api.post<{ ok: true }>(`${base(id)}/sessions/${encodeURIComponent(sessionId)}/revoke`, { reason }),
   revokeAll: (id: string, reason: string) => api.post<{ ok: true; sessionsEnded: number }>(`${base(id)}/sessions/revoke-all`, { reason }),
   ban: (id: string, reason: string, expiresInDays: number | null) => api.post<{ ok: true }>(`${base(id)}/ban`, { reason, expiresInDays }),
@@ -48,9 +49,15 @@ export const usersApi = {
   remove: (id: string, reason: string) => api.del<{ ok: true }>(base(id), { reason }),
 };
 
-/** "credential" reads as "Password"; providers get a capital letter. */
-export function signInMethodLabel(method: string | null | undefined): string {
-  if (!method) return "Unknown";
+/** A language code in plain words in the operator's language ("en" -> "English"); the code when there is no name. */
+export function languageName(code: string | null | undefined): string | null {
+  if (!code) return null;
+  try { return new Intl.DisplayNames(undefined, { type: "language" }).of(code) ?? code; } catch { return code; }
+}
+
+/** "credential" reads as "Password"; providers get a capital letter. No method yet reads "No sign in yet". */
+export function signInMethodLabel(method: string | null | undefined, none = "No sign in yet"): string {
+  if (!method) return none;
   const m = method.toLowerCase();
   if (m === "credential" || m === "email") return "Password";
   if (m === "auth0") return "Single sign on";

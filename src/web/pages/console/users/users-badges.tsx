@@ -1,28 +1,24 @@
-/** OPS1: the Users section's state badges and dates, shared by the list and the detail page. */
+/** OPS1: the Users section's state badges, shared by the list and the detail page. Built on ../components/format. */
 import { Badge } from "@/web/components/ui/misc";
-import { fullDate, timeAgo } from "@/web/lib/format";
-import { operatorRoleLabel } from "@/shared/operator-permissions";
-
-/** Relative time with the exact time on hover. */
-export function When({ at, empty = "Never" }: { at: string | null | undefined; empty?: string }) {
-  if (!at) return <span className="text-subtle">{empty}</span>;
-  return <time dateTime={at} title={fullDate(at)} className="whitespace-nowrap">{timeAgo(at)}</time>;
-}
+import { OperatorRoleBadge, StatusBadge, TwoStepBadge, formatDay } from "../components/format";
 
 export interface UserStateLike {
   banned: boolean; banExpires: string | null; emailVerified: boolean; operator: boolean; role: string | null; twoFactorEnabled?: boolean;
   kind?: "person" | "agent";
 }
 
-/** Banned (red), unverified (amber), operator role (brand), AI agent (grey); nothing for a plain healthy account. */
+/**
+ * Banned (red), email not confirmed (amber), operator role, AI agent (grey); nothing for a plain healthy account.
+ * `showTwoFactor` adds "Two-step on" or "Two-step off" (the detail page header).
+ */
 export function UserStateBadges({ u, showTwoFactor = false }: { u: UserStateLike; showTwoFactor?: boolean }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
-      {u.banned && <Badge tone="bad" dot>{u.banExpires ? `Banned until ${new Date(u.banExpires).toLocaleDateString()}` : "Banned"}</Badge>}
-      {!u.emailVerified && <Badge tone="warn" dot>Unverified</Badge>}
-      {u.operator && <Badge tone="brand">{operatorRoleLabel(u.role)}</Badge>}
-      {u.kind === "agent" && <Badge>AI agent</Badge>}
-      {showTwoFactor && (u.twoFactorEnabled ? <Badge tone="ok" dot>Two-step on</Badge> : <Badge>Two-step off</Badge>)}
+      {u.banned && <StatusBadge state="banned" label={u.banExpires ? `Banned until ${formatDay(u.banExpires)}` : "Banned"} />}
+      {!u.emailVerified && u.kind !== "agent" && <StatusBadge state="pending" label="Email not confirmed" />}
+      {u.operator && <OperatorRoleBadge role={u.role} />}
+      {u.kind === "agent" && <Badge className="whitespace-nowrap">AI agent</Badge>}
+      {showTwoFactor && <TwoStepBadge on={!!u.twoFactorEnabled} long />}
     </span>
   );
 }

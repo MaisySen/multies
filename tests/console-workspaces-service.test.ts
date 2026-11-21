@@ -60,7 +60,8 @@ describe("listWorkspaces", () => {
     expect(await names("x".repeat(300))).toEqual([]);
 
     const acme = (await listWorkspaces(ctx.deps, { q: "acme", page: page() })).items[0]!;
-    expect(acme).toMatchObject({ id: orgId, ownerEmail: "owner@acme.io", members: 1, agentMembers: 0, domains: 1, plan: "starter", effectivePlan: "starter", compPlan: false });
+    const ownerUserId = (await owner.get("/api/account/me")).body.user.id;
+    expect(acme).toMatchObject({ id: orgId, ownerEmail: "owner@acme.io", ownerUserId, members: 1, agentMembers: 0, domains: 1, plan: "starter", effectivePlan: "starter", compPlan: false });
     expect(typeof acme.createdAt).toBe("string");
   });
 
@@ -144,6 +145,7 @@ describe("workspace detail", () => {
     ]);
     const o = await getWorkspaceOverview(ctx.deps, orgId);
     expect(o.org).toMatchObject({ id: orgId, name: "Acme Rockets", plan: "starter", effectivePlan: "starter", suspendedAt: null });
+    expect(o.owner).toEqual({ userId: (await owner.get("/api/account/me")).body.user.id, email: "owner@acme.io", name: "Ada Owner" });
     expect(o.limits.domains).toBeGreaterThan(0);
     expect(o.usage).toMatchObject({ seats: 1, domains: 0 });
     expect(o.counts).toMatchObject({ members: 1, agentMembers: 0, apiKeys: 0, sendsToday: 1 });

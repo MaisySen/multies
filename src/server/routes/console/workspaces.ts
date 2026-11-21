@@ -11,7 +11,8 @@
  *   GET  /:id/mail                  domains and mailboxes
  *   GET  /:id/agents                agent inboxes and agent members
  *   GET  /:id/developer             API keys (no secrets), webhook endpoints (masked), OAuth grants
- *   GET  /:id/audit                 ?source=workspace (its own activity, default) | platform (operator actions on it)
+ *   GET  /:id/audit                 ?source=workspace (its own activity, default) | platform (operator actions on it,
+ *                                   with target names from withAuditNames)
  *   GET  /:id/queued-sends          messages a sending limit held
  * Changes (every one takes a reason and is audited on the platform log and, except notes, the workspace's own log):
  *   POST /:id/suspend               workspaces.suspend   workspace.suspended
@@ -35,7 +36,7 @@ import type { AppEnv } from "../../context";
 import { parseBody } from "../../middleware";
 import { HttpError, notFound } from "../../lib/errors";
 import { operatorSession, requireOperator } from "../../auth/operator";
-import { listPlatformAudit, operatorAction, reasonSchema } from "../../services/console/audit";
+import { listPlatformAudit, operatorAction, reasonSchema, withAuditNames } from "../../services/console/audit";
 import {
   getWorkspaceOverview, getWorkspaceUsage, listWorkspaceAgents, listWorkspaceAudit, listWorkspaceDeveloper, listWorkspaceDomainsAndMailboxes,
   listWorkspaceMembers, listWorkspaces, setWorkspaceMeetingCap, setWorkspaceSendCap, type WorkspaceFilters,
@@ -217,11 +218,13 @@ export function workspacesRoutes() {
       const source = q.source || "workspace";
       if (source === "platform") {
         const r = await listPlatformAudit(c.var.deps.db, { q: q.q, limit: q.limit, cursor: q.cursor, sort: q.sort }, { orgId: org.id });
+        // Target names for the page in two batched reads at most (never one per row), as the global audit log does.
+        const named = await withAuditNames(c.var.deps.db, r.items);
         return c.json({
           nextCursor: r.nextCursor,
-          items: r.items.map((x) => ({
-            id: x.id, source: "platform" as const, action: x.action, actorEmail: x.actorEmail, actorRole: x.actorRole, targetType: x.targetType,
-            targetId: x.targetId, reason: x.reason, before: x.before, after: x.after, metadata: x.metadata, createdAt: new Date(x.createdAt).toISOString(),
+          items: named.map((x) => ({
+            id: x.id, source: "platform" as const, action: x.action, actorUserId: x.actorUserId, actorEmail: x.actorEmail, actorRole: x.actorRole,
+            targetType: x.targetType, targetId: x.targetId, targetLabel: x.targetLabel, reason: x.reason, before: x.before, after: x.after, metadata: x.metadata, createdAt: new Date(x.createdAt).toISOString(),
           })),
         });
       }
@@ -231,8 +234,8 @@ export function workspacesRoutes() {
       return c.json(answer({
         next: r.next,
         items: r.items.map((x) => ({
-          id: x.id, source: "workspace" as const, action: x.action, actorEmail: x.actorEmail, actorRole: null, targetType: x.targetType,
-          targetId: x.targetId, reason: typeof x.metadata?.reason === "string" ? x.metadata.reason : null, before: null, after: null,
+          id: x.id, source: "workspace" as const, action: x.action, actorUserId: x.actorUserId, actorEmail: x.actorEmail, actorRole: null,
+          targetType: x.targetType, targetId: x.targetId, targetLabel: null, reason: typeof x.metadata?.reason === "string" ? x.metadata.reason : null, before: null, after: null,
           metadata: x.metadata, createdAt: x.createdAt,
         })),
       }));

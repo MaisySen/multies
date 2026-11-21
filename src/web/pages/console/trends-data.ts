@@ -7,7 +7,7 @@ import { useCallback } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
-import { listQuery } from "@/web/lib/console-api";
+import { consoleGet, listQuery } from "@/web/lib/console-api";
 import { rangeStart, type RangeDays, type TrendPoint } from "./components/kpi";
 
 export interface MetricsRead {
@@ -44,9 +44,10 @@ export const trendsKeys = {
 };
 
 export const trendsApi = {
-  registry: () => api.get<MetricsRegistry>("/console/metrics/registry"),
-  read: (q: Record<string, string>) => api.get<MetricsRead>(`/console/metrics${listQuery(q)}`),
-  workspace: (id: string, days: RangeDays) => api.get<WorkspaceTrends>(`/console/metrics/workspaces/${encodeURIComponent(id)}${listQuery({ days: String(days) })}`),
+  // Reads through consoleGet: one request, the server's own message on an error, no silent retries.
+  registry: () => consoleGet<MetricsRegistry>("/console/metrics/registry"),
+  read: (q: Record<string, string>) => consoleGet<MetricsRead>(`/console/metrics${listQuery(q)}`),
+  workspace: (id: string, days: RangeDays) => consoleGet<WorkspaceTrends>(`/console/metrics/workspaces/${encodeURIComponent(id)}${listQuery({ days: String(days) })}`),
   backfill: (body: { days: number; reason: string }) => api.post<RunSummary>("/console/metrics/backfill", body),
 };
 

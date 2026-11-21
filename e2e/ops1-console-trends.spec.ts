@@ -2,7 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { mockConsoleMe } from "./support/console-me";
 
 /**
- * OPS1 Trends: a workspace's Trends tab at /console/workspaces/:id/trends. The operator, the workspace and its trends
+ * OPS1 Trends: the trend charts on a workspace's Usage tab (/console/workspaces/:id/usage; the old /trends address
+ * redirects there, keeping ?range=). The operator, the workspace and its trends
  * are mocked (GET /api/console/me, /api/console/workspaces/:id..., /api/console/metrics/workspaces/:id); the server's
  * own checks are covered by tests/console-metrics-routes.test.ts.
  *
@@ -65,11 +66,16 @@ async function mockTrends(page: Page) {
   return asked;
 }
 
-test("a workspace's Trends tab shows mail, AI and daily usage, and the range is kept in the address", async ({ page }) => {
+test("a workspace's Usage tab shows limits, then mail, AI and daily usage trends, and the range is kept in the address", async ({ page }) => {
   await mockConsoleMe(page, "ops_readonly");
   const asked = await mockTrends(page);
   await signUp(page);
+  // The old Trends address opens the merged Usage tab.
   await page.goto(`/console/workspaces/${ORG}/trends`);
+  await expect(page).toHaveURL(new RegExp(`/console/workspaces/${ORG}/usage$`), { timeout: 15_000 });
+  await expect(page.getByRole("link", { name: "Usage" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Trends" })).toHaveCount(0);
+  await expect(page.getByTestId("console-workspaces-usage-limits")).toBeVisible();
 
   const tab = page.getByTestId("console-workspace-trends");
   await expect(tab).toBeVisible({ timeout: 15_000 });
@@ -102,7 +108,7 @@ test("a workspace's Trends tab shows mail, AI and daily usage, and the range is 
   await expect(usage).toContainText("Chat messages received per day.");
 });
 
-test("a workspace's Trends tab says when there is no data, and shows an error with a retry", async ({ page }) => {
+test("a workspace's Usage trends say when there is no data, and shows an error with a retry", async ({ page }) => {
   await mockConsoleMe(page, "admin");
   await page.route(`**/api/console/workspaces/${ORG}**`, (r) => r.fulfill({ json: workspace }));
   let fail = true;
@@ -112,7 +118,8 @@ test("a workspace's Trends tab says when there is no data, and shows an error wi
     return r.fulfill({ json: { ...t, series: { ...t.series, ai_calls: t.days.map(() => null), ai_units: t.days.map(() => null), "usage:d1_rows": undefined, "usage:chat_in": undefined } } });
   });
   await signUp(page);
-  await page.goto(`/console/workspaces/${ORG}/trends`);
+  await page.goto(`/console/workspaces/${ORG}/trends?range=7`);
+  await expect(page).toHaveURL(new RegExp(`/console/workspaces/${ORG}/usage\\?range=7$`), { timeout: 15_000 });
   const mail = page.getByTestId("console-workspace-trends-mail");
   await expect(mail.getByTestId("chart-error")).toBeVisible({ timeout: 20_000 });
   fail = false;

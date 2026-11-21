@@ -53,7 +53,7 @@ test("the users list renders and a filter updates the address", async ({ page })
   await expect(page.getByTestId("console-users-row")).toHaveText("Ada Lovelace");
   const table = page.getByRole("region", { name: "Users" });
   await expect(table.getByText("ada@acme.example")).toBeVisible();
-  await expect(table.getByText("Unverified")).toBeVisible();
+  await expect(table.getByText("Email not confirmed")).toBeVisible();
 
   await page.getByRole("combobox", { name: "Banned", exact: true }).selectOption("true");
   await expect(page).toHaveURL(/[?&]banned=true/);
@@ -77,6 +77,13 @@ test("Ban opens the reason dialog and sends the reason; tabs show workspaces and
   await page.goto("/console/users/usr_ada");
   await expect(page.getByRole("heading", { name: "Ada Lovelace", level: 1 })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("console-users-email")).toHaveText("ada@acme.example");
+  // The same header as a workspace: "All users" back link, no eyebrow, a copy icon button, shared badges.
+  await expect(page.getByTestId("console-back-link")).toHaveText("All users");
+  await expect(page.getByRole("button", { name: "Copy email", exact: true })).toBeVisible();
+  await expect(page.getByTestId("console-users-badges")).toContainText("Two-step off");
+  // Five tabs (Lockout is part of Sign in) and no plain count badges on them.
+  await expect(page.getByRole("tablist", { name: "Account sections" }).getByRole("tab")).toHaveText(["Profile", "Workspaces", "Sessions", "Sign in", "Notes"]);
+  await expect(page.getByRole("tabpanel")).toContainText("English");
 
   await page.getByTestId("console-users-tab-workspaces").click();
   await expect(page).toHaveURL(/[?&]tab=workspaces/);
@@ -101,13 +108,25 @@ test("Ban opens the reason dialog and sends the reason; tabs show workspaces and
   await expect(page.getByRole("menuitem", { name: "Delete account" })).toBeVisible();
 });
 
+test("the old Lockout tab opens Sign in, which shows the lockout; ?org= is kept across tabs", async ({ page }) => {
+  await signUp(page, "Olive Operator");
+  await mockConsoleMe(page, "admin");
+  await mockUsers(page);
+  await page.goto("/console/users/usr_ada?org=org_acme&tab=lockout");
+  await expect(page).toHaveURL(/[?&]tab=signin/, { timeout: 15_000 });
+  await expect(page.getByTestId("console-users-tab-signin")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("console-users-lockout")).toContainText("Locked");
+  await expect(page.getByTestId("console-users-clear-lockout-tab")).toBeVisible();
+  await expect(page.getByTestId("console-users-tab-sessions")).toHaveAttribute("href", /org=org_acme/);
+});
+
 test("a read only operator sees the account but no actions", async ({ page }) => {
   await signUp(page, "Rory Readonly");
   await mockConsoleMe(page, "ops_readonly");
   await mockUsers(page);
   await page.goto("/console/users/usr_ada");
   await expect(page.getByRole("heading", { name: "Ada Lovelace", level: 1 })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("console-users-badges")).toContainText("Unverified");
+  await expect(page.getByTestId("console-users-badges")).toContainText("Email not confirmed");
   await expect(page.getByTestId("console-users-ban")).toHaveCount(0);
   await expect(page.getByTestId("console-users-more")).toHaveCount(0);
   await page.getByTestId("console-users-tab-sessions").click();

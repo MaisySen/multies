@@ -152,6 +152,10 @@ describe("workspace changes", { timeout: 60_000 }, () => {
 
     const audit = await readonly.get(`/api/console/workspaces/${custOrg}/audit?source=platform`);
     expect(audit.body.items.map((x: { action: string }) => x.action)).toEqual(expect.arrayContaining(["workspace.suspended", "workspace.unsuspended"]));
+    // Targets by name (withAuditNames) and the operator's id, as on the global audit log.
+    const suspendedRow = audit.body.items.find((x: { action: string }) => x.action === "workspace.suspended");
+    expect(suspendedRow).toMatchObject({ targetType: "workspace", targetId: custOrg, targetLabel: "Zephyr Rockets", actorEmail: "sup@ops.test" });
+    expect(typeof suspendedRow.actorUserId).toBe("string");
   });
 
   it("send cap, sending switch and call minutes cap", async () => {
