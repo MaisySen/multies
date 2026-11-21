@@ -12,7 +12,7 @@ import { lt } from "drizzle-orm";
 import { agentTriggers, automations, dataMoves, flowDigestItems, flowRuns, flowWatches, jobs, mailboxAccessLog, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
-import { checkWriteBudget } from "./write-budget";
+import { checkWriteBudget, optionalWritesPaused } from "./write-budget";
 import { randomToken } from "../lib/crypto";
 import { pruneRateLimits } from "../lib/rate-limit";
 import { pruneIdempotencyKeys } from "../lib/idempotency";
@@ -111,7 +111,13 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   // OPS1 Trends: the platform metrics rollup. One index probe when yesterday is already stored, so in practice it writes
   // once a day (the first slot 0 pass after midnight UTC) and skips itself while optional writes are paused.
   if (inSlot(0)) await step("platform_metrics", async () => (await import("./console/metrics")).rollPlatformMetrics(deps, deps.now()));
-  // OPS1: follow-up, wire billing-ops expireComps (comped plans past their end date) here once the Billing console lands.
+  // OPS1 Billing: comped plans past their end date end (each audited billing.comp_expired). Once a day, in the slot 0
+  // pass of the midnight UTC hour (every pass without rotate), next to the metrics rollup: one read of the comped
+  // workspaces (comp_until has no index, so not every hour); skipped while optional writes are paused.
+  if (inSlot(0) && (slot < 0 || deps.now().getUTCHours() === 0)) await step("comp_expiry", async () => {
+    if (await optionalWritesPaused(deps)) { deps.log?.warn("billing.comp_expiry_skipped", { reason: "writes_paused" }); return undefined; }
+    return (await import("./console/billing-ops")).expireComps(deps);
+  });
   if (inSlot(1)) await step("prune", async () => {
     await Promise.all([
       pruneRateLimits(deps.db, deps.now().getTime()), pruneIdempotencyKeys(deps.db, deps.now()), pruneLockouts(deps.db, deps.now()),

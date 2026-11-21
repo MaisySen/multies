@@ -591,7 +591,7 @@ export async function handleStripeWebhook(deps: Deps, rawBody: string, signature
     default:
       break;
   }
-  // OPS1-0174: the plain summary is stored once billing_events.summary exists (./ops1-0174.ts); until then it is dropped.
+  // OPS1-0174: the plain summary of the event is stored in billing_events.summary (./ops1-0174.ts).
   await deps.db.insert(billingEvents).values({ id: event.id, type: event.type, orgId, ...billingEventSummaryField(summarizeStripeEvent(event.type, obj)) }).onConflictDoNothing();
   return { duplicate: false, type: event.type, orgId };
 }
