@@ -14,11 +14,11 @@
  * Writes: setFlagOverride and clearFlagOverride change one row, drop this isolate's memo, and return
  * { before, after } for the caller's platform audit row.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { AppConfig } from "../../config";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
-import { featureFlagOverrides } from "../../db/schema";
+import { featureFlagOverrides, mailLegalHolds } from "../../db/schema";
 import { FEATURE_FLAGS, flagDef, type FlagDef, type FlagKey, type FlagScope } from "@/shared/feature-flags";
 
 export type FlagDeps = Pick<Deps, "db" | "config" | "now">;
@@ -26,7 +26,7 @@ export type FlagDeps = Pick<Deps, "db" | "config" | "now">;
 export const FLAG_MEMO_MS = 60_000;
 export const GLOBAL_SCOPE = "";
 
-export type FlagErrorCode = "unknown_flag" | "not_runtime" | "global_only" | "lock_global_only" | "bad_scope";
+export type FlagErrorCode = "unknown_flag" | "not_runtime" | "global_only" | "lock_global_only" | "bad_scope" | "legal_hold_active";
 
 export class FlagError extends Error {
   constructor(readonly code: FlagErrorCode, message: string) {
@@ -186,6 +186,17 @@ export function featureVariesByWorkspace(deps: FlagDeps, key: FlagKey): boolean 
   return false;
 }
 
+/**
+ * Whether an operator has an override row of any scope for this flag (runtime flags only). Protective checks that
+ * used to be skipped while a flag was off use it to keep the old skip only for a deployment's own env value, never
+ * because of an operator switch.
+ */
+export function featureOverridden(deps: FlagDeps, key: FlagKey): boolean {
+  const def = mustDef(key);
+  const memo = currentMemo(deps.db);
+  return !!memo && def.runtime && (memo.global.has(def.key) || !!memo.workspace.get(def.key)?.size);
+}
+
 /** Every flag's value, globally or for one workspace. */
 export function effectiveFlags(deps: FlagDeps, orgId?: string | null): Record<FlagKey, boolean> {
   const memo = currentMemo(deps.db);
@@ -309,6 +320,26 @@ export interface SetFlagInput {
   updatedBy: string | null;
 }
 
+/**
+ * OPS1 legal holds: the mail archive's routes (where holds are listed and released) follow the mailArchive flag, so a
+ * change that would leave mailArchive off for a workspace with an active hold is refused. The holds themselves are
+ * enforced whatever the flag says (services/mail/archive-r111.ts). `change` is the override as it will be after the
+ * write (null: the row is removed). One indexed read of the active holds, only for mailArchive.
+ */
+export const LEGAL_HOLD_FLAG_MESSAGE = "This workspace has an active legal hold. Release the hold first.";
+async function assertHoldsKeepArchive(deps: FlagDeps, key: string, scopeId: string, change: FlagOverride | null): Promise<void> {
+  if (key !== "mailArchive") return;
+  const held = [...new Set((await deps.db.selectDistinct({ orgId: mailLegalHolds.orgId }).from(mailLegalHolds)
+    .where(isNull(mailLegalHolds.releasedAt))).map((r) => r.orgId))];
+  if (!held.length) return;
+  const rows = (await deps.db.select().from(featureFlagOverrides).where(eq(featureFlagOverrides.key, key))).map(toOverride)
+    .filter((r) => r.scopeId !== scopeId);
+  if (change) rows.push(change);
+  const memo = buildMemo(rows, 0, generation);
+  const def = mustDef(key);
+  if (held.some((orgId) => !evaluate(def, deps.config, memo, orgId))) throw new FlagError("legal_hold_active", LEGAL_HOLD_FLAG_MESSAGE);
+}
+
 /** Sets (or replaces) one override. Returns the row before and after, for the audit log. */
 export async function setFlagOverride(deps: FlagDeps, input: SetFlagInput): Promise<{ before: FlagOverride | null; after: FlagOverride }> {
   checkWritable(input.key, input.scopeId);
@@ -322,6 +353,7 @@ export async function setFlagOverride(deps: FlagDeps, input: SetFlagInput): Prom
     updatedBy: input.updatedBy,
     updatedAt: deps.now(),
   };
+  await assertHoldsKeepArchive(deps, input.key, input.scopeId, { key: input.key, scopeId: input.scopeId, value: input.value, locked, note: null, updatedBy: null, updatedAt: values.updatedAt });
   await deps.db.insert(featureFlagOverrides).values({ key: input.key, scopeId: input.scopeId, ...values })
     .onConflictDoUpdate({ target: [featureFlagOverrides.key, featureFlagOverrides.scopeId], set: values });
   invalidateFlagOverrides(deps);
@@ -333,6 +365,7 @@ export async function setFlagOverride(deps: FlagDeps, input: SetFlagInput): Prom
 export async function clearFlagOverride(deps: FlagDeps, input: { key: string; scopeId: string }): Promise<{ before: FlagOverride | null; after: null }> {
   checkWritable(input.key, input.scopeId);
   const before = await readRow(deps.db, input.key, input.scopeId);
+  if (before) await assertHoldsKeepArchive(deps, input.key, input.scopeId, null);
   if (before) {
     await deps.db.delete(featureFlagOverrides)
       .where(and(eq(featureFlagOverrides.key, input.key), eq(featureFlagOverrides.scopeId, input.scopeId)));

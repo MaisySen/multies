@@ -11,7 +11,7 @@ import { HttpError } from "../lib/errors";
 import { audit } from "./audit";
 import { keyFallbackOn } from "./ai/keys"; // QUAL1
 import { AI_OFF_MESSAGE, whereOf } from "@/shared/ask-td1";
-import { featureOn } from "./console/flags"; // OPS1 feature flags
+import { featureOn, featureOverridden } from "./console/flags"; // OPS1 feature flags
 
 export interface AiTrustState {
   /** Whether the trust controls are live (ASK_TD1). */
@@ -39,7 +39,9 @@ async function rows(deps: Deps, orgId: string) {
 
 /** Whether AI may run in this workspace. Never throws on a read failure: a failed read counts as off when the controls are live. */
 export async function aiAllowed(deps: Deps, orgId: string): Promise<boolean> {
-  if (!featureOn(deps, "askTd1", orgId)) return true; // OPS1: per workspace flag
+  // OPS1: a workspace admin's AI off is a privacy control, so an operator switch never lifts it: the env-off skip
+  // (no read, AI allowed) stands only while askTd1 is off by the deployment's env and no operator override exists.
+  if (!featureOn(deps, "askTd1", orgId) && !featureOverridden(deps, "askTd1")) return true;
   try {
     const trust = await trustRow(deps, orgId);
     return trust ? !!trust.enabled : true;

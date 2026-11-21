@@ -256,13 +256,15 @@ async function anyHeld(deps: Deps, orgId: string, boxIds: string[], senders: str
 }
 /** Guard for every person driven permanent delete: 409 when any (non draft) message is under a legal hold. */
 export async function assertNotHeld(deps: Deps, orgId: string, rows: HeldRow[]) {
-  if (!featureOn(deps, "mailArchive", orgId)) return; // OPS1: per workspace flag
+  // OPS1: enforced whatever the mailArchive flag says: an active hold is a compliance control. With no hold rows the
+  // read below finds none and nothing is refused (the env-off behaviour, at the cost of one indexed read).
   const kept = rows.filter((r) => r.folder !== "drafts");
   if (!kept.length) return;
   if (await anyHeld(deps, orgId, kept.map((r) => r.mailboxId), kept.map((r) => r.sentByUserId).filter((u): u is string => !!u))) throw legalHold("mail");
 }
 export async function assertMailboxNotHeld(deps: Deps, orgId: string, mailboxId: string) {
-  if (!featureOn(deps, "mailArchive", orgId)) return; // OPS1: per workspace flag
+  // OPS1: enforced whatever the mailArchive flag says: an active hold is a compliance control. With no hold rows the
+  // read below finds none and nothing is refused (the env-off behaviour, at the cost of one indexed read).
   if (await anyHeld(deps, orgId, [mailboxId], [])) throw legalHold("mailbox");
 }
 

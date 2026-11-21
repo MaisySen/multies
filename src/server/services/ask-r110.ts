@@ -281,7 +281,7 @@ export async function askQuestion(deps: Deps, actor: SuiteActor, input: { questi
   if (question.length > ASK_QUESTION_MAX) throw new HttpError(422, "validation_failed", `Keep the question under ${ASK_QUESTION_MAX} characters.`);
   if (await excluded(deps, actor.orgId)) throw new HttpError(403, "ask_unavailable", EXCLUDED_MESSAGE);
   const td1 = featureOn(deps, "askTd1", actor.orgId); // OPS1: per workspace flag
-  if (td1) await assertAiAllowed(deps, actor.orgId); // TD1: AI off means nothing is read and no provider call
+  await assertAiAllowed(deps, actor.orgId); // TD1: AI off means nothing is read and no provider call (OPS1: aiAllowed decides, whatever the flag)
   const threadId = input.threadId ? String(input.threadId) : null;
   const thread = threadId ? await threadOf(deps, actor.orgId, userId, threadId) : null;
   const [last] = thread ? await deps.db.all<{ question: string; answer: string; sources: string }>(sql`select question, answer, sources from ask_messages where thread_id = ${thread.id} and status = 'answered' order by created_at desc limit 1`) : [];
@@ -500,7 +500,7 @@ export async function deletePrompt(deps: Deps, actor: SuiteActor, id: string) {
 export async function askState(deps: Deps, actor: SuiteActor) {
   assertPerson(actor);
   if (await excluded(deps, actor.orgId)) return { available: false, reason: EXCLUDED_MESSAGE };
-  if (featureOn(deps, "askTd1", actor.orgId) && !(await aiAllowed(deps, actor.orgId))) {
+  if (!(await aiAllowed(deps, actor.orgId))) { // OPS1: a workspace's AI off holds whatever the askTd1 flag says
     // TD1: an admin turned AI off. Admins get the switch; members get who to ask.
     const admin = actor.role === "owner" || actor.role === "admin";
     return { available: false, reason: admin ? AI_OFF_MESSAGE : AI_OFF_MEMBER, aiOff: true, canEnable: admin };

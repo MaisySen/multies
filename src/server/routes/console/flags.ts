@@ -18,7 +18,8 @@
  * DELETE /api/console/flags/:key/workspaces/:orgId   { reason }  flags.workspace; audit flags.workspace_cleared
  *
  * The registry is small and lives in code, so lists page in memory: the cursor names the last flag (or workspace) of
- * the page. FlagError codes map to 404 (unknown flag) or 400 (set at deploy, platform wide only, lock on a workspace).
+ * the page. FlagError codes map to 404 (unknown flag), 409 (mailArchive off over an active legal hold) or 400 (set at deploy,
+ * platform wide only, lock on a workspace).
  * Changes reach other servers within a minute (the overrides are kept 60 seconds per isolate).
  */
 import { Hono, type Context } from "hono";
@@ -102,7 +103,7 @@ const matches = (q: string, ...fields: (string | null | undefined)[]) => {
 
 /** A FlagError as an HTTP error with its plain message: unknown flag is 404, the rest 400. */
 function asHttp(e: unknown): never {
-  if (e instanceof FlagError) throw new HttpError(e.code === "unknown_flag" ? 404 : 400, e.code, e.message);
+  if (e instanceof FlagError) throw new HttpError(e.code === "unknown_flag" ? 404 : e.code === "legal_hold_active" ? 409 : 400, e.code, e.message);
   throw e;
 }
 

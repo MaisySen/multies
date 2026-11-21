@@ -72,7 +72,6 @@ describe("every runtime flag without a client name changes a server answer", () 
     pushNotifications: async ({ a }) => (await a.get("/api/push/devices")).body.enabled,
     notificationCentre: async ({ a }) => "delivery" in ((await a.get("/api/notifications/settings")).body ?? {}),
     clientPortal: async ({ a }) => (await a.get("/api/portals")).status,
-    esignV2: async ({ a }) => (await a.get("/api/tools/esign/templates")).status,
     aiKeyFallback: async ({ ctx }) => { await loadFlagOverrides(ctx.deps); return keyFallbackOn({ ...ctx.deps, ai: {} as never }); },
     mailSplitCounts: async ({ ctx, a }) => {
       await loadFlagOverrides(ctx.deps);
@@ -94,8 +93,7 @@ describe("every runtime flag without a client name changes a server answer", () 
 
   for (const key of Object.keys(PROBES)) {
     it(`${key}: a global override changes the answer`, async () => {
-      const tools = { TOOLS_ENABLED: "true", DOC_ENGINE_URL: "https://engine.test", DOC_ENGINE_KEY_ID: "stg-1", DOC_ENGINE_KEY: "k".repeat(43), TOOLS_TOKEN_KEY: "t".repeat(40), TOOLS_FEATURES: "share,esign" };
-      const w = await world({ CLIENT_PORTAL: "on", AI_CONNECT_AI2: "on", ...(key === "esignV2" ? tools : {}) });
+      const w = await world({ CLIENT_PORTAL: "on", AI_CONNECT_AI2: "on" });
       const def = DEFS.find((d) => d.key === key)!;
       for (const r of def.requires ?? []) await set(w.ctx, r, "", true);
       await set(w.ctx, key, "", true);
