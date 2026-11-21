@@ -574,3 +574,27 @@ export async function listWorkspaceAudit(deps: Pick<Deps, "db">, orgId: string, 
     };
   });
 }
+
+// ---- limits ----------------------------------------------------------------------------------------------------
+
+export interface WorkspaceCapResult { orgId: string; before: { cap: number | null }; after: { cap: number | null } }
+
+/**
+ * A workspace's daily send cap, the same write `PUT /api/admin/workspaces/:id/send-cap` makes: a number of outside
+ * sends a day, or null to go back to the plan's cap (0 is the sending switch turned off). 404 for an unknown workspace.
+ */
+export async function setWorkspaceSendCap(deps: Pick<Deps, "db">, orgId: string, cap: number | null): Promise<WorkspaceCapResult> {
+  const org = await getOrg(deps.db, orgId);
+  await deps.db.update(organizations).set({ sendCapDaily: cap }).where(eq(organizations.id, org.id));
+  return { orgId: org.id, before: { cap: org.sendCapDaily }, after: { cap } };
+}
+
+/**
+ * A workspace's call minutes a month, the same write `PUT /api/admin/workspaces/:id/meeting-cap` makes: null goes
+ * back to the plan's rule, 0 blocks new calls. 404 for an unknown workspace.
+ */
+export async function setWorkspaceMeetingCap(deps: Pick<Deps, "db">, orgId: string, cap: number | null): Promise<WorkspaceCapResult> {
+  const org = await getOrg(deps.db, orgId);
+  await deps.db.update(organizations).set({ meetingMinutesCap: cap }).where(eq(organizations.id, org.id));
+  return { orgId: org.id, before: { cap: org.meetingMinutesCap }, after: { cap } };
+}
