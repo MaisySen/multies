@@ -234,6 +234,7 @@ const DeveloperSettings = lazyPage(() => import("./pages/app/developers"), "Deve
 const DeliverabilityPage = lazyPage(() => import("./pages/app/deliverability"), "DeliverabilityPage");
 const StatusPage = lazyPage(() => import("./pages/status"), "StatusPage");
 const ChangelogPage = lazyPage(() => import("./pages/changelog"), "ChangelogPage"); // R53 MB-133
+const MousyPage = lazyPage(() => import("./pages/mousy"), "MousyPage");
 const FeaturesIndexPage = lazyPage(() => import("./pages/features"), "FeaturesIndexPage"); // W1
 const FeatureAreaRoute = lazyPage(() => import("./pages/features"), "FeatureAreaRoute"); // W1
 const ThanksPage = lazyPage(() => import("./pages/thanks"), "ThanksPage");
@@ -267,6 +268,7 @@ export const router = createBrowserRouter([
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/changelog", element: publicPage(<ChangelogPage />) }, // R53: What's new
       { path: "/whats-new", element: publicPage(<ChangelogPage />) }, // W1: the public What's new address
+      { path: "/mousy", element: publicPage(<MousyPage />) },
       { path: "/features", element: publicPage(<FeaturesIndexPage />) }, // W1
       { path: "/features/:area", element: publicPage(<FeatureAreaRoute />) }, // W1: one page per product area
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
