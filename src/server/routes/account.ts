@@ -3,7 +3,7 @@ import { optionalWritesPaused } from "../services/write-budget";
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, count, desc, eq, gt, isNotNull, like, ne, notLike, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNotNull, isNull, like, ne, notLike, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { parseBody, requireAuth } from "../middleware";
@@ -215,7 +215,9 @@ export function accountRoutes() {
     .get("/sessions", async (c) => {
       const { auth, deps } = c.var;
       const rows = await deps.db.select({ id: sessions.id, ipAddress: sessions.ipAddress, userAgent: sessions.userAgent, createdAt: sessions.createdAt, updatedAt: sessions.updatedAt })
-        .from(sessions).where(and(eq(sessions.userId, auth.userId), gt(sessions.expiresAt, deps.now()))).orderBy(desc(sessions.updatedAt)).limit(50).all();
+        // OPS1 impersonation: an operator's support session is not the person's device, so it is not listed (nor can it be
+        // signed out from here mid support); the workspace's activity log records that it happened.
+        .from(sessions).where(and(eq(sessions.userId, auth.userId), gt(sessions.expiresAt, deps.now()), isNull(sessions.impersonatedBy))).orderBy(desc(sessions.updatedAt)).limit(50).all();
       c.header("cache-control", "no-store");
       return c.json({ sessions: rows.map((r) => ({ ...r, current: r.id === auth.sessionId })) });
     })
@@ -246,17 +248,22 @@ export function accountRoutes() {
       // a sign in move gives them a new sign in identity). They use the workspace zone until they
       // set their own in Settings.
       const established = workspaceOnboarded && (auth.role !== "member" || personPredates(prefs?.createdAt, onboardedAt));
+      // OPS1 impersonation: the banner's data; and while viewed, no onboarding or invite prompt (those would write).
+      const imp = auth.impersonation ?? null;
       return c.json({
         user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: isOperatorRole(auth.platformRole), timezone: prefs?.timezone ?? (established ? org?.timezone ?? null : null), locale: prefs?.locale ?? null },
         organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role, timezone: org.timezone, country: org.country, requireSso: org.requireSso, onboarded: workspaceOnboarded } : null,
         // A short onboarding once per person (their zone and language), plus the workspace's name, country and zone for its owner or admins.
         onboarding: {
-          needed: !!org && !org.isDemo && !prefs?.timezone && !established,
-          workspace: !!org && !org.isDemo && !workspaceOnboarded && auth.role !== "member",
+          needed: !imp && !!org && !org.isDemo && !prefs?.timezone && !established,
+          workspace: !imp && !!org && !org.isDemo && !workspaceOnboarded && auth.role !== "member",
         },
-        session: { loginMethod: auth.loginMethod ?? "email", ssoBlocked: !!auth.ssoBlocked },
+        session: {
+          loginMethod: auth.loginMethod ?? "email", ssoBlocked: !!auth.ssoBlocked,
+          impersonation: imp ? { mode: imp.mode, expiresAt: imp.expiresAt.toISOString(), secondsLeft: Math.max(0, Math.floor((imp.expiresAt.getTime() - c.var.deps.now().getTime()) / 1000)), operatorEmail: imp.operatorEmail } : null,
+        },
         hasPassword: extras.hasPassword,
-        pendingInvites: extras.pendingInvites,
+        pendingInvites: imp ? [] : extras.pendingInvites,
       });
     })
     .post("/onboarding", async (c) => {

@@ -3,7 +3,7 @@ import type { DB } from "../db";
 import { auditLogs } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { containsText, startsWithText } from "../lib/like-search";
-import { stampFor } from "../lib/request-caller";
+import { impersonatorOfRequest, stampFor } from "../lib/request-caller";
 
 export interface AuditEntry {
   orgId: string;
@@ -27,7 +27,9 @@ export interface AuditEntry {
  */
 export async function audit(db: DB, e: AuditEntry): Promise<void> {
   const req = stampFor(e);
-  const metadata = req?.caller && !(e.metadata && "caller" in e.metadata) ? { ...(e.metadata ?? {}), caller: req.caller } : e.metadata;
+  let metadata = req?.caller && !(e.metadata && "caller" in e.metadata) ? { ...(e.metadata ?? {}), caller: req.caller } : e.metadata;
+  const impersonatedBy = impersonatorOfRequest(); // OPS1 impersonation: a write made while acting as the person names the operator
+  if (impersonatedBy) metadata = { ...(metadata ?? {}), impersonatedBy };
   await db.insert(auditLogs).values({
     id: newId("aud"),
     orgId: e.orgId,

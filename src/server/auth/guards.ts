@@ -16,6 +16,7 @@ import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
 import { autoWorkspaceName } from "@/shared/person-name";
 import { REFERRAL_COOKIE } from "@/shared/referral-link";
 import { isOperatorRole } from "@/shared/operator-permissions";
+import { activeImpersonationFor, ALWAYS_BLOCKED_MESSAGE, impersonationBlock, VIEW_ONLY_MESSAGE } from "../services/console/impersonation"; // OPS1 impersonation
 
 /*
  * Route guards. Every route that acts for a person goes through requireAuth (the session
@@ -42,6 +43,13 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   }
   if (!s) return null;
   const { db } = deps;
+  // OPS1 impersonation: an operator's "View as" session. Its operator_impersonations row (one indexed read) decides
+  // whether it is still usable, and with what mode; no row, an ended row or one past OUR expiry deletes the session.
+  // Such a session never runs the sign in side effects below (invite joins, a new workspace, referral, operator
+  // bootstrap): a page load while viewing as someone must never write on their behalf.
+  const impersonatedBy = (s.session as { impersonatedBy?: string | null }).impersonatedBy ?? null;
+  const impersonation = impersonatedBy ? await activeImpersonationFor(db, { id: s.session.id, userId: s.user.id, impersonatedBy }, deps.now()) : null;
+  if (impersonatedBy && !impersonation) return null;
   // The membership and the workspace's SSO rule in one query: on D1 each query is a round trip.
   const memberWithOrg = (where: ReturnType<typeof and>) => db.select({ member: members, requireSso: organizations.requireSso })
     .from(members).innerJoin(organizations, eq(organizations.id, members.organizationId)).where(where).get();
@@ -54,7 +62,7 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   // R41 (MB-221, MB-202): a brand new person whose confirmed email has a pending invitation joins that
   // workspace on their first sign in, instead of getting a personal workspace and its setup. One indexed
   // lookup by email, only on this first sign in path (never on a signed in read).
-  if (!member && s.user.emailVerified) {
+  if (!member && s.user.emailVerified && !impersonation) { // OPS1 impersonation: never joins for the person
     const joined = await joinPendingInviteOnFirstSignIn(deps, headers, s.user, s.session.id);
     if (joined) {
       found = await memberWithOrg(and(eq(members.userId, s.user.id), eq(members.organizationId, joined)));
@@ -62,6 +70,8 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
       requireSso = found?.requireSso ?? false;
     }
   }
+  // OPS1 impersonation: a person with no workspace left is not set up one while viewed (the session reads as signed out).
+  if (!member && impersonation) return null;
   if (!member) {
     // AIS1 (audit row 1): an account made before the fix whose address reaches an AI agent never gets a workspace of
     // its own either. Only on this no workspace path (a first sign in), never on a member's signed in read: a few
@@ -99,19 +109,21 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   if (member.organizationId !== s.session.activeOrganizationId) {
     await db.update(sessions).set({ activeOrganizationId: member.organizationId }).where(eq(sessions.id, s.session.id));
   }
-  let platformRole = s.user.role ?? "user";
+  // OPS1 impersonation: an impersonated session is never an operator, whatever the person's role.
+  let platformRole = impersonation ? "user" : s.user.role ?? "user";
   // Bootstrap operators: listed user ids, or listed emails once the address is verified
   // (an unverified address proves nothing; anyone could have signed up with it).
   const listed = deps.config.platformAdmins.includes(s.user.id.toLowerCase())
     || (s.user.emailVerified && deps.config.platformAdmins.includes(s.user.email.toLowerCase()));
-  if (platformRole !== "admin" && listed) {
+  if (!impersonation && platformRole !== "admin" && listed) { // OPS1 impersonation: no bootstrap promotion
     await db.update(users).set({ role: "admin" }).where(eq(users.id, s.user.id));
     platformRole = "admin";
   }
   // Workspaces that require SSO: everyone but the owner (the break glass account) must
   // have signed in this session through an SSO provider.
   const loginMethod = (s.session as { loginMethod?: string | null }).loginMethod ?? "email";
-  const ssoBlocked = ssoBlocks(requireSso, member.role, loginMethod);
+  // OPS1 impersonation: support can open a workspace that requires SSO (the operator signed in to the console instead).
+  const ssoBlocked = impersonation ? false : ssoBlocks(requireSso, member.role, loginMethod);
   return {
     ssoBlocked, loginMethod,
     userId: s.user.id, email: s.user.email, name: s.user.name, orgId: member.organizationId, role: member.role,
@@ -119,7 +131,8 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
     platformRole,
     // OPS1: Better Auth's session row carries createdAt, and impersonatedBy from the admin plugin's schema.
     sessionCreatedAt: s.session.createdAt instanceof Date ? s.session.createdAt : new Date(s.session.createdAt),
-    impersonatedBy: (s.session as { impersonatedBy?: string | null }).impersonatedBy ?? null,
+    impersonatedBy,
+    impersonation, // OPS1 impersonation
   };
 }
 
@@ -235,7 +248,8 @@ export async function resolveAuthCached(deps: Deps, headers: Headers, method: st
   // A write can change what the session points at (accepting an invite, switching workspace), so only reads
   // fill the cache. /me reads a copy another read made but never fills one (it is the first call after sign in).
   if (!read || me) return auth;
-  if (auth) {
+  // OPS1 impersonation: an impersonated session is never kept, so ending it (Stop, the console, a demoted operator) shows at once.
+  if (auth && !auth.impersonatedBy) {
     if (authCache.size >= AUTH_CACHE_MAX) authCache.delete(authCache.keys().next().value as string);
     authCache.set(key, { auth, until: now + AUTH_CACHE_MS, mark });
   } else {
@@ -246,8 +260,9 @@ export async function resolveAuthCached(deps: Deps, headers: Headers, method: st
 
 /** Requires a valid session; populates `c.var.auth`. */
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const auth = await resolveAuthCached(c.var.deps, c.req.raw.headers, c.req.method, c.req.path);
+  let auth = await resolveAuthCached(c.var.deps, c.req.raw.headers, c.req.method, c.req.path);
   if (!auth) throw unauthorized();
+  if (auth.impersonatedBy) auth = await enforceImpersonation(c, auth); // OPS1 impersonation
   // A workspace that requires SSO only lets password sessions reach account level routes
   // (profile, export, switching workspaces), so the person can still move or leave.
   if (auth.ssoBlocked && !c.req.path.startsWith("/api/account")) {
@@ -258,6 +273,25 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   await enforceWorkspaceBudget(c, auth.orgId);
   await next();
 };
+
+/**
+ * OPS1 impersonation: what an impersonated session may do here. A cached copy past OUR expiry is read afresh (which
+ * deletes the session and answers 401); then the always blocked list (both modes) and, in view mode, every write.
+ */
+async function enforceImpersonation(c: Context<AppEnv>, cached: AuthContext): Promise<AuthContext> {
+  let auth: AuthContext | null = cached;
+  if (!auth.impersonation || auth.impersonation.expiresAt.getTime() <= c.var.deps.now().getTime()) {
+    forgetCachedAuth(c.req.raw.headers);
+    auth = await resolveAuth(c.var.deps, c.req.raw.headers);
+    if (!auth) throw unauthorized();
+  }
+  const imp = auth.impersonation;
+  if (!imp) throw unauthorized();
+  const block = impersonationBlock(imp.mode, c.req.method, c.req.path);
+  if (block === "always") throw new HttpError(403, "impersonation_blocked", ALWAYS_BLOCKED_MESSAGE);
+  if (block === "view") throw new HttpError(403, "impersonation_blocked", VIEW_ONLY_MESSAGE);
+  return auth;
+}
 
 /**
  * Operators only. OPS1: any operator role (src/shared/operator-permissions.ts) passes; routes that need a particular

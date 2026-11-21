@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { signUpAs } from "./console-kit";
-import { platformAuditLogs, sessions, users } from "@/server/db/schema";
+import { operatorImpersonations, platformAuditLogs, sessions, users } from "@/server/db/schema";
 import { permissionsOf } from "@/shared/operator-permissions";
 
 const roleOf = async (ctx: Awaited<ReturnType<typeof makeTestApp>>, id: string) => (await ctx.db.select({ role: users.role }).from(users).where(eq(users.id, id)).get())?.role;
@@ -51,7 +51,11 @@ describe("/api/console/me", () => {
   it("refuses an impersonation session", async () => {
     const ctx = await makeTestApp();
     const { c: ops, id } = await signUpAs(ctx, "ops@ops.test", "admin");
-    await ctx.db.update(sessions).set({ impersonatedBy: "usr_someone" }).where(eq(sessions.userId, id));
+    const { id: support } = await signUpAs(ctx, "support@ops.test", "ops_support");
+    await ctx.db.update(sessions).set({ impersonatedBy: support }).where(eq(sessions.userId, id));
+    // OPS1 impersonation: an impersonated session is only usable with its operator_impersonations row (else it reads as signed out).
+    const s = (await ctx.db.select().from(sessions).where(eq(sessions.userId, id)).get())!;
+    await ctx.db.insert(operatorImpersonations).values({ id: "imp_test", operatorUserId: support, targetUserId: id, sessionId: s.id, mode: "view", reason: "test", startedAt: new Date(), expiresAt: new Date(Date.now() + 30 * 60_000) });
     const r = await ops.get("/api/console/me");
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe("impersonating");

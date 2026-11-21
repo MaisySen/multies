@@ -3,7 +3,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { safeNext, newWebLinkCode, isWellFormedCode, webLinkIdentifier, WEB_LINK_TTL_SECONDS } from "@/server/auth/mobile-web-link";
 import { scrubEvent } from "@/shared/sentry-scrub";
-import { members, organizations, sessions, users, verifications } from "@/server/db/schema";
+import { members, operatorImpersonations, organizations, sessions, users, verifications } from "@/server/db/schema";
 import { RATE_LIMITS } from "@/server/lib/rate-limit";
 import { newId } from "@/server/lib/crypto";
 import { API_CSP } from "@/server/lib/security-headers";
@@ -211,7 +211,11 @@ describe("MH1 app to web sign in handoff", () => {
 
   it("refuses an operator's view as session", async () => {
     const { db, phone, me } = await setup();
+    await db.insert(users).values({ id: "usr_operator", email: "operator@ops.test", name: "Op", emailVerified: true, role: "ops_admin" });
     await db.update(sessions).set({ impersonatedBy: "usr_operator" }).where(eq(sessions.userId, me.user?.id ?? me.id));
+    // OPS1 impersonation: an impersonated session is only usable with its operator_impersonations row (else it reads as signed out).
+    const s = (await db.select().from(sessions).where(eq(sessions.userId, me.user?.id ?? me.id)).get())!;
+    await db.insert(operatorImpersonations).values({ id: "imp_test", operatorUserId: "usr_operator", targetUserId: s.userId, sessionId: s.id, mode: "act", reason: "test", startedAt: new Date(), expiresAt: new Date(Date.now() + 30 * 60_000) });
     expect((await phone.post("/api/auth/mobile/web-link")).status).toBe(403);
   });
 

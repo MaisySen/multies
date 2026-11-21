@@ -37,6 +37,7 @@ const authClientModule = () => import("@/web/lib/auth-client");
 import { clearOfflineData } from "@/web/lib/sw-client"; // R32
 import { scopeOf, setOfflineScope } from "@/web/lib/offline-lists"; // R33
 import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
+import { ImpersonationBanner } from "@/web/components/impersonation-banner"; // OPS1 impersonation
 import { useAnnounceWorkspace, WorkspaceSwitchedBanner } from "@/web/components/workspace-switched-banner-r58"; // R58 (MB-245)
 import { workspaceTabs } from "@/web/lib/workspace-tabs-r58"; // R58 (MB-245)
 import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"; // R39 (MB-202)
@@ -388,6 +389,7 @@ export function AppLayout() {
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
+      <ImpersonationBanner />{/* OPS1 impersonation: fixed at the very top while an operator views as this person */}
       <BrandTokens orgId={organization?.id} />
       {createPortal(content, mainHost)}
       {/* R79 (MB-278): the first Tab stop jumps past the navigation to the page. */}

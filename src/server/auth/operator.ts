@@ -20,6 +20,7 @@ import { HttpError, unauthorized } from "../lib/errors";
 import { noteRequestCaller } from "../lib/request-caller";
 import { resolveAuth } from "./guards";
 import { can, isOperatorRole, type OperatorRole, type Permission } from "@/shared/operator-permissions";
+import { IMPERSONATION_STOP_PATH } from "../services/console/impersonation"; // OPS1 impersonation
 
 export const NOT_OPERATOR_MESSAGE = "Only platform operators can do that.";
 
@@ -43,6 +44,13 @@ export const operatorSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (c.var.operator) return next();
   const auth = await resolveAuth(c.var.deps, c.req.raw.headers);
   if (!auth) throw unauthorized();
+  // OPS1 impersonation: Stop is the one console route an impersonated session reaches; it is not an operator here
+  // (c.var.operator stays unset) and the route's own guard checks the session (routes/console/impersonation.ts).
+  if (auth.impersonatedBy && c.req.method === "POST" && c.req.path === IMPERSONATION_STOP_PATH) {
+    c.set("auth", auth);
+    noteRequestCaller(auth);
+    return next();
+  }
   if (auth.impersonatedBy) throw new HttpError(403, "impersonating", "Stop viewing as this person first. The operator console is not available while you view as someone else.");
   if (!isOperatorRole(auth.platformRole)) throw new HttpError(403, "forbidden", NOT_OPERATOR_MESSAGE);
   if (!meetsTwoFactorRule(c.var.deps, auth)) {

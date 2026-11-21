@@ -87,6 +87,8 @@ export interface AuthContext {
   sessionCreatedAt?: Date;
   /** OPS1: the operator's user id when this session is an impersonation (Better Auth admin plugin), else null. */
   impersonatedBy?: string | null;
+  // OPS1 impersonation: the operator_impersonations row behind an impersonated session (mode and OUR expiry), else null.
+  impersonation?: import("./services/console/impersonation").ActiveImpersonation | null;
 }
 
 /** OPS1: the operator behind a /api/console (or /api/admin) request, set by operatorSession. */

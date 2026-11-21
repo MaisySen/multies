@@ -39,9 +39,11 @@ export interface CallerAuth extends CallerLike {
   keyPrefix?: string | null;
   /** resolveOAuthToken: the connected app's registered name. */
   clientName?: string | null;
+  /** OPS1 impersonation: the operator's user id when the session is an operator's "act as" session. */
+  impersonatedBy?: string | null;
 }
 
-interface NotedCaller { userId: string; email: string; stamp: CallerStamp | null; caused: CallerStamp | null }
+interface NotedCaller { userId: string; email: string; stamp: CallerStamp | null; caused: CallerStamp | null; impersonatedBy?: string | null }
 interface RequestCaller { ip: string | null; caller?: NotedCaller }
 
 let store: AsyncLocalStorage<RequestCaller> | undefined;
@@ -78,7 +80,16 @@ export function causedStampFor(auth: CallerAuth): CallerStamp | null {
 export function noteRequestCaller(auth: CallerAuth): void {
   const s = store?.getStore();
   if (!s) return;
-  s.caller = { userId: auth.userId ?? "", email: auth.email ?? "", stamp: callerStampFor(auth), caused: causedStampFor(auth) };
+  s.caller = { userId: auth.userId ?? "", email: auth.email ?? "", stamp: callerStampFor(auth), caused: causedStampFor(auth), impersonatedBy: auth.impersonatedBy ?? null };
+}
+
+/**
+ * OPS1 impersonation: the operator behind this request when it runs on an impersonated session, else null. Every audit
+ * entry the request writes carries it (services/audit.ts), whoever the entry names, so a change made while acting as
+ * someone always reads as the operator's.
+ */
+export function impersonatorOfRequest(): string | null {
+  return store?.getStore()?.caller?.impersonatedBy ?? null;
 }
 
 /** The actor an entry names: an audit row's actor fields, or a task change's actor. */

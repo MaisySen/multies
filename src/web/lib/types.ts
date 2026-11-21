@@ -9,7 +9,11 @@ export interface Me {
   organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member"; timezone: string; country: string; requireSso?: boolean; onboarded?: boolean } | null;
   /** A short one time onboarding: the person's zone and language, and the workspace's name, country and zone for its admins. */
   onboarding?: { needed: boolean; workspace: boolean };
-  session?: { loginMethod: string; ssoBlocked: boolean };
+  session?: {
+    loginMethod: string; ssoBlocked: boolean;
+    /** OPS1 impersonation: set while an operator views or acts as this person (the app shows ImpersonationBanner). */
+    impersonation?: { mode: "view" | "act"; expiresAt: string; secondsLeft: number; operatorEmail: string | null } | null;
+  };
   /** The person has a Multies password (an email and password account); Auth0-only people do not. */
   hasPassword?: boolean;
   /** R39 (MB-202): invitations for this person's confirmed address, in workspaces they haven't joined yet. */

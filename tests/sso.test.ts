@@ -33,7 +33,7 @@ describe("team SSO enforcement", () => {
     expect(blocked.body.error.code).toBe("sso_required");
     const me = await member.get("/api/account/me");
     expect(me.status).toBe(200);
-    expect(me.body.session).toEqual({ loginMethod: "email", ssoBlocked: true });
+    expect(me.body.session).toEqual({ loginMethod: "email", ssoBlocked: true, impersonation: null }); // OPS1 impersonation: me.session.impersonation
     // The owner is the break glass account and keeps password access.
     expect((await owner.get("/api/domains")).status).toBe(200);
 

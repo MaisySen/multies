@@ -15,6 +15,8 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins/organization";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { admin } from "better-auth/plugins/admin";
+import { adminAc, defaultAc, userAc } from "better-auth/plugins/admin/access"; // OPS1 impersonation
+import { ALWAYS_BLOCKED_MESSAGE, IMPERSONATION_SECONDS } from "../services/console/impersonation"; // OPS1 impersonation
 import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { lastLoginMethod } from "better-auth/plugins";
@@ -54,6 +56,11 @@ const SECURITY_EVENTS: Record<string, string> = {
 /** PRIV1b (P48): account recovery steps that also end every app (MCP OAuth grant) the person signed in. */
 const ENDS_APP_GRANTS = new Set(["/change-password", "/set-password", "/revoke-sessions", "/revoke-other-sessions"]);
 const endAppGrants = async (deps: Deps, userId: string) => (await import("../services/developer/oauth")).revokeUserGrants(deps, userId);
+
+// OPS1 impersonation: the admin plugin's permissions per operator tier (what each tier's console actions call in process).
+const opsReadAc = defaultAc.newRole({ user: [], session: ["list"] });
+const opsBillingAc = defaultAc.newRole({ user: [], session: ["list", "revoke"] });
+const opsSupportAc = defaultAc.newRole({ user: ["ban", "impersonate"], session: ["list", "revoke"] });
 
 const ID_PREFIX: Record<string, string> = {
   user: "usr", session: "ses", account: "acc", verification: "vrf", organization: "org",
@@ -188,6 +195,14 @@ export function authOptions(deps: Deps) {
     hooks: {
       // Account lockout (services/lockout.ts): checked before a password sign-in.
       before: createAuthMiddleware(async (ctx) => {
+        // OPS1 impersonation: a browser holding an impersonation session may not use Better Auth over HTTP (password,
+        // email, two-step, passkeys, sessions, sign out; Stop replaces it), except reading its session. In process calls
+        // (ctx.request unset) come from our own routes, which requireAuth already checked.
+        if (ctx.request && ctx.path !== "/get-session") {
+          const token = await ctx.getSignedCookie(ctx.context.authCookies.sessionToken.name, ctx.context.secret);
+          const row = token ? await db.select({ impersonatedBy: schema.sessions.impersonatedBy }).from(schema.sessions).where(eq(schema.sessions.token, token)).get() : undefined;
+          if (row?.impersonatedBy) throw new APIError("FORBIDDEN", { code: "IMPERSONATION_BLOCKED", message: ALWAYS_BLOCKED_MESSAGE });
+        }
         if (ctx.path !== "/sign-in/email") return;
         const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
         if (!email) return;
@@ -371,7 +386,16 @@ export function authOptions(deps: Deps) {
         },
       }),
       twoFactor({ issuer: config.appName, backupCodeOptions: { amount: 10, length: 10 } }),
-      admin({ defaultRole: "user", adminRoles: ["admin"] }),
+      // OPS1 impersonation: the plugin authorises only roles in its `roles` map, so each operator tier gets the plugin
+      // permissions its console tier uses in process (our requireOperator is the real gate; /api/auth/admin/* is 404
+      // over HTTP, app.ts). Every operator tier is an admin role, which makes the plugin refuse operators as
+      // impersonation targets. Impersonation sessions last 30 minutes (operator_impersonations holds our own expiry).
+      admin({
+        defaultRole: "user",
+        roles: { admin: adminAc, user: userAc, ops_admin: opsSupportAc, ops_billing: opsBillingAc, ops_support: opsSupportAc, ops_readonly: opsReadAc },
+        adminRoles: ["admin", "ops_admin", "ops_billing", "ops_support", "ops_readonly"],
+        impersonationSessionDuration: IMPERSONATION_SECONDS,
+      }),
       // Records how each person last signed in, so a workspace can require SSO. No cookie.
       lastLoginMethod({
         storeInDatabase: true,
