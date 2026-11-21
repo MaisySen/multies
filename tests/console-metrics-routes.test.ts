@@ -10,7 +10,7 @@ import { signUpAs, type Ctx } from "./console-kit";
 import { makeTestApp } from "./helpers";
 import { deliveries, organizations, platformAuditLogs, platformMetricsDaily, usageCounters } from "@/server/db/schema";
 import { resetWriteBudgetCache } from "@/server/services/write-budget";
-import { lastOf, noStoredDays, parseRange, pointsOf, previousRange, sinceOf, sumOf, counterLabel, type MetricsRead } from "@/web/pages/console/trends-data";
+import { lastOf, noStoredDays, parseRange, pointsOf, previousRange, sinceOf, sumOf, counterLabel, orderCounters, type MetricsRead } from "@/web/pages/console/trends-data";
 
 const NOW = new Date("2026-11-21T10:00:00Z");
 const TODAY = "2026-11-21";
@@ -259,5 +259,12 @@ describe("the trends page helpers", () => {
     expect(parseRange(null)).toBe(30);
     expect(counterLabel("d1_rows")).toBe("Rows written");
     expect(counterLabel("some_new_counter")).toBe("Some new counter");
+  });
+  it("orders usage counter chips the same way whatever order the keys arrive in, rows written first", () => {
+    const keys = ["usage:zeta_count", "usage:chat_in", "deliveries_sent", "usage:alpha_count", "usage:d1_rows", "usage:automation_runs"];
+    const want = ["usage:d1_rows", "usage:chat_in", "usage:automation_runs", "usage:alpha_count", "usage:zeta_count"];
+    expect(orderCounters(keys).map((c) => c.id)).toEqual(want);
+    expect(orderCounters([...keys].reverse()).map((c) => c.id)).toEqual(want);
+    expect(orderCounters(keys)[0]).toEqual({ id: "usage:d1_rows", label: "Rows written" });
   });
 });

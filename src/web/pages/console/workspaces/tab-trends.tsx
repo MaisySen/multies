@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { ChartCard, formatDay, hasData, LazyTrendBars, LazyTrendLine, RangePicker } from "../components/kpi";
 import { ViewChips } from "../trends-chips";
-import { counterLabel, pointsOf, useTrendRange, useWorkspaceTrends } from "../trends-data";
+import { orderCounters, pointsOf, useTrendRange, useWorkspaceTrends } from "../trends-data";
 
 type MailView = "outbound" | "inbound";
 type AiView = "calls" | "units";
@@ -29,10 +29,7 @@ export function WorkspaceTrendsTab({ orgId }: { orgId: string }) {
     ? ` AI history is only kept for the last ${data.ai.historyDays} days, so days before ${formatDay(data.ai.from, "medium")} show no data.`
     : "";
 
-  const counters = Object.keys(data?.series ?? {})
-    .filter((k) => k.startsWith("usage:") && hasData(pointsOf(data, k)))
-    .sort()
-    .map((k) => ({ id: k, label: counterLabel(k.slice("usage:".length)) }));
+  const counters = orderCounters(Object.keys(data?.series ?? {}).filter((k) => hasData(pointsOf(data, k))));
   const counter = counters.find((c) => c.id === counterPick) ?? counters[0];
   const counterRows = counter ? pointsOf(data, counter.id) : [];
 

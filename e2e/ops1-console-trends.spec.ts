@@ -34,8 +34,9 @@ function trends(days: number) {
       deliveries_received: series((i) => 5 + (i % 2)),
       ai_calls: series((i) => (i >= days - 3 ? 4 + i % 2 : null)),
       ai_units: series((i) => (i >= days - 3 ? 40 : null)),
-      "usage:d1_rows": series((i) => 300 + i),
+      // Not in display order on purpose: the page orders the chips itself (rows written first).
       "usage:chat_in": series((i) => (i % 2 ? 2 : null)),
+      "usage:d1_rows": series((i) => 300 + i),
     },
     ai: { historyDays: 2, from: list[Math.max(0, days - 3)], partial: days > 3 },
   };
@@ -76,7 +77,9 @@ test("a workspace's Trends tab shows mail, AI and daily usage, and the range is 
   for (const id of ["mail", "ai", "usage"]) await expect(page.getByTestId(`console-workspace-trends-${id}`)).toBeVisible();
   await expect(page.getByTestId("console-workspace-trends-mail").getByTestId("trend-line")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("console-workspace-trends-ai")).toContainText("AI history is only kept for the last 2 days");
+  // Rows written is the first usage chip and the default, whatever order the API's keys arrive in.
   await expect(page.getByTestId("console-workspace-trends-usage")).toContainText("Rows written per day.");
+  await expect(page.getByTestId("console-workspace-trends-usage-view").getByRole("button")).toHaveText(["Rows written", "Chat messages received"]);
   expect(asked).toContain(30);
 
   // The range picker updates the address and asks for that range.

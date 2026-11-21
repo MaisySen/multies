@@ -133,7 +133,10 @@ export function useWorkspaceTrends(orgId: string, days: RangeDays) {
   return useQuery({ queryKey: trendsKeys.workspace(orgId, days), queryFn: () => trendsApi.workspace(orgId, days), staleTime: 60_000 });
 }
 
-/** Plain names for the per workspace daily usage counters (usage_counters metrics kept by day). */
+/**
+ * Plain names for the per workspace daily usage counters (usage_counters metrics kept by day), in the order the
+ * Trends tab offers them: rows written first (it drives the workspace write budget), then the rest by usefulness.
+ */
 const COUNTER_LABELS: Record<string, string> = {
   d1_rows: "Rows written",
   chat_in: "Chat messages received",
@@ -146,4 +149,19 @@ export function counterLabel(metric: string): string {
   if (COUNTER_LABELS[metric]) return COUNTER_LABELS[metric];
   const words = metric.replace(/[_:.-]+/g, " ").trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : metric;
+}
+
+const COUNTER_ORDER = Object.keys(COUNTER_LABELS);
+
+/**
+ * The usage counter series keys ("usage:<metric>") as chips in a fixed order: known counters in COUNTER_LABELS order,
+ * then any other counter by its label. Never depends on the order the API's object keys arrive in.
+ */
+export function orderCounters(keys: readonly string[]): { id: string; label: string }[] {
+  const rank = (metric: string) => { const i = COUNTER_ORDER.indexOf(metric); return i === -1 ? COUNTER_ORDER.length : i; };
+  return keys
+    .filter((k) => k.startsWith("usage:"))
+    .map((k) => { const metric = k.slice("usage:".length); return { id: k, metric, label: counterLabel(metric) }; })
+    .sort((a, b) => rank(a.metric) - rank(b.metric) || a.label.localeCompare(b.label, "en") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map(({ id, label }) => ({ id, label }));
 }
