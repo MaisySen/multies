@@ -120,7 +120,7 @@ ESLint pass. No full app build. No production source/migration changes.
   two concurrent first approvals serialize. This is local SQLite evidence, not a
   remote-D1 contention/load claim.
 - Child Node processes are SIGKILLed after committed source mutation versus while
-  that mutation/trigger are inside an uncommitted transaction. Reopened reads deny
+  that mutation/trigger are inside an uncommitted transaction. Post-exit reads deny
   after commit and retain old state after rollback. No claim of killing D1/workerd.
 - Failure injection aborts the trigger's security update, proving original source
   mutation and fence rollback together. Forced batch failure rolls initialization
