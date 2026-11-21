@@ -1,22 +1,19 @@
 import { useState } from "react";
-import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
-import { sendSentryTest, sentryEnabled } from "@/web/lib/sentry";
-import { Badge, Card, EmptyState, PageHeader, Skeleton, StatTile, tableStyles as T } from "@/web/components/ui/misc";
+import { Skeleton } from "@/web/components/ui/misc";
 import { PromptDialog } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog"; // R34
-import { IconBuilding, IconGlobe, IconInbox, IconSend, IconShieldCheck, IconTeam } from "@/web/components/ui/icon";
+import { IconShieldCheck } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { Section } from "./settings";
 import { LOCALE } from "@/shared/locale";
-import { WriteBudgetMeter } from "./admin-write-budget"; // R32
-import { ModerationLink } from "./admin-moderation-r35"; // R35
 
-export interface Overview {
+/** OPS1: the operator console's Overview (pages/console/overview.tsx) uses the pieces below; /app/admin redirects to /console. */
+interface Overview {
   totals: { users: number; workspaces: number; domains: number; mailboxes: number; deliveries24h: number };
   tenants: { id: string; name: string; plan: string; isDemo: boolean; createdAt: string; members: number; agents: number; domains: number; suspendedAt: string | null; suspendedReason: string | null; sendCapDaily: number | null; pastDueSince: string | null; meetingMinutesCap?: number | null; meetingMinutes?: number }[];
   integrations: Record<string, boolean | string>;
@@ -26,106 +23,6 @@ export const INTEGRATION_LABEL: Record<string, string> = {
   sentryApi: "Sentry (API)", sentryWeb: "Sentry (web)", outbound: "Outbound mail", billing: "Stripe billing",
   billingTestMode: "Stripe test mode", auth0: "Auth0 sign-in", google: "Google sign-in", github: "GitHub sign-in",
 };
-
-/** Operator console: platform totals, tenants and integration health. */
-export function AdminPage() {
-  const q = useQuery({ queryKey: ["admin"], queryFn: () => api.get<Overview>("/admin/overview") });
-  const apiTest = useMutation({
-    mutationFn: () => api.post<{ configured: boolean; eventId: string | null }>("/admin/sentry-test"),
-    onSuccess: (r) => (r.configured ? toast.success("API test event sent", { description: `Sentry event ${r.eventId}` }) : toast("Sentry isn't configured for the API")),
-  });
-  const webTest = useMutation({
-    mutationFn: sendSentryTest,
-    onSuccess: (id) => (id ? toast.success("Web test event sent", { description: `Sentry event ${id}` }) : toast("Sentry isn't configured for the web app")),
-  });
-  if (q.isPending) return (
-    <div className="space-y-6" aria-busy>
-      <Skeleton className="h-9 w-64" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}</div>
-      <Skeleton className="h-48 rounded-xl" />
-    </div>
-  );
-  if (q.error) return (
-    <div className="mx-auto max-w-lg pt-8 md:pt-16">
-      {/* R133: the page keeps its one heading for screen readers when the console is not open to this person. */}
-      <h1 className="sr-only">Operator console</h1>
-      <Card className="overflow-hidden p-0 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_36px_rgb(0_0_0/0.06)]">
-        <div className="h-1 bg-gradient-to-r from-brand via-[#6BAFFF] to-transparent" aria-hidden />
-        <EmptyState icon={<IconShieldCheck />} title="This console is for platform operators" body="You can keep working in your workspace. If you need access to this console, ask an operator to add you." action={<Link to="/app/my-work" className="inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Back to my work</Link>} />
-      </Card>
-    </div>
-  );
-  const { totals, tenants, integrations } = q.data;
-  const fmt = new Intl.NumberFormat(LOCALE);
-  const tiles = [
-    { label: "Users", value: totals.users, icon: <IconTeam />, tone: "brand" as const },
-    { label: "Customer workspaces", value: totals.workspaces, icon: <IconBuilding />, tone: "neutral" as const },
-    { label: "Domains", value: totals.domains, icon: <IconGlobe />, tone: "neutral" as const },
-    { label: "Mailboxes", value: totals.mailboxes, icon: <IconInbox />, tone: "neutral" as const },
-    { label: "Deliveries, 24h", value: totals.deliveries24h, icon: <IconSend />, tone: "ok" as const },
-  ];
-  const integrationList = Object.entries(integrations);
-  const on = integrationList.filter(([, v]) => v && v !== "log").length;
-  return (
-    <div className="space-y-6">
-      <PageHeader eyebrow="Platform" title="Operator console" description="Every workspace on this deployment. Only platform admins see this page." />
-      <ModerationLink />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {tiles.map((t) => <StatTile key={t.label} label={t.label} value={fmt.format(t.value)} icon={t.icon} tone={t.tone} />)}
-      </div>
-      <WriteBudgetMeter />
-      <Section title="Integrations" description={<>What this deployment has keys for. <span className="tabular-nums">{on} of {integrationList.length}</span> on.</>}>
-        <ul className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2">
-          {integrationList.map(([k, v]) => {
-            const live = !!v && v !== "log";
-            return (
-              <li key={k} className="flex items-center justify-between gap-3 bg-surface px-4 py-2.5 text-sm">
-                <span className="flex min-w-0 items-center gap-2.5">
-                  <span className={live ? "h-2 w-2 shrink-0 rounded-full bg-ok shadow-[0_0_0_3px_rgb(52_199_89/0.15)]" : "h-2 w-2 shrink-0 rounded-full bg-line-strong"} aria-hidden />
-                  <span className="truncate">{INTEGRATION_LABEL[k] ?? k}</span>
-                </span>
-                <span className={live ? "shrink-0 text-xs font-medium text-ok" : "shrink-0 text-xs text-subtle"}>{typeof v === "string" ? v : v ? "On" : "Off"}</span>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" loading={apiTest.isPending} onClick={() => apiTest.mutate()}>Send API test error</Button>
-          <Button variant="secondary" size="sm" loading={webTest.isPending} disabled={!sentryEnabled()} onClick={() => webTest.mutate()}>Send web test error</Button>
-        </div>
-      </Section>
-      <AbuseQueue />
-      <JobQueue />
-      <Section title="Workspaces" description="Newest first, up to 100. Suspending stops sending and API access; receiving continues.">
-        {!tenants.length ? <EmptyState className="py-10" icon={<IconBuilding />} title="No workspaces yet" body="Workspaces show here as people sign up." /> : (
-        <div className={T.wrap} tabIndex={0} role="region" aria-label="Workspaces">
-          <table className={T.table}>
-            <thead className={T.head}><tr><th className={T.th}>Name</th><th className={T.th}>Plan</th><th className={`${T.th} text-right`}>People</th><th className={`${T.th} text-right`}>AI agents</th><th className={`${T.th} text-right`}>Domains</th><th className={T.th}>Created</th><th className={T.th}><span className="sr-only">Controls</span></th></tr></thead>
-            <tbody className={T.body}>
-              {tenants.map((t) => (
-                <tr key={t.id} className={T.row}>
-                  <td className={T.td}>
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium">{t.name}</span>
-                      {t.isDemo && <Badge>demo</Badge>}{t.suspendedAt && <Badge tone="bad" dot>suspended</Badge>}{t.pastDueSince && <Badge tone="warn" dot>past due</Badge>}
-                    </span>
-                    {t.suspendedReason && t.suspendedAt && <span className="mt-0.5 block max-w-xs truncate text-xs text-subtle" title={t.suspendedReason}>{t.suspendedReason}</span>}
-                  </td>
-                  <td className={T.td}><Badge tone={t.plan === "free" ? "neutral" : "brand"} className="capitalize">{t.plan}</Badge></td>
-                  <td className={`${T.td} text-right tabular-nums`}>{t.members}</td><td className={`${T.td} text-right tabular-nums`}>{t.agents}</td>
-                  <td className={`${T.td} text-right tabular-nums`}>{t.domains}</td>
-                  <td className={`${T.td} whitespace-nowrap text-muted`}>{new Date(t.createdAt).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" })}</td>
-                  <td className={`${T.td} text-right`}><TenantControls t={t} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        )}
-      </Section>
-    </div>
-  );
-}
 
 type Tenant = Overview["tenants"][number];
 
