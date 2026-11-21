@@ -27,6 +27,7 @@ import { authFor } from "./auth";
 import { clearAuthCache, forgetCachedAuth } from "./auth/guards";
 import { forgetProjectCounts } from "./services/suite/tasks";
 import { forgetOrgCache } from "./services/plans";
+import { clientFlags, loadFlagOverridesSafe } from "./services/console/flags"; // OPS1 feature flags
 import { forgetUserCaches } from "./lib/isolate-cache";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
@@ -264,6 +265,12 @@ export function createApp(deps: Deps) {
       const quietRead = status < 400 && (c.req.method === "GET" || c.req.method === "HEAD") && deps.config.mode === "production";
       if (status >= 500) log.error("request", fields); else if (status >= 400) log.warn("request", fields); else if (!quietRead) log.info("request", fields);
     }
+  });
+  // OPS1 feature flags: the operator overrides (services/console/flags.ts), read at most once per isolate per 60
+  // seconds, so featureOn below answers from memory. Never fails a request: on an error the env defaults stand.
+  app.use("/api/*", async (c, next) => {
+    await loadFlagOverridesSafe({ ...deps, log: c.var.log });
+    await next();
   });
   const hsts = isHttps(deps.config.appUrl);
   const apiHeaders = securityHeaders({ csp: API_CSP, hsts });

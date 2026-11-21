@@ -105,6 +105,24 @@ export async function loadFlagOverrides(deps: FlagDeps): Promise<FlagOverride[]>
   return (await job.p).rows;
 }
 
+let lastLoadWarn = 0;
+
+/**
+ * loadFlagOverrides for the request path and cron passes: never throws. On a failed read it logs (at most once a
+ * minute per isolate) and the evaluators keep answering from the last loaded memo, or the env default when none.
+ */
+export async function loadFlagOverridesSafe(deps: FlagDeps & Partial<Pick<Deps, "log">>): Promise<void> {
+  try {
+    await loadFlagOverrides(deps);
+  } catch (err) {
+    const now = Date.now();
+    if (now - lastLoadWarn >= FLAG_MEMO_MS) {
+      lastLoadWarn = now;
+      deps.log?.warn("feature_flags.load_failed", { error: String(err).slice(0, 200) });
+    }
+  }
+}
+
 /** Drops the memo, so the next loadFlagOverrides reads the table again (every database this isolate holds). */
 export function invalidateFlagOverrides(deps?: Pick<Deps, "db">): void {
   generation++;
