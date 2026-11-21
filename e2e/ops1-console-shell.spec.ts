@@ -68,7 +68,8 @@ test("an operator sees the grouped sidebar, attention first, and the sections op
   await expect(page.getByTestId("audit-export")).toBeVisible();
 
   await nav.getByRole("link", { name: "Workspaces" }).click();
-  await expect(page.getByTestId("console-coming-soon")).toBeVisible();
+  await expect(page).toHaveURL(/\/console\/workspaces$/);
+  await expect(page.getByRole("heading", { name: "Workspaces", level: 1 })).toBeVisible();
   await page.getByRole("link", { name: "Back to app" }).click();
   await expect(page).toHaveURL(/\/app\/my-work$/);
 });

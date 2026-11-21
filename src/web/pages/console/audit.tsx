@@ -18,16 +18,29 @@ import { PermissionGate } from "./guard";
 
 const AREAS: FilterDef = {
   key: "action", label: "Area", initial: "",
+  // One option per action prefix the console and the older admin pages write (grep operatorAction( and platformAudit(
+  // in src/server). The server matches the start of the action, so "agent_" covers agent runs and triggers.
   options: [
     { value: "", label: "Everything" },
     { value: "workspace.", label: "Workspaces" },
     { value: "user.", label: "Users" },
-    { value: "operator.", label: "Operators" },
-    { value: "report.", label: "Moderation" },
-    { value: "abuse.", label: "Abuse signals" },
+    { value: "note.", label: "Notes" },
+    { value: "impersonation", label: "Viewing as someone" },
+    { value: "support.", label: "Support access" },
+    { value: "billing.", label: "Billing" },
+    { value: "mail.", label: "Mail" },
+    { value: "message.", label: "Held sends sent early" },
+    { value: "agent_", label: "Agents" },
+    { value: "developer.", label: "Developer platform" },
     { value: "jobs.", label: "Jobs" },
+    { value: "report.", label: "Reports" },
+    { value: "abuse.", label: "Abuse signals" },
+    { value: "flags.", label: "Feature flags" },
+    { value: "announcement.", label: "Announcements" },
     { value: "app_config.", label: "Mobile app" },
-    { value: "message.", label: "Mail" },
+    { value: "metrics.", label: "Trends" },
+    { value: "system.", label: "System" },
+    { value: "operator.", label: "Operators" },
     { value: "audit.", label: "Audit exports" },
   ],
 };
