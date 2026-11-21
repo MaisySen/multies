@@ -107,7 +107,9 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   }
   const outcome=JSON.parse(await waitFile(join(dir,"outcome.json"),()=>done).catch(error=>{throw new Error(`${String(error)}\n${output}`);}));const code=await completion;expect(code,output).toBe(0);
   if(variant!=="success"){
-    expect(outcome).toMatchObject({developmentStopped:true,noNativeCredential:true,noRegistrarNode:true,inputAuthorized:false});expect(exchangeCalls).toBe(2);expect(reserveCalls).toBe(2);
+    expect(outcome).toMatchObject({developmentStopped:true,noNativeCredential:true,noRegistrarNode:variant!=="lost-response",inputAuthorized:false});
+    expect(exchangeCalls).toBe(variant==="lost-response"?3:2);expect(reserveCalls).toBe(variant==="lost-response"?3:2);
+    if(variant==="lost-response")expect(outcome.remoteCommitted).toBe(true);
     console.log("PASS stopped actual installed browser",variant);return;
   }
   expect(outcome).toMatchObject({developmentInstalled:true,nativeOwnedKeyConfirmed:true,nativeProofStateUnchanged:true,nativeStateFinalized:true,nodeDeleted:true,inputAuthorized:false});
