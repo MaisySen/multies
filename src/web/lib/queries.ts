@@ -1,8 +1,9 @@
-import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useMemo, useSyncExternalStore } from "react";
 import { api } from "./api";
 import { clearMeCache, isSignedOut, meRetry, meRetryDelay, readMeCache, writeMeCache } from "./me-cache";
 import type { Alias, Dashboard, Domain, Mailbox, MailboxOverview, Me, OrgInfo, PublicConfig, TeamInfo, Workspace } from "./types";
+import type { PublicAnnouncement } from "@/shared/announcement";
 import { openableOnly } from "./mail-level-priv1b";
 
 export const qk = {
@@ -34,14 +35,19 @@ export const useSession = () => useQuery({
 });
 export const useSignedIn = () => !!useSession().data?.user;
 
-/** OPS1 announcements: how often an open, visible session reads /me again (announcements, flags). */
-export const ME_POLL_MS = 5 * 60_000;
+/**
+ * OPS1 announcements: /me is never polled (D1 read budget). It is read on load and again on a window refocus once its
+ * copy is 5 minutes old. The public config, which costs no database work once warm, is read again every 5 minutes while
+ * the tab is visible, so an announcement for everyone shows in open tabs.
+ */
+export const ME_STALE_MS = 5 * 60_000;
+export const CONFIG_POLL_MS = 5 * 60_000;
 /**
  * R40 (MB-200): the account check retries with backoff on a dropped request or an empty 5xx, starts from the
  * last good copy (so the shell paints at once and refreshes behind it), and keeps polling calmly while
  * Multies is unreachable. Only a 401 means signed out; it also drops the saved copy.
  */
-export const useMe = () => useQuery({
+export const meQueryOptions = queryOptions({
   queryKey: qk.me,
   queryFn: async () => {
     try {
@@ -57,11 +63,12 @@ export const useMe = () => useQuery({
   initialDataUpdatedAt: 0,
   retry: meRetry,
   retryDelay: meRetryDelay,
-  staleTime: 60_000,
-  // OPS1 announcements: a healthy session reads /me again every 5 minutes while the tab is visible (TanStack pauses it
-  // in the background; a refocus refetches once it is a minute old), so an announcement shows in open sessions.
-  refetchInterval: (query) => (query.state.status === "error" ? (isSignedOut(query.state.error) ? false : 15_000) : query.state.status === "success" ? ME_POLL_MS : false),
+  // OPS1: a refocus reads /me again once the copy is 5 minutes old (announcements for owners and admins, flags).
+  staleTime: ME_STALE_MS,
+  // Only while Multies is unreachable (never a periodic read of a healthy session).
+  refetchInterval: (query) => (query.state.status === "error" && !isSignedOut(query.state.error) ? 15_000 : false),
 });
+export const useMe = () => useQuery(meQueryOptions);
 /**
  * OPS1 feature flags: the workspace's flag differences from a fetched /account/me (an operator's workspace override),
  * read from the query cache without starting a request, so signed out pages (no /me) are untouched. A copy painted
@@ -90,13 +97,27 @@ function useMeFlags(): Record<string, boolean> | undefined {
 }
 const ME_HASH = JSON.stringify(qk.me);
 
+/** The public config: fetched once, then again every 5 minutes while the tab is visible (OPS1 announcements). */
+export const configQueryOptions = queryOptions({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity, refetchInterval: CONFIG_POLL_MS });
+
 /**
- * The public config (fetched once). OPS1: merged with /account/me's `flags` for signed in people, so every call site
+ * OPS1 announcements: which one the banner shows. /me (read on load and on refocus) carries "admins" ones, which the
+ * public config never does; the config is re-read every 5 minutes, so for an "everyone" one it is the fresher answer:
+ * a new one shows from it, and a cleared one is gone from it even while an older /me still has it.
+ */
+export function pickAnnouncement(me: Pick<Me, "announcement"> | undefined, config: Pick<PublicConfig, "announcement"> | undefined): PublicAnnouncement | null {
+  if (!config) return me?.announcement ?? null;
+  if (config.announcement) return config.announcement;
+  return me?.announcement?.audience === "admins" ? me.announcement : null;
+}
+
+/**
+ * The public config (fetched once, see configQueryOptions). OPS1: merged with /account/me's `flags` for signed in people, so every call site
  * sees its workspace's value. A workspace switch clears the query cache (layouts/app.tsx), so /me, and with it the
  * merge, is evaluated again for the new workspace.
  */
 export const useConfig = () => {
-  const query = useQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity });
+  const query = useQuery(configQueryOptions);
   const flags = useMeFlags();
   const data = useMemo(() => mergeConfigFlags(query.data, flags), [query.data, flags]);
   return data === query.data ? query : ({ ...query, data } as typeof query);

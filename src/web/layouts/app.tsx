@@ -24,7 +24,7 @@ const CallDockHost = lazyPage(() => import("@/web/pages/app/work/call-r23"), "Ca
 const Onboarding = lazyPage(() => import("@/web/pages/app/onboarding"), "Onboarding");
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useWhatsNew } from "@/web/lib/whats-new"; // R53 (MB-133)
-import { useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
+import { pickAnnouncement, useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
 import { useDemoSeedCatchUp } from "@/web/lib/demo";
 import type { Me } from "@/web/lib/types";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -350,10 +350,10 @@ export function AppLayout() {
   const content = (
     <div className="flex h-full min-w-0 flex-1 flex-col">
         {/* OPS1 announcements: the console's banner, the first row of the page column under the impersonation bar (the
-            shell's own height is fixed, so it is not put above it). /me's answer wins once it has the field (it adds
-            "admins" ones for owners and admins, and null once cleared); else the public config's. */}
+            shell's own height is fixed, so it is not put above it). pickAnnouncement: the polled config for "everyone"
+            ones, /me (load and refocus) for "admins" ones. */}
         <div className="shrink-0">
-          <AnnouncementBanner announcement={me.data && "announcement" in me.data ? me.data.announcement : config.data?.announcement} role={me.data?.organization?.role} />
+          <AnnouncementBanner announcement={pickAnnouncement(me.data, config.data)} role={me.data?.organization?.role} />
         </div>
         {desktop && (
           <header className="@container hairline-b flex h-12 shrink-0 items-center gap-3 px-4" data-desktop-topbar>
