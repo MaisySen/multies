@@ -17,3 +17,5 @@ describe("explicit enrollment operator input", () => {
   const raw = JSON.stringify(fixture).replace('"revision":"r1"', '"revision":"r1","revision":"r2"'); expect(() => enrollmentOperatorConfig(raw)).toThrow();
  });
 });
+
+it("refuses consent preview in production even with valid operator config",()=>{expect(()=>loadConfig({APP_SECRET:"t".repeat(40),APP_MODE:"production",MNET_ENROLLMENT_CONSENT:"on",MNET_ENROLLMENT_OPERATOR:JSON.stringify(fixture)})).toThrow();});

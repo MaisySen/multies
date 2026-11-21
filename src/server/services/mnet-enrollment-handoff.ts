@@ -14,7 +14,7 @@ import { enrollmentRequest } from "./mnet-enrollment";
 // There is intentionally no registrar consumer, reserve/status/ack or node API.
 export const handoffLaunch = enrollmentHandoffCore.extend({ credentialDigest: enrollmentHandoffCore.shape.attemptId }).strict();
 export const handoffRequest = handoffLaunch.extend({ workspaceId: enrollmentRequest.shape.workspaceId, displayed: enrollmentRequest.shape.displayed }).strict();
-export const handoffExchange = handoffRequest.extend({ code: enrollmentHandoffCore.shape.attemptId, verifier: z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/) }).strict();
+export const handoffExchange = handoffLaunch.extend({ code: enrollmentHandoffCore.shape.attemptId, verifier: z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/) }).strict();
 const denied = () => new HttpError(403, "mnet_enrollment_denied", "Computer joining handoff is unavailable. Start a new request in Mnet.");
 export function handoffConfig(d: Deps) {
  const operator = enrollmentOperatorSchema.safeParse(d.config.mnetEnrollmentOperator), policy = enrollmentHandoffFixtureSchema.safeParse(d.config.mnetEnrollmentHandoffFixture);
@@ -45,6 +45,9 @@ async function validateCurrentRow(d: Deps, r: Row) {
   await eligible(d, r.userId!, r.workspaceId!, r.sessionId!);
   return selected;
  } catch (error) {
+  // Infrastructure failure is not evidence of revoked eligibility. Fail closed
+  // for this request without destroying a still-valid owner's one-use code.
+  if (!(error instanceof HttpError) || error.status !== 403) throw error;
   // Only called after original session or exact code+PKCE tuple is established.
   await d.db.update(journal).set({ status: "withdrawn", terminalAt: d.now(), codeHash: null, ticketHash: null }).where(and(eq(journal.id, r.id), sql`${journal.status} IN ('pending','approved','issued')`));
   throw error;
@@ -96,11 +99,11 @@ export async function exchangeHandoff(d: Deps, proof: z.infer<typeof handoffExch
  handoffConfig(d); await sweepHandoffs(d);
  const codeHash = await hash(proof.code), r = await d.db.select().from(journal).where(and(eq(journal.codeHash, codeHash), eq(journal.status, "approved"))).get();
  // No wrong tuple/verifier may consume another native intent's valid code.
- if (!r || r.version !== proof.version || r.purpose !== proof.purpose || r.attemptId !== proof.attemptId || r.devicePublicKey !== proof.devicePublicKey || r.credentialDigest !== proof.credentialDigest || r.challenge !== proof.challenge || r.state !== proof.state || r.platform !== proof.platform || r.redirectUri !== proof.redirectUri || r.workspaceId !== proof.workspaceId || !tupleEqual(rowTuple(r), proof.displayed) || r.challenge !== await hash(proof.verifier)) throw denied();
+ if (!r || r.version !== proof.version || r.purpose !== proof.purpose || r.attemptId !== proof.attemptId || r.devicePublicKey !== proof.devicePublicKey || r.credentialDigest !== proof.credentialDigest || r.challenge !== proof.challenge || r.state !== proof.state || r.platform !== proof.platform || r.redirectUri !== proof.redirectUri || r.challenge !== await hash(proof.verifier)) throw denied();
  const selected = await validateCurrentRow(d, r), ticket = randomToken(), ticketHash = await hash(ticket), at = d.now();
  if (!tupleEqual(rowTuple(r), binding(d, r.workspaceId!, r.userId!).displayed)) throw denied();
  const expires = new Date(at.getTime() + selected.policy.ticketMs);
  const won = await d.db.update(journal).set({ status: "issued", codeHash: null, ticketHash, ticketExpiresAt: expires }).where(and(eq(journal.id, r.id), eq(journal.status, "approved"), eq(journal.codeHash, codeHash), isNull(journal.ticketHash), gt(journal.expiresAt, at), gt(journal.codeExpiresAt, at), liveEligibility(d, r.userId!, r.workspaceId!, r.sessionId!))).returning({ id: journal.id }).get();
  if (!won) throw denied();
- return { ticket, id: r.id, expiresAt: expires, purpose: "mnet-enrollment", registrarConnected: false, enrolled: false, inputAuthorized: false };
+ return { ticket, id: r.id, expiresAt: expires, binding: { workspaceId: r.workspaceId!, ...rowTuple(r) }, purpose: "mnet-enrollment", registrarConnected: false, enrolled: false, inputAuthorized: false };
 }

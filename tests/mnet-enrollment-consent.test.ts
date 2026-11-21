@@ -93,3 +93,5 @@ describe("separate Mnet enrollment consent, no registrar authority", () => {
  });
 
 });
+
+it("refuses consent preview at runtime after a production-mode change",async()=>{const e=await setup();e.deps.config.mode="production";expect((await e.person.post("/api/mnet-enrollment/decisions",{...launch,workspaceId:e.workspaceId,displayed:e.displayed})).status).toBe(404);expect(await e.db.select().from(mnetEnrollmentDecisions)).toHaveLength(0);});

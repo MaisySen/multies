@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import * as mnetEligibility from "@/server/services/mnet";
 import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { users, members, sessions, organizations, mnetEnrollmentDecisions, mnetEnrollmentHandoffs as journal } from "@/server/db/schema";
@@ -33,7 +34,7 @@ const path = "/api/mnet-enrollment-v1";
 async function approved(e: Awaited<ReturnType<typeof setupHandoff>>) {
  const p = await e.person.post(path + "/authorizations", e.request); expect(p.status).toBe(201);
  const d = await e.person.post(path + `/authorizations/${p.body.id}/decision`, { decision: "allow" }); expect(d.status).toBe(200);
- return { id: p.body.id as string, proof: { ...e.request, code: new URL(d.body.redirectTo).searchParams.get("code")!, verifier: e.verifier } };
+ return { id: p.body.id as string, proof: { ...e.launch, code: new URL(d.body.redirectTo).searchParams.get("code")!, verifier: e.verifier } };
 }
 const native = (e: Awaited<ReturnType<typeof setupHandoff>>, proof: unknown, extra: Record<string,string> = {}) => e.app.request(path + "/exchange", { method: "POST", headers: { host: "localhost", "content-type": "application/json", ...extra }, body: JSON.stringify(proof) });
 describe("isolated enrollment journal and one-shot PKCE, no registrar", () => {
@@ -46,7 +47,7 @@ describe("isolated enrollment journal and one-shot PKCE, no registrar", () => {
   const p = await e.person.post(path + "/authorizations", e.request); expect(p.status).toBe(201);
   const d = await e.person.post(path + `/authorizations/${p.body.id}/decision`, { decision: "allow" }); expect(d.status).toBe(200);
   const callback = new URL(d.body.redirectTo); const code = callback.searchParams.get("code"); expect(code).toBeTruthy();
-  const exchange = { ...e.request, code, verifier: e.verifier };
+  const exchange = { ...e.launch, code, verifier: e.verifier };
   const result = await e.app.request(path + "/exchange", { method: "POST", headers: { "content-type": "application/json", host: "localhost" }, body: JSON.stringify(exchange) });
   expect(result.status).toBe(200); const body = await result.json();
   expect(body).toMatchObject({ purpose: "mnet-enrollment", registrarConnected: false, enrolled: false, inputAuthorized: false });
@@ -73,7 +74,7 @@ it("checks strict launch, fixed callback and exact displayed mapping before writ
 });
 it("rejects wrong PKCE, tuple, browser cookies and ambient auth without spending the owner's code", async () => {
  const e = await setupHandoff(), { proof } = await approved(e);
- for (const changed of [{...proof, verifier: "w".repeat(43)}, {...proof, credentialDigest: token(8)}, {...proof, attemptId: token(8)}, {...proof, state: token(8)}, {...proof, devicePublicKey: token(8)}, {...proof, redirectUri: "http://127.0.0.1:34568/mnet/enrollment/callback"}, {...proof, displayed: {...proof.displayed, audience: "other"}}, {...proof, workspaceId: "other"}, {...proof, version: 2}]) expect((await native(e, changed)).status).not.toBe(200);
+ for (const changed of [{...proof, verifier: "w".repeat(43)}, {...proof, credentialDigest: token(8)}, {...proof, attemptId: token(8)}, {...proof, state: token(8)}, {...proof, devicePublicKey: token(8)}, {...proof, redirectUri: "http://127.0.0.1:34568/mnet/enrollment/callback"}, {...proof, displayed: {...e.request.displayed, audience: "other"}}, {...proof, workspaceId: "other"}, {...proof, version: 2}]) expect((await native(e, changed)).status).not.toBe(200);
  for (const extra of [{cookie: e.person.cookie}, {origin: "http://localhost"}, {authorization: "Bearer " + token(8)}]) expect((await native(e, proof, extra)).status).toBe(403);
  expect((await e.db.select().from(journal).get())?.status).toBe("approved");
  expect((await native(e, proof)).status).toBe(200);
@@ -98,7 +99,7 @@ it("has one winner for duplicate prepare and concurrent one-shot exchange, with 
  const choices = await Promise.all([e.person.post(path + `/authorizations/${id}/decision`,{decision:"allow"}),e.person.post(path + `/authorizations/${id}/decision`,{decision:"allow"})]);
  expect(choices.map(r=>r.status).sort()).toEqual([200,403]);
  const code = new URL(choices.find(r=>r.status===200)!.body.redirectTo).searchParams.get("code")!;
- const proof = {...e.request,code,verifier:e.verifier};
+ const proof = {...e.launch,code,verifier:e.verifier};
  const results = await Promise.all(Array.from({length:4},()=>native(e,proof)));
  expect(results.map(r=>r.status).sort()).toEqual([200,403,403,403]);
  const body = await results.find(r=>r.status===200)!.json(), row = await e.db.select().from(journal).get();
@@ -131,7 +132,7 @@ it("does not upgrade preview rows or expose reserve/status/ack consumers", async
  const preview = await e.person.post("/api/mnet-enrollment/decisions", previewRequest); expect(preview.status).toBe(201);
  const consent = await e.person.post(`/api/mnet-enrollment/decisions/${preview.body.id}`, { decision: "allow" }); expect(consent.status).toBe(200); expect(consent.body.code).toBeUndefined();
  expect((await e.person.post(path + `/authorizations/${preview.body.id}/decision`, { decision: "allow" })).status).toBe(403);
- expect((await native(e, { ...e.request, code: token(8), verifier: e.verifier })).status).toBe(403);
+ expect((await native(e, { ...e.launch, code: token(8), verifier: e.verifier })).status).toBe(403);
  expect(await e.db.select().from(journal)).toHaveLength(0); expect((await e.db.select().from(mnetEnrollmentDecisions).get())!.status).toBe("approved");
  for (const endpoint of ["/service/reserve","/service/status","/service/ack","/consume","/recover"]) expect((await e.person.post(path+endpoint,{})).status).toBe(404);
  expect((await e.person.post("/api/mnet-enrollment/decisions",e.request)).status).toBe(400);
@@ -171,7 +172,7 @@ it("does not let a second session approve and does not clear live issued tickets
  expect((await other.post(path+`/authorizations/${p.body.id}/decision`,{decision:"allow"})).status).toBe(403);
  const result=await e.person.post(path+`/authorizations/${p.body.id}/decision`,{decision:"allow"});expect(result.status).toBe(200);
  const code=new URL(result.body.redirectTo).searchParams.get("code")!;
- expect((await native(e,{...e.request,code,verifier:e.verifier})).status).toBe(200);
+ expect((await native(e,{...e.launch,code,verifier:e.verifier})).status).toBe(200);
  e.deps.config.mnetEnrollmentHandoffFixture!.fullRowRetentionMs=1000;
  const later=Date.now()+2000;e.deps.now=()=>new Date(later);
  await sweepHandoffs(e.deps);
@@ -188,4 +189,34 @@ it("refuses bounded capacity and does not erase ticket authority until its exact
  // Tombstones count against the explicitly bounded total until policy changes;
  // expiry is never an excuse to delete a prior attempt and recreate authority.
  expect((await e.person.post(path+"/authorizations",{...e.request,attemptId:token(21)})).status).toBe(403);
+});
+
+it("returns the browser-selected second binding without requiring the native to know it",async()=>{
+ const e=await setupHandoff(),first=await e.db.select().from(organizations).where(eq(organizations.id,e.request.workspaceId)).get();
+ await e.db.insert(organizations).values({...first!,id:"second-workspace",slug:"second-workspace",name:"Second workspace"});
+ const membership=await e.db.select().from(members).where(eq(members.userId,e.user.id)).get();
+ await e.db.insert(members).values({...membership!,id:"second-membership",organizationId:"second-workspace"});
+ e.deps.config.mnetEnrollmentOperator!.bindings.push({workspaceId:"second-workspace",networkId:"second-network",principals:[e.user.id]});
+ const request={...e.request,workspaceId:"second-workspace",displayed:{...e.request.displayed,networkId:"second-network"}};
+ const p=await e.person.post(path+"/authorizations",request);expect(p.status).toBe(201);
+ const d=await e.person.post(path+`/authorizations/${p.body.id}/decision`,{decision:"allow"});expect(d.status).toBe(200);
+ const proof={...e.launch,code:new URL(d.body.redirectTo).searchParams.get("code"),verifier:e.verifier};
+ expect((await native(e,{...proof,workspaceId:e.request.workspaceId,displayed:e.request.displayed})).status).toBe(400);
+ const r=await native(e,proof);expect(r.status).toBe(200);expect((await r.json()).binding).toEqual({workspaceId:"second-workspace",...request.displayed});
+});
+it("refuses unauthenticated authorize and records a real API decline without a code",async()=>{
+ const e=await setupHandoff();const query=new URLSearchParams(Object.entries(e.launch).map(([k,v])=>[k,String(v)]));
+ expect((await e.app.request(path+"/authorize?"+query)).status).toBe(401);
+ const p=await e.person.post(path+"/authorizations",e.request);expect(p.status).toBe(201);
+ const r=await e.person.post(path+`/authorizations/${p.body.id}/decision`,{decision:"decline"});expect(r.status).toBe(200);
+ const u=new URL(r.body.redirectTo);expect(u.searchParams.get("error")).toBe("access_denied");expect(u.searchParams.has("code")).toBe(false);
+ expect(await e.db.select().from(journal).get()).toMatchObject({status:"declined",codeHash:null,ticketHash:null});
+ expect((await e.person.post(path+`/authorizations/${p.body.id}/decision`,{decision:"allow"})).status).toBe(403);
+});
+it("does not terminally withdraw a valid code on an injected eligibility database failure",async()=>{
+ const e=await setupHandoff(),{proof}=await approved(e);
+ const spy=vi.spyOn(mnetEligibility,"eligible").mockRejectedValueOnce(new Error("injected transient database failure"));
+ try {expect((await native(e,proof)).status).toBe(500);} finally {spy.mockRestore();}
+ const row=await e.db.select().from(journal).get();expect(row!.status).toBe("approved");expect(row!.codeHash).not.toBeNull();expect(row!.terminalAt).toBeNull();
+ expect((await native(e,proof)).status).toBe(200);
 });

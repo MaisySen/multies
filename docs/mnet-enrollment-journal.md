@@ -120,3 +120,71 @@ Next required boundaries remain authenticated registrar service design, exact
 reserve/status/ack review, selected durable retention/account-event policy,
 Store/daemon crash behavior, proof descriptor/adapter review and installed then
 physical two-computer acceptance. No activation follows from this checkpoint.
+
+## Current-source review corrections after7df6390
+
+The independent implementation review read selected source only and ran no
+builds/tests. It found a real native handoff interface gap: the exchange required
+workspace/displayed values chosen only in the browser, while the callback sent
+only code/state/attempt. The earlier single-binding consumer fixture hid that
+integration gap by hardcoding the binding. It was never an installed native
+client, but its passing result was still insufficient evidence of this API.
+
+Correction: the exchange now accepts only the native's own original launch
+fields plus code/verifier, not workspace/displayed values. The unique code-bound
+journal row supplies the selected workspace and exact server tuple. Current
+mapping/eligibility checks remain. A successful response includes `binding`
+(workspaceId/issuer/registrarOrigin/audience/mappingRevision/networkId) from that
+validated row. Native must validate this response against independently trusted
+current configuration before using it in any later step. Returning a tuple is
+not permission to trust arbitrary new origins or follow redirects. There is
+still no native daemon consumer or registrar consumer.
+
+The actual Chrome fixture now offers two eligible workspace/network bindings,
+selects the second in the browser and exchanges using no selected-binding
+constants in the callback consumer. An observer checks the received binding
+against the row and selected second workspace. API coverage verifies the second
+binding, rejects caller-supplied workspace/displayed fields without spending the
+code and completes exchange from saved launch fields alone. The old request
+failed400 before the API correction; the corrected request passes. This replaces
+the earlier fixture's claimed interface adequacy, not its actual limited result.
+
+The older consent preview also now refuses production at startup and runtime
+(service and route), not just the new handoff. Failing-first tests reproduced
+production startup acceptance and runtime201, then verify startup rejection and
+runtime404/no decision writes. No production/live deployment was used.
+
+Transient infrastructure failures are no longer treated as evidence of lost
+eligibility: only explicit403 authorization refusal withdraws the row. An
+injected eligibility database failure returns500, leaves the approved code
+unspent and allows a subsequent valid exchange. Real membership/config denial
+still terminally withdraws. No infrastructure error creates positive authority.
+New focused coverage also verifies unauthenticated authorize401, API decline
+with no code/ticket, exact v1 post-login destination and look-alike path refusal.
+45 affected tests across four files, changed lint and combined strict affected
+server/page typecheck pass after these corrections. Earlier unchanged parser,
+strict-JSON and freshness evidence remains its preceding checkpoint.
+
+### Remaining readiness qualifications
+
+- The journal is the local decision record; no organization audit-log events
+  are emitted for handoff prepare/decide/exchange. The preview has an audit
+  integration, this handoff does not. Durable operator audit design and failure
+  ordering remain pre-real-use work, not quietly certified by this review.
+- Launch metadata (attempt, full key, credential digest, challenge and state)
+  appears in URLs/browser history. The credential digest is not a secret or
+  authentication factor. A holder of the launch URL with another eligible
+  session may squat a globally unique attempt first and force restart. PKCE
+  prevents that holder from redeeming a legitimate native's code. No privacy
+  or availability guarantee follows from the current Referrer-Policy headers.
+- Current common handoff limiter is20requests/minute, keyed by endpoint scope
+  and client IP, including reads here. One ordinary flow costs at least four
+  requests. Same-IP reloads/attackers can consume the exchange budget and force
+  fresh consent after expiry. Real-use limiting, fairness, abuse and capacity
+  design need separate validation. No production thresholds were selected.
+- Source confirms randomToken uses WebCrypto random values. That is code
+  inspection, not independent cryptographic or platform certification.
+- Auth-cookie/CSRF/SSO internals and distributed runtime/failure behavior were
+  outside the independent review. No source-only no-blocker conclusion proves
+  them correct. Native receipt/auth, account events, policy and activation
+  remain held. No service route or node-control authority was added.

@@ -814,6 +814,7 @@ function toolsConfig(env: { TOOLS_FEATURES?: string; TOOLS_ENABLED?: string; DOC
 export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
   const env = EnvSchema.parse(raw);
   const mode = env.APP_MODE ?? (env.NODE_ENV === "production" ? "production" : "development");
+  if (mode !== "development" && env.MNET_ENROLLMENT_CONSENT === "on") throw new Error("Enrollment consent preview is local-development only");
   const secret = env.APP_SECRET ?? "";
   if (mode === "production" && secret.length < 32) {
     throw new ConfigError("APP_SECRET must be set to at least 32 random characters in production.");

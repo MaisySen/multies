@@ -11,7 +11,7 @@ export function mnetEnrollmentRoutes() {
  const r = new Hono<AppEnv>();
  r.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store"); c.header("Pragma", "no-cache"); c.header("Referrer-Policy", "no-referrer");
-  if (!c.var.deps.config.mnetEnrollmentConsent || !enrollmentOperatorSchema.safeParse(c.var.deps.config.mnetEnrollmentOperator).success) return c.json({ error: { code: "not_found", message: "Not found." } }, 404);
+  if (c.var.deps.config.mode !== "development" || !c.var.deps.config.mnetEnrollmentConsent || !enrollmentOperatorSchema.safeParse(c.var.deps.config.mnetEnrollmentOperator).success) return c.json({ error: { code: "not_found", message: "Not found." } }, 404);
   await next();
  });
  r.use("*", rateLimit("handoff", (c) => `mnet-enrollment:${c.var.ip}`, { countReads: true }));

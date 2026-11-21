@@ -21,7 +21,7 @@ export const enrollmentRequest = enrollmentLaunch.extend({
 const refused = () => new HttpError(403, "mnet_enrollment_denied", "Computer joining approval is unavailable.");
 function operator(d: Deps) {
  const parsed = enrollmentOperatorSchema.safeParse(d.config.mnetEnrollmentOperator);
- if (!d.config.mnetEnrollmentConsent || !parsed.success) throw new HttpError(404, "not_found", "Not found.");
+ if (d.config.mode !== "development" || !d.config.mnetEnrollmentConsent || !parsed.success) throw new HttpError(404, "not_found", "Not found.");
  return parsed.data;
 }
 function binding(d: Deps, workspaceId: string, userId: string) {
