@@ -89,77 +89,62 @@ export function windowStart(deps: Deps, days: number | undefined, def: number): 
 
 // ------------------------------------------------------------------ redaction
 
-/** Key words whose values are never shown: credentials, and anything that carries mail or message content or an address. */
-const SENSITIVE_WORDS = new Set([
-  "secret", "secrets", "token", "tokens", "password", "passwd", "pwd", "pass", "passphrase", "key", "keys", "apikey", "auth", "authorization", "bearer",
-  "cookie", "cookies", "session", "credential", "credentials", "signature", "sig", "otp", "code", "pin", "hash", "salt", "private", "enc",
-  "body", "html", "text", "content", "contents", "subject", "message", "messages", "snippet", "preview", "raw", "mime", "headers", "header",
-  "email", "emails", "address", "addresses", "to", "cc", "bcc", "from", "sender", "recipient", "recipients", "reply", "rcpt", "attachment", "attachments",
-  "prompt", "prompts", "instructions", "input", "output", "result", "note", "notes", "comment", "comments", "phone", "mobile", "name", "title",
-]);
-/** Substrings that mark a key sensitive whatever the word split (apiKey, accessToken, x-signature, refresh_token). */
-const SENSITIVE_PARTS = ["secret", "token", "password", "passwd", "apikey", "cookie", "credential", "signature", "prompt", "bearer", "private"];
+/**
+ * The job payload preview is an allow-list, safe by construction: it shows the payload's structure (key names, and
+ * each value as its type and size) and keeps a value only for operational fields that cannot carry customer content.
+ */
+const KEEP_KEYS = new Set(["id", "orgId", "type", "kind", "status", "attempt", "attempts"]);
+/** A kept string must look like an id or an enum word (no spaces, no @, short), else it is shown as its type and size. */
+const SAFE_VALUE_RE = /^[A-Za-z0-9_.:-]{1,64}$/;
+const PREVIEW_DEPTH = 3;
+const PREVIEW_KEYS = 25;
 
-function keyWords(k: string): string[] {
-  return k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-}
-export function sensitiveKey(k: string): boolean {
-  const flat = k.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (SENSITIVE_PARTS.some((p) => flat.includes(p))) return true;
-  const words = keyWords(k);
-  // A reference by id (messageId, threadIds) names a row, not its content; its value still goes through redactString.
-  if (words.length > 1 && (words[words.length - 1] === "id" || words[words.length - 1] === "ids")) return false;
-  return words.some((w) => SENSITIVE_WORDS.has(w));
+/** Whether a key's value may be shown: `id`, the listed operational keys, and keys ending in `Id` or `_id`. */
+export function keepValueKey(k: string): boolean {
+  return KEEP_KEYS.has(k) || /[a-z0-9]Id$/.test(k) || /_id$/.test(k);
 }
 
-const EMAIL_RE = /[^\s"'<>@]+@[^\s"'<>@]+\.[^\s"'<>@]+/g;
-/** Ids this codebase makes (`job_x`, `org_x`, `usr_x`, ...): safe and useful to show. */
-const ID_RE = /^[a-z][a-z0-9]{1,7}_[A-Za-z0-9_-]{6,48}$/;
-const SECRETISH_RE = /^(sk|pk|rk|whsec|mtw|mtk|ghp|gho|xox[abp]|AKIA)[-_]|^eyJ[A-Za-z0-9_-]+\.|^Bearer\s/i;
-const LONG_OPAQUE_RE = /^[A-Za-z0-9+/=_.-]{24,}$/;
-
-function redactString(s: string): string {
-  if (ID_RE.test(s)) return s;
-  if (SECRETISH_RE.test(s) || LONG_OPAQUE_RE.test(s)) return "[redacted]";
-  if (s.includes("@")) return "[redacted]";
-  if (s.length > 64) return `[${s.length} chars]`;
-  return s;
+/** A key name as shown: names that look like data (an address, a long or odd string used as a map key) are hidden. */
+function shownKey(k: string): string {
+  return /^[A-Za-z_][A-Za-z0-9_-]{0,39}$/.test(k) ? k : `<key ${k.length}>`;
 }
 
-function redactValue(v: unknown, depth: number): unknown {
-  if (v === null || typeof v === "number" || typeof v === "boolean") return v;
-  if (typeof v === "string") return redactString(v);
-  if (depth >= 4) return Array.isArray(v) ? `[${v.length} items]` : "[object]";
-  if (Array.isArray(v)) {
-    const head = v.slice(0, 10).map((x) => redactValue(x, depth + 1));
-    return v.length > 10 ? [...head, `[+${v.length - 10} more]`] : head;
-  }
+function shape(v: unknown, depth: number, keep: boolean): unknown {
+  if (v === null) return null;
+  if (typeof v === "boolean" || typeof v === "number") return v;
+  if (typeof v === "string") return keep && SAFE_VALUE_RE.test(v) ? v : `<string ${v.length}>`;
+  if (Array.isArray(v)) return `<array ${v.length}>`;
   if (typeof v === "object") {
+    const entries = Object.entries(v as Record<string, unknown>);
+    if (depth >= PREVIEW_DEPTH) return `<object ${entries.length}>`;
     const out: Record<string, unknown> = {};
-    let n = 0;
-    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
-      if (++n > 25) { out["…"] = "[more keys]"; break; }
-      const key = k.length > 40 ? `${k.slice(0, 40)}…` : k;
-      out[key] = sensitiveKey(k) ? "[redacted]" : redactValue(x, depth + 1);
+    for (const [k, x] of entries.slice(0, PREVIEW_KEYS)) {
+      let key = shownKey(k);
+      while (key in out) key = `${key}'`;
+      out[key] = shape(x, depth + 1, keepValueKey(k));
     }
+    if (entries.length > PREVIEW_KEYS) out["<more>"] = `<keys ${entries.length - PREVIEW_KEYS}>`;
     return out;
   }
-  return "[value]";
+  return `<${typeof v}>`;
 }
 
 export const PAYLOAD_PREVIEW_MAX = 600;
 
 /**
- * A job payload as an operator may see it: the JSON shape with ids, numbers and flags kept and every credential,
- * address and piece of content replaced; at most PAYLOAD_PREVIEW_MAX characters. Never throws.
+ * A job payload as an operator may see it: its structure only (key names, each value as `<string 42>`,
+ * `<array 3>`, `<object 2>`), with numbers, booleans and the values of id and operational keys (keepValueKey) kept.
+ * Every other string, whatever its key, is type and length only. At most PAYLOAD_PREVIEW_MAX characters. Never throws.
  */
 export function redactPayload(payload: string | null | undefined, max = PAYLOAD_PREVIEW_MAX): string {
   if (!payload) return "";
   let parsed: unknown;
   try { parsed = JSON.parse(payload); } catch { return `[not JSON, ${payload.length} chars]`; }
-  const s = JSON.stringify(redactValue(parsed, 0)) ?? "";
+  const s = JSON.stringify(shape(parsed, 0, false)) ?? "";
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
+
+const EMAIL_RE = /[^\s"'<>@]+@[^\s"'<>@]+\.[^\s"'<>@]+/g;
 
 /** A free-text error with addresses and token-like strings taken out, capped. */
 export function redactError(s: string | null | undefined, max = 300): string | null {

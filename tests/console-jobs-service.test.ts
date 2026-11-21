@@ -10,7 +10,6 @@ import {
 
 type Ctx = Awaited<ReturnType<typeof makeTestApp>>;
 const MIN = 60_000, DAY = 86_400_000;
-const PLANTED = "PLANTED-zq9";
 
 const page = <F extends string>(field: F, dir: "asc" | "desc" = "desc", limit = 50, cursor: ConsoleCursor | null = null): ConsolePage<F> => ({ limit, cursor, sort: { field, dir } });
 
@@ -36,14 +35,26 @@ async function expectHttp(p: Promise<unknown>, status: number, code?: string) {
   throw new Error(`expected HTTP ${status}`);
 }
 
-/** A payload with a secret, an address and content in every shape a job carries them. */
+/**
+ * Sentinels: upper case with no underscore, so no generated id (lower case prefix_ids) can contain one. Each planted
+ * value is a different sentinel, so a leak names the field it came from.
+ */
+const S = (n: string) => `QXZSENTINEL${n}QXZ`;
+const PLANTED = "QXZSENTINEL";
+
+/** A payload with a short secret under an innocent key, message content under the usual keys, and allowed ids. */
 const plantedPayload = {
-  messageId: "msg_01HXABCDEFGH", orgId: "org_abcdefgh", attempt: 3, urgent: true,
-  to: ["victim@example.com"], cc: "other@example.com", from: "Sender <sender@example.com>",
-  subject: `Hi ${PLANTED}`, text: `Body ${PLANTED}`, html: `<p>${PLANTED}</p>`, body: PLANTED,
-  apiKey: `sk_live_${PLANTED}`, accessToken: `tok-${PLANTED}`, refresh_token: PLANTED,
-  nested: { password: PLANTED, headers: { authorization: `Bearer ${PLANTED}` }, list: [{ email: "x@example.com" }, "y@example.com"] },
-  stray: `eyJhbGciOiJIUzI1NiJ9.${PLANTED}`, opaque: "A".repeat(40), prose: `${PLANTED} `.repeat(20),
+  // (a) a short secret under an innocent short key, and a few more under keys a deny-list would miss
+  v: S("A1"), x: { y: S("A2") }, misc: S("A3"), label: `hi ${S("A4")}`,
+  // (b) message-like content under the usual keys
+  subject: S("B1"), body: S("B2"), text: S("B3"), to: [S("B4"), "victim@example.com"], cc: "other@example.com", html: `<p>${S("B5")}</p>`,
+  nested: { from: S("B6"), list: [{ email: "x@example.com" }], deeper: { deepest: { value: S("B7") } } },
+  // a map keyed by data: the keys themselves are hidden
+  byAddress: { "keyed@example.com": 1 },
+  // allowed: ids, operational fields, numbers and booleans
+  id: "job_abcdefgh", messageId: "msg_01hxabcdefgh", thread_id: "thr_abcdefgh", orgId: "org_abcdefgh", type: "mail.deliver", kind: "reply", status: "queued", attempt: 3, urgent: true,
+  // an allowed key whose value does not look like an id is still type and length only
+  rfcId: `<${S("C1")}@mail.example.com>`,
 };
 
 let ctx: Ctx;
@@ -68,19 +79,36 @@ beforeEach(async () => {
 });
 
 describe("redaction", () => {
-  it("keeps ids, numbers and flags and replaces every secret, address and piece of content", () => {
+  it("shows the payload's structure only, keeping ids, operational fields, numbers and booleans", () => {
     const out = redactPayload(JSON.stringify(plantedPayload));
     expect(out).not.toContain(PLANTED);
-    expect(out).not.toContain("@example.com");
-    expect(out).not.toContain("A".repeat(40));
-    expect(out).not.toContain("eyJ");
+    expect(out).not.toContain("@");
+    expect(out).not.toContain("example.com");
     const parsed = JSON.parse(out);
-    expect(parsed).toMatchObject({ messageId: "msg_01HXABCDEFGH", orgId: "org_abcdefgh", attempt: 3, urgent: true, to: "[redacted]", apiKey: "[redacted]", nested: { password: "[redacted]", headers: "[redacted]" } });
-    expect(parsed.nested.list).toEqual([{ email: "[redacted]" }, "[redacted]"]);
+    // Key names stay, values are type and size.
+    expect(parsed).toMatchObject({
+      v: `<string ${S("A1").length}>`, x: { y: `<string ${S("A2").length}>` }, misc: `<string ${S("A3").length}>`,
+      subject: `<string ${S("B1").length}>`, body: `<string ${S("B2").length}>`, text: `<string ${S("B3").length}>`, to: "<array 2>",
+      cc: `<string ${"other@example.com".length}>`, nested: { from: `<string ${S("B6").length}>`, list: "<array 1>", deeper: { deepest: "<object 1>" } },
+      byAddress: { "<key 17>": 1 },
+      id: "job_abcdefgh", messageId: "msg_01hxabcdefgh", thread_id: "thr_abcdefgh", orgId: "org_abcdefgh", type: "mail.deliver", kind: "reply", status: "queued", attempt: 3, urgent: true,
+      rfcId: expect.stringMatching(/^<string \d+>$/),
+    });
+    expect(Object.keys(parsed)).toEqual(Object.keys(plantedPayload));
     expect(redactPayload("not json")).toBe("[not JSON, 8 chars]");
-    const big = redactPayload(JSON.stringify({ items: Array.from({ length: 30 }, (_, i) => ({ id: `itm_${String(i).padStart(8, "0")}`, n: i, extra: { a: { b: { c: 1 } } } })) }));
+    expect(redactPayload(JSON.stringify(S("D1")))).toBe(`"<string ${S("D1").length}>"`);
+    const big = redactPayload(JSON.stringify(Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`field${i}`, { a: { b: 1 } }]))));
     expect(big.length).toBeLessThanOrEqual(PAYLOAD_PREVIEW_MAX);
-    expect(redactError(`Refused for victim@example.com with key sk_live_${PLANTED}ABCDEF and Bearer ${PLANTED}`)).not.toMatch(/victim@|PLANTED/);
+  });
+
+  it("keeps errors readable but takes out a planted address, bearer token and long opaque token", () => {
+    const opaque = "Zx9".repeat(16);
+    const out = redactError(`550 rejected for victim@example.com; auth Bearer ${S("E1")}; token ${opaque}; key sk_live_${S("E2")}`)!;
+    expect(out).toContain("550 rejected for");
+    expect(out).not.toContain("victim@example.com");
+    expect(out).not.toContain(PLANTED);
+    expect(out).not.toContain(opaque);
+    expect(out).toContain("[email]");
   });
 });
 
@@ -90,7 +118,7 @@ describe("listJobsFiltered", () => {
       // Several share an updated_at, so the id tie-break is exercised.
       await insertJob(`job_dead_${String(i).padStart(2, "0")}`, { orgId: i % 5 === 0 ? beta : alpha, type: i % 2 ? "mail.deliver" : "push.send", updatedAt: new Date(now - Math.floor(i / 3) * MIN) });
     }
-    await insertJob("job_planted", { payload: JSON.stringify(plantedPayload), lastError: `550 rejected victim@example.com token sk_live_${PLANTED}xyz`, updatedAt: new Date(now - 30 * MIN) });
+    await insertJob("job_planted", { payload: JSON.stringify(plantedPayload), lastError: `550 rejected victim@example.com token sk_live_${S("L1")}xyz`, updatedAt: new Date(now - 30 * MIN) });
     await insertJob("job_pending", { status: "pending", attempts: 1, runAt: new Date(now - MIN), updatedAt: new Date(now - MIN) });
     await insertJob("job_done", { status: "done", updatedAt: new Date(now - MIN) });
     await insertJob("job_system", { orgId: null, type: "system-mail.send" });
