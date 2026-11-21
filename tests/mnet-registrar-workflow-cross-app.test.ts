@@ -34,7 +34,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   child=spawn("go",["test","-race","-tags","multies_native_fixture","./internal/control","-run","^TestActualMultiesRegistrarWorkflowFixture$","-count=1","-timeout","60s"],{cwd:repo,env:{...process.env,MNET_WORKFLOW_FIXTURE_DIR:dir,SSL_CERT_FILE:cert,SSL_CERT_DIR:join(dir,"no-extra-roots")},stdio:["ignore","pipe","pipe"]});
   child.stdout!.on("data",b=>{output+=b.toString();});child.stderr!.on("data",b=>{output+=b.toString();});const completion=new Promise<number|null>((resolve,reject)=>{child!.on("error",reject);child!.on("close",code=>{done=true;resolve(code);});});
   const publicInput=JSON.parse(await waitFile(join(dir,"launch.json"),()=>done));
-  const operator=e.deps.config.mnetEnrollmentOperator!;operator.bindings[0].networkId=publicInput.networkId;
+  const operator=e.deps.config.mnetEnrollmentOperator!;operator.bindings[0].networkId=publicInput.networkId;operator.registrarOrigin=publicInput.registrarOrigin;e.deps.config.mnetEnrollmentServiceFixture!.keys[0].registrarOrigin=publicInput.registrarOrigin;
   const b=operator.bindings[0],mapping={workspaceId:b.workspaceId,issuer:operator.issuer,registrarOrigin:operator.registrarOrigin,audience:operator.audience,mappingRevision:operator.revision,networkId:b.networkId};
   const {workspaceId,...displayed}=mapping;
   const prepared=await e.person.post("/api/mnet-enrollment-v1/authorizations",{...publicInput.launch,workspaceId,displayed});expect(prepared.status).toBe(201);
@@ -56,7 +56,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   expect(exchangeCalls).toBe(mode==="success"?2:1);expect(reserveCalls).toBe(mode==="success"?2:1);expect(reserveStatus).toBe(mode==="success"?200:403);expect(outcome.inputAuthorized).toBe(false);
   const row=await e.db.select().from(journal).where(eq(journal.id,prepared.body.id)).get();
   if(mode==="success"){
-   expect(outcome).toMatchObject({sourceDenied:false,nodeCreated:true,nodeDeleted:true,currentMapBeforeDelete:true,legacyTokenCreated:false,bidirectionalActualPeers:true});
+   expect(outcome).toMatchObject({sourceDenied:false,nodeCreated:true,nodeDeleted:true,currentMapBeforeDelete:true,legacyTokenCreated:false,bidirectionalActualPeers:true,journalWorkflowReceiptPinned:true});
    expect(row!.status).toBe("reserved");expect(row!.reserveId).toBe(outcome.reserveId);expect(row!.descriptorDigest).toBe(outcome.descriptorDigest);expect(row!.devicePublicKey).toBe(publicInput.launch.devicePublicKey);expect(JSON.parse(row!.events)).toHaveLength(1);
    // No fabricated source acknowledgement: real Store receipt is separate and
    // source remains reserved. Bookkeeping/ack does not create network authority.
