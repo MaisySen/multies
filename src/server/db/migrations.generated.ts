@@ -1874,5 +1874,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE UNIQUE INDEX mnet_credential_uq ON mnet_devices(credential_hash);",
       "CREATE INDEX mnet_owner_idx ON mnet_devices(user_id,workspace_id);"
     ]
+  },
+  {
+    "name": "0172_mnet_enrollment_consent",
+    "statements": [
+      "CREATE TABLE mnet_enrollment_decisions (\n id text PRIMARY KEY NOT NULL,\n user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n session_id text NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,\n workspace_id text NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,\n attempt_id text NOT NULL, device_public_key text NOT NULL,\n issuer text NOT NULL, registrar_origin text NOT NULL, audience text NOT NULL,\n network_id text NOT NULL, mapping_revision text NOT NULL,\n status text NOT NULL, expires_at integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX mnet_enrollment_attempt_uq ON mnet_enrollment_decisions(attempt_id);",
+      "CREATE INDEX mnet_enrollment_owner_idx ON mnet_enrollment_decisions(user_id,expires_at);"
+    ]
   }
 ];

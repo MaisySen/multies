@@ -21,6 +21,6 @@ export const KNOWN_PAGE_PATHS: readonly string[] = [...EXACT];
 
 export function isKnownPage(pathname: string) {
   const p = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  if (EXACT.has(p)) return true;
+  if (EXACT.has(p) || p === "/mnet/enroll") return true; // Private branch-only consent page, not a sitemap entry.
   return PREFIXES.some((x) => (x.endsWith("/") ? p.startsWith(x) && p.length > x.length : p === x || p.startsWith(`${x}/`)));
 }

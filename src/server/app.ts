@@ -1,3 +1,4 @@
+import { mnetEnrollmentRoutes } from "./routes/mnet-enrollment";
 import { mnetRoutes } from "./routes/mnet";
 import { productAnalyticsRoutes } from "./routes/product-analytics";
 import { productAnalyticsActions } from "./services/product-analytics";
@@ -552,6 +553,7 @@ export function createApp(deps: Deps) {
 
   // ANALYTICS-PH: a successful key action (send mail, new task, invite...) is recorded after the response (off unless ANALYTICS_PH).
   app.use("/api/*", productAnalyticsActions);
+  app.route("/api/mnet-enrollment", mnetEnrollmentRoutes());
   app.route("/api/mnet", mnetRoutes());
   app.route("/api/account", accountRoutes());
   app.route("/api/contact", contactFormRoutes());

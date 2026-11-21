@@ -6,7 +6,7 @@ import { HttpError } from "../lib/errors";
 import { rateLimit } from "../lib/rate-limit";
 import { decideMnet, exchangeMnet, listMnet, mnetRequest, mnetProof, prepareMnet, revokeMnet, mnetLaunch, mnetLaunchInfo, ownMnetDevices, mnetCheck, checkMnet } from "../services/mnet";
 
-async function body<T>(c: { req: { raw: Request } }, schema: z.ZodType<T>): Promise<T> {
+export async function body<T>(c: { req: { raw: Request } }, schema: z.ZodType<T>): Promise<T> {
   const reader = c.req.raw.body?.getReader();
   if (!reader) throw new HttpError(400, "invalid_request", "Mnet request is invalid.");
   const chunks: Uint8Array[] = [];

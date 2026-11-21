@@ -4884,3 +4884,16 @@ export const mnetDevices = sqliteTable("mnet_devices", {
  status: text("status", { enum: ["pending", "approved", "declined", "active", "revoked"] }).notNull(),
  codeHash: text("code_hash"), credentialHash: text("credential_hash"), expiresAt: ts("expires_at").notNull(), credentialExpiresAt: ts("credential_expires_at"),
 }, (t) => [uniqueIndex("mnet_code_uq").on(t.codeHash), uniqueIndex("mnet_credential_uq").on(t.credentialHash), index("mnet_owner_idx").on(t.userId,t.workspaceId)]);
+
+// Separate purpose: browser enrollment decisions only, not List or node credentials.
+export const mnetEnrollmentDecisions = sqliteTable("mnet_enrollment_decisions", {
+ id: text("id").primaryKey(),
+ userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ sessionId: text("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+ workspaceId: text("workspace_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+ attemptId: text("attempt_id").notNull(), devicePublicKey: text("device_public_key").notNull(),
+ issuer: text("issuer").notNull(), registrarOrigin: text("registrar_origin").notNull(), audience: text("audience").notNull(),
+ networkId: text("network_id").notNull(), mappingRevision: text("mapping_revision").notNull(),
+ status: text("status", { enum: ["pending", "approved", "declined"] }).notNull(),
+ expiresAt: ts("expires_at").notNull(),
+}, (t) => [uniqueIndex("mnet_enrollment_attempt_uq").on(t.attemptId), index("mnet_enrollment_owner_idx").on(t.userId, t.expiresAt)]);

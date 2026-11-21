@@ -34,7 +34,7 @@ const now = (d: Deps) => d.now();
 
 // Correlated check in the same statement as a grant transition or device read.
 // A prior SELECT alone would leave a revocation race between checking and use.
-function liveEligibility(d: Deps, userId: string | SQLWrapper, workspaceId: string | SQLWrapper, sessionId: string | SQLWrapper) {
+export function liveEligibility(d: Deps, userId: string | SQLWrapper, workspaceId: string | SQLWrapper, sessionId: string | SQLWrapper) {
   return sql`EXISTS (SELECT 1 FROM users u
     JOIN members m ON m.user_id = u.id AND m.organization_id = ${workspaceId}
     JOIN organizations o ON o.id = m.organization_id
@@ -55,7 +55,7 @@ export async function mnetPerson(d: Deps, headers: Headers) {
   if (!row || row.impersonatedBy) throw denied();
   return row;
 }
-async function eligible(d: Deps, userId: string, workspaceId: string, sessionId: string) {
+export async function eligible(d: Deps, userId: string, workspaceId: string, sessionId: string) {
   const row = await d.db.select({ user: users, org: organizations, member: members, session: sessions }).from(users)
     .innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, workspaceId)))
     .innerJoin(organizations, eq(organizations.id, members.organizationId))

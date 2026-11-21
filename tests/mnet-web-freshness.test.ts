@@ -1,3 +1,4 @@
+import { MnetEnrollPage } from "@/web/pages/mnet-enroll";
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
@@ -29,4 +30,11 @@ describe("Mnet browser reads are new for each mounted page", () => {
     expect(html).toContain("Checking Multies sign in");
     client.clear();
   });
+});
+
+it("does not reuse a cached enrollment person or mapping on a new mount", () => {
+ const client = new QueryClient();
+ client.setQueryData(["mnet-enroll", "attemptId=old"], { email: "old-private@example.test", workspaces: [{id:"old",name:"Old private network"}] });
+ const html = render(client, createElement(MnetEnrollPage), "/mnet/enroll?attemptId=old");
+ expect(html).not.toContain("old-private"); expect(html).not.toContain("Old private"); expect(html).toContain("Checking computer joining request"); client.clear();
 });
