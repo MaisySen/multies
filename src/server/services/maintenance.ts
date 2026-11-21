@@ -25,6 +25,7 @@ import "./system-mail";
 import "./suite/push";
 import "./suite/notify-centre-r97"; // R97: notify.mail job
 import "./billing/referral-job";
+import { featureOn } from "./console/flags"; // OPS1 feature flags
 
 /**
  * Periodic housekeeping: drain the job queue, record the uptime self check, re-check
@@ -32,6 +33,8 @@ import "./billing/referral-job";
  * short-lived tables. Each step is isolated so one failure cannot stop the others.
  */
 export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe?: boolean } = {}) {
+  // OPS1 feature flags: the passes below follow the platform wide value (a global kill switch stops background work
+  // too). The cron entry points (entry/worker.ts scheduled, entry/node.ts tick) load the overrides before this runs.
   // R50 (CPU limit): the 15 minute cron pass cost the Worker 50 to 60 ms of CPU, about 27 statements each time. With
   // rotate (the cron sets it) housekeeping that can wait an hour runs in one of the four passes of each hour, a
   // different group each quarter, so a pass carries about 10 fewer statements. Work people wait on (jobs, mail,
@@ -61,7 +64,7 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   if (has.moves) await step("data_move_nudge", async () => (await import("./data-move/service")).nudgeLeftBehindMoves(deps));
   const jobsRun = !has.jobs ? { ran: 0, failed: 0, dead: 0 } : await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
   // R91: dashboards plus (DASHBOARDS_PLUS only): due data source refreshes, alerts and report mails, each bounded per pass.
-  if (deps.config.dashboardsPlus) await step("dashboards_plus", async () => (await import("./suite/dash-r91-cron")).runDashboardsPlus(deps));
+  if (featureOn(deps, "dashboardsPlus")) await step("dashboards_plus", async () => (await import("./suite/dash-r91-cron")).runDashboardsPlus(deps));
   // The remaining steps touch different tables and don't depend on each other, so they run
   // together: one after another they were a chain of round trips (Sentry MYMAIL-API-4).
   const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders, , writes] = await Promise.all([
@@ -86,16 +89,16 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   const socialRun = !has.social || !deps.config.integrations.composio ? undefined : await step("social_posts", async () => (await import("./integrations/social")).runDueSocialPosts(deps));
   if (inSlot(1) && deps.config.integrations.composio) await step("social_media_prune", async () => (await import("./integrations/social")).pruneSocialMedia(deps));
   // R90: flows. Waits that are over carry on, a few due page and feed watches are checked, due digests go out. Idle: three reads in the probe, nothing here.
-  if (deps.config.flows !== false && (has.flowRuns || has.flowWatches || has.flowDigests)) await step("flows", async () => {
+  if (featureOn(deps, "flows") && (has.flowRuns || has.flowWatches || has.flowDigests)) await step("flows", async () => {
     const fl = await import("./suite/flows");
     if (has.flowRuns) await fl.resumeDueRuns(deps);
     if (has.flowWatches) await (await import("./suite/flow-watch")).runDueWatches(deps);
     if (has.flowDigests) await fl.sendDueDigests(deps);
   });
   // R117: evergreen posts fill free slots in the next two days, once an hour (one bounded read when there are none).
-  if (inSlot(1) && deps.config.integrations.composio && deps.config.socialP2 !== false) await step("social_evergreen", async () => (await import("./integrations/social-p2")).runEvergreen(deps));
+  if (inSlot(1) && deps.config.integrations.composio && featureOn(deps, "socialP2")) await step("social_evergreen", async () => (await import("./integrations/social-p2")).runEvergreen(deps));
   // R118: the Social inbox and results, for workspaces that use them (a bounded read when none is due).
-  if (inSlot(2) && deps.config.socialP2b !== false) await step("social_inbox", async () => (await import("./integrations/social-p2b")).runSocialP2bPass(deps));
+  if (inSlot(2) && featureOn(deps, "socialP2b")) await step("social_inbox", async () => (await import("./integrations/social-p2b")).runSocialP2bPass(deps));
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
   if (inSlot(3)) await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
@@ -197,7 +200,7 @@ export async function probeWaiting(deps: Deps): Promise<Waiting> {
     if (!row) return ALL_WAITING;
     const out = {} as Waiting;
     for (const k of keys) out[k] = Number(row[k]) !== 0;
-    if (!deps.config.mailConnect.enabled) out.mailSync = false;
+    if (!featureOn(deps, "mailConnect")) out.mailSync = false; // OPS1: the platform wide flag
     if (!deps.config.integrations.composio) out.social = false;
     return out;
   } catch (err) {

@@ -57,6 +57,7 @@ import { ChatHub as ChatHubClass } from "../server/realtime/chat-hub-do";
 import { bindTestSessionEnv } from "../server/test-session-env-r45";
 import { OPENAPI_ORIGIN_PLACEHOLDER } from "../server/routes/v1"; // R46
 import { isWorkersDevHost, withRobotsHeader } from "@/server/lib/robots-host";
+import { featureOn, loadFlagOverridesSafe } from "../server/services/console/flags"; // OPS1 feature flags
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -593,29 +594,31 @@ const handler = {
 
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
     const { deps } = await getReady(env);
+    // OPS1 feature flags: the background passes follow the platform wide value (a global kill switch stops them too).
+    await loadFlagOverridesSafe(deps);
     // R43: what the maintenance run reports is sent before the run ends.
     // R50 (CPU limit): the cron pass rotates its hourly housekeeping across the four passes of each hour.
     ctx.waitUntil(runMaintenanceIfMigrated(deps, { rotate: true }).finally(() => flushReporting()));
     // Tools P2: share and signing, mail merge, AI usage housekeeping and the attachment index, each on its own.
     for (const p of toolsCronPasses(deps)) ctx.waitUntil(p);
     // R111: mail retention (MAIL_ARCHIVE_R111): only workspaces whose admin turned a policy on, past its 7 day grace.
-    if (deps.config.mailArchive) {
+    if (featureOn(deps, "mailArchive")) {
       ctx.waitUntil(import("../server/services/mail/archive-r111").then((m) => m.runRetentionPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "mail.retention_pass" })));
     }
     // R105: repeating invoices and payment reminders (INVOICES_ENABLED), bounded per pass.
-    if (deps.config.invoicesEnabled) {
+    if (featureOn(deps, "invoicesEnabled")) {
       ctx.waitUntil(import("../server/services/invoices/deliver").then((m) => m.runInvoiceCron(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "invoices.cron" })));
     }
     // R129: course due soon and overdue reminders (COURSES_R129), 100 a pass.
-    if (deps.config.coursesR129) {
+    if (featureOn(deps, "coursesR129")) {
       ctx.waitUntil(import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "courses.reminders" })));
     }
     // TD8: Team AI routines due now and runs left waiting (TEAMAI_TD8), 10 runs a pass on the workspace's own key.
-    if (deps.config.teamaiTd8) {
+    if (featureOn(deps, "teamaiTd8")) {
       ctx.waitUntil(import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "teamai.pass" })));
     }
     // R97: due notification digests (50 a run, only rows whose digest time has come).
-    if (deps.config.notificationCentre !== false) {
+    if (featureOn(deps, "notificationCentre")) {
       ctx.waitUntil(import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "notify.digest_pass" })));
     }
   },

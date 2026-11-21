@@ -51,6 +51,7 @@ import { mockComposioAllowed, mockComposioFetch } from "../server/services/integ
 import { mockDirectAllowed, mockDirectFetch } from "../server/services/direct-social/mock"; // R83: local stand in only
 import { AUTH_SHELL_PATHS, BRAND_CACHE, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant } from "../server/auth/config";
+import { featureOn, loadFlagOverridesSafe } from "../server/services/console/flags"; // OPS1 feature flags
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -98,18 +99,20 @@ const deps = {
 const app = createApp(deps);
 
 // Housekeeping: DNS re-checks, session expiry, sandbox purge.
-const tick = () => {
+const tick = async () => {
+  // OPS1 feature flags: the background passes follow the platform wide value (a global kill switch stops them too).
+  await loadFlagOverridesSafe(deps);
   void runMaintenanceIfMigrated(deps).catch((err) => console.error("[maintenance]", err));
   // R129: course reminders (self hosted servers run the same pass as the cloud cron).
-  if (deps.config.coursesR129) void import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err) => console.error("[courses.reminders]", err));
-  if (deps.config.teamaiTd8) void import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch(() => console.error("[teamai.pass] failed")); // TD8
+  if (featureOn(deps, "coursesR129")) void import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err) => console.error("[courses.reminders]", err));
+  if (featureOn(deps, "teamaiTd8")) void import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch(() => console.error("[teamai.pass] failed")); // TD8
   // R97: due notification digests (self hosted servers run the same pass as the cloud cron).
-  if (deps.config.notificationCentre !== false) {
+  if (featureOn(deps, "notificationCentre")) {
     void import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err) => console.error("[notify.digest]", err));
   }
 };
-setInterval(tick, 10 * 60_000).unref();
-setTimeout(tick, 5_000).unref();
+setInterval(() => void tick(), 10 * 60_000).unref();
+setTimeout(() => void tick(), 5_000).unref();
 
 const webRoot = path.resolve("dist/web");
 if (existsSync(webRoot)) {
