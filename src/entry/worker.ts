@@ -57,7 +57,7 @@ import { ChatHub as ChatHubClass } from "../server/realtime/chat-hub-do";
 import { bindTestSessionEnv } from "../server/test-session-env-r45";
 import { OPENAPI_ORIGIN_PLACEHOLDER } from "../server/routes/v1"; // R46
 import { isWorkersDevHost, withRobotsHeader } from "@/server/lib/robots-host";
-import { featureOn, loadFlagOverridesSafe } from "../server/services/console/flags"; // OPS1 feature flags
+import { featurePassOn, loadFlagOverridesSafe } from "../server/services/console/flags"; // OPS1 feature flags
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -606,23 +606,23 @@ const handler = {
     // Tools P2: share and signing, mail merge, AI usage housekeeping and the attachment index, each on its own.
     for (const p of toolsCronPasses(deps)) ctx.waitUntil(p);
     // R111: mail retention (MAIL_ARCHIVE_R111): only workspaces whose admin turned a policy on, past its 7 day grace.
-    if (featureOn(deps, "mailArchive")) {
+    if (featurePassOn(deps, "mailArchive")) { // OPS1 security review N1: and below, a workspace override counts
       ctx.waitUntil(import("../server/services/mail/archive-r111").then((m) => m.runRetentionPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "mail.retention_pass" })));
     }
     // R105: repeating invoices and payment reminders (INVOICES_ENABLED), bounded per pass.
-    if (featureOn(deps, "invoicesEnabled")) {
+    if (featurePassOn(deps, "invoicesEnabled")) {
       ctx.waitUntil(import("../server/services/invoices/deliver").then((m) => m.runInvoiceCron(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "invoices.cron" })));
     }
     // R129: course due soon and overdue reminders (COURSES_R129), 100 a pass.
-    if (featureOn(deps, "coursesR129")) {
+    if (featurePassOn(deps, "coursesR129")) {
       ctx.waitUntil(import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "courses.reminders" })));
     }
     // TD8: Team AI routines due now and runs left waiting (TEAMAI_TD8), 10 runs a pass on the workspace's own key.
-    if (featureOn(deps, "teamaiTd8")) {
+    if (featurePassOn(deps, "teamaiTd8")) {
       ctx.waitUntil(import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "teamai.pass" })));
     }
     // R97: due notification digests (50 a run, only rows whose digest time has come).
-    if (featureOn(deps, "notificationCentre")) {
+    if (featurePassOn(deps, "notificationCentre")) {
       ctx.waitUntil(import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "notify.digest_pass" })));
     }
   },

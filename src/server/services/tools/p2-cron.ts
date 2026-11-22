@@ -10,7 +10,7 @@ import { runMergePass } from "./automation";
 import { runIndexPass } from "./attachment-index";
 import { pruneStaleUploads } from "./file-requests";
 import { runDocPass } from "../suite/doc-inbox";
-import { featureOn } from "../console/flags"; // OPS1 feature flags (the platform wide value: a cron pass)
+import { featureOn, featurePassOn } from "../console/flags"; // OPS1 feature flags (the platform wide value: a cron pass)
 
 const AI_FEATURES = ["ask", "translate", "extract", "expenses", "contracts"];
 
@@ -34,6 +34,7 @@ export function toolsCronPasses(deps: Deps): Promise<unknown>[] {
   // A no op without INDEX_DB or with indexing off (the pass checks its own stops: the D1 read guard, caps, switches).
   if (on("index", "folders")) out.push(guard("index_pass", () => runIndexPass(deps)));
   // R102: Files > Documents reading (DOC_INBOX_R102 with Files plus); its own caps, the vv8k exclusion and the D1 guard.
-  if (featureOn(deps, "docInbox") && featureOn(deps, "filesPlus")) out.push(guard("doc_inbox_pass", () => runDocPass(deps)));
+  // OPS1 security review N1: a workspace override counts (the pass serves only the workspaces with it on).
+  if (featurePassOn(deps, "docInbox") && featureOn(deps, "filesPlus")) out.push(guard("doc_inbox_pass", () => runDocPass(deps)));
   return out;
 }

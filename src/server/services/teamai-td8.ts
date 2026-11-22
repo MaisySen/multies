@@ -30,7 +30,7 @@ import {
   TEAMAI_CAPS as CAP, FINISHED_RUN_STATUSES, REASON_TEXT, ROUTINE_OUTPUTS, ROUTINE_TRIGGERS, citedNumbers, cleanText, dayStart, mentionsAssistant, nextRunAt, questionOf,
   FREE_LIMIT_REPLY, freeWindowStart, type InstructionSet, type MemoryEntry, type Routine, type RoutineOutput, type RoutineTrigger, type RunEntry, type RunKind, type RunStatus, type TeamAiState,
 } from "@/shared/teamai-td8";
-import { featureOn } from "./console/flags"; // OPS1 feature flags
+import { featureOn, flagOrgCond, passWorkspaces } from "./console/flags"; // OPS1 feature flags
 
 type A = SuiteActor;
 const isAdmin = (a: A) => a.role === "owner" || a.role === "admin";
@@ -720,10 +720,13 @@ export async function drainPending(deps: Deps, orgIds: string[]): Promise<void> 
 
 /** The cron pass: queue due scheduled routines, run what waits, close stuck runs, prune the log. */
 export async function runTeamAiPass(deps: Deps): Promise<{ queued: number; ran: number }> {
-  if (!featureOn(deps, "teamaiTd8")) return { queued: 0, ran: 0 }; // OPS1: the platform wide value (a cron pass)
+  // OPS1 security review N1: only the workspaces with Team AI on (a workspace override counts, either way).
+  const fw = await passWorkspaces(deps, "teamaiTd8");
+  if (!fw) return { queued: 0, ran: 0 };
+  const orgs = flagOrgCond(sql`org_id`, fw) ?? sql`1 = 1`;
   const now = deps.now().getTime();
   let queued = 0, ran = 0;
-  const due = await deps.db.all<RoutineRow & { org_id: string }>(sql`select * from teamai_routines where enabled = 1 and next_run_at is not null and next_run_at <= ${now} order by next_run_at asc limit 50`);
+  const due = await deps.db.all<RoutineRow & { org_id: string }>(sql`select * from teamai_routines where enabled = 1 and next_run_at is not null and next_run_at <= ${now} and ${orgs} order by next_run_at asc limit 50`);
   const zones = new Map<string, string>();
   for (const r of due) {
     if (!zones.has(r.org_id)) zones.set(r.org_id, await zoneOf(deps, r.org_id));
@@ -734,7 +737,7 @@ export async function runTeamAiPass(deps: Deps): Promise<{ queued: number; ran: 
     if (await enqueue(deps, r.org_id, { kind: "routine", routineId: r.id, label: r.name, eventKey: `sched:${r.id}:${r.next_run_at}`, output: r.output, input: {}, actorId: null, actorName: "Schedule", channelId: r.channel_id })) queued++;
   }
   await deps.db.run(sql`update teamai_runs set status = 'failed', reason = 'timeout', input = null, finished_at = ${now} where status = 'running' and started_at < ${now - 10 * 60_000}`);
-  const waiting = await deps.db.all<{ id: string }>(sql`select id from teamai_runs where status = 'queued' order by created_at asc limit ${CAP.runsPerPass}`);
+  const waiting = await deps.db.all<{ id: string }>(sql`select id from teamai_runs where status = 'queued' and ${orgs} order by created_at asc limit ${CAP.runsPerPass}`);
   for (const x of waiting) { await processRun(deps, x.id); ran++; }
   // AIS1: finished runs only, through teamai_runs_status_idx (status, created_at), so a year of runs is not scanned each pass.
   // FINISHED_RUN_STATUSES is every status but queued and running, so a status added later is pruned too.

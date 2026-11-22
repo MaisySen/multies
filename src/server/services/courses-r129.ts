@@ -22,7 +22,7 @@ import {
   checkQuestions, clampMark, courseProgress as progressOf, learnerStatus, LIMITS, publicQuestions, reminderDue, safeLink, scoreQuiz, STATUS_LABEL, toCsv,
   type Answer, type LessonType, type Question,
 } from "@/shared/courses-r129";
-import { featureOn } from "./console/flags"; // OPS1 feature flags
+import { featureOn, flagOrgCond, passWorkspaces } from "./console/flags"; // OPS1 feature flags
 
 export type Viewer = { kind: "member"; actor: SuiteActor } | { kind: "guest"; actor: SuiteActor; projectId: string };
 type Meta = typeof docCourses.$inferSelect;
@@ -530,12 +530,13 @@ export async function renderCertificate(c: { person: string; course: string; wor
 
 /** Due soon and overdue reminders, one of each per learner, 100 a pass. */
 export async function runCourseReminders(deps: Deps) {
-  if (!featureOn(deps, "coursesR129")) return { sent: 0 }; // OPS1: the platform wide value (a cron pass)
+  const fw = await passWorkspaces(deps, "coursesR129"); // OPS1 security review N1: per workspace overrides count
+  if (!fw) return { sent: 0 };
   const now = deps.now();
   const horizon = new Date(now.getTime() + 48 * 3600_000);
   const rows = await deps.db.select({ l: courseLearners, title: docs.title }).from(courseLearners)
     .innerJoin(docs, and(eq(docs.id, courseLearners.docId), eq(docs.orgId, courseLearners.orgId)))
-    .where(and(sql`${courseLearners.dueAt} IS NOT NULL AND ${courseLearners.dueAt} <= ${horizon.getTime()}`, isNull(courseLearners.completedAt), isNull(courseLearners.removedAt), eq(courseLearners.source, "assigned"), isNull(docs.deletedAt),
+    .where(and(flagOrgCond(courseLearners.orgId, fw), sql`${courseLearners.dueAt} IS NOT NULL AND ${courseLearners.dueAt} <= ${horizon.getTime()}`, isNull(courseLearners.completedAt), isNull(courseLearners.removedAt), eq(courseLearners.source, "assigned"), isNull(docs.deletedAt),
       sql`(${courseLearners.remindedSoonAt} IS NULL OR ${courseLearners.remindedOverdueAt} IS NULL)`)).limit(100);
   const orgs = new Map<string, boolean>();
   let sent = 0;

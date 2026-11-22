@@ -25,7 +25,7 @@ import "./system-mail";
 import "./suite/push";
 import "./suite/notify-centre-r97"; // R97: notify.mail job
 import "./billing/referral-job";
-import { featureOn } from "./console/flags"; // OPS1 feature flags
+import { featureOn, featurePassOn } from "./console/flags"; // OPS1 feature flags
 
 /**
  * Periodic housekeeping: drain the job queue, record the uptime self check, re-check
@@ -89,14 +89,14 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   const socialRun = !has.social || !deps.config.integrations.composio ? undefined : await step("social_posts", async () => (await import("./integrations/social")).runDueSocialPosts(deps));
   if (inSlot(1) && deps.config.integrations.composio) await step("social_media_prune", async () => (await import("./integrations/social")).pruneSocialMedia(deps));
   // R90: flows. Waits that are over carry on, a few due page and feed watches are checked, due digests go out. Idle: three reads in the probe, nothing here.
-  if (featureOn(deps, "flows") && (has.flowRuns || has.flowWatches || has.flowDigests)) await step("flows", async () => {
+  if (featurePassOn(deps, "flows") && (has.flowRuns || has.flowWatches || has.flowDigests)) await step("flows", async () => {
     const fl = await import("./suite/flows");
     if (has.flowRuns) await fl.resumeDueRuns(deps);
     if (has.flowWatches) await (await import("./suite/flow-watch")).runDueWatches(deps);
     if (has.flowDigests) await fl.sendDueDigests(deps);
   });
   // R117: evergreen posts fill free slots in the next two days, once an hour (one bounded read when there are none).
-  if (inSlot(1) && deps.config.integrations.composio && featureOn(deps, "socialP2")) await step("social_evergreen", async () => (await import("./integrations/social-p2")).runEvergreen(deps));
+  if (inSlot(1) && deps.config.integrations.composio && featurePassOn(deps, "socialP2")) await step("social_evergreen", async () => (await import("./integrations/social-p2")).runEvergreen(deps));
   // R118: the Social inbox and results, for workspaces that use them (a bounded read when none is due).
   if (inSlot(2) && featureOn(deps, "socialP2b")) await step("social_inbox", async () => (await import("./integrations/social-p2b")).runSocialP2bPass(deps));
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.

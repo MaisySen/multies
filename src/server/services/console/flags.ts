@@ -14,11 +14,12 @@
  * Writes: setFlagOverride and clearFlagOverride change one row, drop this isolate's memo, and return
  * { before, after } for the caller's platform audit row.
  */
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { AppConfig } from "../../config";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
 import { featureFlagOverrides, mailLegalHolds } from "../../db/schema";
+import { inIds, notInIds } from "../../lib/sql-chunks";
 import { FEATURE_FLAGS, flagDef, type FlagDef, type FlagKey, type FlagScope } from "@/shared/feature-flags";
 
 export type FlagDeps = Pick<Deps, "db" | "config" | "now">;
@@ -184,6 +185,43 @@ export function featureVariesByWorkspace(deps: FlagDeps, key: FlagKey): boolean 
   const all = evaluate(def, deps.config, memo);
   for (const r of rows.values()) if (r.value !== all) return true;
   return false;
+}
+
+/**
+ * OPS1 security review N1: which workspaces a background pass (cron, maintenance) serves for a workspace scoped flag.
+ * `all` is the platform wide value; `except` lists the workspaces whose own value differs from it. A pass runs when
+ * `all` is on or `except` is not empty, and limits its rows with `flagOrgCond` (one SQL condition, no query per row).
+ * Synchronous over the loaded memo: the pass calls loadFlagOverrides first (passWorkspaces does).
+ */
+export interface FlagWorkspaces { all: boolean; except: string[] }
+
+export function featureWorkspaces(deps: FlagDeps, key: FlagKey): FlagWorkspaces {
+  const def = mustDef(key);
+  const memo = currentMemo(deps.db);
+  const all = evaluate(def, deps.config, memo);
+  if (!memo || !def.runtime || def.scope !== "workspace" || memo.global.get(def.key)?.locked) return { all, except: [] };
+  const except: string[] = [];
+  for (const [orgId, r] of memo.workspace.get(def.key) ?? []) if (r.value !== all) except.push(orgId);
+  return { all, except };
+}
+
+/** OPS1 security review N1: whether a background pass for this flag has any workspace to serve (sync over the memo). */
+export function featurePassOn(deps: FlagDeps, key: FlagKey): boolean {
+  const w = featureWorkspaces(deps, key);
+  return w.all || w.except.length > 0;
+}
+
+/** OPS1 security review N1: loads the overrides, then featureWorkspaces. Null when no workspace is on (skip the pass). */
+export async function passWorkspaces(deps: FlagDeps & Partial<Pick<Deps, "log">>, key: FlagKey): Promise<FlagWorkspaces | null> {
+  await loadFlagOverridesSafe(deps);
+  const w = featureWorkspaces(deps, key);
+  return w.all || w.except.length ? w : null;
+}
+
+/** OPS1 security review N1: the rows of the workspaces a pass serves (undefined: every workspace). */
+export function flagOrgCond(column: SQLWrapper, w: FlagWorkspaces): SQL | undefined {
+  if (w.all) return w.except.length ? notInIds(column, w.except) : undefined;
+  return inIds(column, w.except);
 }
 
 /**

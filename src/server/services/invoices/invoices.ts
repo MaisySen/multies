@@ -6,6 +6,7 @@
  * Members can view and draft; owners and admins issue, void, take payments and change settings.
  */
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { flagOrgCond, passWorkspaces } from "../console/flags"; // OPS1 security review N1
 import { containsAny, containsText } from "../../lib/like-search";
 import type { Deps } from "../../context";
 import { contacts, invoiceDocs, invoiceItems, invoiceLines, invoicePayments, invoiceRepeats, invoiceSettings, invoiceSuppliers } from "../../db/schema";
@@ -357,7 +358,10 @@ export async function setRepeat(deps: Deps, a: Actor, id: string, r: { every: Re
 /** Cron: make the invoices whose repeat date has come (bounded per pass). Issued when settings allow, else left as drafts. */
 export async function runRepeats(deps: Deps, max = 25): Promise<{ made: number; ids: string[] }> {
   const t = today(deps);
-  const due = await deps.db.select().from(invoiceRepeats).where(and(eq(invoiceRepeats.active, true), sql`${invoiceRepeats.nextRun} <= ${t}`)).orderBy(asc(invoiceRepeats.nextRun)).limit(max).all();
+  // OPS1 security review N1: only workspaces with invoices on (a workspace override counts, either way).
+  const fw = await passWorkspaces(deps, "invoicesEnabled");
+  if (!fw) return { made: 0, ids: [] };
+  const due = await deps.db.select().from(invoiceRepeats).where(and(eq(invoiceRepeats.active, true), sql`${invoiceRepeats.nextRun} <= ${t}`, flagOrgCond(invoiceRepeats.orgId, fw))).orderBy(asc(invoiceRepeats.nextRun)).limit(max).all();
   const ids: string[] = [];
   for (const r of due) {
     const src = await deps.db.select().from(invoiceDocs).where(eq(invoiceDocs.id, r.sourceId)).get();
@@ -383,10 +387,14 @@ export async function runRepeats(deps: Deps, max = 25): Promise<{ made: number; 
 /** Cron: issued invoices to remind about (before due once, after due once per remind_after_days), bounded. */
 export async function dueReminders(deps: Deps, max = 50) {
   const t = today(deps);
+  // OPS1 security review N1: only workspaces with invoices on (a workspace override counts, either way).
+  const fw = await passWorkspaces(deps, "invoicesEnabled");
+  if (!fw) return [];
+  const remindOrgs = flagOrgCond(sql`d.org_id`, fw) ?? sql`1 = 1`;
   const rows = await deps.db.all<{ id: string; org_id: string; due_date: string; reminder_count: number; last_reminder_at: number | null; buyer_email: string | null; before: number; after: number }>(sql`
     select d.id, d.org_id, d.due_date, d.reminder_count, d.last_reminder_at, d.buyer_email, coalesce(s.remind_before_days, 3) as before, coalesce(s.remind_after_days, 7) as after
     from invoice_docs d left join invoice_settings s on s.org_id = d.org_id
-    where d.kind = 'invoice' and d.status = 'issued' and d.due_date is not null and d.due_date <= ${addDays(t, 14)}
+    where d.kind = 'invoice' and d.status = 'issued' and d.due_date is not null and d.due_date <= ${addDays(t, 14)} and ${remindOrgs}
       and d.paid_cents + d.credited_cents < d.total_cents and d.buyer_email is not null and d.reminder_count < 6
     order by d.due_date limit ${max * 4}`);
   const out: { id: string; orgId: string; when: "before" | "after" }[] = [];

@@ -31,7 +31,7 @@ import {
   DOC_LIMITS as L, DOC_TYPES, isDocType, type DocCounts, type DocDetail, type DocField, type DocFields, type DocList, type DocMatch, type DocRow, type DocRule, type DocStatus, type DocType, type DocView,
 } from "@/shared/doc-inbox";
 import { canOpen, isPersonalOwner, personalInfo, personalOwnership } from "../mail-access-priv1a";
-import { featureOn } from "../console/flags"; // OPS1 feature flags
+import { featureOn, flagOrgCond, passWorkspaces } from "../console/flags"; // OPS1 feature flags
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const isAdmin = (a: Actor) => a.role === "owner" || a.role === "admin";
@@ -266,7 +266,10 @@ export interface DocPassReport { stop: string | null; collected: number; started
 export async function runDocPass(deps: Deps): Promise<DocPassReport> {
   const rep: DocPassReport = { stop: null, collected: 0, started: 0, capped: 0, failed: 0 };
   try {
-    if (!docInboxOn(deps)) { rep.stop = "flag_off"; return rep; }
+    // OPS1 security review N1: only workspaces with Documents reading on (a workspace override counts, either way).
+    const fw = await passWorkspaces(deps, "docInbox");
+    if (!fw) { rep.stop = "flag_off"; return rep; }
+    const orgs = flagOrgCond(sql`org_id`, fw) ?? sql`1 = 1`;
     const r = await writeBudget(deps);
     if (r.level === "warn" || r.level === "shed") { rep.stop = "d1_level"; return rep; }
     // Files deleted forever leave Documents and the index.
@@ -276,9 +279,9 @@ export async function runDocPass(deps: Deps): Promise<DocPassReport> {
       if (deps.indexDb) await deps.indexDb.run(sql`delete from doc_fts where rowid in (select value from json_each(${JSON.stringify(ids)}))`);
       await deps.db.run(sql`delete from doc_inbox where id in (select value from json_each(${JSON.stringify(ids)}))`);
     }
-    const reading = await deps.db.all<InboxRow>(sql`select * from doc_inbox where status = 'reading' order by updated_at limit 12`);
+    const reading = await deps.db.all<InboxRow>(sql`select * from doc_inbox where status = 'reading' and ${orgs} order by updated_at limit 12`);
     for (const row of reading) { const s = await collect(deps, row); if (s === "done") rep.collected++; else if (s === "failed") rep.failed++; else if (s === "busy") break; }
-    const queued = await deps.db.all<InboxRow>(sql`select * from doc_inbox where status = 'queued' order by created_at limit 40`);
+    const queued = await deps.db.all<InboxRow>(sql`select * from doc_inbox where status = 'queued' and ${orgs} order by created_at limit 40`);
     const cappedOrgs = new Set<string>();
     for (const row of queued) {
       if (rep.started >= L.submitPerPass) break;

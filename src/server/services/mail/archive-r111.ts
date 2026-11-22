@@ -22,7 +22,7 @@ import {
   type ArchiveFilters, type ArchiveHit, type LegalHoldView, type MailCaseView, type RetentionPreview, type RetentionView,
 } from "@/shared/mail-archive";
 import { containsText } from "../../lib/like-search";
-import { featureOn } from "../console/flags"; // OPS1 feature flags
+import { featureOn, flagOrgCond, passWorkspaces } from "../console/flags"; // OPS1 feature flags
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
@@ -199,10 +199,11 @@ export async function runRetentionForOrg(deps: Deps, orgId: string): Promise<{ d
 
 /** The cron pass: workspaces with a policy on, past grace, due (a day since the last pass, or a backlog left). */
 export async function runRetentionPass(deps: Deps, opts: { maxOrgs?: number } = {}) {
-  if (!featureOn(deps, "mailArchive")) return { orgs: 0, deleted: 0 }; // OPS1: the platform wide value (a cron pass)
+  const fw = await passWorkspaces(deps, "mailArchive"); // OPS1 security review N1: per workspace overrides count
+  if (!fw) return { orgs: 0, deleted: 0 };
   const now = deps.now();
   const due = await deps.db.select({ orgId: mailRetentionPolicies.orgId }).from(mailRetentionPolicies)
-    .where(and(eq(mailRetentionPolicies.enabled, true), lte(mailRetentionPolicies.startsAt, now),
+    .where(and(eq(mailRetentionPolicies.enabled, true), lte(mailRetentionPolicies.startsAt, now), flagOrgCond(mailRetentionPolicies.orgId, fw),
       or(isNull(mailRetentionPolicies.lastRunAt), lt(mailRetentionPolicies.lastRunAt, new Date(now.getTime() - RETENTION_INTERVAL_MS)), eq(mailRetentionPolicies.backlog, true))))
     // PRIV1b (P58): never run first, then the longest waiting, so a backlog or a failing workspace can't starve the rest.
     .orderBy(sql`${mailRetentionPolicies.lastRunAt} is not null`, asc(mailRetentionPolicies.lastRunAt))

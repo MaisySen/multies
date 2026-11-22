@@ -47,7 +47,7 @@ export async function markTwoFactorSession(deps: Pick<Deps, "db" | "config" | "n
   const ids = marks.map((m) => m.key.slice(prefix(user.id).length));
   if (ids.length > 1) {
     const live = new Set((await deps.db.select({ id: sessions.id }).from(sessions).where(inIds(sessions.id, ids))).map((r) => r.id));
-    const stale = marks.filter((m, i) => !live.has(ids[i]!)).map((m) => m.key);
+    const stale = marks.filter((_, i) => !live.has(ids[i]!)).map((m) => m.key);
     if (stale.length) await deps.db.delete(appSettings).where(inIds(appSettings.key, stale));
   }
   return true;

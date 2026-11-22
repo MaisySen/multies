@@ -245,8 +245,12 @@ export async function removeLibraryItem(deps: Deps, auth: AuthContext, id: strin
 export async function runEvergreen(deps: Deps, opts: { now?: Date; orgId?: string } = {}) {
   const now = opts.now ?? deps.now();
   const scope = opts.orgId ? eq(socialPosts.orgId, opts.orgId) : undefined;
+  // OPS1 security review N1: only workspaces with the social extras on (a workspace override counts, either way).
+  const { flagOrgCond, passWorkspaces } = await import("../console/flags");
+  const fw = await passWorkspaces(deps, "socialP2");
+  if (!fw) return { made: 0 };
   const sources = await deps.db.select({ id: socialPosts.id, orgId: socialPosts.orgId }).from(socialPosts)
-    .where(and(scope, eq(socialPosts.evergreen, true), inArray(socialPosts.status, ["done", "partial"]), sql`${socialPosts.evergreenOf} is null`)).limit(200).all();
+    .where(and(scope, flagOrgCond(socialPosts.orgId, fw), eq(socialPosts.evergreen, true), inArray(socialPosts.status, ["done", "partial"]), sql`${socialPosts.evergreenOf} is null`)).limit(200).all();
   if (!sources.length) return { made: 0 };
   const orgs = [...new Set(sources.map((s) => s.orgId))].slice(0, 20);
   let made = 0;

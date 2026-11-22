@@ -51,7 +51,7 @@ import { mockComposioAllowed, mockComposioFetch } from "../server/services/integ
 import { mockDirectAllowed, mockDirectFetch } from "../server/services/direct-social/mock"; // R83: local stand in only
 import { AUTH_SHELL_PATHS, BRAND_CACHE, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant } from "../server/auth/config";
-import { featureOn, loadFlagOverridesSafe } from "../server/services/console/flags"; // OPS1 feature flags
+import { featurePassOn, loadFlagOverridesSafe } from "../server/services/console/flags"; // OPS1 feature flags
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -104,10 +104,10 @@ const tick = async () => {
   await loadFlagOverridesSafe(deps);
   void runMaintenanceIfMigrated(deps).catch((err) => console.error("[maintenance]", err));
   // R129: course reminders (self hosted servers run the same pass as the cloud cron).
-  if (featureOn(deps, "coursesR129")) void import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err) => console.error("[courses.reminders]", err));
-  if (featureOn(deps, "teamaiTd8")) void import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch(() => console.error("[teamai.pass] failed")); // TD8
+  if (featurePassOn(deps, "coursesR129")) void import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err) => console.error("[courses.reminders]", err));
+  if (featurePassOn(deps, "teamaiTd8")) void import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch(() => console.error("[teamai.pass] failed")); // TD8
   // R97: due notification digests (self hosted servers run the same pass as the cloud cron).
-  if (featureOn(deps, "notificationCentre")) {
+  if (featurePassOn(deps, "notificationCentre")) { // OPS1 security review N1: a workspace override counts
     void import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err) => console.error("[notify.digest]", err));
   }
 };

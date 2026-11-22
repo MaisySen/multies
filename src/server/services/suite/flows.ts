@@ -17,7 +17,7 @@ import {
   type Branch, type ConditionConfig, type FlowAction, type FlowGraph, type FlowNode, type FlowTrigger,
 } from "@/shared/flows";
 import type { SuiteActor } from "./common";
-import { featureOn } from "../console/flags"; // OPS1 feature flags
+import { featureOn, flagOrgCond, passWorkspaces } from "../console/flags"; // OPS1 feature flags
 
 type FlowRow = typeof flows.$inferSelect;
 type RunRow = typeof flowRuns.$inferSelect;
@@ -552,8 +552,10 @@ export async function fireFlows(deps: Deps, orgId: string, trigger: FlowTrigger,
 
 /** Resumes waits whose time has come and runs left over from a full pass. At most `limit` per call. */
 export async function resumeDueRuns(deps: Deps, limit = 20) {
-  if (!featureOn(deps, "flows")) return 0; // OPS1: the platform wide value (a cron pass)
-  const due = await deps.db.select({ id: flowRuns.id, currentNode: flowRuns.currentNode, resumeAt: flowRuns.resumeAt }).from(flowRuns).where(and(eq(flowRuns.status, "waiting"), lte(flowRuns.resumeAt, deps.now()))).limit(limit);
+  // OPS1 security review N1: the workspaces with flows on (a workspace override counts, either way).
+  const fw = await passWorkspaces(deps, "flows");
+  if (!fw) return 0;
+  const due = await deps.db.select({ id: flowRuns.id, currentNode: flowRuns.currentNode, resumeAt: flowRuns.resumeAt }).from(flowRuns).where(and(eq(flowRuns.status, "waiting"), lte(flowRuns.resumeAt, deps.now()), flagOrgCond(flowRuns.orgId, fw))).limit(limit);
   let n = 0;
   for (const r of due) {
     const claimed = await deps.db.update(flowRuns).set({ status: "running", resumeAt: null }).where(and(eq(flowRuns.id, r.id), eq(flowRuns.status, "waiting"))).returning({ flowId: flowRuns.flowId });
@@ -573,8 +575,9 @@ export async function resumeDueRuns(deps: Deps, limit = 20) {
 
 /** Sends digests that are due: one mail per digest step per person, then marks the items sent. */
 export async function sendDueDigests(deps: Deps, limit = 300) {
-  if (!featureOn(deps, "flows")) return 0; // OPS1: the platform wide value (a cron pass)
-  const items = await deps.db.select().from(flowDigestItems).where(and(isNull(flowDigestItems.sentAt), lte(flowDigestItems.sendAt, deps.now()))).limit(limit);
+  const fw = await passWorkspaces(deps, "flows"); // OPS1 security review N1
+  if (!fw) return 0;
+  const items = await deps.db.select().from(flowDigestItems).where(and(isNull(flowDigestItems.sentAt), lte(flowDigestItems.sendAt, deps.now()), flagOrgCond(flowDigestItems.orgId, fw))).limit(limit);
   if (!items.length) return 0;
   const groups = new Map<string, typeof items>();
   for (const it of items) { const k = `${it.flowId}|${it.nodeId}`; groups.set(k, [...(groups.get(k) ?? []), it]); }
