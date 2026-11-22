@@ -1,3 +1,4 @@
+import { loadConfig } from "@/server/config";
 import { exportOwnAccountWire } from "./fixtures/mnet-own-account-wire-export";
 import labelBoundaries from "./fixtures/account-label-boundaries-v1.json";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -18,18 +19,16 @@ let credentialExpiresAtMS: number;
 async function summary(body = "{}", headers: Record<string,string> = {}, query = "") {
  return ctx.app.request("/api/mnet/account-v1"+query, {method:"POST", headers:{host:"localhost", "content-type":"application/json", authorization:`Bearer ${token}`, ...headers}, body});
 }
+const provenanceJSON = JSON.stringify({version:1,purpose:"mnet-own-account-summary",principalAuthority:"https://identity.example.invalid",principalNamespace:"multies-local-user-v1"});
 beforeEach(async () => {
- ctx = await makeTestApp({MNET_DEVICE_BRIDGE:"on"});
+ ctx = await makeTestApp({MNET_DEVICE_BRIDGE:"on",MNET_OWN_ACCOUNT_PROVENANCE:provenanceJSON,MNET_ENROLLMENT_CONSENT:"off",MNET_ENROLLMENT_HANDOFF:"off"});
  // This matrix checks protocol grammar, not throttling. Keep the production
  // limiter unchanged and use its existing deterministic dependency seam.
  ctx.deps.rateLimiters = {handoff:{limit:async () => ({success:true})}};
- // Inject only the source-owned operator DATA, never turn on enrollment consent
- // or handoff flags merely to test an own-account metadata read.
- ctx.deps.config.mnetEnrollmentOperator = {
-  provenance:{version:2,principalAuthority:"https://identity.example.invalid",principalNamespace:"multies-local-user-v1"},
-  revision:"own-account-source",issuer:"https://identity.example.invalid/issuer",registrarOrigin:"https://registrar.example.invalid",audience:"source-only",
-  bindings:[{workspaceId:"operator-workspace",networkId:"network",principals:["not-an-identity-selector"]}],
- };
+ // Provenance arrives only through the actual loader, with enrollment off.
+ expect(ctx.deps.config.mnetEnrollmentConsent).toBe(false);
+ expect(ctx.deps.config.mnetEnrollmentHandoff).toBe(false);
+ expect(ctx.deps.config.mnetEnrollmentOperator).toBeUndefined();
  client = new Client(ctx.app); await client.signup("owner@example.test");
  const user = await ctx.db.select().from(users).where(eq(users.email,"owner@example.test")).get();
  userId = user!.id;
@@ -62,6 +61,8 @@ describe("source-only own-account summary", () => {
   expect(mnetOwnAccountSummarySchema.safeParse(data).success).toBe(true);
   expect(data.expiresAtMS-data.checkedAtMS).toBeGreaterThan(0); expect(data.expiresAtMS-data.checkedAtMS).toBeLessThanOrEqual(30_000);
   expect(Object.keys(data)).toHaveLength(18); expect(JSON.stringify(data)).not.toContain(token);
+  expect(ctx.deps.config.mnetEnrollmentService).toBe(false);
+  for (const route of ["/api/mnet-enrollment/authorize","/api/mnet-enrollment-v1/authorize"]) expect((await ctx.app.request(route,{headers:{host:"localhost"}})).status).toBe(404);
   expect(await ctx.db.select().from(mnetDevices)).toEqual(before);
   expect(Buffer.from(wire).toString("utf8")).not.toContain(token);
   await exportOwnAccountWire(wire,{workspaceId,deviceKey,principalId:userId,exchangeStartedAtMS,credentialExpiresAtMS});
@@ -103,7 +104,7 @@ describe("source-only own-account summary", () => {
   await ctx.db.update(sessions).set({expiresAt:new Date(0)}); expect((await summary()).status).toBe(403);
  });
  it("stays unavailable without provenance or outside development while old List remains unchanged", async () => {
-  delete ctx.deps.config.mnetEnrollmentOperator!.provenance; expect((await summary()).status).toBe(404);
+  ctx.deps.config = loadConfig({APP_SECRET:"t".repeat(40),MNET_DEVICE_BRIDGE:"on"}); expect((await summary()).status).toBe(404);
   const old = await ctx.app.request("/api/mnet/check",{method:"POST",headers:{host:"localhost","content-type":"application/json",authorization:`Bearer ${token}`},body:JSON.stringify({workspaceId,capability:"list"})});
   expect(old.status).toBe(200); expect(await old.json()).toMatchObject({deviceKey:"",allowed:["list"]});
   ctx.deps.config.mode="production"; expect((await summary()).status).toBe(404);

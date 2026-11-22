@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Deps } from "../context";
 import { mnetDevices, organizations, sessions, users } from "../db/schema";
 import { HttpError } from "../lib/errors";
-import { enrollmentOperatorSchema } from "./mnet-enrollment-config";
+import { ownAccountProvenanceSchema } from "./mnet-own-account-config";
 import { hash, liveEligibility, mnetLaunch } from "./mnet";
 
 // Separate own-account display DATA. This is not a joining grant, source ticket,
@@ -18,7 +18,7 @@ const epochMS = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const accountEmail = /^([A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
 export const mnetOwnAccountSummarySchema = z.object({
   version: z.literal(1), purpose: z.literal("mnet-own-account-identity"), audience: z.literal("mnet"),
-  principalAuthority: enrollmentOperatorSchema.shape.provenance.unwrap().shape.principalAuthority,
+  principalAuthority: ownAccountProvenanceSchema.shape.principalAuthority,
   principalNamespace: z.literal("multies-local-user-v1"), principalId: id,
   workspaceId: id, workspaceName: label(256), email: label(320).regex(accountEmail),
   accountName: label(256, true), deviceKey: mnetLaunch.shape.deviceKey, verifiedEmail: z.literal(true),
@@ -27,14 +27,14 @@ export const mnetOwnAccountSummarySchema = z.object({
 }).strict().refine((s) => s.expiresAtMS > s.checkedAtMS && s.expiresAtMS - s.checkedAtMS <= 30_000);
 export type MnetOwnAccountSummary = z.infer<typeof mnetOwnAccountSummarySchema>;
 
-// No new production flag/default. Missing explicit source provenance keeps this
-// branch-only operation unavailable; existing List endpoints are unchanged.
+// No default provenance and no fallback to enrollment configuration. This
+// development-only DATA route requires both enrollment workflows to stay off.
 export function ownAccountSummaryConfig(d: Deps) {
-  const parsed = enrollmentOperatorSchema.safeParse(d.config.mnetEnrollmentOperator);
-  if (d.config.mode !== "development" || !d.config.mnetDeviceBridge || !parsed.success || !parsed.data.provenance) {
+  const parsed = ownAccountProvenanceSchema.safeParse(d.config.mnetOwnAccountProvenance);
+  if (d.config.mode !== "development" || !d.config.mnetDeviceBridge || d.config.mnetEnrollmentConsent || d.config.mnetEnrollmentHandoff || !parsed.success) {
     throw new HttpError(404, "not_found", "Not found.");
   }
-  return parsed.data.provenance;
+  return parsed.data;
 }
 const denied = () => new HttpError(403, "mnet_denied", "Mnet access is unavailable.");
 

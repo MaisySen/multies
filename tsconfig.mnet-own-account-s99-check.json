@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","include":["src/server/config.ts","src/server/services/mnet-own-account-config.ts","src/server/services/mnet-own-account.ts","src/server/routes/mnet.ts","tests/mnet-own-account.test.ts","tests/mnet-own-account-config.test.ts","tests/fixtures/mnet-own-account-wire-export.ts"],"exclude":[]}

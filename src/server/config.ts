@@ -1,3 +1,4 @@
+import { ownAccountProvenanceConfig, type OwnAccountProvenance } from "./services/mnet-own-account-config";
 import { serviceFixtureConfig, type ServiceFixture } from "./services/mnet-enrollment-service-config";
 import { enrollmentHandoffFixtureConfig, type EnrollmentHandoffFixture } from "./services/mnet-enrollment-handoff-config";
 import { enrollmentOperatorConfig, type EnrollmentOperatorConfig } from "./services/mnet-enrollment-config";
@@ -323,6 +324,8 @@ export interface AppConfig {
   mobileWebLink?: boolean;
   /** Isolated Mnet bridge branch only; off unless explicitly enabled. */
   mnetDeviceBridge?: boolean;
+  /** Independent summary-only DATA provenance; absent unless explicitly configured in development with bridge on and both enrollment workflows off. */
+  mnetOwnAccountProvenance?: OwnAccountProvenance;
   /** Separate branch-only network consent. No registrar redemption is enabled. */
   mnetEnrollmentConsent?: boolean;
   mnetEnrollmentOperator?: EnrollmentOperatorConfig;
@@ -504,6 +507,7 @@ const EnvSchema = z.object({
   MEET_TD3: z.string().optional(), // TD3
   NAV_P2_R121: z.string().optional(), // R121
   MNET_DEVICE_BRIDGE: z.string().optional(),
+  MNET_OWN_ACCOUNT_PROVENANCE: z.string().optional(),
   MNET_ENROLLMENT_CONSENT: z.string().optional(),
   MNET_ENROLLMENT_OPERATOR: z.string().optional(),
   MNET_ENROLLMENT_HANDOFF: z.string().optional(),
@@ -1000,6 +1004,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     blogR124: ["on", "true", "1"].includes(String(env.BLOG_R124 ?? "").toLowerCase()) && ["on", "true", "1"].includes(String(env.SITES_R123 ?? "").toLowerCase()), // R124
     navP2R121: ["on", "true", "1"].includes(String(env.NAV_P2_R121 ?? "").toLowerCase()), // R121
     mnetDeviceBridge: env.MNET_DEVICE_BRIDGE === "on",
+    mnetOwnAccountProvenance: ownAccountProvenanceConfig(env.MNET_OWN_ACCOUNT_PROVENANCE, mode, env.MNET_DEVICE_BRIDGE === "on", env.MNET_ENROLLMENT_CONSENT === "on", env.MNET_ENROLLMENT_HANDOFF === "on"),
     mnetEnrollmentConsent: env.MNET_ENROLLMENT_CONSENT === "on",
     mnetEnrollmentOperator: env.MNET_ENROLLMENT_CONSENT === "on" || env.MNET_ENROLLMENT_HANDOFF === "on" ? enrollmentOperatorConfig(env.MNET_ENROLLMENT_OPERATOR) : undefined,
     mnetEnrollmentHandoff: env.MNET_ENROLLMENT_HANDOFF === "on",
