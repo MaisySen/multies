@@ -374,6 +374,10 @@ describe("the person's view and the console's", () => {
     expect(list.status).toBe(200);
     expect(list.body.items).toHaveLength(1);
     expect(list.body.items[0]).toMatchObject({ id: imp.id, operatorUserId: op.id, targetEmail: "tara@example.com", orgId, mode: "view", active: true });
+    // The Support sessions tab's names: the operator's name and the workspace's owner, looked up for the whole page.
+    const opName = (await ctx.db.select({ name: users.name }).from(users).where(eq(users.id, op.id)).get())!.name;
+    expect(list.body.items[0]).toMatchObject({ operatorName: opName, orgOwnerEmail: "tara@example.com" });
+    expect(typeof list.body.items[0].orgName).toBe("string");
     expect((await boss.c.get("/api/console/impersonation?sort=nope:up")).status).toBe(200);
     expect((await boss.c.get("/api/console/impersonation?cursor=garbage")).status).toBe(400);
     // A read just before the end (an impersonated session is never kept in the 15 second read cache).

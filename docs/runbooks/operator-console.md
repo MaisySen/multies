@@ -45,6 +45,13 @@ The phone app's hand off to the web app is recorded with the method `auth0`, so 
 
 Turning two-step sign in off makes every earlier session stop counting until you turn it on again and sign in with the code.
 
+A passkey counts only on an account that has two-step sign in turned on. On an account without it, a passkey sign in does not open the console.
+
+When the console refuses a session it says which case applies (the refusal carries `details.reason`):
+
+- "Turn on two-step sign in" (`not_enrolled`): two-step is off on the account. Open account security, turn it on, then sign in again with the code.
+- "Sign in again with your two-step code" (`no_second_factor_this_session`): two-step is on, but this session did not give a code (an outside sign in, or a remembered device). Sign in again signs you out and brings you back to `/console` after you sign in with your password and code, or a passkey.
+
 ### Recent sign in ("Sign in again to continue")
 
 Some actions need a sign in from the last `OPERATOR_FRESH_MINUTES` minutes (15 by default). The console then shows "Sign in again to continue"; choose Sign in again, sign in, and repeat the action. Nothing was changed. The actions that need it:
@@ -122,7 +129,7 @@ Every change in the console asks for a reason (3 to 300 characters) and is writt
 
 **Overview** (`/console`). What needs attention first: reports to review, open abuse signals, dead jobs, migrations waiting, the write budget, past due and over limit and suspended workspaces, each linking to the filtered page. Then totals, the newest workspaces and trend charts (section 9). Nothing to change here except Fill in history.
 
-**Workspaces** (`/console/workspaces`). Search by name, id, slug, owner email or domain; filter by plan and state. A workspace has the tabs Overview, Members, Billing, Usage, Mail, Agents, Developer, Flags, Activity and Notes (Billing, Agents, Developer and Flags only for roles that can read them). Suspend and Restore are in the header; the Overview tab has the sending switch and changes the send cap and the call minutes cap; the Mail tab sends a held message (Send anyway). Activity shows the workspace's own log or the operator actions on it.
+**Workspaces** (`/console/workspaces`). Search by name, id, slug, owner email or domain; filter by plan and state. A workspace has the tabs Overview, Members, Billing, Usage, Mail, Agents, Developer, Flags, Activity and Notes (Billing, Agents, Developer and Flags only for roles that can read them). On the Members tab, roles that can view as a person get a small View as button at the end of each person's row, which opens that person in this workspace (not shown for agent members, banned people or yourself; the server refuses operators with its own message). Suspend and Restore are in the header; the Overview tab has the sending switch and changes the send cap and the call minutes cap; the Mail tab sends a held message (Send anyway). Activity shows the workspace's own log or the operator actions on it.
 
 **Users** (`/console/users`). Search by email, name or id; filter banned, unconfirmed, operators, two-step on or off. A person's page shows workspaces, sign in methods, two-step state, sessions (marked when an operator opened them) and lockout. Actions: Sign out (one session or everywhere), Clear lockout, Mark verified, Ban and Unban (recent sign in), View as (recent sign in), Delete account (owners, recent sign in). Ban, delete, lockout and session changes are refused on operator accounts (`target_is_operator`); Mark verified is refused on them (`protected_account`). You can't act on yourself.
 
@@ -146,13 +153,13 @@ Every change in the console asks for a reason (3 to 300 characters) and is writt
 
 **System health** (`/console/system`). Release, pending migrations, D1 writes and reads against the daily budget, busiest workspaces, uptime, which integrations are set up (never keys), circuit breakers and rate limits. Circuit breakers are those of the server that answered. Action: send a test error to Sentry.
 
-**Operators** (`/console/operators`, operations admins and owners). Each operator's role, two-step state, last sign in and whether the deployment manages them. Owners grant, change and remove roles (section 2).
+**Operators** (`/console/operators`, operations admins and owners). Two tabs. Operators: each operator's role, two-step state, last sign in and whether the deployment manages them; owners grant, change and remove roles (section 2). Support sessions (`?tab=sessions`): who is viewing as whom, active now by default (section 6).
 
 **Audit log** (`/console/audit`). See section 8.
 
 ## 6. Viewing as a person
 
-Open the person in Users and choose View as (`src/server/routes/console/impersonation.ts`, `src/server/services/console/impersonation.ts`).
+Open the person in Users and choose View as, or choose View as on their row in a workspace's Members tab to open that workspace (`src/server/routes/console/impersonation.ts`, `src/server/services/console/impersonation.ts`). The dialog starts on View only; roles that can act also see Act as this person.
 
 - **Who:** Support can view only. Operations admins and owners can choose view or act. It needs a reason and a recent sign in.
 - **Not allowed:** yourself, an operator, an account in `PLATFORM_ADMIN_EMAILS`, a banned person, or a person with no workspace.
@@ -179,7 +186,9 @@ Always blocked, in both modes (`IMPERSONATION_ALWAYS_BLOCKED`):
 
 **What the customer sees.** The workspace's Activity log shows "opened a Multies support session as" the person, and "ended a Multies support session as" when it ends. The entry carries your address, the mode, the expiry and your reason.
 
-**Ending someone else's session.** Operations admins and owners can end any active session with `POST /api/console/impersonation/{id}/end` and a reason; find the id with `GET /api/console/impersonation?status=active`. There is no button for this yet. Signing the person out from their page in Users (the session is marked "opened by an operator") also ends it.
+**Seeing and ending sessions.** Operators, Support sessions (`/console/operators?tab=sessions`) lists sessions: Active now by default, or Ended, or All. Each row shows the operator, the person, the workspace, the mode (View only or Acting), when it started, when it ends or ended (with how: stopped by the operator, time limit reached, ended by an admin, or operator lost access) and the reason given at the start. Operations admins and owners can choose End session on an active row and give a reason (`POST /api/console/impersonation/{id}/end`). The session ends at once: at their next action the operator leaves the person's account and signs in again to their own. The console's audit log and the workspace's Activity log both record it. Signing the person out from their page in Users (the session is marked "opened by an operator") also ends it.
+
+Every operator role can read the sessions list through the API (`impersonation.read`), but the Operators page, and so the tab, opens only for operations admins and owners.
 
 **Limits to know.**
 
@@ -289,7 +298,7 @@ These parts are covered by tests in Node with local SQLite and fakes, and have n
 
 | Code | What it means | What to do |
 | --- | --- | --- |
-| `two_factor_required` | This session did not give a second factor at sign in (section 3). The console card says to turn on two-step sign in, which is the fix only if it is off. | If two-step is off, turn it on in Account and security. If it is on, sign out and sign in with your password and code (or a passkey). |
+| `two_factor_required` | This session did not give a second factor at sign in (section 3). `details.reason` says whether two-step is off (`not_enrolled`) or on but not given by this session (`no_second_factor_this_session`), and the console card says the matching fix. | If two-step is off, turn it on in Account and security. If it is on, choose Sign in again and sign in with your password and code (or a passkey). |
 | `step_up_required` | The action needs a sign in from the last `OPERATOR_FRESH_MINUTES` minutes. Nothing was changed. | Choose Sign in again, then repeat the action. |
 | `forbidden` | Your role can't do this, or the account is not an operator, or (when starting View as) your role can view but not act. | Ask an owner for a different role if you need it. |
 | `impersonating` | You are viewing as someone, so the console is closed. | Choose Stop in the bar at the top. |

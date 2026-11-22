@@ -2,6 +2,7 @@
  * OPS1: platform operators. Owners grant, change and remove operator roles (each asks for a reason and a recent sign
  * in); everyone else with access sees the list. Operators set on the server (PLATFORM_ADMIN_EMAILS) can't be changed here.
  * A role without operators.read (support, billing, read only) opening this address sees the calm "no access" card.
+ * Two tabs: Operators (the list) and Support sessions (?tab=sessions, who is viewing as whom; operators-sessions.tsx).
  */
 import { useState } from "react";
 import { Link } from "react-router";
@@ -12,6 +13,8 @@ import { IconChevronDown, IconUserCog } from "@/web/components/ui/icon";
 import { consoleApi, type ConsoleOperator } from "@/web/lib/console-api";
 import { OPERATOR_ROLES, OPERATOR_ROLE_HINTS, OPERATOR_ROLE_LABELS, type OperatorRole } from "@/shared/operator-permissions";
 import { DataTable } from "./components/data-table";
+import { QueryTabs, TabPanel, useQueryTab, type DetailTab } from "./components/detail-tabs";
+import { SupportSessionsTab } from "./operators-sessions";
 import { OperatorRoleBadge, RelTime, TwoStepBadge, personHref } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { PermissionGate, RequirePermission, useConsoleMe, usePermission } from "./guard";
@@ -32,11 +35,29 @@ function RolePicker({ value, onChange, label = "Role" }: { value: OperatorRole; 
   );
 }
 
+const TABS = [
+  { id: "operators", label: "Operators" },
+  { id: "sessions", label: "Support sessions", permission: "impersonation.read" },
+] as const satisfies readonly DetailTab[];
+
 export function ConsoleOperatorsPage() {
   return (
     <RequirePermission permission="operators.read">
-      <OperatorsList />
+      <OperatorsPage />
     </RequirePermission>
+  );
+}
+
+function OperatorsPage() {
+  const tab = useQueryTab(TABS);
+  return (
+    <div className="space-y-4">
+      <PageHeader eyebrow="Access" title="Operators" description="The people who can open this console, what each role allows, and who is viewing as a customer right now." />
+      <QueryTabs tabs={TABS} label="Operator sections" testIdPrefix="console-operators-tab" />
+      <TabPanel testIdPrefix="console-operators-tab" current={tab}>
+        {tab === "sessions" ? <SupportSessionsTab /> : <OperatorsList />}
+      </TabPanel>
+    </div>
   );
 }
 
@@ -82,11 +103,10 @@ function OperatorsList() {
   });
 
   return (
-    <div className="space-y-4">
-      <PageHeader eyebrow="Access" title="Operators" description="The people who can open this console, and what each role allows."
-        actions={<PermissionGate permission="operators.manage"><Button onClick={() => grant.open()} data-testid="add-operator">Add operator</Button></PermissionGate>} />
+    <div>
       <DataTable<ConsoleOperator>
         label="Operators" path="/operators" search={{ placeholder: "Search operators" }} defaultSort="email:asc"
+        actions={<PermissionGate permission="operators.manage"><Button onClick={() => grant.open()} data-testid="add-operator">Add operator</Button></PermissionGate>}
         rowKey={(o) => o.id}
         empty={{ icon: <IconUserCog />, title: "No operators found", body: "Try another search." }}
         columns={[

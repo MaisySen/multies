@@ -120,7 +120,7 @@ export const operatorSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (!isOperatorRole(auth.platformRole)) throw new HttpError(403, "forbidden", NOT_OPERATOR_MESSAGE);
   if (!(await meetsTwoFactorRule(c.var.deps, auth))) {
     await recordDenied(c, auth, "two_factor_required");
-    throw new HttpError(403, "two_factor_required", TWO_FACTOR_REQUIRED_MESSAGE);
+    throw new HttpError(403, "two_factor_required", TWO_FACTOR_REQUIRED_MESSAGE, { reason: auth.twoFactor ? "no_second_factor_this_session" : "not_enrolled" });
   }
   c.set("auth", auth);
   c.set("operator", { role: auth.platformRole as OperatorRole });

@@ -1,6 +1,7 @@
 /**
  * OPS1: the Members tab of a workspace: people and agent members, each person linking to their console page. The
- * link carries ?org= so "View as" on that page opens this workspace.
+ * link carries ?org= so "View as" on that page opens this workspace. Roles with impersonation.view also get a small
+ * "View as" at the end of each person's row, opening this workspace.
  */
 import { Link } from "react-router";
 import { Badge } from "@/web/components/ui/misc";
@@ -8,6 +9,8 @@ import { IconTeam } from "@/web/components/ui/icon";
 import { DataTable } from "../components/data-table";
 import type { FilterDef } from "../components/filter-bar";
 import { Empty, RelTime, StatusBadge, TwoStepBadge, personHref } from "../components/format";
+import { useConsoleMe, usePermission } from "../guard";
+import { ImpersonateButton } from "../impersonate-button";
 
 interface Member {
   id: string; userId: string; email: string; name: string; role: "owner" | "admin" | "member"; kind: "human" | "agent";
@@ -25,6 +28,8 @@ const ROLE: Record<Member["role"], string> = { owner: "Owner", admin: "Admin", m
 const memberHref = (m: Member, orgId: string) => `${personHref(m.userId)}?org=${encodeURIComponent(orgId)}`;
 
 export function WorkspaceMembersTab({ orgId }: { orgId: string }) {
+  const me = useConsoleMe();
+  const canView = usePermission("impersonation.view");
   return (
     <div data-testid="console-workspaces-members">
       <DataTable<Member>
@@ -58,7 +63,15 @@ export function WorkspaceMembersTab({ orgId }: { orgId: string }) {
               return badges.length ? <span className="inline-flex flex-wrap gap-1">{badges}</span> : <Empty>Normal</Empty>;
             },
           },
-          { key: "joined", header: "Joined", sort: "createdAt", align: "right", cell: (m) => <RelTime at={m.joinedAt} className="text-muted" /> },
+          { key: "joined", header: "Joined", sort: "createdAt", align: "right", secondary: canView, cell: (m) => <RelTime at={m.joinedAt} className="text-muted" /> },
+          // View as this person in this workspace. Not for agent members, banned people or yourself (the server refuses
+          // those, and operators, with its own message). Clicks in the button and its dialog stay out of the row's link.
+          ...(canView ? [{
+            key: "viewAs", header: "", align: "right" as const,
+            cell: (m: Member) => (m.kind === "human" && !m.banned && m.userId !== me.user.id
+              ? <span className="inline-flex" onClick={(e) => e.stopPropagation()} data-testid="console-workspaces-members-view-as"><ImpersonateButton userId={m.userId} orgId={orgId} /></span>
+              : null),
+          }] : []),
         ]}
       />
     </div>

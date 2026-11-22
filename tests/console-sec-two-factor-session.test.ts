@@ -28,17 +28,19 @@ async function enrol(c: Client) {
   return { totp, codes: r.body.backupCodes as string[] };
 }
 
-async function refused(c: Client) {
+/** The refusal, and (when given) why: two-step is off on the account, or it is on but this session gave no code. */
+async function refused(c: Client, reason?: "not_enrolled" | "no_second_factor_this_session") {
   const r = await c.get("/api/console/me");
   expect(r.status).toBe(403);
   expect(r.body.error).toMatchObject({ code: "two_factor_required", message: TWO_FACTOR_REQUIRED_MESSAGE });
+  if (reason) expect(r.body.error.details).toEqual({ reason });
 }
 
 describe("M2: the session must prove a second factor", () => {
   it("password + code is accepted; the enrolment's own session counts (the code was just proven)", async () => {
     const ctx = await makeTestApp(ON);
     const op = await signUpAs(ctx, "ops@ops.test", "ops_admin", "Ops");
-    await refused(op.c); // password only
+    await refused(op.c, "not_enrolled"); // password only, two-step off: the console card says to turn it on
     const { totp } = await enrol(op.c);
     expect((await op.c.get("/api/console/me")).status).toBe(200);
     const fresh = new Client(ctx.app);
@@ -67,7 +69,8 @@ describe("M2: the session must prove a second factor", () => {
     expect((await other.login("ops@ops.test")).status).toBe(200);
     await enrol(op.c);
     expect((await other.get("/api/account/me")).body.user.twoFactor).toBe(true);
-    await refused(other);
+    // Two-step is on, this session just never gave the code: the console card says to sign in again, not to turn it on.
+    await refused(other, "no_second_factor_this_session");
   }, 90_000);
 
   it("the reviewer's experiment: an enrolled operator's unmarked session with loginMethod auth0 is refused unless auth0 is listed", async () => {
@@ -77,7 +80,7 @@ describe("M2: the session must prove a second factor", () => {
       await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, op.id));
       await ctx.db.update(sessions).set({ loginMethod: "auth0" }).where(eq(sessions.userId, op.id));
       if (listed) expect((await op.c.get("/api/console/me")).status).toBe(200);
-      else await refused(op.c);
+      else await refused(op.c, "no_second_factor_this_session");
     }
   }, 90_000);
 

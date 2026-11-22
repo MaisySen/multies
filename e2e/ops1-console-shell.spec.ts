@@ -137,6 +137,35 @@ test("a lower tier role sees a shorter menu", async ({ page }) => {
   expect(await nav.getByRole("link").count()).toBeLessThan(ownerLinks);
 });
 
+test("the two-step refusal says the right fix: turn it on, or sign in again with the code", async ({ page }) => {
+  await signUp(page, "Tess Twostep");
+  let reason = "not_enrolled";
+  await page.route("**/api/console/me", (r) => r.fulfill({ status: 403, json: { error: {
+    code: "two_factor_required", message: "Sign in with your password and two-step code to open the operator console.", details: { reason },
+  } } }));
+  await page.goto("/console");
+  await expect(page.getByRole("heading", { name: "Turn on two-step sign in" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("console-two-step-settings")).toHaveAttribute("href", "/app/settings/account");
+  await expect(page.getByTestId("console-sign-in-again")).toHaveCount(0);
+
+  reason = "no_second_factor_this_session";
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Sign in again with your two-step code" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Two-step sign in is on for your account, but this session didn't give a code")).toBeVisible();
+  await expect(page.getByTestId("console-two-step-settings")).toHaveCount(0);
+  await page.getByTestId("console-sign-in-again").click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fconsole$/, { timeout: 15_000 });
+});
+
+test("while viewing as someone the console says how to get back", async ({ page }) => {
+  await signUp(page, "Ivy Impersonating");
+  await page.route("**/api/console/me", (r) => r.fulfill({ status: 403, json: { error: { code: "impersonating", message: "Stop viewing as this person first." } } }));
+  await page.goto("/console");
+  await expect(page.getByRole("heading", { name: "You are viewing as someone else" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("choose Stop in the bar at the top")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to the app" })).toHaveAttribute("href", "/app/my-work");
+});
+
 test("a role without the Operators page sees a calm no access card, not an error", async ({ page }) => {
   await signUp(page, "Sam Support");
   await mockConsoleMe(page, "ops_support");

@@ -16,6 +16,7 @@ import { alias } from "drizzle-orm/sqlite-core";
 import type { DB } from "../../db";
 import type { Deps } from "../../context";
 import { members, operatorImpersonations, organizations, sessions, users } from "../../db/schema";
+import { inIds } from "../../lib/sql-chunks";
 import { listParams } from "./listing";
 import { can } from "@/shared/operator-permissions";
 
@@ -262,11 +263,15 @@ export interface ImpersonationListItem {
   id: string;
   operatorUserId: string;
   operatorEmail: string | null;
+  /** The operator's name now (null when the account is gone). */
+  operatorName: string | null;
   targetUserId: string;
   targetEmail: string | null;
   targetName: string | null;
   orgId: string | null;
   orgName: string | null;
+  /** The workspace's first owner's address, so two workspaces with one name can be told apart. */
+  orgOwnerEmail: string | null;
   mode: ImpersonationMode;
   reason: string;
   startedAt: Date;
@@ -306,11 +311,25 @@ export async function listImpersonations(db: DB, query: Record<string, string | 
     .leftJoin(organizations, eq(organizations.id, operatorImpersonations.targetOrgId))
     .where(and(...conds)).orderBy(...p.orderBy).limit(p.take);
   const page = p.page(rows, (r) => ({ sort: p.sortField === "expiresAt" ? r.row.expiresAt : r.row.startedAt, id: r.row.id }));
+  // The operators' names and each workspace's owner: one query each for the whole page, never one per row.
+  const operatorIds = [...new Set(page.items.map((r) => r.row.operatorUserId))];
+  const orgIds = [...new Set(page.items.map((r) => r.row.targetOrgId).filter((id): id is string => !!id))];
+  const [operators, owners] = await Promise.all([
+    operatorIds.length ? db.select({ id: users.id, name: users.name }).from(users).where(inIds(users.id, operatorIds)) : Promise.resolve([]),
+    orgIds.length
+      ? db.select({ orgId: members.organizationId, email: users.email }).from(members).innerJoin(users, eq(users.id, members.userId))
+        .where(and(inIds(members.organizationId, orgIds), eq(members.role, "owner"))).orderBy(members.createdAt, members.id)
+      : Promise.resolve([]),
+  ]);
+  const operatorName = new Map(operators.map((o) => [o.id, o.name]));
+  const ownerEmail = new Map<string, string>();
+  for (const o of owners) if (!ownerEmail.has(o.orgId)) ownerEmail.set(o.orgId, o.email);
   return {
     nextCursor: page.nextCursor,
     items: page.items.map(({ row, targetEmail, targetName, orgName }) => ({
-      id: row.id, operatorUserId: row.operatorUserId, operatorEmail: row.operatorEmail, targetUserId: row.targetUserId,
-      targetEmail: targetEmail ?? null, targetName: targetName ?? null, orgId: row.targetOrgId, orgName: orgName ?? null,
+      id: row.id, operatorUserId: row.operatorUserId, operatorEmail: row.operatorEmail, operatorName: operatorName.get(row.operatorUserId) ?? null,
+      targetUserId: row.targetUserId, targetEmail: targetEmail ?? null, targetName: targetName ?? null,
+      orgId: row.targetOrgId, orgName: orgName ?? null, orgOwnerEmail: (row.targetOrgId && ownerEmail.get(row.targetOrgId)) || null,
       mode: row.mode, reason: row.reason, startedAt: row.startedAt, expiresAt: row.expiresAt, endedAt: row.endedAt, endedReason: row.endedReason,
       active: !row.endedAt && row.expiresAt.getTime() > now.getTime(),
     })),
