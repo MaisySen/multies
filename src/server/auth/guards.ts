@@ -6,7 +6,7 @@ import type { AppEnv, AuthContext, Deps } from "../context";
 import { forbidden, HttpError, unauthorized } from "../lib/errors";
 import { isLostRequestState, withAuthRequestState } from "../lib/request-state";
 import { noteRequestCaller } from "../lib/request-caller";
-import { invitations, members, organizations, sessions, users } from "../db/schema";
+import { invitations, members, organizations, platformAuditLogs, sessions, users } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { audit } from "../services/audit";
 import { authFor } from "./options";
@@ -113,8 +113,11 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   let platformRole = impersonation ? "user" : s.user.role ?? "user";
   // Bootstrap operators: listed user ids, or listed emails once the address is verified
   // (an unverified address proves nothing; anyone could have signed up with it).
-  const listed = deps.config.platformAdmins.includes(s.user.id.toLowerCase())
-    || (s.user.emailVerified && deps.config.platformAdmins.includes(s.user.email.toLowerCase()));
+  const listedId = deps.config.platformAdmins.includes(s.user.id.toLowerCase());
+  let listed = listedId || (s.user.emailVerified && deps.config.platformAdmins.includes(s.user.email.toLowerCase()));
+  // OPS1 security (H2): an address an operator marked confirmed (console Verify) proves nothing about who owns it, so
+  // it never makes an owner. Only on this rare path (listed by address and not yet admin): one indexed read.
+  if (listed && !listedId && !impersonation && platformRole !== "admin" && await operatorVerifiedEmail(deps, s.user.id)) listed = false;
   if (!impersonation && platformRole !== "admin" && listed) { // OPS1 impersonation: no bootstrap promotion
     await db.update(users).set({ role: "admin" }).where(eq(users.id, s.user.id));
     platformRole = "admin";
@@ -137,6 +140,19 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
 }
 
 /**
+ * OPS1 security (H2): true when an operator marked this account's address confirmed from the console (a platform audit
+ * row user.email_verified on the user; platform_audit_target_idx). Such an address was never proven by the person, so
+ * it never bootstraps an owner and never auto-joins a pending invite. Called only on rare paths (a listed address not
+ * yet promoted; a first sign in with no workspace and a pending invite).
+ */
+export async function operatorVerifiedEmail(deps: Pick<Deps, "db">, userId: string): Promise<boolean> {
+  const row = await deps.db.select({ id: platformAuditLogs.id }).from(platformAuditLogs)
+    .where(and(eq(platformAuditLogs.targetId, userId), eq(platformAuditLogs.targetType, "user"), eq(platformAuditLogs.action, "user.email_verified")))
+    .limit(1).get();
+  return !!row;
+}
+
+/**
  * R41: accepts the newest pending, unexpired invitation for this confirmed address through the same
  * Better Auth call the invite page uses (seat limits, email match and confirmation all checked there).
  * Returns the workspace id, or null when there is none or accepting fails (the person then gets a
@@ -149,6 +165,9 @@ export async function joinPendingInviteOnFirstSignIn(deps: Deps, headers: Header
     .where(and(eq(invitations.email, user.email.toLowerCase()), eq(invitations.status, "pending"), gt(invitations.expiresAt, deps.now())))
     .orderBy(desc(invitations.createdAt)).limit(1).get();
   if (!inv) return null;
+  // OPS1 security (H2): an address an operator confirmed is not proof the person owns it, so it is never joined
+  // silently; the person can still choose Join on the invite banner.
+  if (await operatorVerifiedEmail(deps, user.id)) return null;
   try {
     await authFor(deps).api.acceptInvitation({ headers, body: { invitationId: inv.id } });
   } catch (err) {
