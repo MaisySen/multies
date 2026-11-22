@@ -45,6 +45,25 @@ export async function meetsTwoFactorRule(deps: Pick<Deps, "config" | "db">, auth
   return sessionHasSecondFactor(deps, auth.userId, auth.sessionId);
 }
 
+export type TwoStepRefusalReason = "not_enrolled" | "no_second_factor_this_session";
+
+/**
+ * OPS1 security (M2 re-check): whether this session may add or read a second factor (add a passkey, read the
+ * authenticator secret, make new backup codes). The session of an operator or a PLATFORM_ADMIN_EMAILS account must meet
+ * the console's two-step rule itself; otherwise a session that never gave the code (from before the enrolment, a
+ * trusted device, OAuth or the phone's exchange) could mint a factor and then sign in with it to open the console.
+ * Everyone else, and everyone while the rule is off: allowed. Returns why not, or null.
+ */
+export async function secondFactorChangeRefusal(
+  deps: Pick<Deps, "config" | "db">,
+  auth: Pick<AuthContext, "userId" | "email" | "platformRole" | "twoFactor" | "loginMethod" | "sessionId">,
+): Promise<TwoStepRefusalReason | null> {
+  const { isProtectedAccount } = await import("../services/console/users");
+  if (!isProtectedAccount(deps.config, { id: auth.userId, email: auth.email, role: auth.platformRole ?? null })) return null;
+  if (await meetsTwoFactorRule(deps, auth)) return null;
+  return auth.twoFactor ? "no_second_factor_this_session" : "not_enrolled";
+}
+
 /** True when the session signed in within the fresh window. */
 export function isFreshSignIn(deps: Pick<Deps, "config" | "now">, auth: Pick<AuthContext, "sessionCreatedAt">): boolean {
   if (!auth.sessionCreatedAt) return false;
@@ -120,7 +139,7 @@ export const operatorSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (!isOperatorRole(auth.platformRole)) throw new HttpError(403, "forbidden", NOT_OPERATOR_MESSAGE);
   if (!(await meetsTwoFactorRule(c.var.deps, auth))) {
     await recordDenied(c, auth, "two_factor_required");
-    throw new HttpError(403, "two_factor_required", TWO_FACTOR_REQUIRED_MESSAGE, { reason: auth.twoFactor ? "no_second_factor_this_session" : "not_enrolled" });
+    throw new HttpError(403, "two_factor_required", TWO_FACTOR_REQUIRED_MESSAGE, { reason: (auth.twoFactor ? "no_second_factor_this_session" : "not_enrolled") satisfies TwoStepRefusalReason });
   }
   c.set("auth", auth);
   c.set("operator", { role: auth.platformRole as OperatorRole });

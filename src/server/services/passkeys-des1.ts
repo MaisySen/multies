@@ -228,7 +228,7 @@ export async function verifyAuthentication(deps: Deps, nonce: unknown, body: { r
   if ((next > 0 || row.counter > 0) && next <= row.counter) throw await fail("counter");
   await deps.db.update(passkeysDes1).set({ counter: next, lastUsedAt: deps.now(), backedUp: !!v.authenticationInfo.credentialBackedUp }).where(eq(passkeysDes1.id, row.id));
   await note(deps, orgId, { userId: row.userId, email: user.email, action: "passkey.signed_in", targetId: row.id, ip: meta.ip });
-  return { userId: row.userId, orgId };
+  return { userId: row.userId, orgId, passkeyId: row.id };
 }
 
 async function own(deps: Deps, userId: string, id: string) {

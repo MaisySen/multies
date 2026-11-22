@@ -288,13 +288,20 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "operator.granted": "Operator added",
   "operator.removed": "Operator removed",
   "operator.role_changed": "Operator role changed",
+  "operator.two_factor_enrolled": "Operator turned on two-step sign in",
+  "operator.two_factor_disabled": "Operator turned off two-step sign in",
+  "operator.passkey_added": "Operator added a passkey",
   "audit.exported": "Audit log downloaded",
 };
 /** An audit action in plain words ("flags.workspace_set" -> "Workspace flag changed"). */
 export const auditActionLabel = (action: string | null | undefined) => lookup(AUDIT_ACTION_LABELS, action);
 
 /** Actions that need no reason (a note is its own reason): the audit log shows no "No reason" badge for them. */
-export const AUDIT_ACTIONS_WITHOUT_REASON: ReadonlySet<string> = new Set(["note.added", "note.deleted", "audit.exported", "impersonation.ended"]);
+export const AUDIT_ACTIONS_WITHOUT_REASON: ReadonlySet<string> = new Set([
+  "note.added", "note.deleted", "audit.exported", "impersonation.ended",
+  // The operator's own account security changes, recorded by the server: there is no dialog to give a reason in.
+  "operator.two_factor_enrolled", "operator.two_factor_disabled", "operator.passkey_added",
+]);
 
 export const AUDIT_FIELD_LABELS: Record<string, string> = {
   suspendedAt: "Suspended", suspendedReason: "Suspension reason", resolvedAbuseEvents: "Abuse signals dismissed",

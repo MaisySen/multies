@@ -6,7 +6,7 @@
  */
 import { and, count, eq, inArray, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { users } from "../../db/schema";
+import { appSettings, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { OPERATOR_ROLES, isOperatorRole, operatorRoleLabel, type OperatorRole } from "@/shared/operator-permissions";
 import { listParams } from "./listing";
@@ -77,21 +77,76 @@ function refuseWithoutTwoFactor(t: Target) {
   }
 }
 
-/** OPS1 security review M2: tells every owner that an operator turned two-step sign in on or off. Never throws. */
-export async function notifyOwnersOfTwoFactorChange(deps: Deps, user: { id: string; email: string; role?: string | null }, change: "on" | "off") {
+export type OperatorFactorChange = "on" | "off" | "passkey";
+
+/** One alert per operator per kind of change per hour reaches the owners (the audit log keeps every change). */
+export const OWNER_ALERT_WINDOW_MS = 60 * 60_000;
+
+/**
+ * Claims the owner alert for one operator and one kind of change, across every isolate: an app_settings row holds when
+ * the last alert went out, and only a claim older than the window replaces it. True when claimed.
+ */
+async function claimOwnerAlert(deps: Pick<Deps, "db" | "now">, userId: string, change: OperatorFactorChange): Promise<boolean> {
+  const key = `operator_alert:${userId}:${change}`;
+  const now = deps.now();
+  const value = now.toISOString();
+  const cutoff = new Date(now.getTime() - OWNER_ALERT_WINDOW_MS).toISOString();
+  const won = await deps.db.insert(appSettings).values({ key, value })
+    .onConflictDoUpdate({ target: appSettings.key, set: { value }, setWhere: sql`${appSettings.value} < ${cutoff}` })
+    .returning({ key: appSettings.key });
+  return won.length > 0;
+}
+
+const FACTOR_CHANGE_TEXT: Record<OperatorFactorChange, { what: string; subject: string; advice: string }> = {
+  on: {
+    what: "turned on two-step sign in (a new authenticator app)",
+    subject: "An operator turned on two-step sign in",
+    advice: "If they did not do this themselves, someone else may have their password. Check with them, and remove their operator access on the Operators page until it is sorted out.",
+  },
+  off: {
+    what: "turned off two-step sign in",
+    subject: "An operator turned off two-step sign in",
+    advice: "The operator console stays closed to them until they turn it on again and sign in with the code. Check with them that this was them.",
+  },
+  passkey: {
+    what: "added a passkey to their account",
+    subject: "An operator added a passkey",
+    advice: "Signing in with that passkey opens the operator console. If they did not add it themselves, remove their operator access on the Operators page until it is sorted out.",
+  },
+};
+
+/**
+ * OPS1 security review M2: tells every owner that an operator turned two-step sign in on or off, or added a passkey.
+ * At most one email per operator per kind of change per hour (claimOwnerAlert). Never throws.
+ */
+export async function notifyOwnersOfTwoFactorChange(deps: Deps, user: { id: string; email: string; role?: string | null }, change: OperatorFactorChange) {
   const owners = await deps.db.select({ email: users.email }).from(users).where(eq(users.role, "admin"));
   if (!owners.length) return;
+  if (!(await claimOwnerAlert(deps, user.id, change))) return;
   const { sendSystemEmail } = await import("../system-mail");
   const when = deps.now().toISOString().replace("T", " ").slice(0, 16) + " UTC";
-  const what = change === "on" ? "turned on two-step sign in (a new authenticator app)" : "turned off two-step sign in";
-  const subject = change === "on" ? `An operator turned on two-step sign in: ${user.email}` : `An operator turned off two-step sign in: ${user.email}`;
-  const text = `${user.email} (operator role: ${operatorRoleLabel(user.role ?? null)}) ${what} on ${when}.\n\n`
-    + (change === "on"
-      ? "If they did not do this themselves, someone else may have their password. Check with them, and remove their operator access on the Operators page until it is sorted out."
-      : "The operator console stays closed to them until they turn it on again and sign in with the code. Check with them that this was them.");
+  const t = FACTOR_CHANGE_TEXT[change];
+  const subject = `${t.subject}: ${user.email}`;
+  const text = `${user.email} (operator role: ${operatorRoleLabel(user.role ?? null)}) ${t.what} on ${when}.\n\n${t.advice}`;
   for (const o of owners) {
     await sendSystemEmail(deps, { to: o.email, subject, text, template: "notice", action: { label: "Open the Operators page", url: `${deps.config.appUrl}/console/operators` } })
       .catch((err) => deps.reportError?.(err, { where: "operator.two_factor_mail" }));
+  }
+}
+
+/**
+ * OPS1 security (M2): an operator turned two-step sign in on or off, or added a passkey. One platform audit row each
+ * time (operator.two_factor_enrolled, operator.two_factor_disabled, operator.passkey_added), and an email to every
+ * owner (role admin), so a password thief who enrols their own authenticator or passkey is noticed. Never throws.
+ */
+export async function operatorFactorChanged(deps: Deps, user: { id: string; email: string; role?: string | null }, change: OperatorFactorChange) {
+  try {
+    const { platformAudit } = await import("./audit");
+    const action = { on: "operator.two_factor_enrolled", off: "operator.two_factor_disabled", passkey: "operator.passkey_added" }[change];
+    await platformAudit(deps.db, { actorUserId: user.id, actorEmail: user.email, actorRole: user.role ?? null, targetType: "user", targetId: user.id, action });
+    await notifyOwnersOfTwoFactorChange(deps, user, change);
+  } catch (err) {
+    deps.reportError?.(err, { where: "operator.two_factor_changed" });
   }
 }
 

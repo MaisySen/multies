@@ -157,6 +157,115 @@ describe("M2: sign ins that never ask for the code", () => {
   }, 90_000);
 });
 
+describe("M2 re-check: a session that gave no code cannot mint itself a second factor", () => {
+  const PK = { ...ON, PASSKEY_DES1: "on" };
+
+  it("an unmarked session of an enrolled operator may not add a passkey; the marked one may, and owners are told", async () => {
+    const ctx = await makeTestApp(PK);
+    const op = await signUpAs(ctx, "ops@ops.test", "ops_admin", "Ops");
+    await signUpAs(ctx, "owner@ops.test", "admin", "Owner");
+    const other = new Client(ctx.app);
+    expect((await other.login("ops@ops.test")).status).toBe(200); // password only, before the enrolment
+    await enrol(op.c);
+    await refused(other, "no_second_factor_this_session");
+    const auth = new SoftAuthenticator();
+    for (const path of ["/api/passkeys/register/options", "/api/passkeys/register"]) {
+      const r = await other.post(path, path.endsWith("options") ? {} : { response: auth.create({ challenge: "x" }), name: "Thief" });
+      expect(r.status).toBe(403);
+      expect(r.body.error).toMatchObject({ code: "two_factor_required", details: { reason: "no_second_factor_this_session" } });
+    }
+    // The experiment: nothing registered, so a passkey sign in finds no credential and the console stays shut.
+    const c = new Client(ctx.app);
+    const so = await c.post("/api/passkeys/sign-in/options", {});
+    expect((await c.post("/api/passkeys/sign-in", { response: auth.get(so.body.options) })).status).toBe(401);
+    // The enrolment's own (marked) session may add one: audited, and every owner is emailed.
+    ctx.outbound.sent.length = 0;
+    const o = await op.c.post("/api/passkeys/register/options", {});
+    expect((await op.c.post("/api/passkeys/register", { response: auth.create(o.body.options), name: "Laptop" })).status).toBe(201);
+    expect(await ctx.db.select().from(platformAuditLogs).where(eq(platformAuditLogs.action, "operator.passkey_added")).get()).toMatchObject({ targetId: op.id, actorUserId: op.id });
+    const mail = ctx.outbound.sent.filter((m) => m.subject.includes("An operator added a passkey"));
+    expect(mail.map((m) => m.to).flat()).toEqual(["owner@ops.test"]);
+    expect(mail[0]!.text).toContain("ops@ops.test");
+  }, 90_000);
+
+  it("a not enrolled operator is told to turn on two-step before adding a passkey", async () => {
+    const ctx = await makeTestApp(PK);
+    const op = await signUpAs(ctx, "ops@ops.test", "ops_support", "Ops");
+    const r = await op.c.post("/api/passkeys/register/options", {});
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatchObject({ code: "two_factor_required", details: { reason: "not_enrolled" } });
+    expect(r.body.error.message).toMatch(/Turn it on in Account and security/);
+  }, 60_000);
+
+  it("a passkey added from an unmarked session (before the role) does not count when it signs in", async () => {
+    const ctx = await makeTestApp(PK);
+    const u = await signUpAs(ctx, "later@ops.test", null, "Later");
+    const auth = new SoftAuthenticator();
+    const o = await u.c.post("/api/passkeys/register/options", {}); // an ordinary account: allowed, but not marked
+    expect((await u.c.post("/api/passkeys/register", { response: auth.create(o.body.options), name: "Old" })).status).toBe(201);
+    await enrol(u.c);
+    await ctx.db.update(users).set({ role: "ops_admin" }).where(eq(users.id, u.id));
+    const c = new Client(ctx.app);
+    const so = await c.post("/api/passkeys/sign-in/options", {});
+    expect((await c.post("/api/passkeys/sign-in", { response: auth.get(so.body.options) })).status).toBe(200);
+    await refused(c, "no_second_factor_this_session");
+  }, 90_000);
+
+  it("an unmarked session may not read the authenticator secret or make new backup codes; the marked one may", async () => {
+    const ctx = await makeTestApp(ON);
+    const op = await signUpAs(ctx, "ops@ops.test", "ops_admin", "Ops");
+    const other = new Client(ctx.app);
+    await other.login("ops@ops.test");
+    await enrol(op.c);
+    for (const path of ["/api/auth/two-factor/get-totp-uri", "/api/auth/two-factor/generate-backup-codes"]) {
+      const r = await other.post(path, { password: "a-strong-password" });
+      expect(r.status).toBe(403);
+      expect(JSON.stringify(r.body)).not.toContain("otpauth://");
+      expect(r.body).not.toHaveProperty("backupCodes");
+    }
+    expect((await op.c.post("/api/auth/two-factor/get-totp-uri", { password: "a-strong-password" })).status).toBe(200);
+    expect((await op.c.post("/api/auth/two-factor/generate-backup-codes", { password: "a-strong-password" })).status).toBe(200);
+    // An ordinary account's sessions are not limited (no mark is ever written for them).
+    const plain = await signUpAs(ctx, "plain@example.com", null, "Plain");
+    await enrol(plain.c);
+    expect((await plain.c.post("/api/auth/two-factor/get-totp-uri", { password: "a-strong-password" })).status).toBe(200);
+  }, 90_000);
+});
+
+describe("M2: the owner alert fires for real changes only, once an hour", () => {
+  it("a signed in re-check of a code on a session that rolls forward is not an enrolment", async () => {
+    const ctx = await makeTestApp(ON);
+    await signUpAs(ctx, "owner1@ops.test", "admin", "Owner");
+    const sup = await signUpAs(ctx, "sup@ops.test", "ops_readonly", "Sup");
+    const { totp } = await enrol(sup.c);
+    const enrolledRows = async () => (await ctx.db.select().from(platformAuditLogs).where(eq(platformAuditLogs.action, "operator.two_factor_enrolled")).all()).length;
+    expect(await enrolledRows()).toBe(1);
+    ctx.outbound.sent.length = 0;
+    // Due to roll forward (expiresIn 30 days, updateAge 1 day): Better Auth sets newSession on this request, same id.
+    await ctx.db.update(sessions).set({ expiresAt: new Date(Date.now() + 29 * 86_400_000 - 60_000) }).where(eq(sessions.userId, sup.id));
+    const r = await sup.c.post("/api/auth/two-factor/verify-totp", { code: totp.generate() });
+    expect(r.status).toBe(200);
+    expect(await enrolledRows()).toBe(1);
+    expect(ctx.outbound.sent.filter((m) => m.subject.includes("two-step"))).toEqual([]);
+    expect((await sup.c.get("/api/console/me")).status).toBe(200); // still the enrolment's marked session
+  }, 90_000);
+
+  it("turning two-step off and on again within the hour is audited each time but emails owners once per kind", async () => {
+    const ctx = await makeTestApp();
+    await signUpAs(ctx, "owner1@ops.test", "admin", "Owner");
+    const sup = await signUpAs(ctx, "sup@ops.test", "ops_readonly", "Sup");
+    ctx.outbound.sent.length = 0;
+    for (let i = 0; i < 2; i++) {
+      await enrol(sup.c);
+      expect((await sup.c.post("/api/auth/two-factor/disable", { password: "a-strong-password" })).status).toBe(200);
+    }
+    const rows = (await ctx.db.select().from(platformAuditLogs).all()).filter((r) => r.action.startsWith("operator.two_factor_"));
+    expect(rows.map((r) => r.action).sort()).toEqual(["operator.two_factor_disabled", "operator.two_factor_disabled", "operator.two_factor_enrolled", "operator.two_factor_enrolled"]);
+    expect(ctx.outbound.sent.filter((m) => m.subject.includes("turned on two-step"))).toHaveLength(1);
+    expect(ctx.outbound.sent.filter((m) => m.subject.includes("turned off two-step"))).toHaveLength(1);
+  }, 90_000);
+});
+
 describe("M2: self enrolment by whoever holds the password, reduced", () => {
   it("granting or changing an operator role needs two-step on first (409)", async () => {
     const ctx = await makeTestApp();

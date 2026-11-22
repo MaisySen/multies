@@ -11,7 +11,11 @@
  *   before it) or the end of an enrolment (signed in; the plugin swaps the session after the first accepted code, so
  *   the code was just proven). A signed in re-check of a code hands out no session and marks nothing.
  * - A passkey sign in (routes/passkeys-des1.ts) is marked too: the app's passkeys require user verification
- *   (userVerification "required" at registration and sign in), so the passkey is a second factor on its own.
+ *   (userVerification "required" at registration and sign in), so the passkey is a second factor on its own. Only a
+ *   passkey added from a session that was itself marked counts (two_factor_passkey:<userId>:<passkeyId>), so a session
+ *   that never gave the code cannot mint itself a factor. For the same reason an operator's session without a mark may
+ *   not add a passkey, read the authenticator secret or make new backup codes (routes/passkeys-des1.ts, the auth
+ *   before hook in auth/options.ts).
  * - Marks are written ONLY for accounts that hold an operator role or are listed in PLATFORM_ADMIN_EMAILS, so an
  *   ordinary sign in costs no write. Stored in app_settings as two_factor_session:<userId>:<sessionId> (a primary key
  *   read per console request; no migration).
@@ -57,6 +61,24 @@ export async function markTwoFactorSession(deps: Pick<Deps, "db" | "config" | "n
 export async function sessionHasSecondFactor(deps: Pick<Deps, "db">, userId: string, sessionId: string): Promise<boolean> {
   const row = await deps.db.select({ key: appSettings.key }).from(appSettings).where(eq(appSettings.key, markKey(userId, sessionId))).get();
   return !!row;
+}
+
+const passkeyKey = (userId: string, passkeyId: string) => `two_factor_passkey:${userId}:${passkeyId}`;
+
+/** Records that this passkey was added from a session that proved a second factor, so signing in with it counts. */
+export async function notePasskeyCounts(deps: Pick<Deps, "db" | "now">, userId: string, passkeyId: string): Promise<void> {
+  const value = JSON.stringify({ at: deps.now().toISOString() });
+  await deps.db.insert(appSettings).values({ key: passkeyKey(userId, passkeyId), value }).onConflictDoNothing();
+}
+
+/** Whether signing in with this passkey proves a second factor (it was added from a marked session). */
+export async function passkeyCounts(deps: Pick<Deps, "db">, userId: string, passkeyId: string): Promise<boolean> {
+  return !!(await deps.db.select({ key: appSettings.key }).from(appSettings).where(eq(appSettings.key, passkeyKey(userId, passkeyId))).get());
+}
+
+/** Forgets a removed passkey's record. */
+export async function forgetPasskey(deps: Pick<Deps, "db">, userId: string, passkeyId: string): Promise<void> {
+  await deps.db.delete(appSettings).where(eq(appSettings.key, passkeyKey(userId, passkeyId)));
 }
 
 /** Forgets every mark of one person (two-step sign in turned off). */
