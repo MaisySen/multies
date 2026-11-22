@@ -74,7 +74,7 @@ Result: staging and its tests can never spend production's daily budget.
 
 ### How to tell
 - The API answers `503` with `{"error":{"code":"read_only"}}` ("Multies is read only for a short while") on writes, and the web app shows the read only banner. Sign in callbacks land on `/login?error=read_only`.
-- `GET https://multies.si/api/admin/health` (signed in as a platform operator) shows `writes`: `today`, `budget`, `pct`, `level` (`ok`, `warn` from 60%, `shed` from 85%), `resetAt` (next 00:00 UTC), `byEnvironment` (production, staging) and `deferred` (what this isolate wrote, coalesced or skipped). The operator console (`/app/admin`) shows the same as a meter.
+- `GET https://multies.si/api/admin/health` (signed in as a platform operator) shows `writes`: `today`, `budget`, `pct`, `level` (`ok`, `warn` from 60%, `shed` from 85%), `resetAt` (next 00:00 UTC), `byEnvironment` (production, staging) and `deferred` (what this isolate wrote, coalesced or skipped). The operator console shows the same as a meter on System health (`/console/system`, [operator-console.md](operator-console.md)).
 - The alert mail to `OPS_ALERT_EMAIL` (default security@multies.si): "Multies D1 writes at 60% today (60,123 of 100,000)" and again at 85%. Once per level per UTC day for the whole deployment (one `app_settings` row per alert, key `d1_alert:<date>:<level>`). Also a Sentry error and a `d1.write_budget` line in Workers Logs on every cron pass.
 - The analytics query (account token in the Cloudflare section of CREDENTIALS, read through creds.mjs, never printed):
 

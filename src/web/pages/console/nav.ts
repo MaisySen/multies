@@ -1,7 +1,6 @@
 /**
  * OPS1: the console sidebar. Five groups; each item shows only when the operator's role has its read permission, so
- * lower tiers see a shorter menu. Every section's page exists at its final path (placeholders say "Coming soon" until
- * their phase lands); add nothing here when building a section, just replace its page file.
+ * lower tiers see a shorter menu. Every section's page lives at its own path; a new section adds its item here.
  */
 import type { IconComponent } from "@/web/components/ui/icon";
 import {

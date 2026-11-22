@@ -47,7 +47,7 @@ span), and about 0.8 ms on every warm request, with tracing already off. R43 rem
   (at least 32 characters) throws a test error through the outer catch and answers 500 with the event id. Without the
   secret (the normal state) the path is a plain 404. Set it with `wrangler secret put REPORT_TEST_TOKEN` (value on
   stdin, never in argv), run the check once, then `wrangler secret delete REPORT_TEST_TOKEN`.
-- Operators can still send a handled test event from the operator console, System health (`/console/system`, `POST /api/console/system/sentry-test` with a reason).
+- Operators can still send a handled test event from the operator console, System health (`/console/system`, `POST /api/console/system/sentry-test` with a reason; see [operator-console.md](operator-console.md)).
 - Measured on 27 Oct 2026 (wrangler tail, 60 signed GETs per reading, 0 empty 503s in every reading):
   production before (release a8bcd4b1f6b3, warm): median 10 ms, p95 33 ms, max 53 ms;
   production after (509b801dfa1c, 15 minutes after the deploy, warm): median 7 ms, p95 28 ms, max 35 ms;

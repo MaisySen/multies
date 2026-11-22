@@ -7,7 +7,7 @@
 | REST, MCP and webhooks | [api.md](api.md), [MCP.md](MCP.md), [suite.md](suite.md) |
 | How we build and release | [sdlc.md](sdlc.md) |
 | Tests and how to run them | [testing.md](testing.md) |
-| Runbooks | [deploy](runbooks/deploy.md), [rollback](runbooks/rollback.md), [incident response](runbooks/incident-response.md), [Sentry triage](runbooks/sentry-triage.md), [database backup and restore](runbooks/db-backup-restore.md), [domain and DNS](runbooks/domain-dns.md) |
+| Runbooks | [deploy](runbooks/deploy.md), [rollback](runbooks/rollback.md), [incident response](runbooks/incident-response.md), [Sentry triage](runbooks/sentry-triage.md), [database backup and restore](runbooks/db-backup-restore.md), [domain and DNS](runbooks/domain-dns.md), [operator console](runbooks/operator-console.md) |
 | Decisions and why | [adr/](adr/README.md) |
 | Sign in and API keys | [auth.md](auth.md) |
 | Security | [../SECURITY.md](../SECURITY.md), [security.md](security.md), [security/secrets-rotation.md](security/secrets-rotation.md), [security/zap-baseline.md](security/zap-baseline.md) |

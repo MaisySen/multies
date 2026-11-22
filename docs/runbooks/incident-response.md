@@ -46,6 +46,8 @@ data looking wrong, a security problem.
 
 ## Operator sign-in (the operator console, /console)
 
+The full rules, roles and settings are in [operator-console.md](operator-console.md).
+
 - In production the console opens only for a session that gave a second factor at sign in: the password and the two-step code (or a backup code), or a passkey. Signing in with Google, Auth0, the phone app or a remembered device does not count, unless that sign-in method is listed in `OPERATOR_SSO_METHODS`. List a method there only if that provider makes every operator use multi-factor. It is empty by default.
 - If the console says "Sign in with your password and two-step code to open the operator console.", sign out, then sign in with your password and your code.
 - Before you give someone an operator role on the Operators page, ask them to turn on two-step sign in (Account and security). The console refuses the grant until they have.

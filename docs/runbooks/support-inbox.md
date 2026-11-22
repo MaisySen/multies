@@ -75,7 +75,7 @@ Apple's rule for apps with user content (guideline 1.2): people can report conte
 - Where: Operator console, Moderation (`/console/moderation`). The Operator item in the sidebar shows the open count. Each report shows the reason, where it came from, a copy of the message as it was when reported, the reporter and the reported person, and its age (amber past 12 hours, red past 24).
 - How, within 24 hours of the report:
   - Remove message: deletes it for everyone (the normal soft delete; open chats update at once). Other open reports on the same message close with it.
-  - Suspend user: bans the account (sign in refused) and ends all its sessions. To lift it, open the person in the operator console (`/console/users`) and choose Unban, then tell the person. Operator accounts can't be suspended from a report; change their access on the Operators page first.
+  - Suspend user: bans the account (sign in refused) and ends all its sessions. To lift it, open the person in the operator console (`/console/users`) and choose Unban, then tell the person. Operator accounts can't be suspended from a report; change their access on the Operators page first ([operator-console.md](operator-console.md)).
   - Resolve with a note: when you acted another way (a warning by mail, say).
   - Dismiss: nothing wrong.
 - Illegal content involving a minor: remove it, suspend the account, and report it to the eSafety Commissioner (esafety.gov.au) the same day. Keep the report row; it holds the copy.

@@ -88,7 +88,7 @@ Out of scope for this model: a compromised Cloudflare account or owner device (p
 
 - Every session route and every `/api/v1` route resolves the caller's workspace first and reads or writes only rows with that workspace id. An id from another workspace is a `404`, the same answer as an id that does not exist, so ids cannot be probed.
 - Links between records (a doc linked to a task, a form that files into a project, a task assigned to a person) are checked against the same workspace before they are saved.
-- Admin actions need the Better Auth admin role (operator console) or the workspace owner or admin role (members, billing, domains, keys).
+- Admin actions need an operator role (the operator console, with roles from read only to owner; [runbooks/operator-console.md](runbooks/operator-console.md)) or the workspace owner or admin role (members, billing, domains, keys).
 - Guests sign in with a per-guest token, see only their project, and in chat only the channels a member shared with guests.
 - MCP tools run with the API key's actor, so they get the same checks as the REST API. An agent key acts only as its own agent.
 - `tests/isolation-sweep.test.ts` seeds one workspace, signs up a second with its own API key, and calls every route that takes an id (about 290 routes across the app API and `/api/v1`) and every MCP tool that takes an id with the first workspace's real ids. Any `2xx` or `5xx` fails the test. `tests/authz-matrix.test.ts` calls every route with no session and expects `401`.

@@ -480,7 +480,7 @@ export const router = createBrowserRouter([
   { path: "/go/*", element: <GoMoved />, errorElement: <RouteError /> }, // R87
   { path: "/thanks", element: publicPage(<ThanksPage />), errorElement: <RouteError /> },
   { path: "/thank-you", element: publicPage(<ThanksPage />), errorElement: <RouteError /> },
-  // OPS1: the operator console. The full tree is here; a section's phase replaces only its own page file.
+  // OPS1: the operator console. The full tree is here; each section's page is its own file under pages/console.
   {
     path: "/console",
     element: <Suspense fallback={<div className="min-h-dvh bg-bg" aria-busy="true" />}><ConsoleLayout /></Suspense>,

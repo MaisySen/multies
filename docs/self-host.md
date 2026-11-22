@@ -84,7 +84,8 @@ The script:
 4. starts everything.
 
 Open <http://localhost:8787> and create your account. The first account on a new install is
-yours; add your email to `PLATFORM_ADMIN_EMAILS` in `.env` to get the admin pages.
+yours; add your email to `PLATFORM_ADMIN_EMAILS` in `.env` to get the operator console at `/console`
+([runbooks/operator-console.md](runbooks/operator-console.md)).
 
 Use Chrome, Edge or Firefox while the address is `http://localhost`. Safari may refuse the
 secure sign-in cookie without HTTPS; it works once a domain with HTTPS is set up.
