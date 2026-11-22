@@ -30,6 +30,7 @@ import {
 import { sendingPausedForPayment } from "../billing/dunning";
 import { isStripeError } from "../billing/stripe-lazy";
 import { compExpiryFields, readCompExpiry } from "../billing/ops1-0174";
+import { ownerEmails, withOwnerEmail } from "./owners";
 
 type Org = typeof organizations.$inferSelect;
 const DAY = 86_400_000;
@@ -164,13 +165,13 @@ function dunningOf(org: Org, now: Date) {
 }
 
 export type SubscriptionItem = {
-  orgId: string; name: string; plan: PlanId; effectivePlan: PlanId;
+  orgId: string; name: string; ownerEmail: string | null; plan: PlanId; effectivePlan: PlanId;
   comp: boolean; compUntil: string | null; compNote: string | null;
   status: string | null; interval: "month" | "year" | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean;
   pastDue: boolean; stripeCustomerId: string | null; stripeSubscriptionId: string | null; createdAt: string;
 };
 
-function subscriptionItem(org: Org): SubscriptionItem {
+function subscriptionItem(org: Org): Omit<SubscriptionItem, "ownerEmail"> {
   return {
     orgId: org.id, name: org.name, plan: org.plan, effectivePlan: effectivePlanId(org),
     comp: org.compPlan, compUntil: iso(org.compUntil), compNote: org.compNote,
@@ -206,11 +207,12 @@ export async function listSubscriptions(deps: Deps, input: { filters?: Subscript
   }
   const rows = await deps.db.select({ ...getTableColumns(organizations), _k: sql<string | number>`${ks.key}`, _id: organizations.id })
     .from(organizations).where(and(...conds)).orderBy(...ks.order).limit(ks.limit + 1);
-  return pageOf(rows, ks.limit, (r) => subscriptionItem(r));
+  const page = pageOf(rows, ks.limit, (r) => subscriptionItem(r));
+  return { ...page, items: await withOwnerEmail(deps, page.items) };
 }
 
 export type PastDueItem = {
-  orgId: string; name: string; plan: PlanId; effectivePlan: PlanId; comp: boolean; status: string | null;
+  orgId: string; name: string; ownerEmail: string | null; plan: PlanId; effectivePlan: PlanId; comp: boolean; status: string | null;
   stage: DunningStage; pastDueSince: string | null; graceEndsAt: string | null; sendingPaused: boolean; daysPastDue: number;
   stripeCustomerId: string | null; stripeSubscriptionId: string | null;
 };
@@ -221,7 +223,7 @@ export async function listPastDue(deps: Deps, page: PageInput): Promise<Paged<Pa
   const rows = await deps.db.select({ ...getTableColumns(organizations), _k: sql<string | number>`${ks.key}`, _id: organizations.id })
     .from(organizations).where(and(isNotNull(organizations.pastDueSince), ks.where)).orderBy(...ks.order).limit(ks.limit + 1);
   const now = deps.now();
-  return pageOf(rows, ks.limit, (org) => {
+  const paged = pageOf(rows, ks.limit, (org) => {
     const d = dunningOf(org, now)!;
     return {
       orgId: org.id, name: org.name, plan: org.plan, effectivePlan: effectivePlanId(org), comp: org.compPlan, status: org.subscriptionStatus,
@@ -229,9 +231,10 @@ export async function listPastDue(deps: Deps, page: PageInput): Promise<Paged<Pa
       stripeCustomerId: org.stripeCustomerId, stripeSubscriptionId: org.stripeSubscriptionId,
     };
   });
+  return { ...paged, items: await withOwnerEmail(deps, paged.items) };
 }
 
-export type BillingEventItem = { id: string; type: string; orgId: string | null; orgName: string | null; summary: string | null; createdAt: string };
+export type BillingEventItem = { id: string; type: string; orgId: string | null; orgName: string | null; ownerEmail: string | null; summary: string | null; createdAt: string };
 
 /** Processed Stripe webhook events, newest first by default, for one workspace or all, optionally of one type. */
 export async function listBillingEvents(deps: Deps, input: { orgId?: string | null; type?: string | null; page: PageInput }): Promise<Paged<BillingEventItem>> {
@@ -248,12 +251,14 @@ export async function listBillingEvents(deps: Deps, input: { orgId?: string | nu
     _k: sql<string | number>`${ks.key}`, _id: billingEvents.id,
   }).from(billingEvents).leftJoin(organizations, eq(organizations.id, billingEvents.orgId))
     .where(and(...conds)).orderBy(...ks.order).limit(ks.limit + 1);
-  return pageOf(rows, ks.limit, (r) => ({ id: r.id, type: r.type, orgId: r.orgId, orgName: r.orgName ?? null, summary: r.summary ?? null, createdAt: r.createdAt.toISOString() }));
+  const page = pageOf(rows, ks.limit, (r) => ({ id: r.id, type: r.type, orgId: r.orgId, orgName: r.orgName ?? null, summary: r.summary ?? null, createdAt: r.createdAt.toISOString() }));
+  return { ...page, items: await withOwnerEmail(deps, page.items) };
 }
 
 export type ReferralItem = {
   id: string; code: string; status: string; reason: string | null;
-  referrerOrgId: string; referrerName: string | null; referredOrgId: string; referredName: string | null;
+  referrerOrgId: string; referrerName: string | null; referrerOwnerEmail: string | null;
+  referredOrgId: string; referredName: string | null; referredOwnerEmail: string | null;
   invoiceId: string | null; paidAt: string | null; eligibleAt: string | null; creditedAt: string | null;
   referrerCreditCents: number; referredCreditCents: number; createdAt: string;
 };
@@ -283,9 +288,11 @@ export async function listReferrals(deps: Deps, input: { filters?: { status?: st
     .leftJoin(referrer, eq(referrer.id, referrals.referrerOrgId))
     .leftJoin(referred, eq(referred.id, referrals.referredOrgId))
     .where(and(...conds)).orderBy(...ks.order).limit(ks.limit + 1);
+  const owners = await ownerEmails(deps, rows.slice(0, ks.limit).flatMap((r) => [r.referrerOrgId, r.referredOrgId]));
   return pageOf(rows, ks.limit, (r) => ({
     id: r.id, code: r.code, status: r.status, reason: r.reason,
-    referrerOrgId: r.referrerOrgId, referrerName: r.referrerName ?? null, referredOrgId: r.referredOrgId, referredName: r.referredName ?? null,
+    referrerOrgId: r.referrerOrgId, referrerName: r.referrerName ?? null, referrerOwnerEmail: owners.get(r.referrerOrgId) ?? null,
+    referredOrgId: r.referredOrgId, referredName: r.referredName ?? null, referredOwnerEmail: owners.get(r.referredOrgId) ?? null,
     invoiceId: r.invoiceId, paidAt: iso(r.paidAt), eligibleAt: iso(r.eligibleAt), creditedAt: iso(r.creditedAt),
     referrerCreditCents: r.referrerCreditCents, referredCreditCents: r.referredCreditCents, createdAt: r.createdAt.toISOString(),
   }));

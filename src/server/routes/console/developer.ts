@@ -72,7 +72,7 @@ export function urlOrigin(url: string | null): string | null {
 }
 
 /** The data layer's { items, next } as the console's { items, nextCursor }. */
-const listOut = <T,>(p: Page<T>) => ({ items: p.items, nextCursor: p.next ? encodeCursor(p.next.v, p.next.id) : null });
+const listOut = <T,>(p: Page<T>) => ({ items: p.items, nextCursor: p.next ? encodeCursor(p.next.v, p.next.id) : null, ...(p.recentOnly ? { recentOnly: true } : {}) });
 
 export function developerRoutes() {
   return new Hono<AppEnv>()

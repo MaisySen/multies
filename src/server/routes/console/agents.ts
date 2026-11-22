@@ -57,8 +57,8 @@ function pageOf<F extends string>(c: Context<AppEnv>, defaultSort: `${F}:${SortD
 }
 
 /** { items, next } from the service as the console's { items, nextCursor }. */
-function asPage<T>(r: ConsolePageResult<T>): { items: T[]; nextCursor: string | null } {
-  return { items: r.items, nextCursor: r.next ? encodeCursor(r.next.v, r.next.id) : null };
+function asPage<T>(r: ConsolePageResult<T>): { items: T[]; nextCursor: string | null; recentOnly?: true } {
+  return { items: r.items, nextCursor: r.next ? encodeCursor(r.next.v, r.next.id) : null, ...(r.recentOnly ? { recentOnly: true as const } : {}) };
 }
 
 function operatorOf(c: Context<AppEnv>): ConsoleOperator {

@@ -167,6 +167,22 @@ describe("lists", () => {
     expect((await readonly.get("/api/console/developer/oauth-grants?sort=refreshHash:asc")).status).toBe(400);
   }, 60_000);
 
+  it("name each workspace's owner, and say when a list looked at recent rows only", async () => {
+    const keys = await readonly.get("/api/console/developer/api-keys");
+    expect(keys.body.items[0]).toMatchObject({ orgId: orgA, ownerEmail: "dev@alpha.test" });
+    expect((await readonly.get("/api/console/developer/webhooks")).body.items.find((e: { orgId: string }) => e.orgId === orgA)).toMatchObject({ ownerEmail: "dev@alpha.test" });
+    const failed = await readonly.get("/api/console/developer/webhook-deliveries");
+    expect(failed.body.items[0]).toMatchObject({ ownerEmail: "dev@alpha.test" });
+    expect(failed.body.recentOnly).toBeUndefined();
+    expect((await readonly.get("/api/console/developer/webhook-deliveries?status=delivered")).body.recentOnly).toBe(true);
+    expect((await readonly.get(`/api/console/developer/webhook-deliveries?status=delivered&orgId=${orgA}`)).body.recentOnly).toBeUndefined();
+    const grants = await readonly.get("/api/console/developer/oauth-grants");
+    expect(grants.body.items[0]).toMatchObject({ ownerEmail: "dev@alpha.test" });
+    expect(grants.body.recentOnly).toBe(true);
+    expect((await readonly.get(`/api/console/developer/oauth-grants?orgId=${orgA}`)).body.recentOnly).toBeUndefined();
+    expect((await readonly.get("/api/console/developer/oauth-clients")).body.recentOnly).toBe(true);
+  }, 60_000);
+
   it("non operators get 401 or 403", async () => {
     for (const p of ["api-keys", "webhooks", "webhook-deliveries", "oauth-clients", "oauth-grants"]) {
       expect((await new Client(ctx.app).get(`/api/console/developer/${p}`)).status).toBe(401);

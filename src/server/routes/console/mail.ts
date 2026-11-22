@@ -89,7 +89,7 @@ function windowOf(c: Context<AppEnv>, raw: string | undefined): TimeWindow | und
 
 /** The data layer's { items, next } as the console's { items, nextCursor }. */
 function out<T>(p: Page<T>) {
-  return { items: p.items, nextCursor: p.next ? encodeCursor(p.next.v, p.next.id) : null };
+  return { items: p.items, nextCursor: p.next ? encodeCursor(p.next.v, p.next.id) : null, ...(p.recentOnly ? { recentOnly: true } : {}) };
 }
 
 const SendingBody = z.object({ enabled: z.boolean({ error: "Say whether sending is on or off." }), reason: reasonSchema });
@@ -107,7 +107,7 @@ export function mailRoutes() {
       const status = csv(c.req.query("status"), DELIVERY_STATUSES, "delivery status");
       const p = await listDeliveries(c.var.deps, { status, orgId, direction, window }, page);
       // No addresses: the console shows what happened, not who wrote to whom.
-      return c.json(out({ ...p, items: p.items.map((d) => ({ id: d.id, orgId: d.orgId, orgName: d.orgName, direction: d.direction, status: d.status, provider: d.provider, detail: d.detail, createdAt: d.createdAt })) }));
+      return c.json(out({ ...p, items: p.items.map((d) => ({ id: d.id, orgId: d.orgId, orgName: d.orgName, ownerEmail: d.ownerEmail, direction: d.direction, status: d.status, provider: d.provider, detail: d.detail, createdAt: d.createdAt })) }));
     })
     .get("/failure-rates", requireOperator("mail.read"), async (c) => {
       const { window } = pageOf(c, "createdAt:desc");
