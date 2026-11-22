@@ -52,9 +52,12 @@ A passkey counts only on an account that has two-step sign in turned on, and onl
 A session that gave no code cannot give itself a second factor. On an operator account (or one in `PLATFORM_ADMIN_EMAILS`), with the rule on:
 
 - adding a passkey needs a session that meets the rule (`two_factor_required`, with the same `details.reason` as the console);
-- reading the authenticator setup (`/two-factor/get-totp-uri`) and making new backup codes (`/two-factor/generate-backup-codes`) need a session that meets the rule too (`SECOND_FACTOR_REQUIRED`).
+- reading the authenticator setup (`/two-factor/get-totp-uri`) and making new backup codes (`/two-factor/generate-backup-codes`) need a session that meets the rule too (`SECOND_FACTOR_REQUIRED`);
+- once two-step is on, turning it off (`/two-factor/disable`) or setting it up again (`/two-factor/enable`) needs such a session too (`SECOND_FACTOR_REQUIRED`). Turning it on for the first time does not.
 
-Otherwise someone holding an older session (from before two-step was turned on, a remembered device, an outside sign in or the phone's hand off) could add their own passkey, or read the secret or new backup codes with the password, and then sign in with it to open the console. Everyone else's account is unchanged.
+Otherwise someone holding an older session (from before two-step was turned on, a remembered device, an outside sign in or the phone's hand off) could add their own passkey, read the secret or new backup codes with the password, or turn two-step off and on again with an authenticator of their own, and then sign in with it to open the console. Everyone else's account is unchanged.
+
+An operator who lost their authenticator signs in with their password and a backup code; that session may turn two-step off and set it up again.
 
 When the console refuses a session it says which case applies (the refusal carries `details.reason`):
 
@@ -91,7 +94,7 @@ Some actions need a sign in from the last `OPERATOR_FRESH_MINUTES` minutes (15 b
 
 Why: a listed owner who never turned on two-step sign in can be taken over by anyone holding only their password, who can turn on two-step with their own authenticator app and then open the console. The console narrows this but does not close it: when an operator turns two-step on or off, or adds a passkey, every owner gets an email and the audit log records `operator.two_factor_enrolled`, `operator.two_factor_disabled` or `operator.passkey_added`. If you get that email and did not expect it, check with the person and remove their operator access until it is sorted out.
 
-The audit log records every such change. The owner emails are limited to one per operator per kind of change (on, off, passkey) per hour, so an operator turning two-step off and on in a loop cannot flood the owners' inboxes; the later changes in that hour are still in the audit log. Checking a code again while already signed in is not a change and sends nothing.
+The audit log records every such change. The owner emails are limited to one per operator per kind of change (on, off, passkey) per hour, so an operator turning two-step off or adding passkeys in a loop cannot flood the owners' inboxes; the later changes in that hour are still in the audit log. Turning two-step on again after turning it off always emails, even within the hour of an earlier "turned on" email: whoever turned it off may be setting up an authenticator of their own. Checking a code again while already signed in is not a change and sends nothing.
 
 Scripts that read `/api/admin/health` with an operator's session cookie (`MULTIES_OPERATOR_COOKIE`, see [deploy.md](deploy.md)) need a cookie from a session that signed in with the code.
 
@@ -311,7 +314,7 @@ These parts are covered by tests in Node with local SQLite and fakes, and have n
 | Code | What it means | What to do |
 | --- | --- | --- |
 | `two_factor_required` | This session did not give a second factor at sign in (section 3). `details.reason` says whether two-step is off (`not_enrolled`) or on but not given by this session (`no_second_factor_this_session`), and the console card says the matching fix. | If two-step is off, turn it on in Account and security, then open the console again in that session. If it is on, choose Sign in again and sign in with your password and code (or a passkey). The same code on adding a passkey means the same thing for an operator account. |
-| `SECOND_FACTOR_REQUIRED` | An operator's session that gave no code tried to view the authenticator setup or make new backup codes (section 3). | Sign out, sign in with your password and code, then try again. |
+| `SECOND_FACTOR_REQUIRED` | An operator's session that gave no code tried to view the authenticator setup, make new backup codes, or turn two-step off or set it up again (section 3). | Sign out, sign in with your password and code (or a backup code), then try again. |
 | `step_up_required` | The action needs a sign in from the last `OPERATOR_FRESH_MINUTES` minutes. Nothing was changed. | Choose Sign in again, then repeat the action. |
 | `forbidden` | Your role can't do this, or the account is not an operator, or (when starting View as) your role can view but not act. | Ask an owner for a different role if you need it. |
 | `impersonating` | You are viewing as someone, so the console is closed. | Choose Stop in the bar at the top. |

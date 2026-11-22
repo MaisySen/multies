@@ -86,8 +86,10 @@ export const OWNER_ALERT_WINDOW_MS = 60 * 60_000;
  * Claims the owner alert for one operator and one kind of change, across every isolate: an app_settings row holds when
  * the last alert went out, and only a claim older than the window replaces it. True when claimed.
  */
+const ownerAlertKey = (userId: string, change: OperatorFactorChange) => `operator_alert:${userId}:${change}`;
+
 async function claimOwnerAlert(deps: Pick<Deps, "db" | "now">, userId: string, change: OperatorFactorChange): Promise<boolean> {
-  const key = `operator_alert:${userId}:${change}`;
+  const key = ownerAlertKey(userId, change);
   const now = deps.now();
   const value = now.toISOString();
   const cutoff = new Date(now.getTime() - OWNER_ALERT_WINDOW_MS).toISOString();
@@ -117,9 +119,13 @@ const FACTOR_CHANGE_TEXT: Record<OperatorFactorChange, { what: string; subject: 
 
 /**
  * OPS1 security review M2: tells every owner that an operator turned two-step sign in on or off, or added a passkey.
- * At most one email per operator per kind of change per hour (claimOwnerAlert). Never throws.
+ * At most one email per operator per kind of change per hour (claimOwnerAlert), except that turning it on again after
+ * turning it off always emails. Never throws.
  */
 export async function notifyOwnersOfTwoFactorChange(deps: Deps, user: { id: string; email: string; role?: string | null }, change: OperatorFactorChange) {
+  // Turning two-step on again after turning it off always emails: whoever turned it off may now be setting up an
+  // authenticator of their own, and an earlier "on" alert in the same hour must not hide that.
+  if (change === "off") await deps.db.delete(appSettings).where(eq(appSettings.key, ownerAlertKey(user.id, "on")));
   const owners = await deps.db.select({ email: users.email }).from(users).where(eq(users.role, "admin"));
   if (!owners.length) return;
   if (!(await claimOwnerAlert(deps, user.id, change))) return;

@@ -67,10 +67,16 @@ const operatorTwoFactorChanged = async (deps: Deps, user: { id: string; email: s
 
 /**
  * OPS1 security (M2 re-check): reading the authenticator secret or making new backup codes hands out a second factor,
- * so an operator's session must meet the console's two-step rule first (auth/operator.ts secondFactorChangeRefusal).
+ * and so does turning two-step off and on again (/disable needs only a session and the password in Better Auth, then
+ * /enable issues a new secret and backup codes). On an enrolled account an operator's session must meet the console's
+ * two-step rule first (auth/operator.ts secondFactorChangeRefusal). Turning it on for the first time is not limited.
  */
-const FACTOR_MINTING_PATHS = new Set(["/two-factor/get-totp-uri", "/two-factor/generate-backup-codes"]);
-const FACTOR_MINTING_REFUSED = "For your safety, sign out and sign in again with your password and two-step code before you view your authenticator setup or make new backup codes.";
+const FACTOR_MINTING_REFUSED: Record<string, string> = {
+  "/two-factor/get-totp-uri": "For your safety, sign out and sign in again with your password and two-step code before you view your authenticator setup.",
+  "/two-factor/generate-backup-codes": "For your safety, sign out and sign in again with your password and two-step code before you make new backup codes.",
+  "/two-factor/disable": "For your safety, sign out and sign in again with your password and two-step code (or a backup code) before you turn off two-step sign in.",
+  "/two-factor/enable": "For your safety, sign out and sign in again with your password and two-step code before you set up two-step sign in again.",
+};
 
 /** PRIV1b (P48): account recovery steps that also end every app (MCP OAuth grant) the person signed in. */
 const ENDS_APP_GRANTS = new Set(["/change-password", "/set-password", "/revoke-sessions", "/revoke-other-sessions"]);
@@ -222,12 +228,14 @@ export function authOptions(deps: Deps) {
           const row = token ? await db.select({ id: schema.sessions.id, userId: schema.sessions.userId, loginMethod: schema.sessions.loginMethod, impersonatedBy: schema.sessions.impersonatedBy }).from(schema.sessions).where(eq(schema.sessions.token, token)).get() : undefined;
           if (row?.impersonatedBy) throw new APIError("FORBIDDEN", { code: "IMPERSONATION_BLOCKED", message: ALWAYS_BLOCKED_MESSAGE });
           // OPS1 security (M2 re-check): an operator's session that never gave the code may not read the authenticator
-          // secret or make new backup codes. Only an enrolled account has either to hand out.
-          if (row && FACTOR_MINTING_PATHS.has(ctx.path)) {
+          // secret, make new backup codes, or turn two-step off (and so set it up again with a secret of its own). Only
+          // an enrolled account is limited: the first enrolment has no factor to protect.
+          const mintingRefused = FACTOR_MINTING_REFUSED[ctx.path];
+          if (row && mintingRefused) {
             const u = await db.select({ email: schema.users.email, role: schema.users.role, twoFactorEnabled: schema.users.twoFactorEnabled }).from(schema.users).where(eq(schema.users.id, row.userId)).get();
             const { secondFactorChangeRefusal } = await import("./operator");
             if (u?.twoFactorEnabled && await secondFactorChangeRefusal(deps, { userId: row.userId, email: u.email, platformRole: u.role ?? undefined, twoFactor: true, loginMethod: row.loginMethod ?? undefined, sessionId: row.id })) {
-              throw new APIError("FORBIDDEN", { code: "SECOND_FACTOR_REQUIRED", message: FACTOR_MINTING_REFUSED });
+              throw new APIError("FORBIDDEN", { code: "SECOND_FACTOR_REQUIRED", message: mintingRefused });
             }
           }
         }

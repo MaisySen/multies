@@ -14,8 +14,8 @@
  *   (userVerification "required" at registration and sign in), so the passkey is a second factor on its own. Only a
  *   passkey added from a session that was itself marked counts (two_factor_passkey:<userId>:<passkeyId>), so a session
  *   that never gave the code cannot mint itself a factor. For the same reason an operator's session without a mark may
- *   not add a passkey, read the authenticator secret or make new backup codes (routes/passkeys-des1.ts, the auth
- *   before hook in auth/options.ts).
+ *   not add a passkey, read the authenticator secret, make new backup codes, or turn two-step off and set it up again
+ *   (routes/passkeys-des1.ts, the auth before hook in auth/options.ts).
  * - Marks are written ONLY for accounts that hold an operator role or are listed in PLATFORM_ADMIN_EMAILS, so an
  *   ordinary sign in costs no write. Stored in app_settings as two_factor_session:<userId>:<sessionId> (a primary key
  *   read per console request; no migration).

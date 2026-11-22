@@ -49,7 +49,7 @@ export type TwoStepRefusalReason = "not_enrolled" | "no_second_factor_this_sessi
 
 /**
  * OPS1 security (M2 re-check): whether this session may add or read a second factor (add a passkey, read the
- * authenticator secret, make new backup codes). The session of an operator or a PLATFORM_ADMIN_EMAILS account must meet
+ * authenticator secret, make new backup codes, turn two-step off or set it up again). The session of an operator or a PLATFORM_ADMIN_EMAILS account must meet
  * the console's two-step rule itself; otherwise a session that never gave the code (from before the enrolment, a
  * trusted device, OAuth or the phone's exchange) could mint a factor and then sign in with it to open the console.
  * Everyone else, and everyone while the rule is off: allowed. Returns why not, or null.

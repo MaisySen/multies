@@ -230,6 +230,64 @@ describe("M2 re-check: a session that gave no code cannot mint itself a second f
     await enrol(plain.c);
     expect((await plain.c.post("/api/auth/two-factor/get-totp-uri", { password: "a-strong-password" })).status).toBe(200);
   }, 90_000);
+
+  it("the reviewer's experiment: an unmarked session may not turn two-step off and on again to mint its own factor", async () => {
+    const ctx = await makeTestApp(ON);
+    await signUpAs(ctx, "owner1@ops.test", "admin", "Owner");
+    const op = await signUpAs(ctx, "ops@ops.test", "ops_admin", "Ops");
+    const thief = new Client(ctx.app);
+    expect((await thief.login("ops@ops.test")).status).toBe(200); // password only, before the enrolment
+    const { totp } = await enrol(op.c);
+    ctx.outbound.sent.length = 0;
+    // Better Auth's /disable needs only a session and the password; on an enrolled operator it now needs the code too.
+    for (const path of ["/api/auth/two-factor/disable", "/api/auth/two-factor/enable"]) {
+      const r = await thief.post(path, { password: "a-strong-password" });
+      expect(r.status).toBe(403);
+      expect(r.body).toMatchObject({ code: "SECOND_FACTOR_REQUIRED" });
+      expect(JSON.stringify(r.body)).not.toContain("otpauth://");
+    }
+    expect((await ctx.db.select({ twoFactorEnabled: users.twoFactorEnabled }).from(users).where(eq(users.id, op.id)).get())?.twoFactorEnabled).toBe(true);
+    await refused(thief, "no_second_factor_this_session");
+    expect((await op.c.get("/api/console/me")).status).toBe(200); // the victim's session still counts
+    expect(ctx.outbound.sent).toEqual([]);
+    const rows = (await ctx.db.select().from(platformAuditLogs).all()).filter((r) => r.action.startsWith("operator.two_factor_"));
+    expect(rows.map((r) => r.action)).toEqual(["operator.two_factor_enrolled"]);
+    // A session that gave the code may still turn it off.
+    const c = new Client(ctx.app);
+    await c.login("ops@ops.test");
+    expect((await c.post("/api/auth/two-factor/verify-totp", { code: totp.generate() })).status).toBe(200);
+    expect((await c.post("/api/auth/two-factor/disable", { password: "a-strong-password" })).status).toBe(200);
+  }, 90_000);
+
+  it("a session that gave a backup code may turn two-step off; an ordinary account's unmarked session is not limited", async () => {
+    const ctx = await makeTestApp(ON);
+    const op = await signUpAs(ctx, "ops@ops.test", "ops_support", "Ops");
+    const { codes } = await enrol(op.c);
+    const c = new Client(ctx.app);
+    expect((await c.login("ops@ops.test")).body).toMatchObject({ twoFactorRedirect: true });
+    expect((await c.post("/api/auth/two-factor/verify-backup-code", { code: codes[0] })).status).toBe(200);
+    expect((await c.post("/api/auth/two-factor/disable", { password: "a-strong-password" })).status).toBe(200);
+    const plain = await signUpAs(ctx, "plain@example.com", null, "Plain");
+    const other = new Client(ctx.app);
+    await other.login("plain@example.com");
+    await enrol(plain.c);
+    expect((await other.post("/api/auth/two-factor/disable", { password: "a-strong-password" })).status).toBe(200);
+  }, 90_000);
+
+  it("turning two-step on again after it was turned off always emails owners, even within the hour of an earlier on", async () => {
+    const ctx = await makeTestApp(ON);
+    await signUpAs(ctx, "owner1@ops.test", "admin", "Owner");
+    const op = await signUpAs(ctx, "ops@ops.test", "ops_admin", "Ops");
+    const thief = new Client(ctx.app);
+    await thief.login("ops@ops.test"); // password only, before the enrolment
+    ctx.outbound.sent.length = 0;
+    await enrol(op.c);
+    expect((await op.c.post("/api/auth/two-factor/disable", { password: "a-strong-password" })).status).toBe(200);
+    // The account is not enrolled now, so whoever holds the password and a session can turn it on: owners must hear.
+    await enrol(thief);
+    expect(ctx.outbound.sent.filter((m) => m.subject.includes("turned on two-step")).map((m) => m.to).flat()).toEqual(["owner1@ops.test", "owner1@ops.test"]);
+    expect(ctx.outbound.sent.filter((m) => m.subject.includes("turned off two-step"))).toHaveLength(1);
+  }, 90_000);
 });
 
 describe("M2: the owner alert fires for real changes only, once an hour", () => {
@@ -250,7 +308,7 @@ describe("M2: the owner alert fires for real changes only, once an hour", () => 
     expect((await sup.c.get("/api/console/me")).status).toBe(200); // still the enrolment's marked session
   }, 90_000);
 
-  it("turning two-step off and on again within the hour is audited each time but emails owners once per kind", async () => {
+  it("turning two-step off and on again within the hour is audited each time; off emails once, on again after off always emails", async () => {
     const ctx = await makeTestApp();
     await signUpAs(ctx, "owner1@ops.test", "admin", "Owner");
     const sup = await signUpAs(ctx, "sup@ops.test", "ops_readonly", "Sup");
@@ -261,7 +319,7 @@ describe("M2: the owner alert fires for real changes only, once an hour", () => 
     }
     const rows = (await ctx.db.select().from(platformAuditLogs).all()).filter((r) => r.action.startsWith("operator.two_factor_"));
     expect(rows.map((r) => r.action).sort()).toEqual(["operator.two_factor_disabled", "operator.two_factor_disabled", "operator.two_factor_enrolled", "operator.two_factor_enrolled"]);
-    expect(ctx.outbound.sent.filter((m) => m.subject.includes("turned on two-step"))).toHaveLength(1);
+    expect(ctx.outbound.sent.filter((m) => m.subject.includes("turned on two-step"))).toHaveLength(2);
     expect(ctx.outbound.sent.filter((m) => m.subject.includes("turned off two-step"))).toHaveLength(1);
   }, 90_000);
 });
