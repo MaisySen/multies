@@ -37,7 +37,13 @@ describe("/api/console/me", () => {
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe("two_factor_required");
     expect((await ops.get("/api/admin/health")).body.error.code).toBe("two_factor_required");
+    // OPS1 security (M2): the account flag alone is not enough; the session must have proved the code
+    // (tests/console-sec-two-factor-session.test.ts signs in with it).
     await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, id));
+    expect((await ops.get("/api/console/me")).status).toBe(403);
+    const { markTwoFactorSession } = await import("@/server/auth/two-factor-session");
+    const sid = (await ctx.db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, id)).get())!.id;
+    await markTwoFactorSession(ctx.deps, { id, email: "ops@ops.test", role: "admin" }, sid, "totp");
     expect((await ops.get("/api/console/me")).status).toBe(200);
     await ctx.db.update(users).set({ twoFactorEnabled: false }).where(eq(users.id, id));
     await ctx.db.update(sessions).set({ loginMethod: "auth0" }).where(eq(sessions.userId, id));
@@ -68,6 +74,7 @@ describe("/api/console/operators", () => {
     const ctx = await makeTestApp();
     const { c: owner } = await signUpAs(ctx, "own@ops.test", "admin");
     const { id: newId } = await signUpAs(ctx, "new@ops.test", null);
+    await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, newId)); // OPS1 security (M2): operators need two-step first
     const list = await owner.get("/api/console/operators");
     expect(list.body.items.map((o: { email: string }) => o.email)).toEqual(["own@ops.test"]);
     expect(list.body.items[0]).toMatchObject({ role: "admin", roleLabel: "Owner", envManaged: false, twoFactor: false });
@@ -102,6 +109,7 @@ describe("/api/console/operators", () => {
     const ctx = await makeTestApp();
     const { c: opsAdmin } = await signUpAs(ctx, "adm@ops.test", "ops_admin");
     const { id: targetId } = await signUpAs(ctx, "ro@ops.test", "ops_readonly");
+    await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, targetId)); // OPS1 security (M2): operators need two-step first
     expect((await opsAdmin.get("/api/console/operators")).status).toBe(200);
     expect((await opsAdmin.patch(`/api/console/operators/${targetId}`, { role: "admin", reason: "Promote myself" })).status).toBe(403);
     expect((await opsAdmin.post("/api/console/operators", { email: "adm@ops.test", role: "admin", reason: "Promote myself" })).status).toBe(403);
@@ -112,6 +120,7 @@ describe("/api/console/operators", () => {
     const ctx = await makeTestApp();
     const { c: owner, id } = await signUpAs(ctx, "own@ops.test", "admin");
     const { id: targetId } = await signUpAs(ctx, "ro@ops.test", "ops_readonly");
+    await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, targetId)); // OPS1 security (M2): operators need two-step first
     await ctx.db.update(sessions).set({ createdAt: new Date(Date.now() - 16 * 60_000) }).where(eq(sessions.userId, id));
     const r = await owner.patch(`/api/console/operators/${targetId}`, { role: "ops_support", reason: "Promotion" });
     expect(r.status).toBe(403);
@@ -126,6 +135,7 @@ describe("/api/console/operators", () => {
     const { c: boss, id: bossId } = await signUpAs(ctx, "boss@ops.test", null);
     expect((await boss.get("/api/console/me")).body).toMatchObject({ role: "admin", envManaged: true });
     const { c: second, id: secondId } = await signUpAs(ctx, "two@ops.test", "admin");
+    await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, secondId)); // OPS1 security (M2): operators need two-step first
     const envChange = await second.patch(`/api/console/operators/${bossId}`, { role: "ops_readonly", reason: "Demote the boss" });
     expect(envChange.status).toBe(409);
     expect(envChange.body.error.code).toBe("env_managed");

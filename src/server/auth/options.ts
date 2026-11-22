@@ -54,6 +54,31 @@ const SECURITY_EVENTS: Record<string, string> = {
   "/change-email": "account.email_change_requested",
 };
 
+/** OPS1 security (M2): the two-step endpoints that prove a second factor, and how. */
+const SECOND_FACTOR_PATHS: Record<string, "totp" | "otp" | "backup_code" | undefined> = {
+  "/two-factor/verify-totp": "totp",
+  "/two-factor/verify-otp": "otp",
+  "/two-factor/verify-backup-code": "backup_code",
+};
+
+/**
+ * OPS1 security (M2): an operator turned two-step sign in on or off. One platform audit row, and an email to every
+ * owner (role admin) through the system mail, so a password thief who enrols their own authenticator is noticed.
+ */
+async function operatorTwoFactorChanged(deps: Deps, user: { id: string; email: string; role?: string | null }, change: "on" | "off") {
+  try {
+    const { platformAudit } = await import("../services/console/audit");
+    await platformAudit(deps.db, {
+      actorUserId: user.id, actorEmail: user.email, actorRole: user.role ?? null, targetType: "user", targetId: user.id,
+      action: change === "on" ? "operator.two_factor_enrolled" : "operator.two_factor_disabled",
+    });
+    const { notifyOwnersOfTwoFactorChange } = await import("../services/console/operators");
+    await notifyOwnersOfTwoFactorChange(deps, user, change);
+  } catch (err) {
+    deps.reportError?.(err, { where: "operator.two_factor_changed" });
+  }
+}
+
 /** PRIV1b (P48): account recovery steps that also end every app (MCP OAuth grant) the person signed in. */
 const ENDS_APP_GRANTS = new Set(["/change-password", "/set-password", "/revoke-sessions", "/revoke-other-sessions"]);
 const endAppGrants = async (deps: Deps, userId: string) => (await import("../services/developer/oauth")).revokeUserGrants(deps, userId);
@@ -217,19 +242,25 @@ export function authOptions(deps: Deps) {
         }
       }),
       after: createAuthMiddleware(async (ctx) => {
-        // OPS1 security (M2): a finished two-step enrolment. Signed in, the first accepted code turns the account flag
-        // on and swaps the session for a new one inside the endpoint (Better Auth 1.7.12); a sign in's second step has
-        // no session before it. Recorded after the swap, so the swapped session counts as older than the enrolment and
-        // the operator console asks for a fresh sign in (auth/two-factor-enrolment.ts). Operators' enrolments are also
-        // written to the platform audit log.
-        if ((ctx.path === "/two-factor/verify-totp" || ctx.path === "/two-factor/enable") && !(ctx.context.returned instanceof Error)
-          && ctx.context.newSession?.user && ctx.context.session?.session) {
+        // OPS1 security (M2): a session that proved a second factor is marked for the operator console
+        // (auth/two-factor-session.ts). A verify endpoint that hands out a NEW session is either a sign in's second step
+        // (no session before it) or the end of an enrolment (signed in; the plugin swaps the session after the first
+        // accepted code). Either way the code was just proven. A signed in re-check hands out no session: no mark.
+        const refused = ctx.context.returned instanceof Error;
+        if (!refused && SECOND_FACTOR_PATHS[ctx.path] && ctx.context.newSession?.user && ctx.context.newSession.session) {
           const user = ctx.context.newSession.user as { id: string; email: string; role?: string | null };
-          await (await import("./two-factor-enrolment")).recordTwoFactorEnrolment(db, user.id, new Date());
-          if (isOperatorRole(user.role)) {
-            const { platformAudit } = await import("../services/console/audit");
-            await platformAudit(db, { actorUserId: user.id, actorEmail: user.email, actorRole: user.role ?? null, action: "operator.two_factor_enrolled", targetType: "user", targetId: user.id }).catch(() => undefined);
-          }
+          const enrolled = !!ctx.context.session?.session;
+          const { markTwoFactorSession } = await import("./two-factor-session");
+          await markTwoFactorSession(deps, user, ctx.context.newSession.session.id, enrolled ? "enrolment" : SECOND_FACTOR_PATHS[ctx.path]!);
+          // An operator turning two-step sign in on: the platform audit log, and every owner is told.
+          if (enrolled && isOperatorRole(user.role)) await operatorTwoFactorChanged(deps, user, "on");
+        }
+        // OPS1 security (M2): two-step off. The person's marked sessions stop counting (the console refuses them until
+        // they turn it on again and sign in with the code); an operator's change is audited and every owner is told.
+        if (!refused && ctx.path === "/two-factor/disable" && ctx.context.session?.user) {
+          const user = ctx.context.session.user as { id: string; email: string; role?: string | null };
+          await (await import("./two-factor-session")).clearTwoFactorMarks(deps, user.id);
+          if (isOperatorRole(user.role)) await operatorTwoFactorChanged(deps, user, "off");
         }
         // Security events on the account go to the audit log of the person's workspace.
         const securityAction = SECURITY_EVENTS[ctx.path];

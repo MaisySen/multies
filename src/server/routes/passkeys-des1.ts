@@ -12,7 +12,7 @@ import type { AppEnv } from "../context";
 import { requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { RateLimiter, rateLimit } from "../lib/rate-limit";
-import { sessions } from "../db/schema";
+import { sessions, users } from "../db/schema";
 import { authFor } from "../auth/options";
 import { markWorkspace } from "../auth/workspace-mark";
 import {
@@ -93,6 +93,10 @@ export function passkeyDes1Routes() {
       }
       // A passkey session is not single sign on: a workspace that requires SSO still asks for it (auth/guards.ts).
       await deps.db.update(sessions).set({ loginMethod: "passkey", ...(orgId ? { activeOrganizationId: orgId } : {}) }).where(eq(sessions.id, sessionId));
+      // OPS1 security (M2): these passkeys require user verification (passkeys-des1.ts), so the sign in proved a second
+      // factor: an operator's session is marked for the console (auth/two-factor-session.ts). Others: no write.
+      const who = await deps.db.select({ id: users.id, email: users.email, role: users.role }).from(users).where(eq(users.id, userId)).get();
+      if (who) await (await import("../auth/two-factor-session")).markTwoFactorSession(deps, who, sessionId, "passkey");
       for (const sc of headers.getSetCookie()) c.header("Set-Cookie", sc, { append: true });
       if (orgId) markWorkspace(c, orgId);
       return c.json({ ok: true });

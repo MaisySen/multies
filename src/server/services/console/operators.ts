@@ -49,10 +49,10 @@ async function ownerCount(deps: Deps): Promise<number> {
   return (await deps.db.select({ n: count() }).from(users).where(eq(users.role, "admin")).get())?.n ?? 0;
 }
 
-type Target = { id: string; email: string; name: string; role: string | null; emailVerified: boolean; banned: boolean | null };
+type Target = { id: string; email: string; name: string; role: string | null; emailVerified: boolean; banned: boolean | null; twoFactor: boolean | null };
 
 async function target(deps: Deps, where: ReturnType<typeof eq>): Promise<Target | undefined> {
-  return deps.db.select({ id: users.id, email: users.email, name: users.name, role: users.role, emailVerified: users.emailVerified, banned: users.banned }).from(users).where(where).get();
+  return deps.db.select({ id: users.id, email: users.email, name: users.name, role: users.role, emailVerified: users.emailVerified, banned: users.banned, twoFactor: users.twoFactorEnabled }).from(users).where(where).get();
 }
 
 function refuseEnvManaged(deps: Deps, t: Target) {
@@ -67,6 +67,34 @@ async function refuseLastOwner(deps: Deps, t: Target, nextRole: string) {
   }
 }
 
+/**
+ * OPS1 security review M2: the owner must ask a person to turn on two-step sign in before giving them any operator
+ * role, so nobody holding only their password can enrol an authenticator after the grant unnoticed.
+ */
+function refuseWithoutTwoFactor(t: Target) {
+  if (!t.twoFactor) {
+    throw new HttpError(409, "two_factor_off", `${t.email} doesn't have two-step sign in turned on. Ask them to turn it on in Account and security first, then try again.`);
+  }
+}
+
+/** OPS1 security review M2: tells every owner that an operator turned two-step sign in on or off. Never throws. */
+export async function notifyOwnersOfTwoFactorChange(deps: Deps, user: { id: string; email: string; role?: string | null }, change: "on" | "off") {
+  const owners = await deps.db.select({ email: users.email }).from(users).where(eq(users.role, "admin"));
+  if (!owners.length) return;
+  const { sendSystemEmail } = await import("../system-mail");
+  const when = deps.now().toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const what = change === "on" ? "turned on two-step sign in (a new authenticator app)" : "turned off two-step sign in";
+  const subject = change === "on" ? `An operator turned on two-step sign in: ${user.email}` : `An operator turned off two-step sign in: ${user.email}`;
+  const text = `${user.email} (operator role: ${operatorRoleLabel(user.role ?? null)}) ${what} on ${when}.\n\n`
+    + (change === "on"
+      ? "If they did not do this themselves, someone else may have their password. Check with them, and remove their operator access on the Operators page until it is sorted out."
+      : "The operator console stays closed to them until they turn it on again and sign in with the code. Check with them that this was them.");
+  for (const o of owners) {
+    await sendSystemEmail(deps, { to: o.email, subject, text, template: "notice", action: { label: "Open the Operators page", url: `${deps.config.appUrl}/console/operators` } })
+      .catch((err) => deps.reportError?.(err, { where: "operator.two_factor_mail" }));
+  }
+}
+
 /** Grants an operator role to an existing, confirmed account found by email. */
 export async function grantOperator(deps: Deps, email: string, role: OperatorRole) {
   const t = await target(deps, eq(users.email, email.trim().toLowerCase()));
@@ -74,6 +102,7 @@ export async function grantOperator(deps: Deps, email: string, role: OperatorRol
   if (isOperatorRole(t.role)) throw new HttpError(409, "already_operator", `${t.email} is already an operator. Change their role instead.`);
   if (!t.emailVerified) throw new HttpError(422, "email_not_verified", "That account hasn't confirmed its email yet.");
   if (t.banned) throw new HttpError(422, "banned", "That account is banned.");
+  refuseWithoutTwoFactor(t); // OPS1 security (M2)
   await deps.db.update(users).set({ role }).where(eq(users.id, t.id));
   return { before: { role: t.role ?? null }, after: { role }, user: { id: t.id, email: t.email } };
 }
@@ -84,6 +113,7 @@ export async function changeOperatorRole(deps: Deps, id: string, role: OperatorR
   if (!t || !isOperatorRole(t.role)) throw notFound("Operator");
   refuseEnvManaged(deps, t);
   await refuseLastOwner(deps, t, role);
+  refuseWithoutTwoFactor(t); // OPS1 security (M2)
   await deps.db.update(users).set({ role }).where(eq(users.id, t.id));
   await (await import("./impersonation")).endImpersonationsNotAllowed(deps, t.id, role); // OPS1 security (L2)
   return { before: { role: t.role }, after: { role }, user: { id: t.id, email: t.email } };

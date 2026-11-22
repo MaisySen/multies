@@ -7,7 +7,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { makeTestApp } from "./helpers";
 import { signUpAs } from "./console-kit";
-import { members, organizations, usageCounters } from "@/server/db/schema";
+import { members, organizations, usageCounters, users } from "@/server/db/schema";
 import { WORKSPACE_ROWS_METRIC, isBudgetExempt, resetWorkspaceBudget } from "@/server/services/workspace-budget";
 
 describe("an operator's own workspace rules", () => {
@@ -17,6 +17,7 @@ describe("an operator's own workspace rules", () => {
     const ctx = await makeTestApp({ WORKSPACE_DAILY_WRITES: "1000" });
     const { c: ops } = await signUpAs(ctx, "ops@ops.test", "admin");
     const { id: newId } = await signUpAs(ctx, "new@ops.test", null);
+    await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, newId)); // OPS1 security (M2): operators need two-step first
     const { c: cus } = await signUpAs(ctx, "cus@else.test", null, "Else");
     const orgId = (await ops.get("/api/account/me")).body.organization.id as string;
     const cusOrg = (await cus.get("/api/account/me")).body.organization.id as string;

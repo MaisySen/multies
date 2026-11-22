@@ -15,7 +15,7 @@ import * as encoding from "lib0/encoding";
 import { eq } from "drizzle-orm";
 import { Client, makeTestApp } from "./helpers";
 import { signUpAs } from "./console-kit";
-import { members, operatorImpersonations, sessions } from "@/server/db/schema";
+import { members, operatorImpersonations, sessions, users } from "@/server/db/schema";
 import { clearAuthCache } from "@/server/auth/guards";
 import { chatLiveAccess } from "@/server/realtime/access";
 import { CLOSE_REVOKED, deliver, MemoryChatHub, type HubConn } from "@/server/realtime/hub";
@@ -82,6 +82,7 @@ describe("L2: chat sockets (Node hub)", () => {
   it("a demoted operator's impersonation ends and its socket closes at once", async () => {
     const w = await world("act");
     const { imp } = await chatSockets(w);
+    await w.ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, w.op.id)); // OPS1 security (M2): role changes need two-step on
     expect((await w.owner.c.call("PATCH", `/api/console/operators/${w.op.id}`, { role: "ops_readonly", reason: "Moving to read only" })).status).toBe(200);
     expect(imp.closed).toEqual([CLOSE_REVOKED]);
     const row = (await w.ctx.db.select().from(operatorImpersonations).where(eq(operatorImpersonations.id, w.imp.id)).get())!;

@@ -50,6 +50,8 @@ describe("L4 (a): refused console changes are audited", () => {
     // step_up_required: two-step on, a stale session
     const { users } = await import("@/server/db/schema");
     await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, owner.id));
+    const sid = (await ctx.db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, owner.id)).get())!.id;
+    await (await import("@/server/auth/two-factor-session")).markTwoFactorSession(ctx.deps, { id: owner.id, email: "owner@ops.test", role: "admin" }, sid, "totp");
     await ctx.db.update(sessions).set({ createdAt: new Date(Date.now() - 3 * 3600_000) }).where(eq(sessions.userId, owner.id));
     clearAuthCache();
     expect((await owner.c.post(`/api/console/users/${cus.id}/ban`, { reason: "testing" })).body.error.code).toBe("step_up_required");

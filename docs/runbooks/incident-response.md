@@ -43,3 +43,11 @@ data looking wrong, a security problem.
 
 - Confirm the fix with the smoke test and a clean Sentry release.
 - Within 5 working days write a blameless postmortem in `docs/postmortems/YYYY-MM-DD-title.md`: timeline (UTC), impact (who, how long, error budget spent), root cause, what went well, what didn't, and action items with owners.
+
+## Operator sign-in (the operator console, /console)
+
+- In production the console opens only for a session that gave a second factor at sign in: the password and the two-step code (or a backup code), or a passkey. Signing in with Google, Auth0, the phone app or a remembered device does not count, unless that sign-in method is listed in `OPERATOR_SSO_METHODS`. List a method there only if that provider makes every operator use multi-factor. It is empty by default.
+- If the console says "Sign in with your password and two-step code to open the operator console.", sign out, then sign in with your password and your code.
+- Before you give someone an operator role on the Operators page, ask them to turn on two-step sign in (Account and security). The console refuses the grant until they have.
+- Every owner gets an email when an operator turns two-step sign in on or off. If you did not expect it, check with that person, and remove their operator access until it is sorted out. An operator who turns two-step off can't open the console until they turn it on again and sign in with the code.
+- Accounts listed in `PLATFORM_ADMIN_EMAILS` become owners without two-step, but they can't open the console until they turn it on and sign in with the code. Someone holding only such an owner's password could turn it on first, and the other owners would get the email. Turn on two-step for every operator before go-live.
