@@ -8,8 +8,10 @@ import { hash, liveEligibility, mnetLaunch } from "./mnet";
 
 // Separate own-account display DATA. This is not a joining grant, source ticket,
 // key-possession proof, native confirmation or permission to persist a pin.
+// Zod 4.6.7 max-length counts code points. The explicit s.length bound below
+// fixes this wire contract to UTF-16 units, matching the native decoder.
 const label = (max: number, empty = false) => z.string().min(empty ? 0 : 1).max(max)
-  .refine((s) => s.trim() === s && !/[\p{Cc}\p{Cf}\p{Cs}\uFFFD]/u.test(s));
+  .refine((s) => s.length <= max && s.trim() === s && !/[\p{Cc}\p{Cf}\p{Cs}\uFFFD]/u.test(s));
 const id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/);
 const epochMS = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 // Explicit wire grammar shared with the native decoder.
