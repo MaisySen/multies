@@ -43,13 +43,22 @@ These do not count:
 
 The phone app's hand off to the web app is recorded with the method `auth0`, so listing `auth0` in `OPERATOR_SSO_METHODS` also accepts those sessions. Only list a method if that provider makes every operator use multi-factor.
 
+On the phone, operators find Operator in More, Settings. The menu sends it to the phone as `/app/admin` (which opens `/console`), because the phone app opens only `/app` pages; it opens in the in-app browser through that hand off, so without `auth0` listed the console shows the two-step card there.
+
 Turning two-step sign in off makes every earlier session stop counting until you turn it on again and sign in with the code.
 
-A passkey counts only on an account that has two-step sign in turned on. On an account without it, a passkey sign in does not open the console.
+A passkey counts only on an account that has two-step sign in turned on, and only if it was added from a session that itself proved a second factor (the code, a backup code, the enrolment, or a passkey that counts). On an account without two-step, or with a passkey added from any other session (before the account became an operator, say), a passkey sign in does not open the console: sign in with your password and code, remove that passkey and add it again.
+
+A session that gave no code cannot give itself a second factor. On an operator account (or one in `PLATFORM_ADMIN_EMAILS`), with the rule on:
+
+- adding a passkey needs a session that meets the rule (`two_factor_required`, with the same `details.reason` as the console);
+- reading the authenticator setup (`/two-factor/get-totp-uri`) and making new backup codes (`/two-factor/generate-backup-codes`) need a session that meets the rule too (`SECOND_FACTOR_REQUIRED`).
+
+Otherwise someone holding an older session (from before two-step was turned on, a remembered device, an outside sign in or the phone's hand off) could add their own passkey, or read the secret or new backup codes with the password, and then sign in with it to open the console. Everyone else's account is unchanged.
 
 When the console refuses a session it says which case applies (the refusal carries `details.reason`):
 
-- "Turn on two-step sign in" (`not_enrolled`): two-step is off on the account. Open account security, turn it on, then sign in again with the code.
+- "Turn on two-step sign in" (`not_enrolled`): two-step is off on the account. Open account security, turn it on, then come back to the console (Open the console on the card): the session you turned it on in opens the console, so there is no need to sign in again.
 - "Sign in again with your two-step code" (`no_second_factor_this_session`): two-step is on, but this session did not give a code (an outside sign in, or a remembered device). Sign in again signs you out and brings you back to `/console` after you sign in with your password and code, or a passkey.
 
 ### Recent sign in ("Sign in again to continue")
@@ -80,7 +89,9 @@ Some actions need a sign in from the last `OPERATOR_FRESH_MINUTES` minutes (15 b
 - [ ] `OPERATOR_SSO_METHODS` is empty, or lists only a provider that makes every operator use multi-factor.
 - [ ] At least two owners, so losing one account does not lock everyone out of operator management.
 
-Why: a listed owner who never turned on two-step sign in can be taken over by anyone holding only their password, who can turn on two-step with their own authenticator app and then open the console. The console narrows this but does not close it: when an operator turns two-step on or off, every owner gets an email and the audit log records `operator.two_factor_enrolled` or `operator.two_factor_disabled`. If you get that email and did not expect it, check with the person and remove their operator access until it is sorted out.
+Why: a listed owner who never turned on two-step sign in can be taken over by anyone holding only their password, who can turn on two-step with their own authenticator app and then open the console. The console narrows this but does not close it: when an operator turns two-step on or off, or adds a passkey, every owner gets an email and the audit log records `operator.two_factor_enrolled`, `operator.two_factor_disabled` or `operator.passkey_added`. If you get that email and did not expect it, check with the person and remove their operator access until it is sorted out.
+
+The audit log records every such change. The owner emails are limited to one per operator per kind of change (on, off, passkey) per hour, so an operator turning two-step off and on in a loop cannot flood the owners' inboxes; the later changes in that hour are still in the audit log. Checking a code again while already signed in is not a change and sends nothing.
 
 Scripts that read `/api/admin/health` with an operator's session cookie (`MULTIES_OPERATOR_COOKIE`, see [deploy.md](deploy.md)) need a cookie from a session that signed in with the code.
 
@@ -113,7 +124,7 @@ Generated from `ROLE_PERMISSIONS` in `src/shared/operator-permissions.ts`. "Read
 | Developer platform changes | | | | yes | yes |
 | Jobs (replay, stop) | | | | yes | yes |
 | Mobile app config, announcements | | | | yes | yes |
-| System (Sentry test, trends rollup and Fill in history) | | | | yes | yes |
+| System (Sentry test, Fill in history, and the trends rollup, which has no button: `POST /api/console/metrics/roll` with a reason) | | | | yes | yes |
 | Feature flags for one workspace | | | | yes | yes |
 | **Owner only** | | | | | |
 | Platform wide feature flags | | | | | yes |
@@ -129,11 +140,11 @@ Every change in the console asks for a reason (3 to 300 characters) and is writt
 
 **Overview** (`/console`). What needs attention first: reports to review, open abuse signals, dead jobs, migrations waiting, the write budget, past due and over limit and suspended workspaces, each linking to the filtered page. Then totals, the newest workspaces and trend charts (section 9). Nothing to change here except Fill in history.
 
-**Workspaces** (`/console/workspaces`). Search by name, id, slug, owner email or domain; filter by plan and state. A workspace has the tabs Overview, Members, Billing, Usage, Mail, Agents, Developer, Flags, Activity and Notes (Billing, Agents, Developer and Flags only for roles that can read them). On the Members tab, roles that can view as a person get a small View as button at the end of each person's row, which opens that person in this workspace (not shown for agent members, banned people or yourself; the server refuses operators with its own message). Suspend and Restore are in the header; the Overview tab has the sending switch and changes the send cap and the call minutes cap; the Mail tab sends a held message (Send anyway). Activity shows the workspace's own log or the operator actions on it.
+**Workspaces** (`/console/workspaces`). Search by name, id, slug, owner email or domain; filter by plan and state. A workspace has the tabs Overview, Members, Billing, Usage, Mail, Agents, Developer, Flags, Activity and Notes (Billing, Agents, Developer and Flags only for roles that can read them). On the Members tab, roles that can view as a person get a small View as button at the end of each person's row, which opens that person in this workspace (not shown for agent members, banned people or yourself; the server refuses operators with its own message). Suspend and Restore are in the header; the Overview tab has the sending switch and changes the send cap and the call minutes cap; the Mail tab sends a held message (Send anyway). Activity shows the workspace's own log or the operator actions on it, with each target by name (a person whose account is gone shows the address the entry recorded, else "Deleted user"); Open in audit log opens the audit log filtered to this workspace.
 
-**Users** (`/console/users`). Search by email, name or id; filter banned, unconfirmed, operators, two-step on or off. A person's page shows workspaces, sign in methods, two-step state, sessions (marked when an operator opened them) and lockout. Actions: Sign out (one session or everywhere), Clear lockout, Mark verified, Ban and Unban (recent sign in), View as (recent sign in), Delete account (owners, recent sign in). Ban, delete, lockout and session changes are refused on operator accounts (`target_is_operator`); Mark verified is refused on them (`protected_account`). You can't act on yourself.
+**Users** (`/console/users`). Search by email, name or id; filter banned, unconfirmed, operators, two-step on or off. A person's page shows workspaces, sign in methods, two-step state, sessions (marked when an operator opened them) and lockout. Actions: Sign out (one session or everywhere), Clear lockout, Mark verified, Ban and Unban (recent sign in), View as (recent sign in), Delete account (owners, recent sign in). Ban, delete, lockout and session changes are refused on operator accounts (`target_is_operator`); Mark verified is refused on them (`protected_account`). You can't act on yourself. The Audit log link beside the account id lists every operator change to this account.
 
-**Billing** (`/console/billing`). Subscriptions, past due workspaces, Stripe events and referrals across workspaces, and one workspace's billing. Actions: change plan, comp with an end date, credit (recent sign in for both comp and credit), extend trial, extend grace, resync from Stripe, cancel at period end. Without Stripe connected, the actions that need it answer `billing_unavailable`; comp and grace work either way. A comp past its end date ends on its own once a day, just after midnight UTC.
+**Billing** (`/console/billing`). Subscriptions, past due workspaces, Stripe events and referrals across workspaces, and one workspace's billing. A workspace's Billing tab shows the credit the customer holds in Stripe now (read live from Stripe; it includes referral credits and changes made in Stripe) and the last five credits added from the console, with the amount, note and who added them. Actions: change plan, comp with an end date, credit (recent sign in for both comp and credit), extend trial, extend grace, resync from Stripe, cancel at period end. Without Stripe connected, the actions that need it answer `billing_unavailable`; comp and grace work either way. A comp past its end date ends on its own once a day, just after midnight UTC.
 
 **Mail and deliverability** (`/console/mail`). Failed deliveries (by default the last 7 days; never subject, body or addresses), failure rates by workspace, domains, suppressions, held messages, connected mailboxes and imports. Actions: remove a suppression, re-check a domain, send a held message, turn a workspace's sending on or off.
 
@@ -143,7 +154,7 @@ Every change in the console asks for a reason (3 to 300 characters) and is writt
 
 **Mobile app** (`/console/mobile`). The phone app's remote config with the values in force. Saving needs a recent sign in; phones pick the change up within about a minute.
 
-**Announcements** (`/console/announcements`). One in-app banner: text, tone, audience (everyone signed in, or workspace owners and admins), optional link, start and end time, dismissible. Publish replaces the current one; Clear removes it. Other servers show the change within about 30 seconds.
+**Announcements** (`/console/announcements`). One banner at the top of the web app (the phone app does not show it yet, so tell phone users another way): text, tone, audience (everyone signed in, or workspace owners and admins), optional link, start and end time, dismissible. Publish replaces the current one; Clear removes it. Other servers show the change within about 30 seconds.
 
 **Moderation** (`/console/moderation`). Reports, abuse signals, suspended workspaces and sign in lockouts. Actions: dismiss, resolve, remove a message, suspend the reported person (recent sign in; refused on operators), resolve abuse signals, suspend and restore a workspace (restore also resolves its open abuse signals), clear a lockout.
 
@@ -184,11 +195,11 @@ Always blocked, in both modes (`IMPERSONATION_ALWAYS_BLOCKED`):
 - connecting outside accounts: mail, social, chat channels, AI providers, Xero, outside calendars
 - mail leaving the workspace: creating or editing mail rules, aliases, mailbox sharing and mailbox settings
 
-**What the customer sees.** The workspace's Activity log shows "opened a Multies support session as" the person, and "ended a Multies support session as" when it ends. The entry carries your address, the mode, the expiry and your reason.
+**What the customer sees.** The workspace's Activity log shows "opened a Multies support session as" the person, with your address, the mode, the expiry and your reason. It shows "ended a Multies support session as" when the session is ended: you choose Stop, an admin chooses End session, the person is signed out or banned from Users (the entry names the operator who did it), you lose access, or the server notices the time limit on the session's next request (those two name you). A session whose 30 minutes simply run out while nobody uses it has no ended entry; its start entry already says when it expired.
 
-**Seeing and ending sessions.** Operators, Support sessions (`/console/operators?tab=sessions`) lists sessions: Active now by default, or Ended, or All. Each row shows the operator, the person, the workspace, the mode (View only or Acting), when it started, when it ends or ended (with how: stopped by the operator, time limit reached, ended by an admin, or operator lost access) and the reason given at the start. Operations admins and owners can choose End session on an active row and give a reason (`POST /api/console/impersonation/{id}/end`). The session ends at once: at their next action the operator leaves the person's account and signs in again to their own. The console's audit log and the workspace's Activity log both record it. Signing the person out from their page in Users (the session is marked "opened by an operator") also ends it.
+**Seeing and ending sessions.** Operators, Support sessions (`/console/operators?tab=sessions`) lists sessions: Active now by default, or Ended, or All. Each row shows the operator, the person, the workspace, the mode (View only or Acting), when it started, when it ends or ended (with how: stopped by the operator, time limit reached, ended by an admin, operator lost access, or person signed out from Users) and the reason given at the start. Operations admins and owners can choose End session on an active row and give a reason (`POST /api/console/impersonation/{id}/end`). The session ends at once: at their next action the operator leaves the person's account and signs in again to their own. The console's audit log and the workspace's Activity log both record it. Signing the person out from their page in Users (that one session, marked "opened by an operator", or Sign out everywhere), banning them or deleting their account also ends it: the row moves to Ended at once and the workspace's Activity log records it.
 
-Every operator role can read the sessions list through the API (`impersonation.read`), but the Operators page, and so the tab, opens only for operations admins and owners.
+Search matches the operator's address, the person's name and address, the workspace's name and the reason. Every operator role can read the sessions list through the API (`impersonation.read`), but the Operators page, and so the tab, opens only for operations admins and owners.
 
 **Limits to know.**
 
@@ -214,7 +225,7 @@ The registry is `src/shared/feature-flags.ts`; the rules are in `src/server/serv
 - Most changes to a workspace are also written to that workspace's own Activity log, with your reason, so workspace owners and admins can see what was done and why, including in the Activity export (CSV or JSON). Notes are staff only and never go there.
 - Refused attempts are logged too: when an operator is refused a console change (no permission, no recent sign in, no two-step, or while viewing as someone) the log gets an `access.denied` row naming the route, at most one per operator per route per minute. Reads are not logged.
 - The log can't be edited: nothing in the app updates or deletes its rows.
-- Filter by actor, action, target, workspace and dates. Owners can export the filtered log as CSV, up to 5,000 rows; the export itself is logged.
+- Filter by Area (the kind of action), When (the last day, 7 or 30 days) or a From and To day range (whole days in your time zone; a range replaces When), and the workspace (type part of its name). A row's Details has Only this operator and Only this target. Every filter lives in the address, so a link opens the same view: `/console/audit?orgId=...`, `?actor=<user id or address>`, `?targetType=user&targetId=...`, `?from=2026-11-17&to=2026-11-17`. Search matches the action, the operator's address, the target id and the reason. Owners can export the filtered log as CSV, up to 5,000 rows; the export itself is logged.
 
 ## 9. Trends
 
@@ -222,6 +233,7 @@ The registry is `src/shared/feature-flags.ts`; the rules are in `src/server/serv
 
 - **Daily record.** Once a day, on the first maintenance pass after midnight UTC, the console stores yesterday's numbers. If passes were missed, it catches up to 7 days. It skips while optional writes are paused because the database is near its daily write budget.
 - **Counts per day** (sign ups, new workspaces, mail sent and failed, AI calls and units, agent runs and failures, dead jobs, abuse signals, reports, failed webhook deliveries) are worked out from the records, so they can be filled in for past days.
+- **Rolling up by hand.** `POST /api/console/metrics/roll` (operations admins and owners, with a reason) stores the daily record now instead of waiting for the next maintenance pass. There is no button; it is rarely needed.
 - **Fill in history** on the Overview (operations admins and owners, with a reason) recomputes those counts for the last 7, 30 or 90 days. It shows only when none of those counts has a stored day in the range shown.
 - **Totals** (accounts, workspaces, paid, comped, past due, suspended, mailboxes, verified domains, mail storage, D1 rows written, uptime) can't be filled in. Their history starts with the first daily record after deploy; today's value is live.
 - **AI history.** AI usage is kept for 2 days, so AI calls and units can only be filled in for the last 2 days. Dead jobs and failed webhooks are kept 30 days, so they go back 29 days.
@@ -298,7 +310,8 @@ These parts are covered by tests in Node with local SQLite and fakes, and have n
 
 | Code | What it means | What to do |
 | --- | --- | --- |
-| `two_factor_required` | This session did not give a second factor at sign in (section 3). `details.reason` says whether two-step is off (`not_enrolled`) or on but not given by this session (`no_second_factor_this_session`), and the console card says the matching fix. | If two-step is off, turn it on in Account and security. If it is on, choose Sign in again and sign in with your password and code (or a passkey). |
+| `two_factor_required` | This session did not give a second factor at sign in (section 3). `details.reason` says whether two-step is off (`not_enrolled`) or on but not given by this session (`no_second_factor_this_session`), and the console card says the matching fix. | If two-step is off, turn it on in Account and security, then open the console again in that session. If it is on, choose Sign in again and sign in with your password and code (or a passkey). The same code on adding a passkey means the same thing for an operator account. |
+| `SECOND_FACTOR_REQUIRED` | An operator's session that gave no code tried to view the authenticator setup or make new backup codes (section 3). | Sign out, sign in with your password and code, then try again. |
 | `step_up_required` | The action needs a sign in from the last `OPERATOR_FRESH_MINUTES` minutes. Nothing was changed. | Choose Sign in again, then repeat the action. |
 | `forbidden` | Your role can't do this, or the account is not an operator, or (when starting View as) your role can view but not act. | Ask an owner for a different role if you need it. |
 | `impersonating` | You are viewing as someone, so the console is closed. | Choose Stop in the bar at the top. |
