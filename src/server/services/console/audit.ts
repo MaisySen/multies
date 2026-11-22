@@ -204,9 +204,12 @@ export type NamedAuditRow = PlatformAuditRow & {
 /**
  * Names for a page of audit rows, for the list: two batched reads at most (workspaces by id, people by id; inIds
  * keeps each one bound variable over 20 ids, so the D1 variable limit is never near) and flag labels from the
- * registry in code. Never one read per row.
+ * registry in code. Never one read per row. Takes platform rows or a workspace's own audit rows (anything with a
+ * target and an optional orgId).
  */
-export async function withAuditNames(db: DB, rows: PlatformAuditRow[]): Promise<NamedAuditRow[]> {
+export async function withAuditNames<T extends { orgId?: string | null; targetType: string | null; targetId: string | null } = PlatformAuditRow>(
+  db: DB, rows: T[],
+): Promise<(T & { targetLabel: string | null; orgName: string | null })[]> {
   const orgIds = new Set<string>();
   const userIds = new Set<string>();
   for (const r of rows) {

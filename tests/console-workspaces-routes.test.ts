@@ -115,6 +115,24 @@ describe("workspace detail reads", { timeout: 60_000 }, () => {
     expect((await readonly.get(`/api/console/workspaces/${custOrg}/queued-sends?sort=subject:asc`)).status).toBe(400);
   });
 
+  it("workspace activity names its targets: a live person by email, a gone one by the recorded address, else deleted", async () => {
+    const cust = (await customer.get("/api/account/me")).body.user as { id: string; email: string };
+    const at = (s: number) => new Date(Date.now() - s * 1000);
+    await ctx.db.insert(auditLogs).values([
+      { id: "aud_label_live", orgId: custOrg, action: "support.session_started", targetType: "user", targetId: cust.id, metadata: JSON.stringify({ by: "operator", email: cust.email }), createdAt: at(4) },
+      { id: "aud_label_gone", orgId: custOrg, action: "member.removed", targetType: "user", targetId: "usr_label_gone", metadata: JSON.stringify({ email: "left@zephyr-cust.test" }), createdAt: at(3) },
+      { id: "aud_label_none", orgId: custOrg, action: "member.removed", targetType: "user", targetId: "usr_label_none", createdAt: at(2) },
+      { id: "aud_label_ws", orgId: custOrg, action: "workspace.renamed", targetType: "workspace", targetId: custOrg, createdAt: at(1) },
+    ]);
+    const r = await readonly.get(`/api/console/workspaces/${custOrg}/audit?source=workspace`);
+    expect(r.status).toBe(200);
+    const label = (id: string) => (r.body.items as { id: string; targetLabel: string | null }[]).find((x) => x.id === id)?.targetLabel;
+    expect(label("aud_label_live")).toBe(cust.email);
+    expect(label("aud_label_gone")).toBe("left@zephyr-cust.test");
+    expect(label("aud_label_none")).toBeNull(); // the tab shows "Deleted user"
+    expect(label("aud_label_ws")).toBe("Zephyr Rockets");
+  });
+
   it("an unknown workspace is a 404 on every read", async () => {
     for (const p of ["", "/members", "/usage", "/mail", "/agents", "/developer", "/audit", "/queued-sends"]) {
       expect((await readonly.get(`/api/console/workspaces/org_nope${p}`)).status, p).toBe(404);

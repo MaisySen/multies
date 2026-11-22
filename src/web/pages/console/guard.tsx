@@ -98,8 +98,14 @@ function TwoStepRefusal({ reason }: { reason: unknown }) {
   if (reason === "not_enrolled") {
     return (
       <Blocked icon={<IconLock />} title="Turn on two-step sign in"
-        body="The operator console needs two-step sign in on your account. Turn it on in your account security settings, then sign in again with your password and code."
-        action={<Link to="/app/settings/account" className={buttonClass("primary", "md")} data-testid="console-two-step-settings">Open account security</Link>} />
+        body="The operator console needs two-step sign in on your account. Turn it on in your account security settings, then come back here: the session you turn it on in opens the console."
+        action={(
+          <span className="flex flex-wrap justify-center gap-2">
+            <Link to="/app/settings/account" className={buttonClass("primary", "md")} data-testid="console-two-step-settings">Open account security</Link>
+            {/* A full load, so the console asks the server again. */}
+            <a href="/console" className={buttonClass("secondary", "md")} data-testid="console-two-step-retry">Open the console</a>
+          </span>
+        )} />
     );
   }
   return (

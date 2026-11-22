@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { Badge } from "@/web/components/ui/misc";
-import { Button } from "@/web/components/ui/button";
+import { Button, buttonClass } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { IconActivity } from "@/web/components/ui/icon";
 import { operatorRoleLabel } from "@/shared/operator-permissions";
@@ -92,6 +92,7 @@ export function WorkspaceAuditTab({ orgId }: { orgId: string }) {
         label="Activity" path={`/workspaces/${encodeURIComponent(orgId)}/audit`}
         filters={FILTERS} search={{ placeholder: "Search by who did it" }}
         rowKey={(r) => `${r.source}-${r.id}`}
+        actions={<Link to={`/console/audit?orgId=${encodeURIComponent(orgId)}`} className={buttonClass("secondary", "sm")} data-testid="console-workspaces-audit-open-log">Open in audit log</Link>}
         empty={{ icon: <IconActivity />, title: "Nothing here yet", body: "Changes to this workspace show here with who made them." }}
         columns={[
           { key: "when", header: "When", cell: (r) => <RelTime at={r.createdAt} className="text-muted" /> },

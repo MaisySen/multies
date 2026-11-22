@@ -6,7 +6,7 @@
  * Opened from a workspace's Members tab, the address carries ?org=, and View as opens that workspace.
  */
 import type { ReactNode } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
@@ -75,6 +75,9 @@ function Header({ d, refresh }: { d: ConsoleUserDetail; refresh?: ReactNode }) {
             <span className="inline-flex items-center gap-0.5 font-mono text-xs" data-testid="console-users-id">
               {p.id}<CopyIdButton value={p.id} label="Copy account id" />
             </span>
+            <MetaDot />
+            {/* Every operator change made to this account (a link, not an action: every role can read the log). */}
+            <Link to={`/console/audit?targetType=user&targetId=${encodeURIComponent(p.id)}`} className="text-xs hover:underline" data-testid="console-users-audit-link">Audit log</Link>
           </>
         }
         note={(p.operator || a.self) ? (

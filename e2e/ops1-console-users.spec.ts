@@ -129,6 +129,8 @@ test("a read only operator sees the account but no actions", async ({ page }) =>
   await expect(page.getByTestId("console-users-badges")).toContainText("Email not confirmed");
   await expect(page.getByTestId("console-users-ban")).toHaveCount(0);
   await expect(page.getByTestId("console-users-more")).toHaveCount(0);
+  // Reading the audit log is not an action: the link to this account's operator changes is there for every role.
+  await expect(page.getByTestId("console-users-audit-link")).toHaveAttribute("href", /^\/console\/audit\?targetType=user&targetId=/);
   await page.getByTestId("console-users-tab-sessions").click();
   await expect(page.getByText("Chrome on macOS")).toBeVisible();
   await expect(page.getByTestId("console-users-revoke-session")).toHaveCount(0);

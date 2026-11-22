@@ -118,6 +118,44 @@ test("an operator sees the grouped sidebar, attention first, and the sections op
   await expect(page).toHaveURL(/\/app\/my-work$/);
 });
 
+test("the audit log filters by workspace, operator, target and days, and opens from a link", async ({ page }) => {
+  const asked: URLSearchParams[] = [];
+  await page.route((u) => u.pathname === "/api/console/audit", (r) => {
+    asked.push(new URL(r.request().url()).searchParams);
+    return r.fulfill({ json: { items: [{
+      id: "paud_1", actorUserId: "usr_1", actorEmail: "olive@example.com", actorRole: "admin", action: "user.banned", targetType: "user",
+      targetId: "usr_9", orgId: "org_1", reason: "Spam", before: null, after: null, metadata: null,
+      ip: null, userAgent: null, requestId: null, impersonationId: null, createdAt: new Date().toISOString(), targetLabel: "sam@example.com", orgName: "Acme Bakery",
+    }], nextCursor: null } });
+  });
+  await page.route((u) => u.pathname === "/api/console/workspaces", (r) => r.fulfill({ json: { items: [{ id: "org_1", name: "Acme Bakery", ownerEmail: null }], nextCursor: null } }));
+  await signUp(page, "Fay Filters");
+  await mockConsoleMe(page, "admin");
+  await page.goto("/console/audit?orgId=org_1&targetType=user&targetId=usr_9&from=2026-11-17&to=2026-11-17");
+  await expect(page.getByText("User banned")).toBeVisible({ timeout: 15_000 });
+  const last = () => asked[asked.length - 1]!;
+  expect(last().get("orgId")).toBe("org_1");
+  expect(last().get("targetType")).toBe("user");
+  expect(last().get("targetId")).toBe("usr_9");
+  // From and To are whole days in the viewer's time zone: To runs to the next midnight.
+  expect(new Date(last().get("from")!).getTime()).toBe(new Date(2026, 10, 17).getTime());
+  expect(new Date(last().get("to")!).getTime()).toBe(new Date(2026, 10, 18).getTime());
+  await expect(page.getByTestId("console-audit-workspace-chip")).toContainText("Acme Bakery");
+  await expect(page.getByTestId("console-audit-target-chip")).toContainText("usr_9");
+  await expect(page.getByTestId("audit-export")).toHaveAttribute("href", /orgId=org_1/);
+  await expect(page.getByTestId("audit-export")).toHaveAttribute("href", /targetId=usr_9/);
+
+  // Removing the target chip widens the list; "Only this operator" narrows it again, in the address bar.
+  await page.getByTestId("console-audit-target-chip").click();
+  await expect(page).not.toHaveURL(/targetId=/);
+  await expect.poll(() => last().get("targetId")).toBeNull();
+  await page.getByTestId("console-audit-details").first().click();
+  await page.getByTestId("console-audit-only-actor").click();
+  await expect(page).toHaveURL(/actor=usr_1/);
+  await expect.poll(() => last().get("actor")).toBe("usr_1");
+  await expect(page.getByTestId("console-audit-actor-chip")).toContainText("usr_1");
+});
+
 test("a lower tier role sees a shorter menu", async ({ page }) => {
   await page.route("**/api/console/overview", (r) => r.fulfill({ json: overview }));
   await signUp(page, "Rory Readonly");
@@ -139,22 +177,36 @@ test("a lower tier role sees a shorter menu", async ({ page }) => {
 
 test("the two-step refusal says the right fix: turn it on, or sign in again with the code", async ({ page }) => {
   await signUp(page, "Tess Twostep");
-  let reason = "not_enrolled";
+  let reason: string | null = "not_enrolled";
   await page.route("**/api/console/me", (r) => r.fulfill({ status: 403, json: { error: {
-    code: "two_factor_required", message: "Sign in with your password and two-step code to open the operator console.", details: { reason },
+    code: "two_factor_required", message: "Sign in with your password and two-step code to open the operator console.", ...(reason ? { details: { reason } } : {}),
   } } }));
   await page.goto("/console");
   await expect(page.getByRole("heading", { name: "Turn on two-step sign in" })).toBeVisible({ timeout: 15_000 });
+  // The session that turns it on opens the console: no sign in again, and a way back.
+  await expect(page.getByText("then come back here")).toBeVisible();
   await expect(page.getByTestId("console-two-step-settings")).toHaveAttribute("href", "/app/settings/account");
+  await expect(page.getByTestId("console-two-step-retry")).toHaveAttribute("href", "/console");
   await expect(page.getByTestId("console-sign-in-again")).toHaveCount(0);
+
+  // An older server that gives no reason: the general card, which covers both fixes.
+  reason = null;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Sign in again with your two-step code" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("If two-step sign in is off, turn it on in your account security settings first.")).toBeVisible();
 
   reason = "no_second_factor_this_session";
   await page.reload();
   await expect(page.getByRole("heading", { name: "Sign in again with your two-step code" })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Two-step sign in is on for your account, but this session didn't give a code")).toBeVisible();
   await expect(page.getByTestId("console-two-step-settings")).toHaveCount(0);
+  // Sign in again really signs out first (the session is ended on the server), then opens sign in.
+  const signOut = page.waitForResponse((r) => r.url().includes("/api/auth/sign-out") && r.request().method() === "POST");
   await page.getByTestId("console-sign-in-again").click();
+  expect((await signOut).status()).toBe(200);
   await expect(page).toHaveURL(/\/login\?next=%2Fconsole$/, { timeout: 15_000 });
+  const session = await page.request.get("/api/auth/get-session");
+  expect(await session.json()).toBeNull();
 });
 
 test("while viewing as someone the console says how to get back", async ({ page }) => {

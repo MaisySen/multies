@@ -231,11 +231,16 @@ export function workspacesRoutes() {
       if (source !== "workspace") throw new HttpError(400, "bad_filter", "Show workspace activity or operator actions.");
       const actor = q.q?.trim().slice(0, 100) || undefined;
       const r = await listWorkspaceAudit(c.var.deps, org.id, { filter: actor ? { actor } : undefined, page: pageOf(q, "createdAt:desc") });
+      // Target names the same way (a member's email, this workspace's name). A person whose account is gone keeps the
+      // address the row recorded (metadata.email), so only a target with neither reads as deleted.
+      const named = await withAuditNames(c.var.deps.db, r.items.map((x) => ({ ...x, orgId: org.id })));
       return c.json(answer({
         next: r.next,
-        items: r.items.map((x) => ({
+        items: named.map((x) => ({
           id: x.id, source: "workspace" as const, action: x.action, actorUserId: x.actorUserId, actorEmail: x.actorEmail, actorRole: null,
-          targetType: x.targetType, targetId: x.targetId, targetLabel: null, reason: typeof x.metadata?.reason === "string" ? x.metadata.reason : null, before: null, after: null,
+          targetType: x.targetType, targetId: x.targetId,
+          targetLabel: x.targetLabel ?? (x.targetType === "user" && typeof x.metadata?.email === "string" ? x.metadata.email : null),
+          reason: typeof x.metadata?.reason === "string" ? x.metadata.reason : null, before: null, after: null,
           metadata: x.metadata, createdAt: x.createdAt,
         })),
       }));
