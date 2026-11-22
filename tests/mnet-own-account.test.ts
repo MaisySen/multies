@@ -1,3 +1,4 @@
+import labelBoundaries from "./fixtures/account-label-boundaries-v1.json";
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { Client, makeTestApp } from "./helpers";
@@ -74,6 +75,7 @@ describe("source-only own-account summary", () => {
   for (const key of Object.keys(data)) {const changed={...data};delete changed[key];expect(mnetOwnAccountSummarySchema.safeParse(changed).success,key).toBe(false);}
   for (const patch of [{networkAuthorized:null},{networkAuthorized:true},{enrollmentAuthorized:true},{inputAuthorized:true},{accountName:null},{version:2},{principalNamespace:"oidc"},{capabilities:["list","enroll"]},{extra:false}]) expect(mnetOwnAccountSummarySchema.safeParse({...data,...patch}).success).toBe(false);
   expect(mnetOwnAccountSummarySchema.safeParse({...data,accountName:""}).success).toBe(true);
+  for (const boundary of labelBoundaries) expect(mnetOwnAccountSummarySchema.safeParse({...data,workspaceName:boundary.value}).success,boundary.name).toBe(boundary.allowed);
  });
  it("refuses unsafe labels and freshly ineligible or expired owners", async () => {
   for (const name of ["Owner\x1b[0m","Owner\u202e"," Owner","x".repeat(257),"\ud800"]) {

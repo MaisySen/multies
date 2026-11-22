@@ -1,0 +1,147 @@
+[
+  {
+    "name": "plain",
+    "value": "Own workspace",
+    "allowed": true
+  },
+  {
+    "name": "empty",
+    "value": "",
+    "allowed": false
+  },
+  {
+    "name": "internal-wide-space",
+    "value": "Own\u3000workspace",
+    "allowed": true
+  },
+  {
+    "name": "emoji-utf16-256",
+    "value": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+    "allowed": true
+  },
+  {
+    "name": "emoji-utf16-258",
+    "value": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+    "allowed": false
+  },
+  {
+    "name": "ascii-space-prefix",
+    "value": " Own",
+    "allowed": false
+  },
+  {
+    "name": "ascii-space-suffix",
+    "value": "Own ",
+    "allowed": false
+  },
+  {
+    "name": "nbsp-prefix",
+    "value": "\u00a0Own",
+    "allowed": false
+  },
+  {
+    "name": "nbsp-suffix",
+    "value": "Own\u00a0",
+    "allowed": false
+  },
+  {
+    "name": "next-line-prefix",
+    "value": "\u0085Own",
+    "allowed": false
+  },
+  {
+    "name": "next-line-suffix",
+    "value": "Own\u0085",
+    "allowed": false
+  },
+  {
+    "name": "ogham-prefix",
+    "value": "\u1680Own",
+    "allowed": false
+  },
+  {
+    "name": "ogham-suffix",
+    "value": "Own\u1680",
+    "allowed": false
+  },
+  {
+    "name": "en-quad-prefix",
+    "value": "\u2000Own",
+    "allowed": false
+  },
+  {
+    "name": "en-quad-suffix",
+    "value": "Own\u2000",
+    "allowed": false
+  },
+  {
+    "name": "line-separator-prefix",
+    "value": "\u2028Own",
+    "allowed": false
+  },
+  {
+    "name": "line-separator-suffix",
+    "value": "Own\u2028",
+    "allowed": false
+  },
+  {
+    "name": "paragraph-separator-prefix",
+    "value": "\u2029Own",
+    "allowed": false
+  },
+  {
+    "name": "paragraph-separator-suffix",
+    "value": "Own\u2029",
+    "allowed": false
+  },
+  {
+    "name": "wide-space-prefix",
+    "value": "\u3000Own",
+    "allowed": false
+  },
+  {
+    "name": "wide-space-suffix",
+    "value": "Own\u3000",
+    "allowed": false
+  },
+  {
+    "name": "bom-prefix",
+    "value": "\ufeffOwn",
+    "allowed": false
+  },
+  {
+    "name": "bom-suffix",
+    "value": "Own\ufeff",
+    "allowed": false
+  },
+  {
+    "name": "zero-width-prefix",
+    "value": "\u200bOwn",
+    "allowed": false
+  },
+  {
+    "name": "zero-width-suffix",
+    "value": "Own\u200b",
+    "allowed": false
+  },
+  {
+    "name": "mongolian-vowel-separator-prefix",
+    "value": "\u180eOwn",
+    "allowed": false
+  },
+  {
+    "name": "mongolian-vowel-separator-suffix",
+    "value": "Own\u180e",
+    "allowed": false
+  },
+  {
+    "name": "file-separator-prefix",
+    "value": "\u001cOwn",
+    "allowed": false
+  },
+  {
+    "name": "file-separator-suffix",
+    "value": "Own\u001c",
+    "allowed": false
+  }
+]

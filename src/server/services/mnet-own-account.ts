@@ -65,6 +65,8 @@ export async function ownAccountSummary(d: Deps, credential: string): Promise<Mn
     capabilities: ["list"], enrollmentAuthorized: false, networkAuthorized: false, inputAuthorized: false,
   });
   if (!summary.success || summary.data.expiresAtMS <= d.now().getTime()) throw denied();
+  // Defensive comparison of two reads only. This slice establishes no atomic
+  // config snapshot/reload/lifetime protocol, nor a revocation/race guarantee.
   const current = ownAccountSummaryConfig(d);
   if (current.principalAuthority !== provenance.principalAuthority || current.principalNamespace !== provenance.principalNamespace) throw denied();
   return summary.data;
