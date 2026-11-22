@@ -63,7 +63,7 @@ export const IMPERSONATION_ALWAYS_BLOCKED: readonly BlockedRule[] = [
   // The operator console and the older operator routes: an impersonated session is never an operator. Stop is the one
   // exception (IMPERSONATION_STOP_PATH).
   { group: "operator console", methods: ALL, pattern: /^\/api\/console(\/|$)/, example: { method: "GET", path: "/api/console/me" }, enforcedBy: "operatorSession" },
-  { group: "operator console", methods: ALL, pattern: /^\/api\/admin(\/|$)/, example: { method: "GET", path: "/api/admin/users" }, enforcedBy: "operatorSession" },
+  { group: "operator console", methods: ALL, pattern: /^\/api\/admin(\/|$)/, example: { method: "GET", path: "/api/admin/health" }, enforcedBy: "operatorSession" },
   // The team password vault: no reads either.
   { group: "vault", methods: ALL, pattern: /^\/api\/vault(\/|$)/, example: { method: "GET", path: "/api/vault/state" }, enforcedBy: "requireAuth" },
   // Better Auth over HTTP: password, email, two-step, passkeys, sessions, sign out (Stop replaces it), linking, deleting

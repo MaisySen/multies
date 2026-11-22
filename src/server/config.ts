@@ -228,7 +228,7 @@ export interface AppConfig {
   platformAdmins: string[];
   /**
    * OPS1: the operator console's sign in rules. requireTwoFactor (OPERATOR_REQUIRE_2FA, on in production unless "off")
-   * asks for two-step sign in, or a sign in through one of ssoMethods (OPERATOR_SSO_METHODS, default auth0). freshMinutes
+   * asks for two-step sign in, or a sign in through one of ssoMethods (OPERATOR_SSO_METHODS, default none). freshMinutes
    * (OPERATOR_FRESH_MINUTES, default 15) is how recent a sign in must be for the sensitive actions.
    */
   operator: { requireTwoFactor: boolean; ssoMethods: string[]; freshMinutes: number };
@@ -948,7 +948,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
     operator: {
       requireTwoFactor: operatorTwoFactor(env.OPERATOR_REQUIRE_2FA, mode),
-      ssoMethods: env.OPERATOR_SSO_METHODS === undefined ? ["auth0"] : csv(env.OPERATOR_SSO_METHODS).map((m) => m.toLowerCase()),
+      // OPS1 security (M2): empty unless set; list a method only if that provider enforces multi-factor for every operator.
+      ssoMethods: csv(env.OPERATOR_SSO_METHODS).map((m) => m.toLowerCase()),
       freshMinutes: Math.max(1, Math.min(24 * 60, Number.parseInt(env.OPERATOR_FRESH_MINUTES ?? "15", 10) || 15)),
     },
     keepDemoOrgIds: csv(env.KEEP_DEMO_ORG_IDS),

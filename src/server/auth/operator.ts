@@ -6,7 +6,9 @@
  * no workspace write budget (those protect a customer workspace, not the platform). It refuses:
  * - no session (401), an impersonation session (403 impersonating), anyone without an operator role (403 forbidden);
  * - an operator without two-step sign in or an approved SSO sign in, when config.operator.requireTwoFactor is on
- *   (production by default, or OPERATOR_REQUIRE_2FA=on) (403 two_factor_required).
+ *   (production by default, or OPERATOR_REQUIRE_2FA=on) (403 two_factor_required);
+ * - OPS1 security (M2): with that rule on, a session created at or before the account's two-step enrolment (it never
+ *   asked for the second step; auth/two-factor-enrolment.ts) (403 two_factor_required, "sign in again").
  *
  * requireOperator(permission, { stepUp }) then checks the role's permission (403 forbidden), and with stepUp asks for a
  * sign in within config.operator.freshMinutes (403 step_up_required; the console offers to sign in again).
@@ -21,6 +23,7 @@ import { noteRequestCaller } from "../lib/request-caller";
 import { resolveAuth } from "./guards";
 import { can, isOperatorRole, type OperatorRole, type Permission } from "@/shared/operator-permissions";
 import { IMPERSONATION_STOP_PATH } from "../services/console/impersonation"; // OPS1 impersonation
+import { sessionPostdatesEnrolment } from "./two-factor-enrolment"; // OPS1 security (M2)
 
 export const NOT_OPERATOR_MESSAGE = "Only platform operators can do that.";
 
@@ -30,6 +33,13 @@ export function meetsTwoFactorRule(deps: Pick<Deps, "config">, auth: Pick<AuthCo
   if (auth.twoFactor) return true;
   const method = (auth.loginMethod ?? "").toLowerCase();
   return !!method && deps.config.operator.ssoMethods.includes(method);
+}
+
+/** True when the console's two-step rule is met by the account's two-step sign in (not by an approved SSO method). */
+function twoFactorRuleApplies(deps: Pick<Deps, "config">, auth: Pick<AuthContext, "twoFactor" | "loginMethod">): boolean {
+  if (!deps.config.operator.requireTwoFactor || !auth.twoFactor) return false;
+  const method = (auth.loginMethod ?? "").toLowerCase();
+  return !(method && deps.config.operator.ssoMethods.includes(method));
 }
 
 /** True when the session signed in within the fresh window. */
@@ -55,6 +65,11 @@ export const operatorSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (!isOperatorRole(auth.platformRole)) throw new HttpError(403, "forbidden", NOT_OPERATOR_MESSAGE);
   if (!meetsTwoFactorRule(c.var.deps, auth)) {
     throw new HttpError(403, "two_factor_required", "Turn on two-step sign in for your account, then sign in again to open the operator console.");
+  }
+  // OPS1 security (M2): the rule is about this session, not only the account flag. A session created at or before
+  // the account's two-step enrolment never passed the second step (auth/two-factor-enrolment.ts), so sign in again.
+  if (twoFactorRuleApplies(c.var.deps, auth) && !(await sessionPostdatesEnrolment(c.var.deps.db, auth))) {
+    throw new HttpError(403, "two_factor_required", "Sign in again to open the operator console. This session started before two-step sign in was turned on, so it never asked for your code.");
   }
   c.set("auth", auth);
   c.set("operator", { role: auth.platformRole as OperatorRole });

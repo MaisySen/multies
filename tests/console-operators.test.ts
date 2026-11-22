@@ -31,7 +31,7 @@ describe("/api/console/me", () => {
   });
 
   it("asks for two-step sign in when OPERATOR_REQUIRE_2FA is on (an approved SSO sign in also counts)", async () => {
-    const ctx = await makeTestApp({ OPERATOR_REQUIRE_2FA: "on" });
+    const ctx = await makeTestApp({ OPERATOR_REQUIRE_2FA: "on", OPERATOR_SSO_METHODS: "auth0" }); // OPS1 security (M2): SSO counts only when listed
     const { c: ops, id } = await signUpAs(ctx, "ops@ops.test", "admin");
     const r = await ops.get("/api/console/me");
     expect(r.status).toBe(403);

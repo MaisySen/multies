@@ -37,6 +37,7 @@ import { emailBrand, sendSystemEmail } from "../services/system-mail";
 import { sendInviteEmail } from "../services/invite-email";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError } from "../lib/errors";
+import { isOperatorRole } from "@/shared/operator-permissions"; // OPS1 security (M2)
 import { getPlan } from "../services/plans";
 import { inIds } from "../lib/sql-chunks";
 
@@ -216,6 +217,20 @@ export function authOptions(deps: Deps) {
         }
       }),
       after: createAuthMiddleware(async (ctx) => {
+        // OPS1 security (M2): a finished two-step enrolment. Signed in, the first accepted code turns the account flag
+        // on and swaps the session for a new one inside the endpoint (Better Auth 1.7.12); a sign in's second step has
+        // no session before it. Recorded after the swap, so the swapped session counts as older than the enrolment and
+        // the operator console asks for a fresh sign in (auth/two-factor-enrolment.ts). Operators' enrolments are also
+        // written to the platform audit log.
+        if ((ctx.path === "/two-factor/verify-totp" || ctx.path === "/two-factor/enable") && !(ctx.context.returned instanceof Error)
+          && ctx.context.newSession?.user && ctx.context.session?.session) {
+          const user = ctx.context.newSession.user as { id: string; email: string; role?: string | null };
+          await (await import("./two-factor-enrolment")).recordTwoFactorEnrolment(db, user.id, new Date());
+          if (isOperatorRole(user.role)) {
+            const { platformAudit } = await import("../services/console/audit");
+            await platformAudit(db, { actorUserId: user.id, actorEmail: user.email, actorRole: user.role ?? null, action: "operator.two_factor_enrolled", targetType: "user", targetId: user.id }).catch(() => undefined);
+          }
+        }
         // Security events on the account go to the audit log of the person's workspace.
         const securityAction = SECURITY_EVENTS[ctx.path];
         if (securityAction) {
