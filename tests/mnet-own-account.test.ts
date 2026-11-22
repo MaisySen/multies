@@ -1,3 +1,4 @@
+import { exportOwnAccountWire } from "./fixtures/mnet-own-account-wire-export";
 import labelBoundaries from "./fixtures/account-label-boundaries-v1.json";
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
@@ -12,6 +13,8 @@ let token: string;
 let workspaceId: string;
 let deviceKey: string;
 let userId: string;
+let exchangeStartedAtMS: number;
+let credentialExpiresAtMS: number;
 async function summary(body = "{}", headers: Record<string,string> = {}, query = "") {
  return ctx.app.request("/api/mnet/account-v1"+query, {method:"POST", headers:{host:"localhost", "content-type":"application/json", authorization:`Bearer ${token}`, ...headers}, body});
 }
@@ -38,20 +41,30 @@ beforeEach(async () => {
  const request = {workspaceId,deviceKey,challenge:await hash(verifier),state:await hash("state"),platform:"linux",redirectUri:"http://127.0.0.1:32145/mnet/callback"};
  const pending = await client.post("/api/mnet/authorizations",request); expect(pending.status).toBe(201);
  const approved = await client.post(`/api/mnet/authorizations/${pending.body.id}/decision`,{decision:"allow"}); expect(approved.status).toBe(200);
+ exchangeStartedAtMS = Date.now();
  const exchange = await ctx.app.request("/api/mnet/token",{method:"POST",headers:{host:"localhost","content-type":"application/json"},body:JSON.stringify({...request,code:approved.body.code,verifier})});
- expect(exchange.status).toBe(200); token = (await exchange.json()).credential;
+ expect(exchange.status).toBe(200);
+ const exchanged = await exchange.json(); token = exchanged.credential;
+ expect(exchanged.workspaceId).toBe(workspaceId); expect(exchanged.deviceKey).toBe(deviceKey);
+ expect(exchanged.expiresIn).toBeGreaterThan(0); expect(exchanged.expiresIn).toBeLessThanOrEqual(600);
+ // Retained before the summary request, not copied from its response.
+ workspaceId = exchanged.workspaceId;
+ credentialExpiresAtMS = exchangeStartedAtMS + exchanged.expiresIn*1000;
 });
 describe("source-only own-account summary", () => {
  it("returns only the bearer owner's current labels and credential-row key without creating authority", async () => {
   const before = await ctx.db.select().from(mnetDevices);
   const response = await summary(); expect(response.status).toBe(200);
   expect(response.headers.get("cache-control")).toBe("no-store"); expect(response.headers.get("set-cookie")).toBeNull();
-  const data = await response.json();
+  const wire = new Uint8Array(await response.arrayBuffer());
+  const data = JSON.parse(Buffer.from(wire).toString("utf8"));
   expect(data).toMatchObject({version:1,purpose:"mnet-own-account-identity",audience:"mnet",principalId:userId,principalNamespace:"multies-local-user-v1",principalAuthority:"https://identity.example.invalid",workspaceId,workspaceName:"Acme",email:"owner@example.test",accountName:"Owner",deviceKey,verifiedEmail:true,capabilities:["list"],enrollmentAuthorized:false,networkAuthorized:false,inputAuthorized:false});
   expect(mnetOwnAccountSummarySchema.safeParse(data).success).toBe(true);
   expect(data.expiresAtMS-data.checkedAtMS).toBeGreaterThan(0); expect(data.expiresAtMS-data.checkedAtMS).toBeLessThanOrEqual(30_000);
   expect(Object.keys(data)).toHaveLength(18); expect(JSON.stringify(data)).not.toContain(token);
   expect(await ctx.db.select().from(mnetDevices)).toEqual(before);
+  expect(Buffer.from(wire).toString("utf8")).not.toContain(token);
+  await exportOwnAccountWire(wire,{workspaceId,deviceKey,principalId:userId,exchangeStartedAtMS,credentialExpiresAtMS});
   await ctx.db.update(users).set({name:"Current owner"}).where(eq(users.id,userId));
   expect(await (await summary()).json()).toMatchObject({accountName:"Current owner"});
  });
