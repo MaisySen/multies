@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","include":["src/server/routes/mnet.ts","src/server/services/mnet-own-account.ts","tests/mnet-own-account.test.ts"],"exclude":[]}

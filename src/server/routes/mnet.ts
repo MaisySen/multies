@@ -1,3 +1,4 @@
+import { ownAccountSummary, ownAccountSummaryConfig } from "../services/mnet-own-account";
 import { Hono } from "hono";
 import { parseMnetObject } from "../services/mnet-json";
 import { z } from "zod";
@@ -54,6 +55,16 @@ export function mnetRoutes() {
   r.post("/check", async (c) => {
     if (c.req.header("cookie") || c.req.header("origin")) throw new HttpError(403, "mnet_denied", "Mnet access is unavailable.");
     return c.json(await checkMnet(c.var.deps, c.req.header("authorization")?.replace(/^Bearer /, "") ?? "", await body(c, mnetCheck)));
+  });
+  r.post("/account-v1", async (c) => {
+    ownAccountSummaryConfig(c.var.deps);
+    if (c.req.raw.headers.has("cookie") || c.req.raw.headers.has("origin") || new URL(c.req.url).search !== "") {
+      throw new HttpError(403, "mnet_denied", "Mnet access is unavailable.");
+    }
+    const authorization = c.req.header("authorization") ?? "";
+    if (!/^Bearer [A-Za-z0-9_-]{43}$/.test(authorization)) throw new HttpError(403, "mnet_denied", "Mnet access is unavailable.");
+    await body(c, z.object({}).strict());
+    return c.json(await ownAccountSummary(c.var.deps, authorization.slice(7)));
   });
   r.get("/approved-devices", async (c) => c.json(await ownMnetDevices(c.var.deps, c.req.raw.headers)));
   r.get("/devices", async (c) => c.json(await listMnet(c.var.deps, c.req.header("authorization")?.replace(/^Bearer /, "") ?? "")));
