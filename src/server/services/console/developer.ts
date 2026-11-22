@@ -15,7 +15,7 @@ import { inIds } from "../../lib/sql-chunks";
 import { newestRows } from "./recent-rows";
 import { deleteApiKey } from "../developer/api-keys";
 import { revokeGrant } from "../developer/oauth";
-import { replayFailed, updateEndpoint } from "../developer/webhooks";
+import { replayFailed, scrubUrls, updateEndpoint } from "../developer/webhooks";
 import { clampLimit, clip, found, keysetAfter, keysetOrder, ms, pageOf, resolveWindow, sortSpec, timeKey, withOwners, type Page, type PageRequest, type SortSpec, type TimeWindow } from "./mail";
 
 // ---------------------------------------------------------------- API keys
@@ -228,7 +228,8 @@ export async function listWebhookDeliveries(deps: Deps, filters: WebhookDelivery
     ))
     .orderBy(...keysetOrder(spec, d.id, page.sort.dir)).limit(limit + 1);
   const out = await withOwners(deps, pageOf(rows, limit, ({ dataKeys, ...r }) => ({
-    ...r, endpointUrl: webhookUrlOrigin(r.endpointUrl), lastError: clip(r.lastError),
+    // OPS1 security: errors stored before the scrub at record time may name the URL; only its origin leaves.
+    ...r, endpointUrl: webhookUrlOrigin(r.endpointUrl), lastError: clip(r.lastError == null ? null : scrubUrls(r.lastError)),
     payloadPreview: `${r.eventType}${dataKeys ? `: ${dataKeys}` : ""}`.slice(0, 120),
   }), (r) => ({ v: ms(r.createdAt), id: r.id })));
   return recentOnly ? { ...out, recentOnly } : out;

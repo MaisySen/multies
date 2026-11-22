@@ -12,6 +12,33 @@ import { isPublicHost } from "../../lib/ssrf";
 import { badRequest, conflict, notFound } from "../../lib/errors";
 import { inIds } from "../../lib/sql-chunks";
 
+/**
+ * OPS1 security: a webhook URL's path and query are often the secret (Slack, Discord and Teams URLs). Replaces every
+ * URL with a path or query in `text` by its origin. Used on errors before they are stored or shown.
+ */
+export function scrubUrls(text: string): string {
+  return text.replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>()]+/gi, (u) => {
+    try {
+      const x = new URL(u);
+      return x.pathname.length > 1 || x.search || x.hash || x.username || x.password ? (x.origin === "null" ? "[link]" : x.origin) : u;
+    } catch {
+      return "[link]";
+    }
+  });
+}
+
+/** OPS1 security: `message` without the endpoint's URL, and without its path or query on their own. */
+export function scrubEndpointUrl(message: string, url: string): string {
+  let out = scrubUrls(message);
+  try {
+    const x = new URL(url);
+    for (const part of [url, `${x.pathname}${x.search}`, x.search, x.pathname.length > 1 ? x.pathname : ""]) {
+      if (part && part.length > 1) out = out.split(part).join("[path]");
+    }
+  } catch { /* not a URL */ }
+  return out;
+}
+
 export const WEBHOOK_EVENTS = [
   "message.received",
   "message.sent",
@@ -193,7 +220,8 @@ async function attempt(deps: Deps, deliveryId: string) {
     status = res.status;
     if (res.status < 200 || res.status >= 300) error = `Receiver answered ${res.status}`;
   } catch (err) {
-    error = (err as Error).name === "AbortError" ? `No answer within ${TIMEOUT_MS / 1000}s` : `Could not connect: ${(err as Error).message}`.slice(0, 300);
+    // OPS1 security: some runtimes put the URL in the fetch error; its path and query can be the secret.
+    error = (err as Error).name === "AbortError" ? `No answer within ${TIMEOUT_MS / 1000}s` : `Could not connect: ${scrubEndpointUrl((err as Error).message, e.url)}`.slice(0, 300);
   }
   const attempts = d.attempts + 1;
   if (!error) {
