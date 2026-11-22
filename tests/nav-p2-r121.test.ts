@@ -199,9 +199,15 @@ describe("R121 GET /api/nav/menu (the model the mobile app reads)", () => {
   });
   it("members never get Operator; a platform admin does; off answers the P1 model", () => {
     const pages = (m: ReturnType<typeof menuFor>) => m.sections.flatMap((s) => s.pages.map((p) => p.to));
-    expect(pages(menuFor(base, { role: "member" }))).not.toContain("/console"); // OPS1: the operator console moved to /console
-    expect(pages(menuFor(base, { role: "owner", platformRole: "admin" }))).toContain("/console");
-    expect(pages(menuFor(base, { role: "member", platformRole: "ops_readonly" }))).toContain("/console");
+    // OPS1: the console (/console on the web) goes to the phone as /app/admin, which opens /console: the phone's menu
+    // parser (mobile/src/lib/nav-menu.ts) and its one time web sign in link accept only /app pages.
+    expect(pages(menuFor(base, { role: "member" }))).not.toContain("/app/admin");
+    expect(pages(menuFor(base, { role: "owner", platformRole: "admin" }))).toContain("/app/admin");
+    expect(pages(menuFor(base, { role: "member", platformRole: "ops_readonly" }))).toContain("/app/admin");
+    for (const navP2R121 of [true, false]) {
+      const m = menuFor({ config: { ...(base as { config: object }).config, navP2R121 } } as never, { role: "owner", platformRole: "admin" });
+      for (const to of [...m.sections.map((s) => s.to), ...pages(m), ...m.mailSetup.map((x) => x.to)]) expect(to, to).toMatch(/^\/app(\/|$)/);
+    }
     const off = menuFor({ config: { tools: { enabled: false, features: [] } } } as never, { role: "admin" });
     expect(off.navP2).toBe(false);
     expect(off.sections.map((s) => s.id)).toEqual(["home", "mail", "tasks", "docs", "social", "chat", "dashboards", "agents", "workspace"]);

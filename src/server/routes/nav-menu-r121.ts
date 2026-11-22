@@ -43,12 +43,20 @@ export function serverNavFlags(deps: NavDeps, who: NavWho): NavFlagSet & { socia
   };
 }
 
+/**
+ * OPS1: the phone app opens only /app pages (its menu parser drops anything else, and its one time web sign in link
+ * accepts only /app), so the operator console goes out as /app/admin, which the web app sends on to /console. That
+ * works on every app version already installed, with no app update.
+ */
+const PHONE_PATHS: Record<string, string> = { "/console": "/app/admin" };
+const phonePath = (to: string) => PHONE_PATHS[to] ?? to;
+
 export function menuFor(deps: NavDeps, who: NavWho) {
   const p2 = navFlag(deps, "navP2R121");
   const flags = serverNavFlags(deps, who);
   const sections = visibleIn(p2 ? SECTIONS_P2 : SECTIONS_P1, flags).map((s) => ({
-    id: s.id, label: s.label, icon: s.icon, to: s.to,
-    pages: s.pages.map((p) => ({ to: p.to, label: p.label, icon: p.icon, ...(p.end ? { end: true } : {}),
+    id: s.id, label: s.label, icon: s.icon, to: phonePath(s.to),
+    pages: s.pages.map((p) => ({ to: phonePath(p.to), label: p.label, icon: p.icon, ...(p.end ? { end: true } : {}),
       ...(p.flag === "sites" ? { whenUsed: "/api/sites/in-use" } : {}), ...(COUNT_KEYS[p.to] ? { count: COUNT_KEYS[p.to] } : {}) })),
   }));
   return {

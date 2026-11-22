@@ -220,7 +220,7 @@ export function AnnouncementForm({ current }: { current: Announcement | null }) 
       <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
         <Card className="space-y-3 p-4 sm:p-5">
           <h2 className="text-[15px] font-semibold">Preview</h2>
-          <p className="text-sm text-muted">Exactly as it shows at the top of the app.</p>
+          <p className="text-sm text-muted">Exactly as it shows at the top of the web app. The phone app does not show it yet.</p>
           <div className="overflow-hidden rounded-lg border border-line bg-bg" data-testid="console-announcements-preview">
             <div className="flex h-9 items-center gap-2 border-b border-line bg-surface px-3" aria-hidden>
               <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />

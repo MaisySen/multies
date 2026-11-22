@@ -37,7 +37,7 @@ function Current({ state }: { state: AnnouncementState }) {
   if (!a) {
     return (
       <Card className="p-0" data-testid="console-announcements-empty">
-        <EmptyState icon={<IconMegaphone />} title="No announcement" body="Nobody sees a banner right now. Write one below to show it at the top of the app." />
+        <EmptyState icon={<IconMegaphone />} title="No announcement" body="Nobody sees a banner right now. Write one below to show it at the top of the web app (the phone app does not show it yet)." />
       </Card>
     );
   }
@@ -78,7 +78,7 @@ function Current({ state }: { state: AnnouncementState }) {
 
 export function ConsoleAnnouncementsPage() {
   const q = useQuery({ queryKey: annKey, queryFn: () => consoleGet<AnnouncementState>("/console/announcements") });
-  const header = <PageHeader eyebrow="Product" title="Announcements" description="One banner at the top of the app, for everyone or only for workspace owners and admins." />;
+  const header = <PageHeader eyebrow="Product" title="Announcements" description="One banner at the top of the web app, for everyone or only for workspace owners and admins. The phone app does not show it yet." />;
   if (q.isPending) return (
     <div className="space-y-4" aria-busy="true">
       {header}
