@@ -13,25 +13,24 @@
  * POST /:id/verify                        { reason }  users.verify
  * DELETE /:id                             { reason }  users.delete (owners), step up
  *
- * Every change: a reason, one platform audit row (user.*), refused on yourself (400 self), and ban, delete and
- * session changes are refused on any operator (403 target_is_operator: operators are managed on the Operators page).
+ * Every change: a reason, one platform audit row (user.*), refused on yourself (400 self), and ban, delete, lockout and
+ * session changes are refused on any operator or PLATFORM_ADMIN_EMAILS account (403 target_is_operator: operators are
+ * managed on the Operators page). Verify refuses those accounts with 409 protected_account (OPS1 security: a confirmed
+ * listed address would bootstrap an owner).
  * Changes that affect who is signed in drop this isolate's cached sessions (clearAuthCache), so the next request
  * reads the database.
  */
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
 import type { AppEnv } from "../../context";
 import { parseBody, parseQuery } from "../../middleware";
 import { operatorSession, requireOperator } from "../../auth/operator";
 import { clearAuthCache } from "../../auth/guards";
 import { HttpError, notFound } from "../../lib/errors";
-import { users } from "../../db/schema";
-import { beforeUserDelete } from "../../services/privacy";
 import { operatorAction, reasonSchema } from "../../services/console/audit";
 import { decodeCursor, encodeCursor } from "../../services/console/listing";
 import {
-  BAN_MAX_DAYS, banUser, clearUserLockout, getUserDetail, getUserTarget, listUserSessions, listUsers, markEmailVerified,
+  BAN_MAX_DAYS, banUser, clearUserLockout, deleteUserAccount, getUserDetail, isProtectedAccount, getUserTarget, listUserSessions, listUsers, markEmailVerified,
   revokeAllUserSessions, revokeUserSession, unbanUser, type UserTarget,
 } from "../../services/console/users";
 import type { PageRequest } from "../../services/console/workspaces";
@@ -79,7 +78,8 @@ async function targetFor(c: Context<AppEnv>, opts: { notOperator?: string } = {}
   const id = userId(c);
   if (id === c.var.auth.userId) throw new HttpError(400, "self", "You can't do this to your own account here. Use your account settings.");
   const target = await getUserTarget(c.var.deps, id);
-  if (opts.notOperator && target.operator) {
+  // OPS1 security: an operator role, or an id or address listed in PLATFORM_ADMIN_EMAILS (not yet promoted).
+  if (opts.notOperator && isProtectedAccount(c.var.deps.config, target)) {
     throw new HttpError(403, "target_is_operator", `This person is a platform operator, so you can't ${opts.notOperator} here. Change their access on the Operators page first.`);
   }
   return target;
@@ -153,7 +153,7 @@ export function usersRoutes() {
     })
     .post("/:id/clear-lockout", requireOperator("users.unlock"), async (c) => {
       const { reason } = await parseBody(c, Reason);
-      const t = await targetFor(c);
+      const t = await targetFor(c, { notOperator: "clear their sign in lockout" }); // OPS1 security (L3)
       type R = Awaited<ReturnType<typeof clearUserLockout>>;
       const r = await operatorAction(c, {
         action: "user.lockout_cleared", targetType: "user", targetId: t.id, reason,
@@ -164,6 +164,11 @@ export function usersRoutes() {
     .post("/:id/verify", requireOperator("users.verify"), async (c) => {
       const { reason } = await parseBody(c, Reason);
       const t = await targetFor(c);
+      // OPS1 security (H2): a confirmed listed address would make the account an owner at its next request, and a
+      // confirmed address joins pending invites. Never vouch for an operator or a PLATFORM_ADMIN_EMAILS account.
+      if (isProtectedAccount(c.var.deps.config, t)) {
+        throw new HttpError(409, "protected_account", "This account is a platform operator or is listed as one in the deployment settings, so its address can't be confirmed here. The person confirms it from the email we send.");
+      }
       type R = Awaited<ReturnType<typeof markEmailVerified>>;
       const r = await operatorAction(c, {
         action: "user.email_verified", targetType: "user", targetId: t.id, reason,
@@ -178,10 +183,8 @@ export function usersRoutes() {
       const { reason } = await parseBody(c, Reason);
       const t = await targetFor(c, { notOperator: "delete their account" });
       const { deps } = c.var;
-      await operatorAction(c, { action: "user.deleted", targetType: "user", targetId: t.id, reason, before: { email: t.email } }, async () => {
-        await beforeUserDelete(deps, t.id);
-        await deps.db.delete(users).where(eq(users.id, t.id));
-      });
+      // OPS1 security: the service refuses an operator or listed account itself too (deleteUserAccount).
+      await operatorAction(c, { action: "user.deleted", targetType: "user", targetId: t.id, reason, before: { email: t.email } }, () => deleteUserAccount(deps, t.id));
       clearAuthCache();
       return c.json({ ok: true });
     });

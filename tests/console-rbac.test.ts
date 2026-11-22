@@ -10,7 +10,6 @@ import { signUpAs, type Ctx } from "./console-kit";
 import { consoleRoutes } from "@/server/routes/console";
 import { adminRoutes } from "@/server/routes/admin";
 import { adminReportsRoutes } from "@/server/routes/reports-r35";
-import { adminAppConfigRoutes } from "@/server/routes/app-config-r29b";
 import { OPERATOR_ROLES, ROLE_PERMISSIONS, can, type OperatorRole, type Permission } from "@/shared/operator-permissions";
 
 interface Guarded { method: string; path: string; permission: Permission; stepUp: boolean }
@@ -32,7 +31,6 @@ function routesOf(app: Hono<never> | Hono<any>, prefix = ""): { method: string; 
 
 const consoleList = routesOf(consoleRoutes());
 const legacyList = [
-  ...routesOf(adminAppConfigRoutes(), "/api/admin/app-config"),
   ...routesOf(adminReportsRoutes(), "/api/admin/reports"),
   ...routesOf(adminRoutes(), "/api/admin"),
 ];

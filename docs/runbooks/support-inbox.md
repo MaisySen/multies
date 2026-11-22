@@ -72,10 +72,10 @@ gone. To turn it off fully, unset `OPERATOR_INBOX_ORG_ID` and remove the `multie
 Apple's rule for apps with user content (guideline 1.2): people can report content and block people, and the operator acts on every report within 24 hours.
 
 - Who acts: the operator on duty (a platform admin, the same people who read this inbox). Every new report mails `SUPPORT_EMAIL` ("N reports to review"), at most once per 15 minutes; the 5 minute maintenance sweep mails again when a report arrived inside a used slot.
-- Where: Operator console, Moderation (`/app/admin/reports`). The Operator item in the sidebar shows the open count. Each report shows the reason, where it came from, a copy of the message as it was when reported, the reporter and the reported person, and its age (amber past 12 hours, red past 24).
+- Where: Operator console, Moderation (`/console/moderation`). The Operator item in the sidebar shows the open count. Each report shows the reason, where it came from, a copy of the message as it was when reported, the reporter and the reported person, and its age (amber past 12 hours, red past 24).
 - How, within 24 hours of the report:
   - Remove message: deletes it for everyone (the normal soft delete; open chats update at once). Other open reports on the same message close with it.
-  - Suspend user: bans the account (sign in refused) and ends all its sessions. To lift it, clear `banned` on the user (operator console users search, or the database) and tell the person.
+  - Suspend user: bans the account (sign in refused) and ends all its sessions. To lift it, open the person in the operator console (`/console/users`) and choose Unban, then tell the person. Operator accounts can't be suspended from a report; change their access on the Operators page first.
   - Resolve with a note: when you acted another way (a warning by mail, say).
   - Dismiss: nothing wrong.
 - Illegal content involving a minor: remove it, suspend the account, and report it to the eSafety Commissioner (esafety.gov.au) the same day. Keep the report row; it holds the copy.

@@ -130,7 +130,8 @@ describe("CB2: a ban, a report suspension and an account deletion close live soc
     const rep = await owner.post("/api/reports", { targetType: "user", userId: mayaId, reason: "harassment" });
     expect(rep.status).toBeLessThan(300);
     await ctx.db.update(users).set({ role: "admin" }).where(eq(users.id, ownerId));
-    const act = await owner.post(`/api/admin/reports/${rep.body.id}/action`, { action: "suspend_user" });
+    // OPS1 security: the console route replaced the retired /api/admin/reports/:id/action.
+    const act = await owner.post(`/api/console/moderation/reports/${rep.body.id}/action`, { action: "suspend_user", reason: "Harassment confirmed" });
     expect(act.status).toBe(200);
     expect(act.body.report).toMatchObject({ action: "user_suspended" });
     expect(m.closed).toEqual([CLOSE_REVOKED]);

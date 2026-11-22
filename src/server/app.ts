@@ -22,7 +22,7 @@ import { createHash } from "./lib/hash";
 import { accountRoutes } from "./routes/account";
 import { contactFormRoutes } from "./routes/contact";
 import { adminRoutes } from "./routes/admin";
-import { adminAppConfigRoutes, appConfigRoutes } from "./routes/app-config-r29b";
+import { appConfigRoutes } from "./routes/app-config-r29b";
 import { authFor } from "./auth";
 import { clearAuthCache, forgetCachedAuth } from "./auth/guards";
 import { forgetProjectCounts } from "./services/suite/tasks";
@@ -579,9 +579,12 @@ export function createApp(deps: Deps) {
   app.use("/api/*", productAnalyticsActions);
   app.route("/api/account", accountRoutes());
   app.route("/api/contact", contactFormRoutes());
-  app.route("/api/admin/app-config", adminAppConfigRoutes()); // R29b: mobile remote config
-  app.route("/api/admin/reports", adminReportsRoutes()); // R35: moderation queue (Apple 1.2)
+  // OPS1 security: the older operator API keeps only the reads something still calls (the nav badge's report count,
+  // the scripts' health and the runbooks' status). Every change moved to /api/console; any other /api/admin path is 404.
+  app.route("/api/admin/reports", adminReportsRoutes()); // R35: the open report count (nav badge)
   app.route("/api/admin", adminRoutes());
+  app.all("/api/admin", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
+  app.all("/api/admin/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
   // OPS1: the operator console API, built on its first request (one dynamic import) so other requests load none of it.
   let consoleApp: import("hono").Hono<AppEnv> | undefined;
   const consoleVars = new WeakMap<Request, { deps: Deps; ip: string; requestId: string; log: AppEnv["Variables"]["log"] }>();

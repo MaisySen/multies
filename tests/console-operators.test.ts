@@ -36,7 +36,7 @@ describe("/api/console/me", () => {
     const r = await ops.get("/api/console/me");
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe("two_factor_required");
-    expect((await ops.get("/api/admin/overview")).body.error.code).toBe("two_factor_required");
+    expect((await ops.get("/api/admin/health")).body.error.code).toBe("two_factor_required");
     await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, id));
     expect((await ops.get("/api/console/me")).status).toBe(200);
     await ctx.db.update(users).set({ twoFactorEnabled: false }).where(eq(users.id, id));
@@ -59,7 +59,7 @@ describe("/api/console/me", () => {
     const r = await ops.get("/api/console/me");
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe("impersonating");
-    expect((await ops.get("/api/admin/overview")).status).toBe(403);
+    expect((await ops.get("/api/admin/health")).status).toBe(403);
   });
 });
 

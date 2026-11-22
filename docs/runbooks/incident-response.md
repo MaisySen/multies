@@ -20,7 +20,7 @@ data looking wrong, a security problem.
 - Sentry: new issues and the release they started in (each deploy is a release tied to its commit). Alerts arrive by email at the support mailbox; how to read them: [sentry-triage.md](sentry-triage.md).
 - `/api/config`: which release is serving. `/api/health` says only whether the app and its database answer (`{ ok, db }`); the release, D1 writes and reads and the busiest workspaces are on `/api/admin/health` for platform operators, and the status page's 24 hour mail volume is on `/api/admin/status`.
 - Workers logs (Cloudflare dashboard, Workers, mymail, Logs): filter on `level:error` or a `requestId` from a customer report. Every response carries `x-request-id`.
-- Job queue: the operator console (`/app/admin`) shows queued, dead and failing jobs; outbound mail that cannot be sent waits there instead of being lost.
+- Job queue: the operator console, Jobs (`/console/jobs`) shows queued, dead and failing jobs; outbound mail that cannot be sent waits there instead of being lost.
 - Provider status pages: Cloudflare, Resend, Stripe.
 
 ## 3. Mitigate first, fix second
@@ -29,8 +29,8 @@ data looking wrong, a security problem.
 | --- | --- |
 | Bad deploy | Roll back: [rollback.md](rollback.md) |
 | Bad migration or data damage | Stop writes (roll back), then follow [db-backup-restore.md](db-backup-restore.md) |
-| Outbound provider down | Nothing to do right away: the circuit breaker opens and sends queue as `delayed`. Replay dead jobs from the operator console once it recovers |
-| Spam or abuse from a workspace | Suspend it or set a send cap in the operator console |
+| Outbound provider down | Nothing to do right away: the circuit breaker opens and sends queue as `delayed`. Replay dead jobs from the operator console (`/console/jobs`) once it recovers |
+| Spam or abuse from a workspace | Suspend it or set a send cap in the operator console (`/console/workspaces`, open the workspace) |
 | Leaked secret | Rotate it now ([secrets-rotation.md](../security/secrets-rotation.md)), then look for misuse in the audit log |
 | Traffic flood | Rate limits answer 429 on their own; for an attack, turn on Cloudflare Under Attack mode or add a WAF rule |
 

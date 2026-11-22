@@ -86,21 +86,26 @@ describe("PUT /api/v1/app-config", () => {
   });
 });
 
-describe("/api/admin/app-config", () => {
+// OPS1 security: the operator's read and change moved from the retired /api/admin/app-config to /api/console/mobile.
+describe("/api/console/mobile (the operator's app config)", () => {
   it("lets a platform admin read and change it, and nobody else", async () => {
     const ctx = await makeTestApp({ PLATFORM_ADMIN_EMAILS: "boss@acme.io" });
     const boss = new Client(ctx.app);
     await boss.signup("boss@acme.io", "Boss Person");
     await ctx.db.update(users).set({ emailVerified: true }).where(eq(users.email, "boss@acme.io"));
-    const changed = await boss.call("PUT", "/api/admin/app-config", { ota: { add_critical_update_ids: [ID1] }, message: "Please update" });
+    const changed = await boss.call("PUT", "/api/console/mobile", { patch: { ota: { add_critical_update_ids: [ID1] }, message: "Please update" }, reason: "Ship the fix" });
     expect(changed.status).toBe(200);
-    expect(changed.body.mobile.ota.critical_update_ids).toEqual([ID1]);
-    expect((await boss.get("/api/admin/app-config")).body.mobile.message).toBe("Please update");
+    expect(changed.body.effective.ota.critical_update_ids).toEqual([ID1]);
+    expect((await boss.get("/api/console/mobile")).body.effective.message).toBe("Please update");
+    // Phones read the same stored row.
+    expect((await new Client(ctx.app).get("/api/v1/app-config")).body.mobile.message).toBe("Please update");
+    expect((await boss.call("PUT", "/api/admin/app-config", { message: "x" })).status).toBe(404);
 
     const other = new Client(ctx.app);
     await other.signup("someone@else.io", "Some One");
-    expect((await other.get("/api/admin/app-config")).status).toBe(403);
-    expect((await new Client(ctx.app).get("/api/admin/app-config")).status).toBe(401);
+    expect((await other.get("/api/console/mobile")).status).toBe(403);
+    expect((await other.call("PUT", "/api/console/mobile", { patch: { message: "x" }, reason: "Ship the fix" })).status).toBe(403);
+    expect((await new Client(ctx.app).get("/api/console/mobile")).status).toBe(401);
   });
 });
 

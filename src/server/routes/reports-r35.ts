@@ -2,7 +2,7 @@
  * R35 (Apple 1.2): reports and blocks.
  * Session: POST /api/reports, GET/POST /api/blocks, DELETE /api/blocks/:userId.
  * Public API (key): the same under /api/v1 with OpenAPI entries. MCP: create_report, list_blocks, add_block, remove_block.
- * Operator console: GET /api/admin/reports, GET /api/admin/reports/count, POST /api/admin/reports/:id/action (platform admins only).
+ * Operator console: /api/console/moderation/reports (routes/console/moderation.ts); GET /api/admin/reports/count for the nav badge.
  */
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -12,10 +12,9 @@ import { Hono, type Context } from "hono";
 import type { AppEnv, Deps } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { operatorSession, requireOperator } from "../auth/operator"; // OPS1
-import { operatorAction, optionalReasonSchema } from "../services/console/audit"; // OPS1
 import { HttpError } from "../lib/errors";
 import type { SuiteActor } from "../services/suite/common";
-import { actOnReport, addBlock, createReport, listBlocks, listReports, openReportCount, removeBlock, REPORT_CONTEXTS, REPORT_REASONS } from "../services/suite/reports-r35";
+import { addBlock, createReport, listBlocks, openReportCount, removeBlock, REPORT_CONTEXTS, REPORT_REASONS } from "../services/suite/reports-r35";
 import type { Scoped } from "./mcp-server";
 import { idempotentCreate } from "../lib/idempotency"; // R54 (MB-239)
 import { mcpCreate } from "./mcp-idempotency"; // R54 (MB-239)
@@ -29,7 +28,6 @@ export const ReportBody = zod.object({
   note: zod.string().max(500).optional(),
 }).refine((b) => (b.targetType === "message" ? !!b.messageId : !!b.userId), { message: "Say which message or person." });
 export const BlockBody = zod.object({ userId: zod.string().min(1).max(64) });
-export const ReportActionBody = zod.object({ action: zod.enum(["dismiss", "resolve", "remove_message", "suspend_user"]), note: zod.string().max(1000).optional() });
 
 const actor = (c: Context<AppEnv>) => c.var.auth as unknown as SuiteActor;
 
@@ -50,27 +48,14 @@ export function blocksRoutes() {
     .delete("/:userId", async (c) => { await removeBlock(c.var.deps, actor(c), c.req.param("userId")); return c.body(null, 204); });
 }
 
-/** Operator moderation queue. Platform admins only (never workspace admins). */
+/**
+ * The open report count for the operator nav badge (src/web/lib/open-report-count.ts). OPS1 security: the older list
+ * and action routes were retired; the queue and its actions live at /api/console/moderation (reason, step up and
+ * target rules). Every other /api/admin/reports path answers 404.
+ */
 export function adminReportsRoutes() {
-  // OPS1: operator permissions (moderation.read, moderation.act), no workspace SSO or budget, and every action audited.
-  return new Hono<AppEnv>().use("*", operatorSession)
-    .get("/", requireOperator("moderation.read"), async (c) => {
-      const s = c.req.query("status");
-      const status = s === "resolved" || s === "dismissed" || s === "all" ? s : "open";
-      return c.json(await listReports(c.var.deps, { status }));
-    })
-    .get("/count", requireOperator("moderation.read"), async (c) => c.json(await openReportCount(c.var.deps)))
-    .post("/:id/action", requireOperator("moderation.act"), async (c) => {
-      const { reason, ...body } = await parseBody(c, ReportActionBody.extend({ reason: optionalReasonSchema }));
-      const op = c.var.auth.userId;
-      if (!op) throw new HttpError(401, "unauthorized", "Sign in first.");
-      const id = c.req.param("id");
-      const report = await operatorAction(c, {
-        action: `report.${body.action}`, targetType: "report", targetId: id, reason: reason ?? body.note ?? null, metadata: { action: body.action },
-        after: (r: Awaited<ReturnType<typeof actOnReport>>) => ({ status: r.status, action: r.action, targetUserId: r.target?.id ?? null, workspaceId: r.workspaceId }),
-      }, () => actOnReport(c.var.deps, { userId: op }, id, body));
-      return c.json({ report });
-    });
+  return new Hono<AppEnv>()
+    .get("/count", operatorSession, requireOperator("moderation.read"), async (c) => c.json(await openReportCount(c.var.deps)));
 }
 
 // ---------------------------------------------------------------- public API (v1)

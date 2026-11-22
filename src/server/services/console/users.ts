@@ -7,6 +7,7 @@
  */
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
+import type { AppConfig } from "../../config";
 import { accounts, loginThrottle, members, organizations, sessions, twoFactors, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { containsAny, normalizeQuery } from "../../lib/like-search";
@@ -256,6 +257,31 @@ export async function getUserTarget(deps: Pick<Deps, "db">, userId: string): Pro
   return { ...u, operator: isOperatorRole(u.role) };
 }
 
+/**
+ * OPS1 security: true when the account's id or address is listed in PLATFORM_ADMIN_EMAILS (config.platformAdmins),
+ * whether or not it has signed in or been promoted yet.
+ */
+export function isBootstrapListed(config: Pick<AppConfig, "platformAdmins">, u: { id: string; email: string }): boolean {
+  return config.platformAdmins.includes(u.id.toLowerCase()) || config.platformAdmins.includes(u.email.trim().toLowerCase());
+}
+
+/** OPS1 security: an account the console never bans, suspends, deletes or vouches for: any operator role, or bootstrap listed. */
+export function isProtectedAccount(config: Pick<AppConfig, "platformAdmins">, u: { id: string; email: string; role: string | null }): boolean {
+  return isOperatorRole(u.role) || isBootstrapListed(config, u);
+}
+
+/**
+ * OPS1 security: the check every service that bans, suspends or deletes an account runs itself, so no caller (a route
+ * written later, a script) can skip it. 403 target_is_operator for an operator or a bootstrap listed account.
+ */
+export async function assertNotProtectedTarget(deps: Pick<Deps, "db" | "config">, userId: string, verb: string): Promise<UserTarget> {
+  const t = await getUserTarget(deps, userId);
+  if (isProtectedAccount(deps.config, t)) {
+    throw new HttpError(403, "target_is_operator", `This person is a platform operator, so you can't ${verb} here. Change their access on the Operators page first.`);
+  }
+  return t;
+}
+
 export interface BanState { banned: boolean; banReason: string | null; banExpires: string | null }
 const banState = (u: { banned: boolean | null; banReason: string | null; banExpires: Date | null }): BanState => ({ banned: !!u.banned, banReason: u.banReason, banExpires: iso(u.banExpires) });
 
@@ -274,6 +300,7 @@ export const BAN_MAX_DAYS = 3650;
 
 /** Bans the account (sign in refused), optionally until `expiresInDays` from now, and ends its sessions and apps. */
 export async function banUser(deps: Deps, userId: string, input: { reason: string; expiresInDays?: number | null }): Promise<{ before: BanState; after: BanState; sessionsEnded: number }> {
+  await assertNotProtectedTarget(deps, userId, "ban them"); // OPS1 security: here too, not only in the route
   const before = await readBan(deps, userId);
   const days = input.expiresInDays ?? null;
   if (days !== null && (!Number.isInteger(days) || days < 1 || days > BAN_MAX_DAYS)) throw new HttpError(422, "validation_failed", `A ban lasts 1 to ${BAN_MAX_DAYS} days, or leave it open ended.`);
@@ -306,4 +333,17 @@ export async function revokeAllUserSessions(deps: Deps, userId: string): Promise
   const ended = await deps.db.delete(sessions).where(eq(sessions.userId, userId)).returning({ id: sessions.id });
   await endAppsAndSockets(deps, userId);
   return { sessionsEnded: ended.length };
+}
+
+/**
+ * OPS1 security: deletes an account as DELETE /api/account would for the person (services/privacy.ts beforeUserDelete:
+ * workspaces where they are the only member go with it, 409 while they are the only owner of a shared workspace).
+ * Refuses an operator or a bootstrap listed account itself (403 target_is_operator), whoever calls it.
+ */
+export async function deleteUserAccount(deps: Deps, userId: string): Promise<{ id: string; email: string }> {
+  const t = await assertNotProtectedTarget(deps, userId, "delete their account");
+  const { beforeUserDelete } = await import("../privacy");
+  await beforeUserDelete(deps, t.id);
+  await deps.db.delete(users).where(eq(users.id, t.id));
+  return { id: t.id, email: t.email };
 }

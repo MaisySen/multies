@@ -1,7 +1,7 @@
 /**
- * OPS1: the platform audit log. The older /api/admin changes keep their answers and their workspace audit rows, and now
- * also write a platform audit row (actor, role, reason when given, IP). /api/console/audit lists them with filters and
- * pages; the CSV export is for owners and is itself audited.
+ * OPS1: the platform audit log. Every console change (OPS1 security: the older /api/admin changes were retired and these
+ * cases moved to their console routes) keeps the workspace audit row and writes a platform audit row (actor, role,
+ * reason, IP). /api/console/audit lists them with filters and pages; the CSV export is for owners and is itself audited.
  */
 import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
@@ -13,41 +13,41 @@ import { enqueue, runDueJobs } from "@/server/services/jobs";
 import { reasonSchema } from "@/server/services/console/audit";
 
 describe("platform audit log", () => {
-  it("audits the older /api/admin changes, keeps their answers and the workspace's own rows", async () => {
+  it("audits the console changes, with their answers and the workspace's own rows", async () => {
     const ctx = await makeTestApp();
     const { c: ops } = await signUpAs(ctx, "ops@acme.test", "admin");
     const { c: cus } = await signUpAs(ctx, "cus@else.test", null, "Else Inc");
     const orgId = (await cus.get("/api/account/me")).body.organization.id as string;
 
-    const sus = await ops.call("POST", `/api/admin/workspaces/${orgId}/suspend`, { reason: "Phishing reports" }, { "cf-connecting-ip": "203.0.113.9", "user-agent": "ops-test" });
-    expect(sus.body).toEqual({ ok: true });
-    expect((await ops.put(`/api/admin/workspaces/${orgId}/send-cap`, { cap: 10, reason: "Slow it down" })).body).toEqual({ ok: true, sendCapDaily: 10 });
-    expect((await ops.put(`/api/admin/workspaces/${orgId}/sending`, { enabled: false })).body).toEqual({ ok: true, sending: false, sendCapDaily: 0 });
+    const sus = await ops.call("POST", `/api/console/workspaces/${orgId}/suspend`, { reason: "Phishing reports" }, { "cf-connecting-ip": "203.0.113.9", "user-agent": "ops-test" });
+    expect(sus.body).toMatchObject({ ok: true });
+    expect((await ops.put(`/api/console/workspaces/${orgId}/send-cap`, { cap: 10, reason: "Slow it down" })).body).toEqual({ ok: true, sendCapDaily: 10 });
+    expect((await ops.put(`/api/console/workspaces/${orgId}/sending`, { enabled: false, reason: "Spam wave" })).body).toEqual({ ok: true, sending: false, sendCapDaily: 0 });
 
     await recordAbuse(ctx.deps, orgId, "message_held", 12, "Spam score 12");
-    const ev = (await ops.get("/api/admin/abuse")).body.events[0].id;
-    expect((await ops.post("/api/admin/abuse/resolve", { ids: [ev] })).body).toEqual({ ok: true });
+    const ev = (await ops.get("/api/console/moderation/abuse")).body.items[0].id;
+    expect((await ops.post("/api/console/moderation/abuse/resolve", { ids: [ev], reason: "False alarm" })).body).toEqual({ ok: true, resolved: 1 });
 
     await enqueue(ctx.deps, "test.unknown" as never, {}, { maxAttempts: 1 });
     await runDueJobs(ctx.deps, 10);
-    const dead = (await ops.get("/api/admin/jobs")).body.dead[0].id;
-    expect((await ops.post("/api/admin/jobs/replay", { ids: [dead], reason: "Provider is back" })).body).toEqual({ replayed: 1 });
+    const dead = (await ops.get("/api/console/jobs?status=dead")).body.items[0].id;
+    expect((await ops.post("/api/console/jobs/replay", { ids: [dead], reason: "Provider is back" })).body).toMatchObject({ replayed: 1 });
 
-    expect((await ops.put("/api/admin/app-config", { reason: "Ship the banner", message: "Hello there" })).status).toBe(200);
-    expect((await ops.put("/api/admin/app-config", { reason: "x" })).status).toBe(422);
+    expect((await ops.put("/api/console/mobile", { reason: "Ship the banner", patch: { message: "Hello there" } })).status).toBe(200);
+    expect((await ops.put("/api/console/mobile", { reason: "x", patch: { message: "Hello" } })).status).toBe(422);
 
     const { id: victimId } = await signUpAs(ctx, "gone@else.test", null, "Gone");
-    expect((await ops.call("DELETE", `/api/admin/users/${victimId}`, { reason: "Asked to be removed" })).body).toEqual({ ok: true });
+    expect((await ops.call("DELETE", `/api/console/users/${victimId}`, { reason: "Asked to be removed" })).body).toEqual({ ok: true });
 
     const rows = await ctx.db.select().from(platformAuditLogs).all();
     const by = (a: string) => rows.find((r) => r.action === a);
     expect(by("workspace.suspended")).toMatchObject({ actorEmail: "ops@acme.test", actorRole: "admin", orgId, targetType: "workspace", targetId: orgId, reason: "Phishing reports", ip: "203.0.113.9", userAgent: "ops-test" });
-    expect(JSON.parse(by("workspace.send_cap_changed")!.after!)).toEqual({ cap: 10 });
+    expect(JSON.parse(by("workspace.send_cap_changed")!.after!)).toMatchObject({ cap: 10 });
     expect(by("workspace.sending_off")).toBeTruthy();
-    expect(by("abuse.resolved")).toMatchObject({ targetType: "abuse_event" });
-    expect(JSON.parse(by("abuse.resolved")!.metadata!)).toMatchObject({ ids: [ev], count: 1 });
+    expect(by("abuse.resolved")).toMatchObject({ targetType: "abuse_event", reason: "False alarm" });
+    expect(JSON.parse(by("abuse.resolved")!.metadata!)).toMatchObject({ ids: [ev] });
     expect(by("jobs.replayed")).toMatchObject({ reason: "Provider is back" });
-    expect(JSON.parse(by("jobs.replayed")!.after!)).toEqual({ replayed: 1 });
+    expect(JSON.parse(by("jobs.replayed")!.after!)).toMatchObject({ replayed: 1 });
     expect(by("app_config.updated")).toMatchObject({ reason: "Ship the banner", targetType: "app_config" });
     expect(by("user.deleted")).toMatchObject({ targetId: victimId, reason: "Asked to be removed" });
     expect(JSON.parse(by("user.deleted")!.before!)).toEqual({ email: "gone@else.test" });
@@ -58,7 +58,7 @@ describe("platform audit log", () => {
     expect((await cus.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action)).toEqual(expect.arrayContaining(["workspace.suspended", "workspace.send_cap_changed", "workspace.sending_off"]));
   });
 
-  it("audits moderation actions on the older reports route", async () => {
+  it("audits moderation actions on the console reports route", async () => {
     const ctx = await makeTestApp();
     const { c: ops } = await signUpAs(ctx, "ops@acme.test", "ops_support");
     const { id: reporterId, c: cus } = await signUpAs(ctx, "cus@else.test", null, "Else");
@@ -66,10 +66,10 @@ describe("platform audit log", () => {
     const orgId = (await cus.get("/api/account/me")).body.organization.id as string;
     await ctx.db.insert(contentReports).values({ id: "rpt_ops1", reporterUserId: reporterId, orgId, targetType: "user", targetUserId: otherId, reason: "spam" });
     const rep = { body: { id: "rpt_ops1" } };
-    const act = await ops.post(`/api/admin/reports/${rep.body.id}/action`, { action: "dismiss", note: "Not spam" });
+    const act = await ops.post(`/api/console/moderation/reports/${rep.body.id}/action`, { action: "dismiss", note: "Not spam", reason: "Not spam" });
     expect(act.status).toBe(200);
     expect(act.body.report).toMatchObject({ status: "dismissed" });
-    const row = await ctx.db.select().from(platformAuditLogs).where(eq(platformAuditLogs.action, "report.dismiss")).get();
+    const row = await ctx.db.select().from(platformAuditLogs).where(eq(platformAuditLogs.targetId, rep.body.id)).get();
     expect(row).toMatchObject({ targetType: "report", targetId: rep.body.id, reason: "Not spam", actorRole: "ops_support" });
   });
 
@@ -79,8 +79,8 @@ describe("platform audit log", () => {
     const { c: ro } = await signUpAs(ctx, "ro@ops.test", "ops_readonly");
     const { c: cus } = await signUpAs(ctx, "cus@else.test", null, "Else");
     const orgId = (await cus.get("/api/account/me")).body.organization.id as string;
-    for (const cap of [1, 2, 3]) await owner.put(`/api/admin/workspaces/${orgId}/send-cap`, { cap });
-    await owner.post(`/api/admin/workspaces/${orgId}/suspend`, { reason: "Review" });
+    for (const cap of [1, 2, 3]) await owner.put(`/api/console/workspaces/${orgId}/send-cap`, { cap, reason: `Cap ${cap}` });
+    await owner.post(`/api/console/workspaces/${orgId}/suspend`, { reason: "Review" });
 
     const first = await ro.get("/api/console/audit?limit=2");
     expect(first.status).toBe(200);

@@ -9,8 +9,8 @@
  *   - check throttling and where update health reports go (the mobile Sentry DSN, public by design).
  *
  * GET /api/v1/app-config is public and cached for a minute. PUT changes the stored overrides and needs
- * the deployment's APP_CONFIG_TOKEN (the release scripts in mobile/scripts/ota.js hold it). Platform
- * admins can read and change it from the operator console too (GET/PUT /api/admin/app-config).
+ * the deployment's APP_CONFIG_TOKEN (the release scripts in mobile/scripts/ota.js hold it). Operators
+ * read and change it in the operator console (GET/PUT /api/console/mobile, routes/console/mobile.ts).
  * Stored in app_settings under one key, so there is no migration and a change is one D1 write.
  */
 import { Hono, type Context } from "hono";
@@ -18,8 +18,6 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { appSettings } from "../db/schema";
-import { operatorSession, requireOperator } from "../auth/operator"; // OPS1
-import { operatorAction, optionalReasonSchema } from "../services/console/audit"; // OPS1
 
 export const APP_CONFIG_KEY = "mobile_app_config";
 
@@ -134,24 +132,15 @@ function sameSecret(a: string, b: string): boolean {
   return diff === 0;
 }
 
-async function parsePatch(c: Context<AppEnv>, opts: { allowReason?: boolean } = {}) {
+async function parsePatch(c: Context<AppEnv>) {
   let body: unknown;
   try { body = await c.req.json(); } catch { return { error: c.json({ error: { code: "invalid_json", message: "Send a JSON body." } }, 400) }; }
-  // OPS1: the operator route takes an optional reason beside the patch (the token route keeps its exact shape).
-  let reason: string | undefined;
-  if (opts.allowReason && body && typeof body === "object" && "reason" in body) {
-    const { reason: raw, ...rest } = body as Record<string, unknown>;
-    const rr = optionalReasonSchema.safeParse(raw ?? undefined);
-    if (!rr.success) return { error: c.json({ error: { code: "validation_failed", message: `reason: ${rr.error.issues[0]?.message ?? "invalid"}` } }, 422) };
-    reason = rr.data;
-    body = rest;
-  }
   const r = appConfigPatch.safeParse(body);
   if (!r.success) {
     const i = r.error.issues[0];
     return { error: c.json({ error: { code: "validation_failed", message: `${i?.path.join(".") || "body"}: ${i?.message ?? "invalid"}` } }, 422) };
   }
-  return { patch: r.data, reason };
+  return { patch: r.data };
 }
 
 /** Mounted at /api/v1/app-config (before the lazy v1 API). */
@@ -172,26 +161,5 @@ export function appConfigRoutes() {
       const p = await parsePatch(c);
       if ("error" in p) return p.error;
       return c.json(await writePatch(c, p.patch!, "token"));
-    });
-}
-
-/** Mounted at /api/admin/app-config for the operator console (platform admins, cookie session). */
-export function adminAppConfigRoutes() {
-  return new Hono<AppEnv>()
-    .use("*", operatorSession) // OPS1: operator permissions, no workspace SSO or budget
-    .get("/", requireOperator("mobile.read"), async (c) => {
-      const { stored, updatedAt } = await readStored(c);
-      return c.json(resolveAppConfig(stored, c.var.deps.config.mobileApp?.sentryDsn, updatedAt));
-    })
-    .put("/", requireOperator("mobile.manage"), async (c) => {
-      const p = await parsePatch(c, { allowReason: true });
-      if ("error" in p) return p.error;
-      // OPS1: audited with the stored config before and the patch after; the body may carry an optional reason.
-      const { stored: before } = await readStored(c);
-      const out = await operatorAction(c, {
-        action: "app_config.updated", targetType: "app_config", targetId: APP_CONFIG_KEY, reason: p.reason ?? null,
-        before, metadata: { keys: Object.keys(p.patch!) }, after: () => p.patch,
-      }, () => writePatch(c, p.patch!, `admin:${c.var.auth?.userId ?? "?"}`));
-      return c.json(out);
     });
 }

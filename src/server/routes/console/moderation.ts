@@ -33,7 +33,8 @@ import {
 } from "../../services/console/moderation";
 import { getOrg } from "../../services/plans";
 import { REPORT_REASONS } from "../../services/suite/reports-r35";
-import { can, isOperatorRole } from "@/shared/operator-permissions";
+import { can } from "@/shared/operator-permissions";
+import { isProtectedAccount } from "../../services/console/users";
 
 // ---------------------------------------------------------------- the data layer's paging, as the console's list convention
 
@@ -144,8 +145,9 @@ export function moderationRoutes() {
           throw new HttpError(403, "step_up_required", `Sign in again to do this. It needs a sign in from the last ${deps.config.operator.freshMinutes} minutes.`, { freshMinutes: deps.config.operator.freshMinutes });
         }
         if (r.targetUserId) {
-          const target = await deps.db.select({ role: users.role }).from(users).where(eq(users.id, r.targetUserId)).get();
-          if (isOperatorRole(target?.role)) throw new HttpError(409, "operator_account", "This person is a platform operator. Remove their operator role before suspending them.");
+          const target = await deps.db.select({ id: users.id, email: users.email, role: users.role }).from(users).where(eq(users.id, r.targetUserId)).get();
+          // OPS1 security: an operator role, or an id or address listed in PLATFORM_ADMIN_EMAILS.
+          if (target && isProtectedAccount(deps.config, target)) throw new HttpError(409, "operator_account", "This person is a platform operator. Remove their operator role before suspending them.");
         }
       }
       const touchesWorkspace = body.action === "remove_message" || body.action === "suspend_user";

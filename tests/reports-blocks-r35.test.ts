@@ -52,7 +52,7 @@ describe("reports", () => {
     expect(u.status).toBe(201);
     // Operator queue
     const ops = a; await ctx.db.update(users).set({ role: "admin" }).where(eq(users.email, "owner@acme.io"));
-    const q = (await ops.get("/api/admin/reports")).body.reports;
+    const q = (await ops.get("/api/console/moderation/reports")).body.items; // OPS1 security: the console queue
     expect(q).toHaveLength(2);
     const msg = q.find((x: { targetType: string }) => x.targetType === "message");
     expect(msg).toMatchObject({ reason: "harassment", context: "chat", note: "Third time today", snapshotText: "you are all useless", status: "open", target: { id: sam.id, name: "Sam Lee" }, reporter: { name: "Olive Owner" } });
@@ -197,22 +197,26 @@ describe("operator moderation queue", () => {
     const sam = await teammate();
     const g = await general();
     const m = await post(g.id, "buy cheap pills here", sam.client);
-    expect((await a.get("/api/admin/reports")).status).toBe(403); // a workspace owner is not an operator
+    expect((await a.get("/api/console/moderation/reports")).status).toBe(403); // a workspace owner is not an operator
     const r1 = (await a.post("/api/reports", { targetType: "message", messageId: m.id, reason: "spam" })).body.id;
     const r2 = (await a.post("/api/reports", { targetType: "user", userId: sam.id, reason: "harassment" })).body.id;
     const r3 = (await a.post("/api/reports", { targetType: "user", userId: sam.id, reason: "other" })).body.id;
     await ctx.db.update(users).set({ role: "admin" }).where(eq(users.email, "owner@acme.io"));
-    expect((await a.post(`/api/admin/reports/${r1}/action`, { action: "explode" })).status).toBe(422);
-    const removed = (await a.post(`/api/admin/reports/${r1}/action`, { action: "remove_message", note: "Spam link" })).body.report;
+    // OPS1 security: the console route (reason required) replaced the retired /api/admin/reports/:id/action.
+    expect((await a.post(`/api/console/moderation/reports/${r1}/action`, { action: "explode", reason: "Reviewed the report" })).status).toBe(422);
+    expect((await a.post(`/api/console/moderation/reports/${r1}/action`, { action: "dismiss" })).status).toBe(422);
+    const removed = (await a.post(`/api/console/moderation/reports/${r1}/action`, { action: "remove_message", note: "Spam link", reason: "Reviewed the report" })).body.report;
     expect(removed).toMatchObject({ status: "resolved", action: "message_removed", resolutionNote: "Spam link" });
     const gone = ((await sam.client.get(`/api/chat/channels/${g.id}/messages`)).body.messages as { id: string; body: string; deleted?: boolean; deletedAt?: string }[]).find((x) => x.id === m.id)!;
     expect(gone.body).toBe("");
-    expect((await a.post(`/api/admin/reports/${r3}/action`, { action: "dismiss" })).body.report).toMatchObject({ status: "dismissed", action: "none" });
-    const susp = (await a.post(`/api/admin/reports/${r2}/action`, { action: "suspend_user" })).body.report;
+    expect((await a.post(`/api/console/moderation/reports/${r3}/action`, { action: "dismiss", reason: "Reviewed the report" })).body.report).toMatchObject({ status: "dismissed", action: "none" });
+    // Acting twice on a settled report is refused (409), by the route and by the service itself.
+    expect((await a.post(`/api/console/moderation/reports/${r3}/action`, { action: "resolve", reason: "Reviewed the report" })).status).toBe(409);
+    const susp = (await a.post(`/api/console/moderation/reports/${r2}/action`, { action: "suspend_user", reason: "Reviewed the report" })).body.report;
     expect(susp).toMatchObject({ status: "resolved", action: "user_suspended", target: { suspended: true } });
     expect((await sam.client.get("/api/account/me")).status).toBe(401); // sessions ended
-    expect((await a.get("/api/admin/reports")).body.reports).toEqual([]);
-    expect((await a.get("/api/admin/reports?status=all")).body.reports).toHaveLength(3);
-    expect((await a.post("/api/admin/reports/rpt_missing/action", { action: "dismiss" })).status).toBe(404);
+    expect((await a.get("/api/console/moderation/reports")).body.items).toEqual([]);
+    expect((await a.get("/api/console/moderation/reports?status=all")).body.items).toHaveLength(3);
+    expect((await a.post("/api/console/moderation/reports/rpt_missing/action", { action: "dismiss", reason: "Reviewed the report" })).status).toBe(404);
   });
 });

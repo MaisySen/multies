@@ -4,7 +4,7 @@
  * Reports: anyone signed in can report a chat message (channel, thread, DM or meeting chat) or a person they share a
  * workspace with. A message report copies the text and author at report time, so a later edit or delete does not
  * change what the operator reviews. 20 reports per person per day. The operator queue lives in the operator console
- * (routes/reports-r35.ts, /api/admin/reports) and the operator is mailed at most once per 15 minutes.
+ * (routes/console/moderation.ts, /api/console/moderation/reports) and the operator is mailed at most once per 15 minutes.
  *
  * Blocks: A blocks B. Every chat read A makes leaves out B's messages on the server (notBlockedBy below is the one
  * SQL condition every read path adds), B cannot open or send a DM that has A in it (403 blocked), and B's mentions
@@ -233,6 +233,8 @@ export type ReportAction = "dismiss" | "resolve" | "remove_message" | "suspend_u
 export async function actOnReport(deps: Deps, operator: { userId: string }, id: string, input: { action: ReportAction; note?: string }) {
   const r = await deps.db.select().from(contentReports).where(eq(contentReports.id, id)).get();
   if (!r) throw notFound("Report");
+  // OPS1 security: a report is acted on once; a settled one is never re-opened or acted on again by any caller.
+  if (r.status !== "open") throw new HttpError(409, "already_closed", "Someone already acted on this report. Reload the list.");
   const now = deps.now();
   const note = (input.note ?? "").trim().slice(0, 1000) || null;
   let status: "resolved" | "dismissed" = "resolved";
@@ -246,6 +248,12 @@ export async function actOnReport(deps: Deps, operator: { userId: string }, id: 
   } else if (input.action === "suspend_user") {
     if (!r.targetUserId) throw new HttpError(422, "validation_failed", "No person to suspend on this report.");
     if (r.targetUserId === operator.userId) throw new HttpError(422, "validation_failed", "You can't suspend yourself.");
+    // OPS1 security: never an operator or a PLATFORM_ADMIN_EMAILS account, whoever calls this (the console route checks too).
+    const target = await deps.db.select({ id: users.id, email: users.email, role: users.role }).from(users).where(eq(users.id, r.targetUserId)).get();
+    const { isProtectedAccount } = await import("../console/users");
+    if (target && isProtectedAccount(deps.config, target)) {
+      throw new HttpError(409, "operator_account", "This person is a platform operator. Remove their operator role before suspending them.");
+    }
     const { sessions } = await import("../../db/schema");
     await deps.db.update(users).set({ banned: true, banReason: `Suspended after a content report (${r.reason}).` }).where(eq(users.id, r.targetUserId));
     await deps.db.delete(sessions).where(eq(sessions.userId, r.targetUserId));

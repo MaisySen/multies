@@ -24,7 +24,7 @@ describe("an operator's own workspace rules", () => {
     resetWorkspaceBudget();
 
     expect((await ops.patch("/api/org", { name: "Still Ops" })).status).toBe(429);
-    expect((await ops.post(`/api/admin/workspaces/${cusOrg}/suspend`, { reason: "Under review" })).status).toBe(200);
+    expect((await ops.post(`/api/console/workspaces/${cusOrg}/suspend`, { reason: "Under review" })).status).toBe(200);
     expect((await ops.post("/api/console/operators", { email: "new@ops.test", role: "ops_readonly", reason: "Grant while busy" })).status).toBe(201);
     expect((await ops.get("/api/console/me")).status).toBe(200);
     expect(newId).toBeTruthy();
@@ -48,7 +48,7 @@ describe("an operator's own workspace rules", () => {
     expect(blocked.body.error.code).toBe("sso_required");
     expect((await ops.get("/api/console/me")).status).toBe(200);
     expect((await ops.get("/api/console/overview")).status).toBe(200);
-    expect((await ops.get("/api/admin/overview")).status).toBe(200);
-    expect((await ops.put(`/api/admin/workspaces/${cusOrg}/send-cap`, { cap: 5 })).body).toEqual({ ok: true, sendCapDaily: 5 });
+    expect((await ops.get("/api/admin/health")).status).toBe(200);
+    expect((await ops.put(`/api/console/workspaces/${cusOrg}/send-cap`, { cap: 5, reason: "Slow it down" })).body).toEqual({ ok: true, sendCapDaily: 5 });
   });
 });

@@ -193,7 +193,8 @@ cached 60 s, read at launch and on resume (at most every 5 minutes) and kept on 
   "Update Multies to continue", with a button to the App Store or Google Play. Use it rarely: when
   an API change breaks old builds. Set it with
   `curl -X PUT https://multies.si/api/v1/app-config -H "authorization: Bearer $APP_CONFIG_TOKEN" -H "content-type: application/json" -d '{"min_supported":{"ios":{"build":18}}}'`
-  (inside `$C`), or from the operator console API (`PUT /api/admin/app-config`, platform admins).
+  (inside `$C`), or from the operator console, Mobile app (`/console/mobile`; `PUT /api/console/mobile` with
+  `{ patch, reason }`, operators with mobile.manage and a recent sign in).
 - Junk or an unreachable server never blocks: the phone keeps its last good config, else the safe
   defaults.
 

@@ -66,15 +66,16 @@ describe("send guard", () => {
     const items = list.items ?? list.schedules ?? list;
     expect(JSON.stringify(items)).toMatch(/New workspaces send to 20/);
     // Operator: list and send anyway; the next pass sends it past the limit.
-    const q = (await ops.get(`/api/admin/workspaces/${orgId}/queued-sends`)).body.queued;
+    // OPS1 security: the console routes (reason required) replaced the retired /api/admin ones.
+    const q = (await ops.get(`/api/console/workspaces/${orgId}/queued-sends`)).body.items;
     expect(q).toHaveLength(1);
-    expect((await ops.post(`/api/admin/workspaces/${orgId}/queued-sends/${q[0].id}/send`)).body.ok).toBe(true);
+    expect((await ops.post(`/api/console/workspaces/${orgId}/queued-sends/${q[0].id}/send`, { reason: "Customer asked" })).status).toBe(200);
     await runMailSchedules(ctx.deps);
     expect((await ctx.deps.db.select().from(mailSchedules).all()).length).toBe(0);
     const out = await ctx.deps.db.select().from(deliveries).where(eq(deliveries.toAddress, "late@outside.example")).all();
     expect(out.length).toBe(1);
     // The owner can't use the operator routes.
-    expect((await owner.get(`/api/admin/workspaces/${orgId}/queued-sends`)).status).toBe(403);
+    expect((await owner.get(`/api/console/workspaces/${orgId}/queued-sends`)).status).toBe(403);
   });
 
   it("past its first week with a clean record the plan's cap applies; over the plan cap it queues instead of refusing", async () => {
@@ -97,11 +98,11 @@ describe("send guard", () => {
   });
 
   it("the kill switch refuses sends with a clear message, and turning it back on restores the plan cap", async () => {
-    expect((await ops.put(`/api/admin/workspaces/${orgId}/sending`, { enabled: false })).body).toMatchObject({ sending: false, sendCapDaily: 0 });
+    expect((await ops.put(`/api/console/workspaces/${orgId}/sending`, { enabled: false, reason: "Spam wave" })).body).toMatchObject({ sending: false, sendCapDaily: 0 });
     const r = await send(["one@outside.example"]);
     expect(r.status).toBe(403);
     expect(r.body.error?.code ?? r.body.code).toBe("sending_off");
-    expect((await ops.put(`/api/admin/workspaces/${orgId}/sending`, { enabled: true })).body.sendCapDaily).toBeNull();
+    expect((await ops.put(`/api/console/workspaces/${orgId}/sending`, { enabled: true, reason: "Cleared" })).body.sendCapDaily).toBeNull();
     expect((await send(["one@outside.example"])).status).toBe(201);
   });
 

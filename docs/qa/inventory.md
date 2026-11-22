@@ -51,7 +51,7 @@ Results for each item are in docs/qa/report.md.
 - `/app/meetings`
 - `/app/meetings/:id`
 - `/app/deliverability`
-- `/app/admin`
+- `/app/admin` (opens `/console`)
 - `/app/settings`
 - `/app/settings/team`
 - `/app/settings/billing`
@@ -97,19 +97,12 @@ Results for each item are in docs/qa/report.md.
 
 ### /api/admin
 
-- GET `/api/admin/abuse`
-- POST `/api/admin/abuse/resolve`
+OPS1 security: only these reads are left; every operator change is under `/api/console` (the operator console), and
+any other `/api/admin` address answers 404.
+
 - GET `/api/admin/health`
-- GET `/api/admin/jobs`
-- POST `/api/admin/jobs/replay`
-- GET `/api/admin/overview`
-- POST `/api/admin/sentry-test`
 - GET `/api/admin/status`
-- GET `/api/admin/users`
-- DELETE `/api/admin/users/:id`
-- PUT `/api/admin/workspaces/:id/send-cap`
-- POST `/api/admin/workspaces/:id/suspend`
-- POST `/api/admin/workspaces/:id/unsuspend`
+- GET `/api/admin/reports/count`
 
 ### /api/agents
 
