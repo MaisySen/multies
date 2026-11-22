@@ -4,7 +4,7 @@
  * impersonation row first. Node paths run for real here (MemoryChatHub, the ws doc rooms); the Durable Object paths are
  * checked through their fetch and message handlers with fake state (not run on Workers).
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { getRequestListener } from "@hono/node-server";
@@ -194,5 +194,37 @@ describe("L2: doc co-editing sockets (Node, real ws)", () => {
     ended = true;
     await room.webSocketMessage(ws as never, m.buffer.slice(m.byteOffset, m.byteOffset + m.byteLength) as ArrayBuffer);
     expect(ws.closed).toEqual([4003]);
+  });
+
+  it("item 3: the DocRoom re-checks a view socket's row at most once a minute while sending to it, and closes it once ended (not run on Workers)", async () => {
+    let ended = false;
+    let reads = 0;
+    const db = { prepare: () => ({ bind: () => ({ first: async () => { reads++; return { ended_at: ended ? Date.now() : null, expires_at: Date.now() + 3_600_000 }; } }) }) };
+    const storage = { sql: { exec: () => Object.assign([], { toArray: () => [] }) }, transactionSync: (fn: () => unknown) => fn(), setAlarm: async () => undefined, deleteAlarm: async () => undefined, deleteAll: async () => undefined };
+    const make = (att: unknown) => { const s = { att, closed: [] as number[], sent: 0, send: () => { s.sent++; }, close: (code: number) => { s.closed.push(code); }, serializeAttachment: (v: unknown) => { s.att = v; }, deserializeAttachment: () => s.att }; return s; };
+    const viewer = make({ readOnly: true, silent: true, ids: [], imp: { id: "imp_v", until: Date.now() + 3_600_000 } });
+    const editor = make({ readOnly: false, ids: [] });
+    const sockets = [viewer, editor];
+    const room = new DocRoom({ storage, acceptWebSocket: () => undefined, getWebSockets: () => sockets as never } as never, { DB: db });
+    const send = async (text: string) => { const m = updateMessage(text); await room.webSocketMessage(editor as never, m.buffer.slice(m.byteOffset, m.byteOffset + m.byteLength) as ArrayBuffer); await room.recheckDone; };
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      await send("one");
+      expect(viewer.sent).toBeGreaterThan(0);
+      expect(reads).toBe(1);
+      ended = true; // Stop in another isolate: no kick reaches the doc room
+      now += 10_000;
+      await send("two"); // inside the minute: no read yet
+      expect(reads).toBe(1);
+      expect(viewer.closed).toEqual([]);
+      now += 60_000;
+      await send("three");
+      expect(reads).toBe(2);
+      expect(viewer.closed).toEqual([4003]);
+      expect(editor.closed).toEqual([]);
+    } finally {
+      clock.mockRestore();
+    }
   });
 });

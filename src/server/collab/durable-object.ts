@@ -35,6 +35,8 @@ interface D1Like { prepare(q: string): { bind(...v: unknown[]): { first<T>(): Pr
 type SocketConn = CollabConn & { ws: HibernatingSocket };
 
 const IDLE_CLEANUP_MS = 30 * 24 * 60 * 60 * 1000;
+/** OPS1 security review (item 3): how often a room re-reads an impersonation socket's row while sending to it. */
+export const RECHECK_MS = 60_000;
 
 export class DocRoom {
   private room: CollabRoom | null = null;
@@ -80,6 +82,25 @@ export class DocRoom {
     room.receive(this.connOf(ws), data);
   }
 
+  /**
+   * OPS1 security review (item 3): a doc room cannot be told which of its sockets an ended impersonation opened (the
+   * console does not know which docs the session had open, so there is no /kick by session for doc rooms on Workers).
+   * Instead, while sending to an impersonation socket, the room re-reads its row at most once a RECHECK_MS per socket
+   * and closes the socket when it has ended. Bound: a Stop is noticed within a minute of the next activity in the
+   * room (nothing is sent while the room is idle), and the expiry closes it regardless.
+   */
+  private readonly lastCheck = new Map<HibernatingSocket, number>();
+  /** Resolves when the newest re-check finished (tests). */
+  recheckDone: Promise<void> = Promise.resolve();
+
+  private recheckSoon(ws: HibernatingSocket, id: string) {
+    const now = Date.now();
+    const last = this.lastCheck.get(ws);
+    if (last !== undefined && now - last < RECHECK_MS) return;
+    this.lastCheck.set(ws, now);
+    this.recheckDone = this.impersonationActive(id).then(async (ok) => { if (!ok) await this.endImpersonation(ws); }).catch(() => undefined);
+  }
+
   private async impersonationActive(id: string): Promise<boolean> {
     if (!this.db) return false;
     const row = await this.db.prepare("select ended_at, expires_at from operator_impersonations where id = ?").bind(id).first<{ ended_at: number | null; expires_at: number }>().catch(() => null);
@@ -87,6 +108,7 @@ export class DocRoom {
   }
 
   private async endImpersonation(ws: HibernatingSocket) {
+    this.lastCheck.delete(ws);
     await this.drop(ws);
     try { ws.close(CLOSE_IMPERSONATION_ENDED, "impersonation ended"); } catch { /* already closed */ }
   }
@@ -110,6 +132,7 @@ export class DocRoom {
     const att = (ws.deserializeAttachment() ?? { ids: [] }) as Attachment;
     this.getRoom().leave(this.connOf(ws), att.ids);
     this.conns.delete(ws);
+    this.lastCheck.delete(ws);
     if (!this.ctx.getWebSockets().some((s) => s !== ws)) await this.ctx.storage.setAlarm(Date.now() + IDLE_CLEANUP_MS);
   }
 
@@ -121,7 +144,11 @@ export class DocRoom {
       conn = {
         ws, readOnly: att.readOnly, silent: !!att.silent,
         // OPS1 security (L2): nothing reaches an impersonation socket past the impersonation's expiry.
-        send: (data) => { if (until !== undefined && Date.now() >= until) { try { ws.close(CLOSE_IMPERSONATION_ENDED, "impersonation ended"); } catch { /* gone */ } return; } ws.send(data); },
+        send: (data) => {
+          if (until !== undefined && Date.now() >= until) { try { ws.close(CLOSE_IMPERSONATION_ENDED, "impersonation ended"); } catch { /* gone */ } return; }
+          if (att.imp) this.recheckSoon(ws, att.imp.id);
+          ws.send(data);
+        },
       };
       this.conns.set(ws, conn);
     }
