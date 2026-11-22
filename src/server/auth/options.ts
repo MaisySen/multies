@@ -68,14 +68,31 @@ const operatorTwoFactorChanged = async (deps: Deps, user: { id: string; email: s
 /**
  * OPS1 security (M2 re-check): reading the authenticator secret or making new backup codes hands out a second factor,
  * and so does turning two-step off and on again (/disable needs only a session and the password in Better Auth, then
- * /enable issues a new secret and backup codes). On an enrolled account an operator's session must meet the console's
- * two-step rule first (auth/operator.ts secondFactorChangeRefusal). Turning it on for the first time is not limited.
+ * /enable issues a new secret and backup codes). An operator's session must meet the console's two-step rule first
+ * (auth/operator.ts secondFactorChangeRefusal), on these terms (`when`):
+ * - "enrolled": once two-step is on. Turning it on for the first time is not limited.
+ * - "any_factor": once two-step is on, and also while a setup waits for its first code. Better Auth's /enable writes a
+ *   pending (unverified) row and leaves two-step off until /verify-totp accepts a code, and /get-totp-uri hands out
+ *   that pending secret for the password alone: whoever read it could finish the setup or sign in with it later. The
+ *   setup's own /enable response already carries the secret and backup codes.
+ * - "enrolment": finishing a setup (/verify-totp while signed in, two-step still off) needs the session that started
+ *   it (auth/two-factor-session.ts noteEnrolmentStarted), so no other session can complete it (with a leaked or
+ *   guessed code; Better Auth counts no failed attempts there) and be marked. Starting a setup again is not limited.
  */
-const FACTOR_MINTING_REFUSED: Record<string, string> = {
-  "/two-factor/get-totp-uri": "For your safety, sign out and sign in again with your password and two-step code before you view your authenticator setup.",
-  "/two-factor/generate-backup-codes": "For your safety, sign out and sign in again with your password and two-step code before you make new backup codes.",
-  "/two-factor/disable": "For your safety, sign out and sign in again with your password and two-step code (or a backup code) before you turn off two-step sign in.",
-  "/two-factor/enable": "For your safety, sign out and sign in again with your password and two-step code before you set up two-step sign in again.",
+const FACTOR_MINTING_REFUSED: Record<string, { when: "enrolled" | "any_factor" | "enrolment"; message: string; pending?: string }> = {
+  "/two-factor/get-totp-uri": {
+    when: "any_factor",
+    message: "For your safety, sign out and sign in again with your password and two-step code before you view your authenticator setup.",
+    pending: "For your safety, the authenticator setup is shown only once. To see it again, start setting up two-step sign in again.",
+  },
+  "/two-factor/generate-backup-codes": {
+    when: "any_factor",
+    message: "For your safety, sign out and sign in again with your password and two-step code before you make new backup codes.",
+    pending: "Finish setting up two-step sign in first. Your backup codes were shown when you started.",
+  },
+  "/two-factor/disable": { when: "enrolled", message: "For your safety, sign out and sign in again with your password and two-step code (or a backup code) before you turn off two-step sign in." },
+  "/two-factor/enable": { when: "enrolled", message: "For your safety, sign out and sign in again with your password and two-step code before you set up two-step sign in again." },
+  "/two-factor/verify-totp": { when: "enrolment", message: "For your safety, finish setting up two-step sign in where you started it, or start setting it up again." },
 };
 
 /** PRIV1b (P48): account recovery steps that also end every app (MCP OAuth grant) the person signed in. */
@@ -228,14 +245,30 @@ export function authOptions(deps: Deps) {
           const row = token ? await db.select({ id: schema.sessions.id, userId: schema.sessions.userId, loginMethod: schema.sessions.loginMethod, impersonatedBy: schema.sessions.impersonatedBy }).from(schema.sessions).where(eq(schema.sessions.token, token)).get() : undefined;
           if (row?.impersonatedBy) throw new APIError("FORBIDDEN", { code: "IMPERSONATION_BLOCKED", message: ALWAYS_BLOCKED_MESSAGE });
           // OPS1 security (M2 re-check): an operator's session that never gave the code may not read the authenticator
-          // secret, make new backup codes, or turn two-step off (and so set it up again with a secret of its own). Only
-          // an enrolled account is limited: the first enrolment has no factor to protect.
-          const mintingRefused = FACTOR_MINTING_REFUSED[ctx.path];
-          if (row && mintingRefused) {
+          // secret, make new backup codes, turn two-step off (and so set it up again with a secret of its own), or finish
+          // a setup another session started (FACTOR_MINTING_REFUSED). Starting the first setup is not limited.
+          const minting = FACTOR_MINTING_REFUSED[ctx.path];
+          if (row && minting) {
             const u = await db.select({ email: schema.users.email, role: schema.users.role, twoFactorEnabled: schema.users.twoFactorEnabled }).from(schema.users).where(eq(schema.users.id, row.userId)).get();
-            const { secondFactorChangeRefusal } = await import("./operator");
-            if (u?.twoFactorEnabled && await secondFactorChangeRefusal(deps, { userId: row.userId, email: u.email, platformRole: u.role ?? undefined, twoFactor: true, loginMethod: row.loginMethod ?? undefined, sessionId: row.id })) {
-              throw new APIError("FORBIDDEN", { code: "SECOND_FACTOR_REQUIRED", message: mintingRefused });
+            if (u) {
+              const enrolled = !!u.twoFactorEnabled;
+              // Two-step off: only an operator or PLATFORM_ADMIN_EMAILS account with the rule on is looked at further,
+              // so nobody else pays a read for it.
+              const guarded = async () => config.operator.requireTwoFactor
+                && (await import("../services/console/users")).isProtectedAccount(config, { id: row.userId, email: u.email, role: u.role ?? null });
+              let message: string | undefined;
+              if (enrolled) {
+                if (minting.when !== "enrolment") message = minting.message;
+              } else if (minting.when === "any_factor") {
+                const pendingRow = await guarded() && await db.select({ id: schema.twoFactors.id }).from(schema.twoFactors).where(eq(schema.twoFactors.userId, row.userId)).get();
+                if (pendingRow) message = minting.pending ?? minting.message;
+              } else if (minting.when === "enrolment") {
+                if (await guarded() && await (await import("./two-factor-session")).enrolmentStartedBy(deps, row.userId) !== row.id) message = minting.message;
+              }
+              const { secondFactorChangeRefusal } = await import("./operator");
+              if (message && await secondFactorChangeRefusal(deps, { userId: row.userId, email: u.email, platformRole: u.role ?? undefined, twoFactor: enrolled, loginMethod: row.loginMethod ?? undefined, sessionId: row.id })) {
+                throw new APIError("FORBIDDEN", { code: "SECOND_FACTOR_REQUIRED", message });
+              }
             }
           }
         }
@@ -268,6 +301,11 @@ export function authOptions(deps: Deps) {
           await markTwoFactorSession(deps, user, ctx.context.newSession.session.id, enrolled ? "enrolment" : SECOND_FACTOR_PATHS[ctx.path]!);
           // An operator turning two-step sign in on: the platform audit log, and every owner is told.
           if (enrolled && isOperatorRole(user.role)) await operatorTwoFactorChanged(deps, user, "on");
+        }
+        // OPS1 security (M2 re-check): an operator starting a two-step setup. Only this session may finish it.
+        if (!refused && ctx.path === "/two-factor/enable" && ctx.context.session?.user && ctx.context.session.session) {
+          const user = ctx.context.session.user as { id: string; email: string; role?: string | null };
+          await (await import("./two-factor-session")).noteEnrolmentStarted(deps, user, ctx.context.session.session.id);
         }
         // OPS1 security (M2): two-step off. The person's marked sessions stop counting (the console refuses them until
         // they turn it on again and sign in with the code); an operator's change is audited and every owner is told.

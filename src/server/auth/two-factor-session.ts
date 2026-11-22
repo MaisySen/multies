@@ -15,7 +15,10 @@
  *   passkey added from a session that was itself marked counts (two_factor_passkey:<userId>:<passkeyId>), so a session
  *   that never gave the code cannot mint itself a factor. For the same reason an operator's session without a mark may
  *   not add a passkey, read the authenticator secret, make new backup codes, or turn two-step off and set it up again
- *   (routes/passkeys-des1.ts, the auth before hook in auth/options.ts).
+ *   (routes/passkeys-des1.ts, the auth before hook in auth/options.ts). The secret and backup codes stay shut while a
+ *   setup waits for its first code too (Better Auth keeps a pending, unverified row then and would hand them out with
+ *   the password alone), and only the session that started that setup may finish it with /two-factor/verify-totp
+ *   (two_factor_enrolment:<userId> names it), so no other session can complete it and be marked.
  * - Marks are written ONLY for accounts that hold an operator role or are listed in PLATFORM_ADMIN_EMAILS, so an
  *   ordinary sign in costs no write. Stored in app_settings as two_factor_session:<userId>:<sessionId> (a primary key
  *   read per console request; no migration).
@@ -34,6 +37,8 @@ export type SecondFactor = "totp" | "otp" | "backup_code" | "enrolment" | "passk
 
 const prefix = (userId: string) => `two_factor_session:${userId}:`;
 const markKey = (userId: string, sessionId: string) => `${prefix(userId)}${sessionId}`;
+/** The session that started a pending two-step setup (outside the marks' range). */
+const enrolmentKey = (userId: string) => `two_factor_enrolment:${userId}`;
 /** Every key of one person's marks: [prefix, prefix + U+FFFF), a range over the primary key. */
 const range = (userId: string) => and(gte(appSettings.key, prefix(userId)), lt(appSettings.key, `${prefix(userId)}￿`));
 
@@ -46,6 +51,8 @@ export async function markTwoFactorSession(deps: Pick<Deps, "db" | "config" | "n
   if (!isProtectedAccount(deps.config, { id: user.id, email: user.email, role: user.role ?? null })) return false;
   const value = JSON.stringify({ how, at: deps.now().toISOString() });
   await deps.db.insert(appSettings).values({ key: markKey(user.id, sessionId), value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
+  // The setup is finished: its record has done its job.
+  if (how === "enrolment") await deps.db.delete(appSettings).where(eq(appSettings.key, enrolmentKey(user.id)));
   // Tidy this person's marks whose session no longer exists (signed out, revoked, expired and swept).
   const marks = await deps.db.select({ key: appSettings.key }).from(appSettings).where(range(user.id));
   const ids = marks.map((m) => m.key.slice(prefix(user.id).length));
@@ -81,7 +88,31 @@ export async function forgetPasskey(deps: Pick<Deps, "db">, userId: string, pass
   await deps.db.delete(appSettings).where(eq(appSettings.key, passkeyKey(userId, passkeyId)));
 }
 
-/** Forgets every mark of one person (two-step sign in turned off). */
+/**
+ * Records which session started a two-step setup (/two-factor/enable), for an operator or a PLATFORM_ADMIN_EMAILS
+ * account only; a later setup replaces it. Only that session may finish the setup (the auth before hook).
+ */
+export async function noteEnrolmentStarted(deps: Pick<Deps, "db" | "config" | "now">, user: { id: string; email: string; role?: string | null }, sessionId: string): Promise<void> {
+  const { isProtectedAccount } = await import("../services/console/users");
+  if (!isProtectedAccount(deps.config, { id: user.id, email: user.email, role: user.role ?? null })) return;
+  const value = JSON.stringify({ sessionId, at: deps.now().toISOString() });
+  await deps.db.insert(appSettings).values({ key: enrolmentKey(user.id), value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
+}
+
+/** The session that started this person's pending two-step setup, if any (one primary key read). */
+export async function enrolmentStartedBy(deps: Pick<Deps, "db">, userId: string): Promise<string | null> {
+  const row = await deps.db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, enrolmentKey(userId))).get();
+  if (!row) return null;
+  try {
+    const id = (JSON.parse(row.value) as { sessionId?: unknown }).sessionId;
+    return typeof id === "string" ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Forgets every mark of one person (two-step sign in turned off), and any setup they had started. */
 export async function clearTwoFactorMarks(deps: Pick<Deps, "db">, userId: string): Promise<void> {
   await deps.db.delete(appSettings).where(range(userId));
+  await deps.db.delete(appSettings).where(eq(appSettings.key, enrolmentKey(userId)));
 }

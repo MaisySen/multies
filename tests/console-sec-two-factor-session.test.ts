@@ -259,6 +259,92 @@ describe("M2 re-check: a session that gave no code cannot mint itself a second f
     expect((await c.post("/api/auth/two-factor/disable", { password: "a-strong-password" })).status).toBe(200);
   }, 90_000);
 
+  const twoFactorOn = async (ctx: Awaited<ReturnType<typeof makeTestApp>>, id: string) =>
+    !!(await ctx.db.select({ on: users.twoFactorEnabled }).from(users).where(eq(users.id, id)).get())?.on;
+  const markKeys = async (ctx: Awaited<ReturnType<typeof makeTestApp>>) =>
+    (await ctx.db.select().from(appSettings).all()).map((r) => r.key).filter((k) => k.startsWith("two_factor_session:"));
+
+  it("the checker's experiment: while a setup waits for its first code, a session that gave no code cannot read its secret or backup codes, or finish it", async () => {
+    const cases = [
+      { email: "ops@ops.test", role: "ops_admin" as const, env: ON },
+      { email: "boss@ops.test", role: null, env: { ...ON, PLATFORM_ADMIN_EMAILS: "boss@ops.test" } },
+    ];
+    for (const who of cases) {
+      const ctx = await makeTestApp(who.env);
+      const op = await signUpAs(ctx, who.email, who.role, "Ops");
+      const thief = new Client(ctx.app);
+      expect((await thief.login(who.email)).status).toBe(200); // password only
+      const started = await op.c.post("/api/auth/two-factor/enable", { password: "a-strong-password" });
+      expect(started.status).toBe(200);
+      const totp = OTPAuth.URI.parse(started.body.totpURI) as OTPAuth.TOTP;
+      expect(await twoFactorOn(ctx, op.id)).toBe(false); // Better Auth: a pending row, two-step still off
+      for (const c of [thief, op.c]) { // the setup's own session already has them from /enable
+        for (const path of ["/api/auth/two-factor/get-totp-uri", "/api/auth/two-factor/generate-backup-codes"]) {
+          const r = await c.post(path, { password: "a-strong-password" });
+          expect(r.status).toBe(403);
+          expect(r.body).toMatchObject({ code: "SECOND_FACTOR_REQUIRED" });
+          expect(JSON.stringify(r.body)).not.toContain("otpauth://");
+          expect(r.body).not.toHaveProperty("backupCodes");
+        }
+      }
+      // Even holding a good code (leaked or guessed), the thief cannot finish the setup and get a marked session.
+      const stolen = await thief.post("/api/auth/two-factor/verify-totp", { code: totp.generate() });
+      expect(stolen.status).toBe(403);
+      expect(stolen.body).toMatchObject({ code: "SECOND_FACTOR_REQUIRED" });
+      expect(await twoFactorOn(ctx, op.id)).toBe(false);
+      expect(await markKeys(ctx)).toEqual([]);
+      // The setup's own session finishes it and opens the console; the thief stays shut out.
+      expect((await op.c.post("/api/auth/two-factor/verify-totp", { code: totp.generate() })).status).toBe(200);
+      expect((await op.c.get("/api/console/me")).status).toBe(200);
+      await refused(thief, "no_second_factor_this_session");
+      expect(await ctx.db.select().from(appSettings).where(eq(appSettings.key, `two_factor_enrolment:${op.id}`)).get()).toBeUndefined();
+    }
+  }, 120_000);
+
+  it("the first setup still works through enable then verify-totp, and may be started again from another session", async () => {
+    const ctx = await makeTestApp(ON);
+    await signUpAs(ctx, "owner1@ops.test", "admin", "Owner");
+    const op = await signUpAs(ctx, "ops@ops.test", "ops_support", "Ops");
+    // Started on one device and abandoned; started again (a new secret) on another, which finishes it.
+    const laptop = await op.c.post("/api/auth/two-factor/enable", { password: "a-strong-password" });
+    expect(laptop.status).toBe(200);
+    const phone = new Client(ctx.app);
+    await phone.login("ops@ops.test");
+    const again = await phone.post("/api/auth/two-factor/enable", { password: "a-strong-password" });
+    expect(again.status).toBe(200);
+    expect(again.body.backupCodes).toHaveLength(10);
+    const totp = OTPAuth.URI.parse(again.body.totpURI) as OTPAuth.TOTP;
+    expect((await op.c.post("/api/auth/two-factor/verify-totp", { code: totp.generate() })).status).toBe(403); // not where it started now
+    ctx.outbound.sent.length = 0;
+    expect((await phone.post("/api/auth/two-factor/verify-totp", { code: totp.generate() })).status).toBe(200);
+    expect(await twoFactorOn(ctx, op.id)).toBe(true);
+    expect((await phone.get("/api/console/me")).status).toBe(200);
+    expect(ctx.outbound.sent.filter((m) => m.subject.includes("turned on two-step"))).toHaveLength(1);
+    // Signing in later with the code opens the console too.
+    const later = new Client(ctx.app);
+    expect((await later.login("ops@ops.test")).body).toMatchObject({ twoFactorRedirect: true });
+    expect((await later.post("/api/auth/two-factor/verify-totp", { code: totp.generate() })).status).toBe(200);
+    expect((await later.get("/api/console/me")).status).toBe(200);
+  }, 90_000);
+
+  it("an ordinary account (and an operator with the rule off) is unaffected while a setup waits for its first code", async () => {
+    for (const env of [ON, { OPERATOR_REQUIRE_2FA: "off" }]) {
+      const ctx = await makeTestApp(env);
+      const u = env === ON ? await signUpAs(ctx, "plain@example.com", null, "Plain") : await signUpAs(ctx, "ops@ops.test", "ops_admin", "Ops");
+      const email = env === ON ? "plain@example.com" : "ops@ops.test";
+      const other = new Client(ctx.app);
+      await other.login(email);
+      expect((await u.c.post("/api/auth/two-factor/enable", { password: "a-strong-password" })).status).toBe(200);
+      const r = await other.post("/api/auth/two-factor/get-totp-uri", { password: "a-strong-password" });
+      expect(r.status).toBe(200); // Better Auth's own behaviour, unchanged
+      const totp = OTPAuth.URI.parse(r.body.totpURI) as OTPAuth.TOTP;
+      expect((await other.post("/api/auth/two-factor/verify-totp", { code: totp.generate() })).status).toBe(200);
+      expect(await twoFactorOn(ctx, u.id)).toBe(true);
+      expect((await other.post("/api/auth/two-factor/generate-backup-codes", { password: "a-strong-password" })).status).toBe(200);
+      if (env === ON) expect((await ctx.db.select().from(appSettings).all()).filter((s) => s.key.startsWith("two_factor_"))).toEqual([]);
+    }
+  }, 90_000);
+
   it("a session that gave a backup code may turn two-step off; an ordinary account's unmarked session is not limited", async () => {
     const ctx = await makeTestApp(ON);
     const op = await signUpAs(ctx, "ops@ops.test", "ops_support", "Ops");
