@@ -1,3 +1,4 @@
+import { createApp } from "@/server/app";
 import { loadConfig } from "@/server/config";
 import { exportOwnAccountWire } from "./fixtures/mnet-own-account-wire-export";
 import labelBoundaries from "./fixtures/account-label-boundaries-v1.json";
@@ -104,6 +105,9 @@ describe("source-only own-account summary", () => {
   await ctx.db.update(sessions).set({expiresAt:new Date(0)}); expect((await summary()).status).toBe(403);
  });
  it("stays unavailable without provenance or outside development while old List remains unchanged", async () => {
+  // Malformed explicit provenance refuses on the real loader-to-app path,
+  // before any route table can be constructed. Reuse the existing test DBs.
+  expect(() => createApp({...ctx.deps,config:loadConfig({APP_SECRET:"t".repeat(40),MNET_DEVICE_BRIDGE:"on",MNET_ENROLLMENT_CONSENT:"off",MNET_ENROLLMENT_HANDOFF:"off",MNET_OWN_ACCOUNT_PROVENANCE:"{"})})).toThrow("summary-only provenance");
   ctx.deps.config = loadConfig({APP_SECRET:"t".repeat(40),MNET_DEVICE_BRIDGE:"on"}); expect((await summary()).status).toBe(404);
   const old = await ctx.app.request("/api/mnet/check",{method:"POST",headers:{host:"localhost","content-type":"application/json",authorization:`Bearer ${token}`},body:JSON.stringify({workspaceId,capability:"list"})});
   expect(old.status).toBe(200); expect(await old.json()).toMatchObject({deviceKey:"",allowed:["list"]});

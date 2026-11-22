@@ -22,6 +22,6 @@ The runtime route independently revalidates the dedicated property and the same 
 
 The six existing real-route protocol cases now obtain provenance through makeTestApp -> actual loadConfig, not a manually injected operator. Setup asserts both enrollment flags false and no enrollment operator. The valid summary case also asserts consent/handoff routes404. The absent case uses the actual loader with no provenance, verifies summary404 and old empty-key List200.
 
-Four additional configuration cases cover absent/default origin independence, valid explicit input with enrollment defaults unchanged, malformed/ambiguous/enrollment-shaped input rejected before route construction, and incompatible development/bridge/enrollment gates rejected.
+The malformed case also passes actual loadConfig as the configuration argument on the real createApp path and expects refusal before a route table is constructed, reusing the existing test databases. Four additional configuration cases cover absent/default origin independence, valid explicit input with enrollment defaults unchanged, malformed/ambiguous/enrollment-shaped input rejected before route construction, and incompatible development/bridge/enrollment gates rejected.
 
 This candidate is source/compile only. No S99 Vitest, artifact export, account flow or deployment has run. Earlier S98b results remain scoped to their own reviewed trees. The previous S98a five-pass/one-fail and full-graph compiler137 histories are not changed.
