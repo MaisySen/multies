@@ -15,7 +15,7 @@ import { inIds } from "../../lib/sql-chunks";
 import { newestRows } from "./recent-rows";
 import { deleteApiKey } from "../developer/api-keys";
 import { revokeGrant } from "../developer/oauth";
-import { replayFailed, scrubUrls, updateEndpoint } from "../developer/webhooks";
+import { replayFailed, scrubEndpointUrl, scrubUrls, updateEndpoint } from "../developer/webhooks";
 import { clampLimit, clip, found, keysetAfter, keysetOrder, ms, pageOf, resolveWindow, sortSpec, timeKey, withOwners, type Page, type PageRequest, type SortSpec, type TimeWindow } from "./mail";
 
 // ---------------------------------------------------------------- API keys
@@ -146,7 +146,9 @@ export async function listWebhookEndpoints(deps: Deps, filters: WebhookEndpointF
     : [];
   const failures = new Map(counts.map((c) => [c.endpointId, Number(c.n)]));
   return withOwners(deps, pageOf(rows, limit, (r) => ({
-    ...r, url: webhookUrlOrigin(r.url) ?? "", events: parseEvents(r.events), format: r.format ?? "json", disabledReason: clip(r.disabledReason), recentFailures: failures.get(r.id) ?? 0,
+    ...r, url: webhookUrlOrigin(r.url) ?? "", events: parseEvents(r.events), format: r.format ?? "json",
+    // OPS1 security: a reason stored before the scrub at record time may carry the URL's secret path or query.
+    disabledReason: clip(r.disabledReason == null ? null : scrubEndpointUrl(r.disabledReason, r.url)), recentFailures: failures.get(r.id) ?? 0,
   }), (r) => ({ v: ms(r.createdAt), id: r.id })));
 }
 
@@ -229,7 +231,7 @@ export async function listWebhookDeliveries(deps: Deps, filters: WebhookDelivery
     .orderBy(...keysetOrder(spec, d.id, page.sort.dir)).limit(limit + 1);
   const out = await withOwners(deps, pageOf(rows, limit, ({ dataKeys, ...r }) => ({
     // OPS1 security: errors stored before the scrub at record time may name the URL; only its origin leaves.
-    ...r, endpointUrl: webhookUrlOrigin(r.endpointUrl), lastError: clip(r.lastError == null ? null : scrubUrls(r.lastError)),
+    ...r, endpointUrl: webhookUrlOrigin(r.endpointUrl), lastError: clip(r.lastError == null ? null : r.endpointUrl ? scrubEndpointUrl(r.lastError, r.endpointUrl) : scrubUrls(r.lastError)),
     payloadPreview: `${r.eventType}${dataKeys ? `: ${dataKeys}` : ""}`.slice(0, 120),
   }), (r) => ({ v: ms(r.createdAt), id: r.id })));
   return recentOnly ? { ...out, recentOnly } : out;

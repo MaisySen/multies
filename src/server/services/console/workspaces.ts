@@ -20,6 +20,7 @@ import { containsAny, containsText, normalizeQuery } from "../../lib/like-search
 import { auditFilterCond, redactAuditRow, type AuditFilter } from "../audit";
 import { effectivePlanId, getOrg, getPlan, periodOf, usage } from "../plans";
 import { workspaceUsage, type WorkspaceBudgetLevel } from "../workspace-budget";
+import { scrubEndpointUrl } from "../developer/webhooks";
 import type { AddonQuantities, PlanId, PlanLimits } from "@/shared/plans";
 
 // ---- paging (shared with users.ts) ------------------------------------------------------------------------------
@@ -547,7 +548,8 @@ export async function listWorkspaceDeveloper(deps: Pick<Deps, "db">, orgId: stri
     })),
     webhookEndpoints: w.slice(0, DETAIL_LIST_CAP).map((r) => ({
       id: r.id, ...maskWebhookUrl(r.url), description: r.description, events: parseList(r.events) ?? [], enabled: !!r.enabled,
-      consecutiveDead: r.consecutiveDead, disabledReason: r.disabledReason, format: r.format, connector: r.connector, createdAt: iso(r.createdAt)!,
+      // OPS1 security: a reason stored before the scrub at record time may carry the URL's secret path or query.
+      consecutiveDead: r.consecutiveDead, disabledReason: r.disabledReason == null ? null : scrubEndpointUrl(r.disabledReason, r.url), format: r.format, connector: r.connector, createdAt: iso(r.createdAt)!,
     })),
     oauthGrants: g.slice(0, DETAIL_LIST_CAP).map((r) => ({
       id: r.id, clientId: r.clientId, clientName: r.clientName ?? null, userId: r.userId, userEmail: r.userEmail ?? null, scope: r.scope,

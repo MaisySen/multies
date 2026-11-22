@@ -27,16 +27,23 @@ export function scrubUrls(text: string): string {
   });
 }
 
-/** OPS1 security: `message` without the endpoint's URL, and without its path or query on their own. */
-export function scrubEndpointUrl(message: string, url: string): string {
-  let out = scrubUrls(message);
+/**
+ * OPS1 security: `message` without the endpoint's URL, and without its path or query on their own. The known URL is
+ * cut out first (as written and as the URL parser spells it), before scrubUrls, whose match stops at ( ) ' " < > and
+ * would otherwise leave the rest of such a path behind.
+ */
+export function scrubEndpointUrl(message: string | null | undefined, url: string): string {
+  let out = message ?? "";
   try {
     const x = new URL(url);
-    for (const part of [url, `${x.pathname}${x.search}`, x.search, x.pathname.length > 1 ? x.pathname : ""]) {
+    const origin = x.origin === "null" ? "[link]" : x.origin;
+    for (const full of new Set([url, x.href])) if (full.length > origin.length) out = out.split(full).join(origin);
+    const tail = `${x.pathname}${x.search}${x.hash}`;
+    for (const part of [tail, `${x.pathname}${x.search}`, x.search, x.hash, x.pathname.length > 1 ? x.pathname : ""]) {
       if (part && part.length > 1) out = out.split(part).join("[path]");
     }
   } catch { /* not a URL */ }
-  return out;
+  return scrubUrls(out);
 }
 
 export const WEBHOOK_EVENTS = [
@@ -251,7 +258,7 @@ async function onDeadLetter(deps: Deps, e: typeof webhookEndpoints.$inferSelect,
   const disable = n >= DISABLE_AFTER_DEAD;
   await deps.db.update(webhookEndpoints).set({
     consecutiveDead: n,
-    ...(disable ? { enabled: false, disabledReason: `Disabled after ${n} deliveries in a row failed every retry. Last error: ${error}` } : {}),
+    ...(disable ? { enabled: false, disabledReason: `Disabled after ${n} deliveries in a row failed every retry. Last error: ${scrubEndpointUrl(error, e.url)}` } : {}),
   }).where(eq(webhookEndpoints.id, e.id));
   deps.log?.warn("webhook.dead_letter", { endpoint: e.id, org: e.orgId, consecutive: n, disabled: disable });
   if (!disable) return;
