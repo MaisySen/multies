@@ -399,6 +399,94 @@ describe("the person's view and the console's", () => {
   }, 60_000);
 });
 
+describe("the Support sessions list names the workspace's first owner", () => {
+  it("not the person viewed as, nor a later owner; none when the workspace has no owner", async () => {
+    const { ctx, op } = await world();
+    const boss = await signUpAs(ctx, "boss@ops.test", "ops_admin");
+    const ann = await signUpAs(ctx, "ann@example.com", null, "Ann Co");
+    const orgId = (await ctx.db.select().from(members).where(eq(members.userId, ann.id)).get())!.organizationId;
+    const bob = await signUpAs(ctx, "bob@example.com", null, "Bob Co");
+    const mia = await signUpAs(ctx, "mia@example.com", null, "Mia Co");
+    const later = new Date(Date.now() + 60_000);
+    await ctx.db.insert(members).values({ id: "mem_bob_owner", organizationId: orgId, userId: bob.id, role: "owner", createdAt: later });
+    await ctx.db.insert(members).values({ id: "mem_mia_member", organizationId: orgId, userId: mia.id, role: "member", createdAt: later });
+    expect((await start(op.c, { userId: mia.id, orgId })).status).toBe(201);
+    const owner = async () => (await boss.c.get("/api/console/impersonation?status=active")).body.items[0].orgOwnerEmail;
+    expect(await owner()).toBe("ann@example.com");
+    // Search matches the names the table shows: the person's name and the workspace's name.
+    await ctx.db.update(users).set({ name: "Mia Lopez" }).where(eq(users.id, mia.id));
+    for (const q of ["Lopez", "Ann Co", "mia@example"]) {
+      expect((await boss.c.get(`/api/console/impersonation?status=all&q=${encodeURIComponent(q)}`)).body.items, q).toHaveLength(1);
+    }
+    expect((await boss.c.get("/api/console/impersonation?status=all&q=Nobody")).body.items).toEqual([]);
+    await ctx.db.update(members).set({ role: "admin" }).where(and(eq(members.organizationId, orgId), eq(members.userId, ann.id)));
+    expect(await owner()).toBe("bob@example.com");
+    await ctx.db.update(members).set({ role: "member" }).where(eq(members.id, "mem_bob_owner"));
+    expect(await owner()).toBeNull();
+  }, 90_000);
+});
+
+describe("every way a session ends is recorded", () => {
+  const ended = (ctx: Ctx, orgId: string) => ctx.db.select().from(auditLogs).where(and(eq(auditLogs.orgId, orgId), eq(auditLogs.action, "support.session_ended"))).all();
+
+  it("signing the person out from Users (one session, then every session) ends the View as session and names who did it", async () => {
+    const { ctx, op, target, orgId } = await world();
+    const boss = await signUpAs(ctx, "boss@ops.test", "ops_admin");
+    expect((await start(op.c, { userId: target.id })).status).toBe(201);
+    const imp = (await row(ctx, op.id))!;
+    // Revoking one of the person's own sessions leaves the support session alone.
+    const own = (await ctx.db.select().from(sessions).where(eq(sessions.userId, target.id)).all()).find((s) => s.id !== imp.sessionId)!;
+    expect((await boss.c.post(`/api/console/users/${target.id}/sessions/${own.id}/revoke`, { reason: "Lost laptop" })).status).toBe(200);
+    expect((await row(ctx, op.id))!.endedAt).toBeNull();
+    // Revoking the support session ends it: not listed as active, the reason says how, the workspace log says who.
+    expect((await boss.c.post(`/api/console/users/${target.id}/sessions/${imp.sessionId}/revoke`, { reason: "Ticket closed" })).status).toBe(200);
+    expect((await op.c.get("/api/tasks")).status).toBe(401);
+    expect((await row(ctx, op.id))!).toMatchObject({ endedReason: "signed_out" });
+    expect((await boss.c.get("/api/console/impersonation?status=active")).body.items).toEqual([]);
+    expect((await boss.c.get("/api/console/impersonation?status=ended")).body.items[0]).toMatchObject({ id: imp.id, endedReason: "signed_out", active: false });
+    const rows = await ended(ctx, orgId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ actorUserId: boss.id, actorEmail: "boss@ops.test", targetId: target.id });
+    expect(JSON.parse(rows[0]!.metadata!)).toMatchObject({ email: "tara@example.com", endedReason: "signed_out", mode: "view" });
+
+    // Every session: a second support session ends the same way.
+    const again = new Client(ctx.app);
+    expect((await again.login(`olive.ops_support@ops.test`)).status).toBe(200);
+    expect((await start(again, { userId: target.id })).status).toBe(201);
+    expect((await boss.c.get("/api/console/impersonation?status=active")).body.items).toHaveLength(1);
+    expect((await boss.c.post(`/api/console/users/${target.id}/sessions/revoke-all`, { reason: "Account recovery" })).status).toBe(200);
+    expect((await boss.c.get("/api/console/impersonation?status=active")).body.items).toEqual([]);
+    const all = await ctx.db.select().from(operatorImpersonations).where(eq(operatorImpersonations.operatorUserId, op.id)).all();
+    expect(all.map((r) => r.endedReason)).toEqual(["signed_out", "signed_out"]);
+    expect(await ended(ctx, orgId)).toHaveLength(2);
+  }, 90_000);
+
+  it("the time limit noticed and an operator losing access both write the workspace's ended entry", async () => {
+    const { ctx, op, target, orgId } = await world();
+    expect((await start(op.c, { userId: target.id })).status).toBe(201);
+    const realNow = ctx.deps.now;
+    ctx.deps.now = () => new Date(Date.now() + 31 * MIN);
+    try {
+      expect((await op.c.get("/api/tasks")).status).toBe(401);
+    } finally { ctx.deps.now = realNow; }
+    let rows = await ended(ctx, orgId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ actorUserId: op.id });
+    expect(JSON.parse(rows[0]!.metadata!)).toMatchObject({ endedReason: "expired" });
+
+    // Demoted by an owner: endImpersonationsNotAllowed ends it at once ("revoked").
+    const owner = await signUpAs(ctx, "owner@ops.test", "admin");
+    const again = new Client(ctx.app);
+    expect((await again.login(`olive.ops_support@ops.test`)).status).toBe(200);
+    expect((await start(again, { userId: target.id })).status).toBe(201);
+    await ctx.db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, op.id)); // a role change needs it on
+    expect((await owner.c.call("PATCH", `/api/console/operators/${op.id}`, { role: "ops_readonly", reason: "Moved to read only" })).status).toBe(200);
+    rows = await ended(ctx, orgId);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => JSON.parse(r.metadata!).endedReason).sort()).toEqual(["expired", "revoked"]);
+  }, 90_000);
+});
+
 describe("the admin plugin", () => {
   it("/api/auth/admin/* stays 404 over HTTP for operators", async () => {
     const { op, target } = await world("admin" as OperatorRole);

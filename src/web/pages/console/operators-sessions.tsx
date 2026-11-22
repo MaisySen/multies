@@ -41,6 +41,7 @@ export const END_REASON_LABELS: Record<string, string> = {
   expired: "Time limit reached",
   revoked: "Ended by an admin",
   invalid: "Operator lost access",
+  signed_out: "Person signed out from Users",
 };
 
 export function endReasonLabel(s: Pick<SupportSession, "endedReason" | "active">): string | null {
@@ -50,6 +51,17 @@ export function endReasonLabel(s: Pick<SupportSession, "endedReason" | "active">
 }
 
 const personName = (name: string | null, email: string | null) => name || email || "this person";
+
+/**
+ * The empty card. With a search: nothing matched it (DataTable offers to clear it). Without one, the Show filter is a
+ * view, not a narrowing, so the card says what that view holds and offers no button.
+ */
+function emptyState(status: string, searching: boolean) {
+  if (searching) return { icon: <IconEye />, title: "No sessions match", body: "Try another search." };
+  if (status === "ended") return { icon: <IconEye />, title: "No ended sessions yet", body: "A View as session shows here once it ends.", action: null };
+  if (status === "all") return { icon: <IconEye />, title: "No support sessions yet", body: "A session started with View as on a person's page shows here.", action: null };
+  return { icon: <IconEye />, title: "Nobody is viewing as anyone right now.", body: "A session started with View as on a person's page shows here while it lasts, and under Ended afterwards.", action: null };
+}
 
 /** Names and addresses in the table stop at this width (the linked page has them in full), so the action stays in view. */
 const CELL = "max-w-[9.5rem] sm:max-w-[11rem]";
@@ -70,11 +82,9 @@ export function SupportSessionsTab() {
   return (
     <div data-testid="console-operators-sessions">
       <DataTable<SupportSession>
-        label="Support sessions" path="/impersonation" filters={FILTERS} search={{ placeholder: "Search sessions" }}
+        label="Support sessions" path="/impersonation" filters={FILTERS} search={{ placeholder: "Search people or workspace" }}
         defaultSort="startedAt:desc" rowKey={(s) => s.id} minWidth={460}
-        empty={status === "active" && !params.get("q")
-          ? { icon: <IconEye />, title: "Nobody is viewing as anyone right now.", body: "A session started with View as on a person's page shows here while it lasts, and under Ended afterwards.", action: null }
-          : { icon: <IconEye />, title: "No sessions match", body: "Try another search or show all sessions." }}
+        empty={emptyState(status, !!params.get("q"))}
         columns={[
           { key: "operator", header: "Operator", secondary: true, cell: (s) => <PersonLink id={s.operatorUserId} name={s.operatorName} email={s.operatorEmail} className={CELL} /> },
           {

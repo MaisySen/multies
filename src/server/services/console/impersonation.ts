@@ -23,7 +23,7 @@ import { can } from "@/shared/operator-permissions";
 export const IMPERSONATION_SECONDS = 30 * 60;
 export type ImpersonationMode = "view" | "act";
 /** Why an impersonation ended (operator_impersonations.ended_reason). */
-export type ImpersonationEndReason = "stopped" | "expired" | "operator_session_gone" | "revoked" | "invalid";
+export type ImpersonationEndReason = "stopped" | "expired" | "operator_session_gone" | "revoked" | "invalid" | "signed_out";
 
 /** The one console route an impersonated session may reach (auth/operator.ts lets it through). */
 export const IMPERSONATION_STOP_PATH = "/api/console/impersonation/stop";
@@ -228,7 +228,10 @@ export async function activeImpersonationFor(db: DB, s: { id: string; userId: st
     return { id: row.id, mode: row.mode, expiresAt: row.expiresAt, operatorUserId: row.operatorUserId, operatorEmail: row.operatorEmail };
   }
   await db.delete(sessions).where(eq(sessions.id, s.id));
-  if (row && !row.endedAt) await endImpersonationRow(db, row.id, row.expiresAt.getTime() <= now.getTime() ? "expired" : "invalid", now);
+  if (row && !row.endedAt) {
+    const reason = row.expiresAt.getTime() <= now.getTime() ? "expired" : "invalid";
+    if (await endImpersonationRow(db, row.id, reason, now)) await noteImpersonationEnded(db, row, reason);
+  }
   // OPS1 security (L2): its live sockets end with it (expiry detected, operator demoted or banned).
   if (onEnded) await onEnded({ sessionId: s.id, targetUserId: s.userId }).catch(() => undefined);
   return null;
@@ -253,10 +256,55 @@ export async function endImpersonationsNotAllowed(deps: Deps, operatorUserId: st
   for (const row of rows) {
     if (can(role, row.mode === "act" ? "impersonation.act" : "impersonation.view")) continue;
     if (row.sessionId) await deps.db.delete(sessions).where(eq(sessions.id, row.sessionId));
-    if (await endImpersonationRow(deps.db, row.id, "revoked", now)) n++;
+    if (await endImpersonationRow(deps.db, row.id, "revoked", now)) {
+      n++;
+      await noteImpersonationEnded(deps.db, row, "revoked");
+    }
     await closeImpersonationSockets(deps, row);
   }
   return n;
+}
+
+/**
+ * OPS1: the person was signed out by an operator (Users: one session, every session, a ban or deleting the account),
+ * after their sessions were deleted. Ends the open View as sessions that ran on them ("signed_out"), closes their live
+ * sockets and writes the workspace's Activity entry, so the Support sessions tab and the customer's log both show the
+ * end. With `sessionId`, only the impersonation on that one session.
+ */
+export async function endImpersonationsOfTarget(deps: Deps, targetUserId: string, opts: { sessionId?: string; actor?: { userId: string; email: string | null } } = {}): Promise<number> {
+  const now = deps.now();
+  const rows = await deps.db.select().from(operatorImpersonations).where(and(
+    eq(operatorImpersonations.targetUserId, targetUserId), isNull(operatorImpersonations.endedAt), gt(operatorImpersonations.expiresAt, now),
+    opts.sessionId ? eq(operatorImpersonations.sessionId, opts.sessionId) : undefined,
+  ));
+  let n = 0;
+  for (const row of rows) {
+    if (await endImpersonationRow(deps.db, row.id, "signed_out", now)) {
+      n++;
+      await noteImpersonationEnded(deps.db, row, "signed_out", opts.actor);
+    }
+    await closeImpersonationSockets(deps, row);
+  }
+  return n;
+}
+
+/**
+ * OPS1: the workspace's Activity entry (support.session_ended) for a session the server ended, as Stop and End write
+ * theirs. `actor` is the operator who ended it; without one (time limit noticed, the operator lost access), the
+ * session's own operator. A session whose time runs out while nobody uses it is never noticed, so it has no entry; its
+ * start entry carries the end time. Never throws.
+ */
+export async function noteImpersonationEnded(db: DB, row: Row, reason: ImpersonationEndReason, actor?: { userId: string; email: string | null }): Promise<void> {
+  if (!row.targetOrgId) return;
+  try {
+    const target = await db.select({ email: users.email }).from(users).where(eq(users.id, row.targetUserId)).get();
+    const { audit } = await import("../audit");
+    await audit(db, {
+      orgId: row.targetOrgId, actorUserId: actor?.userId ?? row.operatorUserId, actorEmail: actor ? actor.email : row.operatorEmail,
+      action: "support.session_ended", targetType: "user", targetId: row.targetUserId,
+      metadata: { by: "operator", email: target?.email ?? null, mode: row.mode, endedReason: reason },
+    });
+  } catch { /* the workspace may be gone with a deleted account */ }
 }
 
 export interface ImpersonationListItem {
@@ -289,14 +337,17 @@ export interface ImpersonationFilter {
   orgId?: string;
 }
 
-/** One page of impersonations, newest first. q searches the operator and target addresses and the reason. */
+/**
+ * One page of impersonations, newest first. q searches the operator's address, the person's address and name, the
+ * workspace's name and the reason (the operator's name is looked up after the page, so it is not searched).
+ */
 export async function listImpersonations(db: DB, query: Record<string, string | undefined>, f: ImpersonationFilter, now: Date): Promise<{ items: ImpersonationListItem[]; nextCursor: string | null }> {
   const target = alias(users, "target");
   const p = listParams(query, {
     id: operatorImpersonations.id,
     sort: { startedAt: operatorImpersonations.startedAt, expiresAt: operatorImpersonations.expiresAt },
     defaultSort: "startedAt:desc",
-    search: [operatorImpersonations.operatorEmail, target.email, operatorImpersonations.reason],
+    search: [operatorImpersonations.operatorEmail, target.email, target.name, organizations.name, operatorImpersonations.reason],
   });
   const conds: (SQL | undefined)[] = [p.where];
   if (f.status === "active") conds.push(and(isNull(operatorImpersonations.endedAt), gt(operatorImpersonations.expiresAt, now)));

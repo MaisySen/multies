@@ -85,6 +85,9 @@ async function targetFor(c: Context<AppEnv>, opts: { notOperator?: string } = {}
   return target;
 }
 
+/** OPS1: the operator making the change, named on the workspace's Activity entry when it ends a View as session. */
+const actor = (c: Context<AppEnv>) => ({ userId: c.var.auth.userId, email: c.var.auth.email ?? null });
+
 export function usersRoutes() {
   return new Hono<AppEnv>()
     .use("*", operatorSession)
@@ -112,7 +115,7 @@ export function usersRoutes() {
       const r = await operatorAction(c, {
         action: "user.sessions_revoked", targetType: "user", targetId: t.id, reason, metadata: { email: t.email },
         after: (x: { sessionsEnded: number }) => x,
-      }, () => revokeAllUserSessions(c.var.deps, t.id));
+      }, () => revokeAllUserSessions(c.var.deps, t.id, actor(c)));
       clearAuthCache();
       return c.json({ ok: true, sessionsEnded: r.sessionsEnded });
     })
@@ -125,7 +128,7 @@ export function usersRoutes() {
       await operatorAction(c, {
         action: "user.session_revoked", targetType: "user", targetId: t.id, reason,
         before: (x: R) => x, metadata: { email: t.email },
-      }, () => revokeUserSession(c.var.deps, t.id, sessionId.data));
+      }, () => revokeUserSession(c.var.deps, t.id, sessionId.data, actor(c)));
       clearAuthCache();
       return c.json({ ok: true });
     })
@@ -136,7 +139,7 @@ export function usersRoutes() {
       const r = await operatorAction(c, {
         action: "user.banned", targetType: "user", targetId: t.id, reason: body.reason,
         before: (x: R) => x.before, after: (x: R) => x.after, metadata: { email: t.email, expiresInDays: body.expiresInDays ?? null },
-      }, () => banUser(c.var.deps, t.id, { reason: body.reason, expiresInDays: body.expiresInDays ?? null }));
+      }, () => banUser(c.var.deps, t.id, { reason: body.reason, expiresInDays: body.expiresInDays ?? null }, actor(c)));
       clearAuthCache();
       return c.json({ ok: true, ...r.after, sessionsEnded: r.sessionsEnded });
     })
@@ -184,7 +187,7 @@ export function usersRoutes() {
       const t = await targetFor(c, { notOperator: "delete their account" });
       const { deps } = c.var;
       // OPS1 security: the service refuses an operator or listed account itself too (deleteUserAccount).
-      await operatorAction(c, { action: "user.deleted", targetType: "user", targetId: t.id, reason, before: { email: t.email } }, () => deleteUserAccount(deps, t.id));
+      await operatorAction(c, { action: "user.deleted", targetType: "user", targetId: t.id, reason, before: { email: t.email } }, () => deleteUserAccount(deps, t.id, actor(c)));
       clearAuthCache();
       return c.json({ ok: true });
     });

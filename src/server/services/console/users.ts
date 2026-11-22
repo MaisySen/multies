@@ -296,10 +296,18 @@ async function endAppsAndSockets(deps: Deps, userId: string) {
   await (await import("../../realtime/publish")).closeUserSockets(deps, userId);
 }
 
+/** The operator signing the person out, for the workspace's Activity entry when that ends a View as session. */
+export interface Actor { userId: string; email: string | null }
+
+/** OPS1: a View as session that ran on the deleted sessions ends with them (services/console/impersonation.ts). */
+async function endViewAs(deps: Deps, userId: string, opts: { sessionId?: string; actor?: Actor }) {
+  await (await import("./impersonation")).endImpersonationsOfTarget(deps, userId, opts);
+}
+
 export const BAN_MAX_DAYS = 3650;
 
 /** Bans the account (sign in refused), optionally until `expiresInDays` from now, and ends its sessions and apps. */
-export async function banUser(deps: Deps, userId: string, input: { reason: string; expiresInDays?: number | null }): Promise<{ before: BanState; after: BanState; sessionsEnded: number }> {
+export async function banUser(deps: Deps, userId: string, input: { reason: string; expiresInDays?: number | null }, actor?: Actor): Promise<{ before: BanState; after: BanState; sessionsEnded: number }> {
   await assertNotProtectedTarget(deps, userId, "ban them"); // OPS1 security: here too, not only in the route
   const before = await readBan(deps, userId);
   const days = input.expiresInDays ?? null;
@@ -308,6 +316,7 @@ export async function banUser(deps: Deps, userId: string, input: { reason: strin
   await deps.db.update(users).set({ banned: true, banReason: input.reason, banExpires }).where(eq(users.id, userId));
   const ended = await deps.db.delete(sessions).where(eq(sessions.userId, userId)).returning({ id: sessions.id });
   await endAppsAndSockets(deps, userId);
+  await endViewAs(deps, userId, { actor });
   return { before, after: await readBan(deps, userId), sessionsEnded: ended.length };
 }
 
@@ -319,19 +328,21 @@ export async function unbanUser(deps: Pick<Deps, "db">, userId: string): Promise
 }
 
 /** Ends one of the account's sessions (404 when it is not theirs). */
-export async function revokeUserSession(deps: Pick<Deps, "db">, userId: string, sessionId: string): Promise<{ sessionId: string; ipAddress: string | null; userAgent: string | null }> {
+export async function revokeUserSession(deps: Deps, userId: string, sessionId: string, actor?: Actor): Promise<{ sessionId: string; ipAddress: string | null; userAgent: string | null }> {
   const s = await deps.db.select({ id: sessions.id, ipAddress: sessions.ipAddress, userAgent: sessions.userAgent }).from(sessions)
     .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId))).get();
   if (!s) throw notFound("Session");
   await deps.db.delete(sessions).where(and(eq(sessions.id, s.id), eq(sessions.userId, userId)));
+  await endViewAs(deps, userId, { sessionId: s.id, actor });
   return { sessionId: s.id, ipAddress: s.ipAddress, userAgent: s.userAgent };
 }
 
 /** Signs the account out everywhere: every session ends, and (as on the person's own "sign out everywhere") their apps' access and live sockets end too. */
-export async function revokeAllUserSessions(deps: Deps, userId: string): Promise<{ sessionsEnded: number }> {
+export async function revokeAllUserSessions(deps: Deps, userId: string, actor?: Actor): Promise<{ sessionsEnded: number }> {
   await getUserTarget(deps, userId);
   const ended = await deps.db.delete(sessions).where(eq(sessions.userId, userId)).returning({ id: sessions.id });
   await endAppsAndSockets(deps, userId);
+  await endViewAs(deps, userId, { actor });
   return { sessionsEnded: ended.length };
 }
 
@@ -340,10 +351,11 @@ export async function revokeAllUserSessions(deps: Deps, userId: string): Promise
  * workspaces where they are the only member go with it, 409 while they are the only owner of a shared workspace).
  * Refuses an operator or a bootstrap listed account itself (403 target_is_operator), whoever calls it.
  */
-export async function deleteUserAccount(deps: Deps, userId: string): Promise<{ id: string; email: string }> {
+export async function deleteUserAccount(deps: Deps, userId: string, actor?: Actor): Promise<{ id: string; email: string }> {
   const t = await assertNotProtectedTarget(deps, userId, "delete their account");
   const { beforeUserDelete } = await import("../privacy");
   await beforeUserDelete(deps, t.id);
   await deps.db.delete(users).where(eq(users.id, t.id));
+  await endViewAs(deps, t.id, { actor });
   return { id: t.id, email: t.email };
 }
