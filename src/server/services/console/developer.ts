@@ -82,22 +82,30 @@ export async function revokeApiKey(deps: Deps, id: string): Promise<RevokedApiKe
 
 // ---------------------------------------------------------------- webhook endpoints
 
-export const WEBHOOK_ENDPOINT_SORT_FIELDS = ["createdAt", "url"] as const;
+// OPS1 security (M1): a webhook URL's path is often the secret (Slack, Discord and Teams URLs carry the token), so the
+// raw URL never leaves this file: it is not a sort field (a cursor would carry it), `q` does not search it (a match
+// would be an oracle for the secret), and the lists return its origin only (webhookUrlOrigin).
+export const WEBHOOK_ENDPOINT_SORT_FIELDS = ["createdAt"] as const;
 export type WebhookEndpointSortField = (typeof WEBHOOK_ENDPOINT_SORT_FIELDS)[number];
 const endpointSorts: Record<WebhookEndpointSortField, SortSpec> = {
   createdAt: { expr: sql`${webhookEndpoints.createdAt}`, kind: "number" },
-  url: { expr: sql`${webhookEndpoints.url}`, kind: "text" },
 };
+
+/** OPS1 security (M1): the scheme, host and port of a webhook URL; never its user info, path, query or fragment. */
+export function webhookUrlOrigin(url: string | null): string | null {
+  if (!url) return null;
+  try { const o = new URL(url).origin; return o === "null" ? null : o; } catch { return null; }
+}
 
 export interface WebhookEndpointFilters {
   orgId?: string; enabled?: boolean;
-  /** Part of the URL or description. */
+  /** Part of the description (never the URL: its path can be the secret). */
   q?: string;
   /** The window `recentFailures` counts over; defaults to the last 7 days. */
   failuresWindow?: TimeWindow;
 }
 
-/** A webhook endpoint. Never its signing secret. */
+/** A webhook endpoint. Never its signing secret; `url` is the origin only. */
 export interface ConsoleWebhookEndpoint {
   id: string; orgId: string; orgName: string | null; url: string; description: string | null; events: string[];
   format: "json" | "slack" | "discord" | "teams"; connector: string | null; enabled: boolean; disabledReason: string | null;
@@ -126,7 +134,7 @@ export async function listWebhookEndpoints(deps: Deps, filters: WebhookEndpointF
     .where(and(
       filters.orgId ? eq(e.orgId, filters.orgId) : undefined,
       filters.enabled !== undefined ? eq(e.enabled, filters.enabled) : undefined,
-      q ? containsAny([e.url, e.description], q) : undefined,
+      q ? containsAny([e.description], q) : undefined,
       keysetAfter(spec, e.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, e.id, page.sort.dir)).limit(limit + 1);
@@ -138,8 +146,8 @@ export async function listWebhookEndpoints(deps: Deps, filters: WebhookEndpointF
     : [];
   const failures = new Map(counts.map((c) => [c.endpointId, Number(c.n)]));
   return pageOf(rows, limit, (r) => ({
-    ...r, events: parseEvents(r.events), format: r.format ?? "json", disabledReason: clip(r.disabledReason), recentFailures: failures.get(r.id) ?? 0,
-  }), (r) => ({ v: page.sort.field === "url" ? r.url : ms(r.createdAt), id: r.id }));
+    ...r, url: webhookUrlOrigin(r.url) ?? "", events: parseEvents(r.events), format: r.format ?? "json", disabledReason: clip(r.disabledReason), recentFailures: failures.get(r.id) ?? 0,
+  }), (r) => ({ v: ms(r.createdAt), id: r.id }));
 }
 
 function parseEvents(raw: string): string[] {
@@ -152,7 +160,7 @@ export interface WebhookEndpointEnabledResult { id: string; orgId: string; url: 
 export async function setWebhookEndpointEnabled(deps: Deps, id: string, enabled: boolean): Promise<WebhookEndpointEnabledResult> {
   const e = found(await deps.db.select({ orgId: webhookEndpoints.orgId, enabled: webhookEndpoints.enabled }).from(webhookEndpoints).where(eq(webhookEndpoints.id, id)).get(), "Webhook endpoint");
   const out = await updateEndpoint(deps, e.orgId, id, { enabled });
-  return { id: out.id, orgId: e.orgId, url: out.url, before: { enabled: e.enabled }, enabled: out.enabled };
+  return { id: out.id, orgId: e.orgId, url: webhookUrlOrigin(out.url) ?? "", before: { enabled: e.enabled }, enabled: out.enabled };
 }
 
 // ---------------------------------------------------------------- webhook deliveries
@@ -219,7 +227,7 @@ export async function listWebhookDeliveries(deps: Deps, filters: WebhookDelivery
     ))
     .orderBy(...keysetOrder(spec, d.id, page.sort.dir)).limit(limit + 1);
   return pageOf(rows, limit, ({ dataKeys, ...r }) => ({
-    ...r, endpointUrl: r.endpointUrl ?? null, lastError: clip(r.lastError),
+    ...r, endpointUrl: webhookUrlOrigin(r.endpointUrl), lastError: clip(r.lastError),
     payloadPreview: `${r.eventType}${dataKeys ? `: ${dataKeys}` : ""}`.slice(0, 120),
   }), (r) => ({ v: ms(r.createdAt), id: r.id }));
 }

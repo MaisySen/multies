@@ -123,7 +123,7 @@ export function WebhookEndpointsTab() {
         rowKey={(e) => e.id}
         empty={{ icon: <IconWebhook />, title: "No webhook endpoints match", body: "Endpoints workspaces add in their developer settings show here." }}
         columns={[
-          { key: "endpoint", header: "Endpoint", sort: "url", cell: (e) => (
+          { key: "endpoint", header: "Endpoint", cell: (e) => (
             <span className="flex flex-col gap-0.5">
               <span className="font-medium">{hostOf(e.url)}</span>
               <span className="text-xs text-muted">{[FORMAT_LABEL[e.format] ?? e.format, e.description].filter(Boolean).join(", ")}</span>

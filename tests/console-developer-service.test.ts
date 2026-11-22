@@ -111,8 +111,12 @@ describe("webhooks", () => {
     await addDelivery(orgA, a.endpoint.id, "delivered", new Date(now - HOUR));
     await addDelivery(orgB, b.endpoint.id, "pending", new Date(now - HOUR));
 
-    const all = await listWebhookEndpoints(ctx.deps, {}, page("url", "asc"));
+    // OPS1 security (M1): no URL sort (a cursor would carry the URL); the origin only.
+    const all = await listWebhookEndpoints(ctx.deps, {}, page("createdAt", "asc"));
+    all.items.sort((x, y) => (x.orgId === orgA ? -1 : 1) - (y.orgId === orgA ? -1 : 1));
     expect(all.items.map((e) => e.id)).toEqual([a.endpoint.id, b.endpoint.id]);
+    expect(all.items[0]!.url).toBe("https://hooks.alpha.example");
+    expect(JSON.stringify(all)).not.toContain("/in");
     expect(all.items[0]).toMatchObject({ orgId: orgA, orgName: "Alpha Co", events: ["*"], enabled: true, recentFailures: 2, consecutiveDead: 0, format: "json", description: "Alpha CRM" });
     expect(all.items[1]).toMatchObject({ orgName: "Beta Co", events: ["message.received", "task.created"], recentFailures: 0 });
     const json = JSON.stringify(all);
@@ -121,8 +125,10 @@ describe("webhooks", () => {
     const wide = await listWebhookEndpoints(ctx.deps, { orgId: orgA, failuresWindow: { from: new Date(now - 11 * DAY) } }, page("createdAt"));
     expect(wide.items[0]!.recentFailures).toBe(3);
     expect((await listWebhookEndpoints(ctx.deps, { q: "CRM" }, page("createdAt"))).items.map((e) => e.id)).toEqual([a.endpoint.id]);
-    expect(await walk((p) => listWebhookEndpoints(ctx.deps, {}, p), "url", "desc", 1)).toEqual([b.endpoint.id, a.endpoint.id]);
-    expect(WEBHOOK_ENDPOINT_SORT_FIELDS).toEqual(["createdAt", "url"]);
+    expect((await listWebhookEndpoints(ctx.deps, { q: "hooks.alpha" }, page("createdAt"))).items).toEqual([]); // never the URL
+    expect(new Set(await walk((p) => listWebhookEndpoints(ctx.deps, {}, p), "createdAt", "desc", 1))).toEqual(new Set([b.endpoint.id, a.endpoint.id]));
+    expect(WEBHOOK_ENDPOINT_SORT_FIELDS).toEqual(["createdAt"]);
+    await expect(listWebhookEndpoints(ctx.deps, {}, page("url"))).rejects.toMatchObject({ status: 400 });
     await expect(listWebhookEndpoints(ctx.deps, {}, page("secretEnc"))).rejects.toMatchObject({ status: 400 });
 
     expect(await setWebhookEndpointEnabled(ctx.deps, a.endpoint.id, false)).toMatchObject({ id: a.endpoint.id, orgId: orgA, before: { enabled: true }, enabled: false });
@@ -145,7 +151,7 @@ describe("webhooks", () => {
 
     const all = await listWebhookDeliveries(ctx.deps, {}, page("createdAt"));
     expect(all.items.map((d) => d.id)).toEqual([fA, fA2, fB]);
-    expect(all.items[0]).toMatchObject({ orgId: orgA, orgName: "Alpha Co", endpointUrl: "https://hooks.alpha.example/in", eventType: "message.bounced", status: "failed", attempts: 6, lastError: "Receiver answered 500" });
+    expect(all.items[0]).toMatchObject({ orgId: orgA, orgName: "Alpha Co", endpointUrl: "https://hooks.alpha.example" /* OPS1 security (M1): origin only */, eventType: "message.bounced", status: "failed", attempts: 6, lastError: "Receiver answered 500" });
     expect(all.items[0]!.payloadPreview).toBe("message.bounced: id, to, subject");
     const json = JSON.stringify(all);
     for (const s of [PLANTED_ID, PLANTED_TO, PLANTED_SUBJECT, "\"payload\""]) expect(json).not.toContain(s);

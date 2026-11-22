@@ -138,7 +138,7 @@ describe("console billing reads", () => {
     expect(SUBSCRIPTION_SORT_FIELDS).not.toContain("stripeCustomerId");
     await expect(listSubscriptions(ctx.deps, { page: page("stripeCustomerId") })).rejects.toMatchObject({ code: "invalid_sort" });
     await expect(listSubscriptions(ctx.deps, { page: page("name", "asc", 101) })).rejects.toMatchObject({ code: "bad_request" });
-    await expect(listSubscriptions(ctx.deps, { page: page("name", "asc", 1, { v: 5, id: "x" }) })).rejects.toMatchObject({ code: "invalid_cursor" });
+    await expect(listSubscriptions(ctx.deps, { page: page("name", "asc", 1, { v: 5, id: "x" }) })).rejects.toMatchObject({ code: "bad_cursor" });
     await expect(listSubscriptions(ctx.deps, { filters: { plan: "enterprise" as never }, page: page("name") })).rejects.toMatchObject({ code: "invalid_plan" });
   });
 

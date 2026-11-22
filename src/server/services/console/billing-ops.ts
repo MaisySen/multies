@@ -123,7 +123,7 @@ function keyset(page: PageInput, fields: SortExprs, idCol: SQLiteColumn) {
   if (page.cursor) {
     const { v, id } = page.cursor;
     const okV = kind === "number" ? typeof v === "number" && Number.isFinite(v) : typeof v === "string" && v.length <= 500;
-    if (!okV || typeof id !== "string" || !id || id.length > 200) throw new HttpError(400, "invalid_cursor", "That page cursor isn't valid.");
+    if (!okV || typeof id !== "string" || !id || id.length > 200) throw new HttpError(400, "bad_cursor", "That page cursor isn't valid."); // OPS1 security: the console's one code
     where = dir === "asc"
       ? sql`(${expr} > ${v} or (${expr} = ${v} and ${idCol} > ${id}))`
       : sql`(${expr} < ${v} or (${expr} = ${v} and ${idCol} < ${id}))`;

@@ -3,7 +3,7 @@
  *
  * Reads (developer.read), each { items, nextCursor } with ?limit=&cursor=&sort=field:dir:
  *   GET /api-keys              ?q (name or prefix) &orgId &agentId                 sort createdAt|lastUsedAt|name
- *   GET /webhooks              ?q (URL or description) &orgId &enabled=true|false   sort createdAt|url
+ *   GET /webhooks              ?q (description) &orgId &enabled=true|false   sort createdAt (OPS1 security: never the URL)
  *   GET /webhook-deliveries    ?status=failed (comma list; default failed) &orgId &endpointId &eventType
  *                              &days=1..90 (default 7) or &from &to                 sort createdAt
  *   GET /oauth-clients         ?q (name or site)                                    sort createdAt|name

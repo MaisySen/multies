@@ -102,7 +102,7 @@ describe("listWorkspaces", () => {
     const dir = await listWorkspaces(ctx.deps, { page: { limit: 10, cursor: null, sort: { field: "name", dir: "sideways" as "asc" } } }).catch((e: unknown) => e);
     expect((dir as HttpError).status).toBe(400);
     const cur = await listWorkspaces(ctx.deps, { page: page("createdAt", "desc", 10, { v: "not a time", id: "x" }) }).catch((e: unknown) => e);
-    expect((cur as HttpError).code).toBe("bad_page");
+    expect((cur as HttpError).code).toBe("bad_cursor");
   });
 
   it("pages by keyset across every sort without duplicates or gaps, including ties", async () => {

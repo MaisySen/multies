@@ -34,7 +34,8 @@ export const DEFAULT_PAGE_LIMIT = 50;
 /** A sortable column: `time` columns page on epoch milliseconds, `text` columns on the string. */
 export interface SortColumn { col: SQLWrapper; type: "text" | "time" }
 
-const badPage = (message: string) => new HttpError(400, "bad_page", message);
+// OPS1 security: one code for every console list's tampered or stale cursor (listing.ts uses the same).
+const badPage = (message: string) => new HttpError(400, "bad_cursor", message);
 
 /**
  * Checks a page request against `sorts` and builds the keyset condition and order for it. The sort field must be a
@@ -56,11 +57,13 @@ export function keysetPage(page: PageRequest, sorts: Readonly<Record<string, Sor
     if (typeof id !== "string" || !id || id.length > 200) throw badPage("That page link is not valid.");
     let v: string | number;
     if (spec.type === "time") {
+      // OPS1 security: a number only (Number("") and Number(true) would pass as 0 and 1).
+      if (typeof page.cursor.v !== "number") throw badPage("That page link is not valid.");
       v = Number(page.cursor.v);
       if (!Number.isFinite(v)) throw badPage("That page link is not valid.");
     } else {
-      if (typeof page.cursor.v !== "string" && typeof page.cursor.v !== "number") throw badPage("That page link is not valid.");
-      v = String(page.cursor.v);
+      if (typeof page.cursor.v !== "string") throw badPage("That page link is not valid.");
+      v = page.cursor.v;
     }
     const op = dir === "asc" ? sql.raw(">") : sql.raw("<");
     where = sql`(${spec.col} ${op} ${v} or (${spec.col} = ${v} and ${idCol} ${op} ${id}))`;

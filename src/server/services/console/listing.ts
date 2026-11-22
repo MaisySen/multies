@@ -89,6 +89,9 @@ export function listParams<F extends string>(query: Record<string, string | unde
   }
   const col = opts.sort[sortField];
   const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+  // OPS1 security: a cursor whose value does not fit the sort column (a string for a date, a date for text) is a 400,
+  // never a driver error (a 500) or a comparison across types.
+  if (cursor && !cursorFits(col, cursor.sort)) throw new HttpError(400, "bad_cursor", "That page link is out of date. Start the list again.");
   const conds: (SQL | undefined)[] = [];
   if (q && opts.search?.length) conds.push(containsAny(opts.search, q));
   if (cursor) {
@@ -107,6 +110,15 @@ export function listParams<F extends string>(query: Record<string, string | unde
       return { items, nextCursor };
     },
   };
+}
+
+/** Whether a decoded cursor value fits the column: dates for date columns, numbers for numbers, strings for text. */
+function cursorFits(col: Column, v: SortValue): boolean {
+  const t = (col as unknown as { dataType?: string }).dataType;
+  if (t === "date") return v instanceof Date && Number.isFinite(v.getTime());
+  if (t === "number" || t === "bigint") return typeof v === "number" && Number.isFinite(v);
+  if (t === "string") return typeof v === "string";
+  return true;
 }
 
 function base64UrlEncode(s: string): string {

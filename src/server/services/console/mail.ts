@@ -13,7 +13,7 @@
 import { and, asc, desc, eq, gte, lt, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { deliveries, domains, importJobs, mailboxes, mailConnections, mailSchedules, organizations, suppressions } from "../../db/schema";
-import { badRequest, notFound } from "../../lib/errors";
+import { badRequest, HttpError, notFound } from "../../lib/errors";
 import { containsAny } from "../../lib/like-search";
 import { inIds } from "../../lib/sql-chunks";
 import { newestRows } from "./recent-rows";
@@ -58,9 +58,10 @@ export const timeKey = (col: SQLWrapper): SQL => sql`coalesce(${col}, 0)`;
 /** The condition that starts a page after `cursor`, in the page's order. */
 export function keysetAfter(spec: SortSpec, idCol: SQLWrapper, dir: SortDir, cursor: PageCursor | null): SQL | undefined {
   if (!cursor) return undefined;
-  if (typeof cursor.id !== "string" || !cursor.id) throw badRequest("That page link is not valid. Start from the first page.");
+  // OPS1 security: 400 bad_cursor, the code every console list uses for a tampered or stale cursor.
+  if (typeof cursor.id !== "string" || !cursor.id) throw new HttpError(400, "bad_cursor", "That page link is not valid. Start from the first page.");
   const ok = spec.kind === "number" ? typeof cursor.v === "number" && Number.isFinite(cursor.v) : typeof cursor.v === "string";
-  if (!ok) throw badRequest("That page link is not valid. Start from the first page.");
+  if (!ok) throw new HttpError(400, "bad_cursor", "That page link is not valid. Start from the first page.");
   const v = cursor.v;
   return dir === "desc"
     ? sql`(${spec.expr} < ${v} or (${spec.expr} = ${v} and ${idCol} < ${cursor.id}))`

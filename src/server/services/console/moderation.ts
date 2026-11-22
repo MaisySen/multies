@@ -43,18 +43,15 @@ function badSort(field: string, allowed: readonly string[]) {
   return new HttpError(400, "bad_sort", `You can't sort this list by "${field}". Use one of: ${allowed.join(", ")}.`);
 }
 
-function cursorValue(kind: SortKind, v: string | number): Date | number | string {
-  if (kind === "date") {
-    const n = typeof v === "number" ? v : Number(v);
-    if (!Number.isFinite(n)) throw new HttpError(400, "bad_cursor", "That page link is out of date. Start the list again.");
-    return new Date(n);
+// OPS1 security: the value must have the sort's own type (a number for a date or number sort, a string for text).
+function cursorValue(kind: SortKind, v: unknown): Date | number | string {
+  const stale = () => new HttpError(400, "bad_cursor", "That page link is out of date. Start the list again.");
+  if (kind === "date" || kind === "number") {
+    if (typeof v !== "number" || !Number.isFinite(v)) throw stale();
+    return kind === "date" ? new Date(v) : v;
   }
-  if (kind === "number") {
-    const n = typeof v === "number" ? v : Number(v);
-    if (!Number.isFinite(n)) throw new HttpError(400, "bad_cursor", "That page link is out of date. Start the list again.");
-    return n;
-  }
-  return String(v);
+  if (typeof v !== "string") throw stale();
+  return v;
 }
 
 /** Keyset conditions and order for one page; `key` turns a row's sort value into the cursor's v. */

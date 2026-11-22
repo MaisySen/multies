@@ -121,12 +121,13 @@ describe("lists", () => {
   }, 60_000);
 
   it("webhook endpoints: only the address's origin, failure counts, enabled filter, paging, bad sort", async () => {
-    const r = await readonly.get("/api/console/developer/webhooks?sort=url:asc");
+    const r = await readonly.get("/api/console/developer/webhooks?sort=createdAt:asc");
     expect(r.status).toBe(200);
-    expect(r.body.items.map((e: { id: string }) => e.id)).toEqual([endpointA, endpointB]);
-    expect(r.body.items[0]).toMatchObject({ url: "https://hooks.alpha.example", description: "Alpha CRM", enabled: true, recentFailures: 3, orgName: "Alpha Co" });
+    expect(new Set(r.body.items.map((e: { id: string }) => e.id))).toEqual(new Set([endpointA, endpointB]));
+    expect(r.body.items.find((e: { id: string }) => e.id === endpointA)).toMatchObject({ url: "https://hooks.alpha.example", description: "Alpha CRM", enabled: true, recentFailures: 3, orgName: "Alpha Co" });
     noSecrets(r.body);
-    expect(await walk(readonly, "/api/console/developer/webhooks?sort=url:desc")).toEqual([endpointB, endpointA]);
+    expect(new Set(await walk(readonly, "/api/console/developer/webhooks?sort=createdAt:desc"))).toEqual(new Set([endpointB, endpointA]));
+    expect((await readonly.get("/api/console/developer/webhooks?sort=url:asc")).status).toBe(400); // OPS1 security (M1)
     expect((await readonly.get("/api/console/developer/webhooks?enabled=false")).body.items).toEqual([]);
     expect((await readonly.get("/api/console/developer/webhooks?q=CRM")).body.items.map((e: { id: string }) => e.id)).toEqual([endpointA]);
     expect((await readonly.get("/api/console/developer/webhooks?sort=secretEnc:asc")).status).toBe(400);

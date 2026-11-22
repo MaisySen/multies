@@ -19,7 +19,7 @@
  * characters); the older /api/admin routes take an optional one (optionalReasonSchema).
  */
 import type { Context } from "hono";
-import { and, eq, gte, lt, or, type SQL } from "drizzle-orm";
+import { and, eq, gte, lt, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { AppEnv } from "../../context";
 import type { DB } from "../../db";
@@ -178,9 +178,15 @@ export async function listPlatformAudit(db: DB, query: Record<string, string | u
     id: platformAuditLogs.id,
     sort: { createdAt: platformAuditLogs.createdAt },
     defaultSort: "createdAt:desc",
-    search: [platformAuditLogs.action, platformAuditLogs.actorEmail, platformAuditLogs.targetId, platformAuditLogs.reason],
   });
-  const rows = await db.select().from(platformAuditLogs).where(and(filterCond(filter), p.where)).orderBy(...p.orderBy).limit(p.take);
+  // OPS1 security (M1 audit): q never matches a value the list hides. An invite's target id is masked in the answer
+  // (redactAuditRow), so it is searched only on rows whose target is not an invite.
+  const q = p.q;
+  const qCond = q ? or(
+    containsAny([platformAuditLogs.action, platformAuditLogs.actorEmail, platformAuditLogs.reason], q),
+    and(sql`coalesce(${platformAuditLogs.targetType}, '') not like '%invit%'`, containsAny([platformAuditLogs.targetId], q)),
+  ) : undefined;
+  const rows = await db.select().from(platformAuditLogs).where(and(filterCond(filter), qCond, p.where)).orderBy(...p.orderBy).limit(p.take);
   const page = p.page(rows, (r) => ({ sort: r.createdAt, id: r.id }));
   return {
     nextCursor: page.nextCursor,
