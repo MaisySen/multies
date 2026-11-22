@@ -13,10 +13,10 @@
  * The comp end date and note (organizations.compUntil / compNote) and the event summary (billingEvents.summary) came
  * with migration 0174.
  */
-import { and, eq, getTableColumns, isNotNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, isNotNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { alias, type SQLiteColumn } from "drizzle-orm/sqlite-core";
 import type { Deps } from "../../context";
-import { billingEvents, organizations, referrals } from "../../db/schema";
+import { billingEvents, organizations, platformAuditLogs, referrals } from "../../db/schema";
 import { HttpError, badRequest } from "../../lib/errors";
 import { containsText } from "../../lib/like-search";
 import { PLANS, PRICE_CURRENCY, effectiveLimits, isPlanId, type AddonQuantities, type PlanId } from "@/shared/plans";
@@ -317,6 +317,7 @@ export async function getWorkspaceBilling(deps: Deps, orgId: string) {
   }
   const effective = effectivePlanId(org);
   const comp = readCompExpiry(org);
+  const [credit, recentCredits] = await Promise.all([creditBalance(deps, org.stripeCustomerId), recentCreditsOf(deps, org.id)]);
   return {
     orgId: org.id, name: org.name,
     billing: { enabled: deps.config.billing.enabled && !!deps.config.billing.stripeSecretKey, testMode: deps.config.billing.testMode },
@@ -331,7 +332,44 @@ export async function getWorkspaceBilling(deps: Deps, orgId: string) {
     referralCode: org.referralCode,
     invoices, invoicesError,
     recentEvents: events.items,
+    creditBalance: credit,
+    recentCredits,
   };
+}
+
+/**
+ * OPS1: the credit the Stripe customer holds now (Stripe's balance, negative is credit; shown here as a positive
+ * credit), which Stripe takes off the next invoices. Includes referral credits and anything changed in Stripe itself.
+ * null cents without Stripe or a customer; an error code when Stripe could not be read.
+ */
+async function creditBalance(deps: Deps, customerId: string | null): Promise<{ cents: number | null; currency: string | null; error: string | null }> {
+  if (!customerId || !deps.config.billing.enabled || !deps.config.billing.stripeSecretKey) return { cents: null, currency: null, error: null };
+  try {
+    const c = await stripeStep(async () => (await client(deps)).customers.retrieve(customerId));
+    if ("deleted" in c && c.deleted) return { cents: null, currency: null, error: "customer_deleted" };
+    const live = c as { balance?: number | null; currency?: string | null };
+    return { cents: -(live.balance ?? 0), currency: live.currency ?? PRICE_CURRENCY, error: null };
+  } catch (e) {
+    return { cents: null, currency: null, error: e instanceof HttpError ? e.code : "billing_provider_error" };
+  }
+}
+
+/** The last five credits added from the console (platform audit rows billing.credit_added): amount, note, who, why. */
+async function recentCreditsOf(deps: Deps, orgId: string) {
+  const rows = await deps.db.select({
+    at: platformAuditLogs.createdAt, actorUserId: platformAuditLogs.actorUserId, actorEmail: platformAuditLogs.actorEmail,
+    reason: platformAuditLogs.reason, metadata: platformAuditLogs.metadata,
+  }).from(platformAuditLogs)
+    .where(and(eq(platformAuditLogs.orgId, orgId), eq(platformAuditLogs.action, "billing.credit_added")))
+    .orderBy(desc(platformAuditLogs.createdAt)).limit(5);
+  return rows.map((r) => {
+    let m: { amountCents?: unknown; note?: unknown } = {};
+    try { m = r.metadata ? JSON.parse(r.metadata) : {}; } catch { /* an unreadable row shows without its amount */ }
+    return {
+      at: r.at.toISOString(), actorUserId: r.actorUserId, actorEmail: r.actorEmail, reason: r.reason,
+      amountCents: typeof m.amountCents === "number" ? m.amountCents : null, note: typeof m.note === "string" ? m.note : null,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------------

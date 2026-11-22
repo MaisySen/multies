@@ -210,6 +210,20 @@ describe("console billing actions", () => {
     expect(await h.ctx.db.select().from(platformAuditLogs).where(eq(platformAuditLogs.orgId, h.orgId))).toHaveLength(cases.length);
   }, 120_000);
 
+  it("the workspace read shows the credit the customer holds in Stripe and the credits added from the console", async () => {
+    const read = () => h.readonly.get(`/api/console/billing/workspaces/${h.orgId}`);
+    const before = await read();
+    expect(before.body.creditBalance).toEqual({ cents: 0, currency: "aud", error: null });
+    expect(before.body.recentCredits).toEqual([]);
+    // Credit held in Stripe that did not come from the console (a referral, or a change in Stripe) shows too.
+    h.stripe.balances.cus_1 = -300;
+    const path = `/api/console/billing/workspaces/${h.orgId}/credit`;
+    expect((await h.billing.post(path, { amountCents: 500, note: "Sorry about the outage", reason: REASON, requestKey: "dialog_key_cred" })).status).toBe(200);
+    const after = await read();
+    expect(after.body.creditBalance).toEqual({ cents: 800, currency: "aud", error: null });
+    expect(after.body.recentCredits).toEqual([expect.objectContaining({ amountCents: 500, note: "Sorry about the outage", reason: REASON, actorEmail: "billing@ops.test" })]);
+  }, 60_000);
+
   it("derives the Stripe idempotency key from the request, so a retry cannot credit twice", async () => {
     const path = `/api/console/billing/workspaces/${h.orgId}/credit`;
     const body = { amountCents: 1250, note: "Outage credit", reason: REASON, requestKey: "dialog_key_aaaa" };

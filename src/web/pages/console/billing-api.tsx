@@ -51,6 +51,10 @@ export interface WorkspaceBilling {
   limits: PlanLimits;
   invoices: WorkspaceInvoice[]; invoicesError: string | null;
   recentEvents: BillingEventRow[];
+  /** The credit the Stripe customer holds now (positive is credit); cents null without Stripe or a customer. */
+  creditBalance?: { cents: number | null; currency: string | null; error: string | null };
+  /** The last credits added from the console (platform audit rows). */
+  recentCredits?: { at: string; actorUserId: string | null; actorEmail: string | null; reason: string | null; amountCents: number | null; note: string | null }[];
   bounds: { creditMinCents: number; creditMaxCents: number; trialDaysMax: number; graceDaysMax: number; compMaxDays: number; noteMax: number };
 }
 

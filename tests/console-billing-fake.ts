@@ -31,6 +31,8 @@ export function fakeStripe() {
       return json({ id: `cbtxn_${calls.length}`, object: "customer_balance_transaction", amount, currency: p.get("currency"), ending_balance: balances[bal[1]!] });
     }
     if (url.pathname === "/v1/customers") return json({ id: "cus_new" });
+    const cus = url.pathname.match(/^\/v1\/customers\/([^/]+)$/);
+    if (cus && method === "GET") return json({ id: cus[1], object: "customer", balance: balances[cus[1]!] ?? 0, currency: "aud" });
     if (url.pathname === "/v1/prices" && method === "GET") return json({ object: "list", data: [], has_more: false, url: "/v1/prices" });
     if (url.pathname === "/v1/products") return json({ id: "prod_1", object: "product" });
     if (url.pathname === "/v1/prices") { const p = new URLSearchParams(body); return json({ id: `price_auto_${p.get("lookup_key")}`, object: "price", lookup_key: p.get("lookup_key"), unit_amount: Number(p.get("unit_amount")) }); }

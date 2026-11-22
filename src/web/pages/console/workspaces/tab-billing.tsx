@@ -1,6 +1,7 @@
 /**
  * OPS1: the Billing tab of a workspace's console page: plan, free plan (comp), subscription and payment state,
- * add-ons, recent invoices and Stripe events, and the billing actions. Usage against limits lives on the Usage tab
+ * the credit the customer holds in Stripe and the credits added from the console, add-ons, recent invoices and Stripe
+ * events, and the billing actions. Usage against limits lives on the Usage tab
  * (one link here). Stripe ids are shown as ids with a copy button; no Stripe object, invoice link or card detail.
  * Without Stripe one notice says so, and the invoices and the actions that need Stripe are hidden.
  */
@@ -12,7 +13,7 @@ import { ADDON_ORDER, ADDONS } from "@/shared/plans";
 import { cn } from "@/web/lib/cn";
 import { KvList } from "../components/kv-list";
 import { consoleTable } from "../components/data-table";
-import { Day, EmptyRow, LoadError, RelTime, StatusBadge, compPlanLabel, humanize, planLabel } from "../components/format";
+import { Day, Empty, EmptyRow, LoadError, PersonLink, RelTime, StatusBadge, compPlanLabel, humanize, planLabel } from "../components/format";
 import { usePermission } from "../guard";
 import { WorkspaceBillingActions } from "../billing-actions";
 import { BillingNotConnected, IdCell, StageBadge, StripeEventBadge, SubscriptionBadge, billingApi, billingKeys, type WorkspaceBilling } from "../billing-api";
@@ -59,9 +60,52 @@ function Summary({ b }: { b: WorkspaceBilling }) {
           <span className="text-xs text-muted">{b.dunning.daysPastDue} days past due, grace ends <RelTime at={b.dunning.graceEndsAt} /></span>
         </span>
       ) : <StatusBadge state="ok" label="Up to date" /> },
+      ...(b.billing.enabled && b.stripe.customerId ? [{ label: "Credit balance", value: <CreditBalance b={b} /> }] : []),
       { label: "Stripe customer", value: b.stripe.customerId ? <IdCell id={b.stripe.customerId} label="Stripe customer id" /> : null },
       { label: "Stripe subscription", value: b.stripe.subscriptionId ? <IdCell id={b.stripe.subscriptionId} label="Stripe subscription id" /> : null },
     ]} />
+  );
+}
+
+/** The credit the customer holds in Stripe now, which Stripe takes off the next invoices (referral credits included). */
+function CreditBalance({ b }: { b: WorkspaceBilling }) {
+  const c = b.creditBalance;
+  if (c?.error) return <span className="text-warn" data-testid="console-billing-credit-balance">Couldn't read it from Stripe right now</span>;
+  if (!c || c.cents === null) return null;
+  if (c.cents === 0) return <span className="text-muted" data-testid="console-billing-credit-balance">No credit</span>;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5" data-testid="console-billing-credit-balance">
+      <span className="font-medium tabular-nums">{formatCents(Math.abs(c.cents), c.currency)}</span>
+      <span className="text-xs text-muted">{c.cents > 0 ? "taken off the next invoices" : "owed by the customer"}</span>
+    </span>
+  );
+}
+
+/** Credits added from the console, newest first (the workspace's Activity tab has every operator action). */
+function RecentCredits({ b }: { b: WorkspaceBilling }) {
+  const rows = b.recentCredits ?? [];
+  if (!rows.length) return <EmptyRow>No credits added from the console.</EmptyRow>;
+  return (
+    <div className={consoleTable.wrap}>
+      <table className={consoleTable.table}>
+        <thead className={T.head}>
+          <tr>
+            <th className={T.th}>Added</th><th className={cn(T.th, "text-right")}>Amount</th><th className={T.th}>Note</th>
+            <th className={cn(T.th, consoleTable.secondary)}>By</th>
+          </tr>
+        </thead>
+        <tbody className={T.body}>
+          {rows.map((r, i) => (
+            <tr key={`${r.at}-${i}`} className={T.row}>
+              <td className={cn(T.td, "whitespace-nowrap text-muted")}><RelTime at={r.at} /></td>
+              <td className={cn(T.td, "text-right tabular-nums")}>{r.amountCents === null ? <Empty /> : formatCents(r.amountCents, b.creditBalance?.currency)}</td>
+              <td className={T.td}><span className="line-clamp-2 max-w-xs" title={r.reason ? `Reason: ${r.reason}` : undefined}>{r.note || <Empty />}</span></td>
+              <td className={cn(T.td, consoleTable.secondary)}>{r.actorUserId || r.actorEmail ? <PersonLink id={r.actorUserId} email={r.actorEmail} className="max-w-[12rem]" /> : <Empty />}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -148,6 +192,7 @@ function Loaded({ b }: { b: WorkspaceBilling }) {
         Usage against the plan's limits is on the{" "}
         <Link to={`/console/workspaces/${encodeURIComponent(b.orgId)}/usage`} className="font-medium text-fg underline-offset-2 hover:underline">Usage tab</Link>.
       </p>
+      {stripeOn && b.stripe.customerId && <Section title="Recent credits" testId="console-billing-credits"><RecentCredits b={b} /></Section>}
       {stripeOn && <Section title="Recent invoices" testId="console-billing-invoices"><Invoices b={b} /></Section>}
       <Section title="Recent Stripe events"><Events b={b} /></Section>
     </div>
