@@ -293,7 +293,7 @@ describe("always blocked, both modes (walks IMPERSONATION_ALWAYS_BLOCKED)", () =
   for (const mode of ["view", "act"] as const) {
     it(`${mode} mode`, async () => {
       // Flagged routes on, so the request reaches the route's own guard (MOBILE_WEB_LINK answers 404 while off).
-      const { ctx, op, target } = await world(mode === "act" ? "ops_admin" : "ops_support", { MOBILE_WEB_LINK: "on", PASSKEY_DES1: "on", VAULT_R128: "on", MAIL_ARCHIVE_R111: "on", DASHBOARDS_PLUS: "on", CLIENT_PORTAL: "on", CHAT_CHANNELS: "on" });
+      const { ctx, op, target } = await world(mode === "act" ? "ops_admin" : "ops_support", { MOBILE_WEB_LINK: "on", PASSKEY_DES1: "on", VAULT_R128: "on", MAIL_ARCHIVE_R111: "on", DASHBOARDS_PLUS: "on", CLIENT_PORTAL: "on", CHAT_CHANNELS: "on", SCHEDULING_ENABLED: "true", BOOKING_PLUS: "true" });
       expect((await start(op.c, { userId: target.id, mode })).status).toBe(201);
       const imp = (await row(ctx, op.id))!;
       for (const rule of IMPERSONATION_ALWAYS_BLOCKED) {

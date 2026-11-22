@@ -113,6 +113,19 @@ export const IMPERSONATION_ALWAYS_BLOCKED: readonly BlockedRule[] = [
   { group: "outlives the session", methods: ["POST", "PATCH"], pattern: /^\/api\/calendar\/feed$/, example: { method: "POST", path: "/api/calendar/feed" }, enforcedBy: "requireAuth" },
   { group: "outlives the session", methods: ["POST", "PATCH"], pattern: /^\/api\/developer\/webhooks(\/[^/]+)?$/, example: { method: "POST", path: "/api/developer/webhooks" }, enforcedBy: "requireAuth" },
   { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/push\/(web|devices)\/?$/, example: { method: "POST", path: "/api/push/devices" }, enforcedBy: "requireAuth" },
+  // OPS1 security review L1: every other route that sets where the workspace's data is sent (an outbound webhook,
+  // callback or integration endpoint), calls such a URL, or mints and returns an invite or access link.
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/guests\/?$/, example: { method: "POST", path: "/api/guests" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/guests\/[^/]+\/link$/, example: { method: "POST", path: "/api/guests/gst_1/link" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["PUT"], pattern: /^\/api\/forms-plus\/forms\/[^/]+\/settings$/, example: { method: "PUT", path: "/api/forms-plus/forms/f1/settings" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/forms-plus\/forms\/[^/]+\/webhook\/test$/, example: { method: "POST", path: "/api/forms-plus/forms/f1/webhook/test" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["PUT"], pattern: /^\/api\/auth-email-settings\/?$/, example: { method: "PUT", path: "/api/auth-email-settings" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST", "PATCH"], pattern: /^\/api\/connectors(\/[^/]+(\/test)?)?\/?$/, example: { method: "POST", path: "/api/connectors" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["PUT"], pattern: /^\/api\/ai\/key$/, example: { method: "PUT", path: "/api/ai/key" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/agent-triggers\/?$/, example: { method: "POST", path: "/api/agent-triggers" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/connections\/test$/, example: { method: "POST", path: "/api/connections/test" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["PUT"], pattern: /^\/api\/scheduling\/page$/, example: { method: "PUT", path: "/api/scheduling/page" }, enforcedBy: "requireAuth" },
+  { group: "outlives the session", methods: ["POST"], pattern: /^\/api\/booking\/(polls|events)\/?$/, example: { method: "POST", path: "/api/booking/polls" }, enforcedBy: "requireAuth" },
   // Who controls the workspace: ownership transfer, member roles, removing or disabling members (people and AI agent
   // members), invites (the invite body carries the role and requireAuth does not read bodies, so every invite action is
   // refused, member invites included), joining a workspace from an invite, and the workspace's SSO rule and plan.
