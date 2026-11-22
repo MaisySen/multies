@@ -1,9 +1,16 @@
 /**
- * OPS1: the Jobs list's workspace filter. Type part of a workspace's name (or an owner's email, or its id) and pick it
- * from the matches; the list then shows that workspace's jobs. The pick lives in the address bar as ?workspace=<id>, so
- * on a fresh load the name is looked up again from the same search. Matches come from GET /api/console/workspaces?q=.
+ * OPS1: a list's workspace filter. Type part of a workspace's name (or an owner's email, or its id) and pick it from the
+ * matches; the list then shows that workspace's rows. The pick lives in the address bar (`useWorkspaceParam`, ?orgId=
+ * by default; Jobs keeps its ?workspace=), so on a fresh load the name is looked up again from the same search. Matches
+ * come from GET /api/console/workspaces?q=. Once picked it is a chip with the name and an x ("Show every workspace").
+ *
+ *   const [orgId, setOrgId] = useWorkspaceParam();
+ *   <DataTable ... params={orgId ? { orgId } : undefined} actions={<WorkspacePicker value={orgId} onChange={setOrgId} testIdPrefix="console-agents-workspace" />} />
+ *
+ * Test ids: `<prefix>` (the search box), `<prefix>-options`, `<prefix>-chip`, `<prefix>-clear`.
  */
 import { useEffect, useId, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { consoleApi } from "@/web/lib/console-api";
 import { Input } from "@/web/components/ui/input";
@@ -33,7 +40,18 @@ function useWorkspaceName(id: string, known: string | null) {
   return q.data?.items.find((w) => w.id === id)?.name ?? "Deleted workspace";
 }
 
-export function JobsWorkspaceFilter({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+/** The picked workspace id in the address bar (`key`, default "orgId"), and a setter that keeps the other values. */
+export function useWorkspaceParam(key = "orgId"): [string, (id: string) => void] {
+  const [params, setParams] = useSearchParams();
+  const set = (id: string) => setParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (id) next.set(key, id); else next.delete(key);
+    return next;
+  }, { replace: true });
+  return [params.get(key) ?? "", set];
+}
+
+export function WorkspacePicker({ value, onChange, testIdPrefix = "console-jobs-workspace" }: { value: string; onChange: (id: string) => void; testIdPrefix?: string }) {
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -74,11 +92,11 @@ export function JobsWorkspaceFilter({ value, onChange }: { value: string; onChan
 
   if (value) {
     return (
-      <span className="inline-flex h-8 max-w-full items-center gap-1 rounded-lg bg-brand-soft pl-2.5 pr-1 text-[13px] text-brand-hover" data-testid="console-jobs-workspace-chip">
+      <span className="inline-flex h-8 max-w-full items-center gap-1 rounded-lg bg-brand-soft pl-2.5 pr-1 text-[13px] text-brand-hover" data-testid={`${testIdPrefix}-chip`}>
         <span className="whitespace-nowrap">Workspace:</span>
         <span className="truncate font-medium text-fg" title={value}>{name ?? "Loading"}</span>
         <button type="button" onClick={clear} aria-label="Show every workspace" title="Show every workspace"
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-hover hover:text-fg" data-testid="console-jobs-workspace-clear">
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-hover hover:text-fg" data-testid={`${testIdPrefix}-clear`}>
           <IconClose className="h-3.5 w-3.5" aria-hidden />
         </button>
       </span>
@@ -100,9 +118,9 @@ export function JobsWorkspaceFilter({ value, onChange }: { value: string; onChan
         aria-activedescendant={showList && items[active] ? `${listId}-${active}` : undefined}
         placeholder="Filter by workspace" value={text} autoComplete="off"
         onChange={(e) => { setText(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={onKey}
-        className="h-8 pl-8 text-[13px]" data-testid="console-jobs-workspace" />
+        className="h-8 pl-8 text-[13px]" data-testid={testIdPrefix} />
       {showList && (
-        <ul id={listId} role="listbox" aria-label="Matching workspaces" data-testid="console-jobs-workspace-options"
+        <ul id={listId} role="listbox" aria-label="Matching workspaces" data-testid={`${testIdPrefix}-options`}
           className="absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-auto rounded-xl border border-line bg-surface py-1 shadow-lg sm:left-auto sm:w-72">
           {matches.isPending || q !== text.trim() ? (
             <li className="px-3 py-2 text-[13px] text-subtle">Searching</li>

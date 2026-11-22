@@ -13,7 +13,7 @@ import { Empty, StatusBadge, compPlanLabel, humanize, planLabel, type StatusTone
 export interface BillingStatus { enabled: boolean; testMode: boolean; currency: string }
 
 export interface SubscriptionRow {
-  orgId: string; name: string; plan: PlanId; effectivePlan: PlanId; comp: boolean; compUntil: string | null; compNote: string | null;
+  orgId: string; name: string; ownerEmail?: string | null; plan: PlanId; effectivePlan: PlanId; comp: boolean; compUntil: string | null; compNote: string | null;
   status: string | null; interval: "month" | "year" | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean;
   pastDue: boolean; stripeCustomerId: string | null; stripeSubscriptionId: string | null; createdAt: string;
 }
@@ -21,16 +21,17 @@ export interface SubscriptionRow {
 export type DunningStage = "grace" | "paused" | "exempt";
 
 export interface PastDueRow {
-  orgId: string; name: string; plan: PlanId; effectivePlan: PlanId; comp: boolean; status: string | null;
+  orgId: string; name: string; ownerEmail?: string | null; plan: PlanId; effectivePlan: PlanId; comp: boolean; status: string | null;
   stage: DunningStage; pastDueSince: string | null; graceEndsAt: string | null; sendingPaused: boolean; daysPastDue: number;
   stripeCustomerId: string | null; stripeSubscriptionId: string | null;
 }
 
-export interface BillingEventRow { id: string; type: string; orgId: string | null; orgName: string | null; summary: string | null; createdAt: string }
+export interface BillingEventRow { id: string; type: string; orgId: string | null; orgName: string | null; ownerEmail?: string | null; summary: string | null; createdAt: string }
 
 export interface ReferralRow {
   id: string; code: string; status: string; reason: string | null;
-  referrerOrgId: string; referrerName: string | null; referredOrgId: string; referredName: string | null;
+  referrerOrgId: string; referrerName: string | null; referrerOwnerEmail?: string | null;
+  referredOrgId: string; referredName: string | null; referredOwnerEmail?: string | null;
   invoiceId: string | null; paidAt: string | null; eligibleAt: string | null; creditedAt: string | null;
   referrerCreditCents: number; referredCreditCents: number; createdAt: string;
 }
@@ -127,9 +128,6 @@ export function PlanCell({ plan, comp }: { plan: string; comp: boolean }) {
     </span>
   );
 }
-
-/** The hint under a workspace's name in a list: a short id, so two workspaces with one name can be told apart. */
-export const shortId = (id: string) => id.replace(/^org_/, "").slice(0, 8);
 
 /** A Stripe or Multies id in mono with a short Copy button (`label` names it for the hover title). Never a whole object. */
 export function IdCell({ id, label }: { id: string | null | undefined; label: string }) {

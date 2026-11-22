@@ -13,26 +13,26 @@ import { tableStyles as T } from "@/web/components/ui/misc";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { cn } from "@/web/lib/cn";
 import { consoleTable, type DataColumn } from "./components/data-table";
-import { EmptyRow, LoadError, WorkspaceLink } from "./components/format";
+import { EmptyRow, LoadError, WorkspaceLink, workspaceHint } from "./components/format";
 
 type Iso = string;
 
-export interface MailDelivery { id: string; orgId: string; orgName: string | null; direction: "inbound" | "outbound"; status: string; provider: string; detail: string | null; createdAt: Iso }
-export interface MailFailureRate { orgId: string; orgName: string | null; total: number; failed: number; bounced: number; complained: number; failureRate: number }
+export interface MailDelivery { id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; direction: "inbound" | "outbound"; status: string; provider: string; detail: string | null; createdAt: Iso }
+export interface MailFailureRate { orgId: string; orgName: string | null; ownerEmail?: string | null; total: number; failed: number; bounced: number; complained: number; failureRate: number }
 export interface MailDomain {
-  id: string; orgId: string; orgName: string | null; name: string; status: "pending" | "verified" | "failed";
+  id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; name: string; status: "pending" | "verified" | "failed";
   sending: { status: "queued" | "error" | "verified" | "pending"; detail: string | null } | null;
   failingRecords: string[]; createdAt: Iso; verifiedAt: Iso | null; lastCheckedAt: Iso | null;
 }
-export interface MailSuppression { id: string; orgId: string; orgName: string | null; address: string; reason: "hard_bounce" | "complaint" | "manual"; detail: string | null; createdAt: Iso }
-export interface MailQueuedSend { id: string; orgId: string; orgName: string | null; mailboxId: string; mailboxAddress: string | null; reason: string; recipients: number; forced: boolean; dueAt: Iso; createdAt: Iso }
+export interface MailSuppression { id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; address: string; reason: "hard_bounce" | "complaint" | "manual"; detail: string | null; createdAt: Iso }
+export interface MailQueuedSend { id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; mailboxId: string; mailboxAddress: string | null; reason: string; recipients: number; forced: boolean; dueAt: Iso; createdAt: Iso }
 export interface MailConnection {
-  id: string; orgId: string; orgName: string | null; mailboxId: string; provider: string; email: string; imapHost: string; smtpHost: string;
+  id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; mailboxId: string; provider: string; email: string; imapHost: string; smtpHost: string;
   authKind: "password" | "oauth"; status: "active" | "syncing" | "auth_failed" | "error" | "paused"; lastError: string | null;
   initialDone: boolean; messagesSynced: number; lastSyncAt: Iso | null; nextSyncAt: Iso | null; createdAt: Iso;
 }
 export interface MailImport {
-  id: string; orgId: string; orgName: string | null; mailboxId: string; provider: "gmail" | "outlook" | "imap"; sourceHost: string;
+  id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; mailboxId: string; provider: "gmail" | "outlook" | "imap"; sourceHost: string;
   status: "queued" | "running" | "done" | "failed" | "cancelled"; messagesDone: number; messagesTotal: number | null; error: string | null;
   claimedAt: Iso | null; heartbeatAt: Iso | null; finishedAt: Iso | null; createdAt: Iso;
 }
@@ -46,9 +46,9 @@ export const mailApi = {
   setSending: (orgId: string, enabled: boolean, reason: string) => api.put<{ ok: true; sending: boolean }>(`/console/mail/workspaces/${enc(orgId)}/sending`, { enabled, reason }),
 };
 
-/** A workspace name that opens it in the console, with a short id under it so two of one name can be told apart. */
-export function Workspace({ id, name }: { id: string; name: string | null }) {
-  return <WorkspaceLink id={id} name={name} hint={id.replace(/^org_/, "").slice(0, 8)} />;
+/** A workspace name that opens it in the console, with its owner's email (else a short id) under it. */
+export function Workspace({ id, name, ownerEmail }: { id: string; name: string | null; ownerEmail?: string | null }) {
+  return <WorkspaceLink id={id} name={name} hint={workspaceHint(id, ownerEmail)} />;
 }
 
 /** Scrolls to the section with this id when the address names it (#mail-held), e.g. after an old ?tab= link. */
@@ -85,7 +85,7 @@ export function SectionList<R>({ id, title, path, query, columns, rowKey, empty,
         <LoadError error={list.error} what={title.toLowerCase()} retry={() => void list.refetch()} />
       ) : !rows.length ? <EmptyRow>{empty}</EmptyRow> : (
         <>
-          <div className={T.wrap} tabIndex={0} role="region" aria-label={title}>
+          <div className={consoleTable.wrap} tabIndex={0} role="region" aria-label={title}>
             <table className={consoleTable.table}>
               <thead className={T.head}>
                 <tr>{columns.map((c) => <th key={c.key} className={cn(T.th, c.align === "right" && "text-right", c.secondary && consoleTable.secondary, c.className)}>{c.header}</th>)}</tr>

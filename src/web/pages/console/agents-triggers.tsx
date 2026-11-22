@@ -5,6 +5,7 @@
 import { Button } from "@/web/components/ui/button";
 import { IconCalendarClock } from "@/web/components/ui/icon";
 import { DataTable } from "./components/data-table";
+import { WorkspacePicker, useWorkspaceParam } from "./components/workspace-picker";
 import type { FilterDef } from "./components/filter-bar";
 import { Empty, RelTime, StatusBadge } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
@@ -17,6 +18,7 @@ const FILTERS: FilterDef[] = [
 ];
 
 export function AgentTriggersTab() {
+  const [orgId, setOrgId] = useWorkspaceParam();
   const pause = useOperatorAction<AgentTriggerRow>({
     title: (t) => `Pause ${t.name}?`,
     description: (t) => `${t.kind === "schedule" ? "It stops running on its schedule" : "Calls to its webhook stop starting runs"} until someone resumes it. ${t.workspaceName ?? "The workspace"} sees that an operator paused it.`,
@@ -34,7 +36,9 @@ export function AgentTriggersTab() {
   return (
     <>
       <DataTable<AgentTriggerRow>
-        label="Agent triggers" path="/agents/triggers"
+        label="Agent triggers" params={orgId ? { orgId } : undefined}
+        actions={<WorkspacePicker value={orgId} onChange={setOrgId} testIdPrefix="console-agents-triggers-workspace" />}
+        path="/agents/triggers"
         filters={FILTERS} search={{ placeholder: "Search trigger, workspace or agent" }}
         defaultSort="createdAt:desc"
         rowKey={(t) => t.id} minWidth={820}

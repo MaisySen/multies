@@ -107,11 +107,14 @@ describe("formatDelta and deltaTone", () => {
 });
 
 describe("formatDay", () => {
-  it("reads the day as UTC in each style", () => {
-    expect(formatDay("2026-11-21", "short", "en-US")).toBe("Nov 21");
-    expect(formatDay("2026-11-21", "medium", "en-US")).toBe("Nov 21, 2026");
-    expect(formatDay("2026-11-21", "long", "en-US")).toBe("Sat, Nov 21, 2026");
+  it("reads the day as UTC in each style, day first like every console date", () => {
+    expect(formatDay("2026-11-21")).toBe("21 Nov");
+    expect(formatDay("2026-11-21", "short")).toBe("21 Nov");
+    expect(formatDay("2026-11-21", "medium")).toBe("21 Nov 2026");
+    expect(formatDay("2026-11-21", "long")).toBe("Sat, 21 Nov 2026");
     expect(formatDay("2026-01-01", "short", "en-GB")).toBe("1 Jan");
+    // Never month first, whatever the browser's own language.
+    expect(formatDay("2026-11-21", "medium")).not.toMatch(/^Nov/);
   });
   it("returns anything that is not a day unchanged", () => {
     expect(formatDay("soon")).toBe("soon");
@@ -121,12 +124,12 @@ describe("formatDay", () => {
 describe("describeTrend", () => {
   it("compares the last day with data against the first", () => {
     const rows = [{ day: "2026-11-01", value: 100 }, { day: "2026-11-02", value: null }, { day: "2026-11-03", value: 112 }, { day: "2026-11-04", value: null }];
-    expect(describeTrend("Sent", rows, undefined, "en-US")).toBe("Sent: 112 on Nov 3, 2026, up 12% from 100 on Nov 1, 2026.");
+    expect(describeTrend("Sent", rows)).toBe("Sent: 112 on 3 Nov 2026, up 12% from 100 on 1 Nov 2026.");
   });
   it("covers one day, no data and a zero start", () => {
-    expect(describeTrend("Sent", [{ day: "2026-11-01", value: 4 }], undefined, "en-US")).toBe("Sent: 4 on Nov 1, 2026. No other day in this range has data.");
+    expect(describeTrend("Sent", [{ day: "2026-11-01", value: 4 }])).toBe("Sent: 4 on 1 Nov 2026. No other day in this range has data.");
     expect(describeTrend("Sent", [{ day: "2026-11-01", value: null }])).toBe("Sent: no data yet.");
-    expect(describeTrend("Sent", [{ day: "2026-11-01", value: 0 }, { day: "2026-11-02", value: 9 }], undefined, "en-US")).toBe("Sent: 9 on Nov 2, 2026, up 9 from 0 on Nov 1, 2026.");
+    expect(describeTrend("Sent", [{ day: "2026-11-01", value: 0 }, { day: "2026-11-02", value: 9 }])).toBe("Sent: 9 on 2 Nov 2026, up 9 from 0 on 1 Nov 2026.");
     expect(describeTrend("Sent", [{ day: "2026-11-01", value: 3 }, { day: "2026-11-02", value: 3 }], undefined, "en-US")).toContain("the same as 3");
   });
 });

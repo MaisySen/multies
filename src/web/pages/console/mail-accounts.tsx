@@ -40,7 +40,7 @@ function Connections() {
           { key: "email", header: "Mailbox", sort: "email", cell: (m) => (
             <span className="flex flex-col"><span className="font-medium">{m.email}</span><span className="text-xs text-subtle">{providerLabel(m.provider)}, {m.authKind === "oauth" ? "signed in with the provider" : "app password"}</span></span>
           ) },
-          { key: "workspace", header: "Workspace", cell: (m) => <Workspace id={m.orgId} name={m.orgName} /> },
+          { key: "workspace", header: "Workspace", cell: (m) => <Workspace id={m.orgId} name={m.orgName} ownerEmail={m.ownerEmail} /> },
           { key: "status", header: "State", cell: (m) => <StatusBadge state={m.status} label={connectionLabel[m.status]} tone={connectionTone[m.status]} /> },
           { key: "synced", header: "Last sync", sort: "lastSyncAt", cell: (m) => <RelTime at={m.lastSyncAt} className="text-muted" /> },
           { key: "messages", header: "Messages", align: "right", secondary: true, cell: (m) => <span className="tabular-nums">{num(m.messagesSynced)}</span> },
@@ -59,7 +59,6 @@ const IMPORT_STATUS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "Any (last 30 days)" },
 ];
-const importTone: Record<MailImport["status"], StatusTone> = { done: "ok", running: "brand", queued: "warn", failed: "bad", cancelled: "neutral" };
 const importLabel: Record<MailImport["status"], string> = { done: "Done", running: "Running", queued: "Waiting", failed: "Failed", cancelled: "Cancelled" };
 
 /** Mail imports, failed first; the state filter is the section's own (the address holds the mailboxes list's). */
@@ -78,8 +77,8 @@ function Imports() {
       empty={status === "all" ? "No mail imports in the last 30 days." : `No ${label} imports. Pick another state to see the rest.`}
       columns={[
         { key: "source", header: "Source", cell: (j) => <span className="flex flex-col"><span className="font-medium">{providerLabel(j.provider)}</span><span className="text-xs text-subtle">{j.sourceHost}</span></span> },
-        { key: "workspace", header: "Workspace", cell: (j) => <Workspace id={j.orgId} name={j.orgName} /> },
-        { key: "status", header: "State", cell: (j) => <StatusBadge state={j.status} label={importLabel[j.status]} tone={importTone[j.status]} /> },
+        { key: "workspace", header: "Workspace", cell: (j) => <Workspace id={j.orgId} name={j.orgName} ownerEmail={j.ownerEmail} /> },
+        { key: "status", header: "State", cell: (j) => <StatusBadge state={j.status} label={importLabel[j.status]} /> },
         { key: "progress", header: "Messages", align: "right", cell: (j) => <span className="whitespace-nowrap tabular-nums">{num(j.messagesDone)}{j.messagesTotal != null ? ` of ${num(j.messagesTotal)}` : ""}</span> },
         { key: "error", header: "Error", secondary: true, cell: (j) => (j.error ? <span className="line-clamp-2 max-w-sm text-xs text-muted" title={j.error}>{j.error}</span> : <Empty />) },
         { key: "started", header: "Started", secondary: true, cell: (j) => <RelTime at={j.createdAt} className="text-muted" /> },

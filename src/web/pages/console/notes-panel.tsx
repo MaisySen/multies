@@ -22,6 +22,7 @@ import { cn } from "@/web/lib/cn";
 import { useOperatorAction } from "./components/reason-dialog";
 import { LoadError, PersonLink, RelTime } from "./components/format";
 import { PermissionGate, useConsoleMe } from "./guard";
+import { LOCALE } from "@/shared/locale";
 
 export interface OperatorNote {
   id: string; targetType: "workspace" | "user"; targetId: string; body: string; pinned: boolean;
@@ -49,7 +50,7 @@ function AddNote({ targetType, targetId }: { targetType: "workspace" | "user"; t
     e.preventDefault();
     const t = body.trim();
     if (!t) { setError("Write the note first."); return; }
-    if (t.length > NOTE_MAX) { setError(`Keep the note under ${NOTE_MAX.toLocaleString()} characters.`); return; }
+    if (t.length > NOTE_MAX) { setError(`Keep the note under ${NOTE_MAX.toLocaleString(LOCALE)} characters.`); return; }
     setError(null);
     add.mutate();
   };

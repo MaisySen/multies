@@ -1,7 +1,7 @@
 /**
  * OPS1: the Queue tab of /console/jobs. Four tiles (waiting, running, failed for good, done recently) with the oldest
  * waiting age, a per type breakdown, then the job list: status (default failed for good), type and workspace filters
- * in the address bar (the workspace is picked by name, jobs-workspace-filter.tsx), row checkboxes for "Replay selected",
+ * in the address bar (the workspace is picked by name, components/workspace-picker.tsx), row checkboxes for "Replay selected",
  * a Replay per row, "Mark failed for good" for waiting jobs, and "Replay all failed jobs" with the count while any have
  * failed. Every change asks for a reason and is audited. Job types read in plain words (jobTypeLabel), the raw type in
  * a title.
@@ -9,22 +9,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Skeleton, StatTile, tableStyles } from "@/web/components/ui/misc";
+import { Skeleton, StatTile } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { IconCheckCircle, IconHourglass, IconPlay, IconWarning, IconWorkflow } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
-import { consoleTable as T, DataTable } from "./components/data-table";
+import { consoleTable as T, DataTable, tableProps } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
 import { Empty, JobStatusBadge, jobStatusLabel, jobTypeLabel, Labelled, LoadError, RelTime, WorkspaceLink } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { PermissionGate, usePermission } from "./guard";
 import { OLDEST_WAIT_WARN_MS, ageText, jobsApi, jobsKeys, type ConsoleJob, type JobStats, type JobStatus } from "./jobs-api";
-import { JobsWorkspaceFilter } from "./jobs-workspace-filter";
+import { WorkspacePicker } from "./components/workspace-picker";
+import { LOCALE } from "@/shared/locale";
 
 const STATUS_ORDER: JobStatus[] = ["dead", "pending", "running", "done"];
 
 function plural(n: number, one: string, many = `${one}s`) {
-  return `${n.toLocaleString()} ${n === 1 ? one : many}`;
+  return `${n.toLocaleString(LOCALE)} ${n === 1 ? one : many}`;
 }
 
 function StatTiles({ stats }: { stats: JobStats | undefined }) {
@@ -39,13 +40,13 @@ function StatTiles({ stats }: { stats: JobStats | undefined }) {
   const b = stats.byStatus;
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="console-jobs-stats">
-      <StatTile label="Waiting" value={b.pending.toLocaleString()} icon={<IconHourglass />} tone={late ? "warn" : "neutral"}
+      <StatTile label="Waiting" value={b.pending.toLocaleString(LOCALE)} icon={<IconHourglass />} tone={late ? "warn" : "neutral"}
         hint={<span data-testid="console-jobs-oldest" className={cn(late && "font-medium text-warn")} title="How long the oldest due job has waited">
           {b.pending ? `Oldest waiting ${ageText(stats.oldestPendingAgeMs)}` : "Nothing waiting"}
         </span>} />
-      <StatTile label="Running" value={b.running.toLocaleString()} icon={<IconPlay />} />
-      <StatTile label="Failed for good" value={b.dead.toLocaleString()} icon={<IconWarning />} tone={b.dead ? "bad" : "neutral"} hint="Out of retries, kept 30 days" />
-      <StatTile label="Done recently" value={b.done.toLocaleString()} icon={<IconCheckCircle />} tone="ok" hint="Kept 7 days" />
+      <StatTile label="Running" value={b.running.toLocaleString(LOCALE)} icon={<IconPlay />} />
+      <StatTile label="Failed for good" value={b.dead.toLocaleString(LOCALE)} icon={<IconWarning />} tone={b.dead ? "bad" : "neutral"} hint="Out of retries, kept 30 days" />
+      <StatTile label="Done recently" value={b.done.toLocaleString(LOCALE)} icon={<IconCheckCircle />} tone="ok" hint="Kept 7 days" />
     </div>
   );
 }
@@ -66,7 +67,7 @@ function TypeBreakdown({ stats, onPick }: { stats: JobStats; onPick: (type: stri
     <section aria-labelledby="jobs-by-type">
       <h2 id="jobs-by-type" className="mb-2 text-sm font-semibold">By type</h2>
       <div className={T.wrap} tabIndex={0} role="region" aria-label="Jobs by type" data-testid="console-jobs-by-type">
-        <table className={cn(tableStyles.table, "sm:min-w-[480px]")}>
+        <table {...tableProps(0)}>
           <thead className={T.head}>
             <tr>
               <th className={T.th}>Type</th>
@@ -80,7 +81,7 @@ function TypeBreakdown({ stats, onPick }: { stats: JobStats; onPick: (type: stri
                   <button type="button" className="text-left hover:text-brand hover:underline" onClick={() => onPick(type)} title={`${type}: show these jobs`}>{jobTypeLabel(type)}</button>
                 </td>
                 {STATUS_ORDER.map((s) => (
-                  <td key={s} className={cn(T.td, "text-right tabular-nums", (s === "running" || s === "done") && T.secondary, s === "dead" && n.dead > 0 ? "font-medium text-bad" : n[s] ? "" : "text-subtle")}>{n[s].toLocaleString()}</td>
+                  <td key={s} className={cn(T.td, "text-right tabular-nums", (s === "running" || s === "done") && T.secondary, s === "dead" && n.dead > 0 ? "font-medium text-bad" : n[s] ? "" : "text-subtle")}>{n[s].toLocaleString(LOCALE)}</td>
                 ))}
               </tr>
             ))}
@@ -162,7 +163,7 @@ export function JobsQueueTab() {
   const showSelect = canManage && status === "dead";
   const actions = (
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-      <JobsWorkspaceFilter value={workspace} onChange={(v) => setParam("workspace", v)} />
+      <WorkspacePicker value={workspace} onChange={(v) => setParam("workspace", v)} />
       <PermissionGate permission="jobs.manage">
         {status === "dead" && deadCount > 0 && (
           <Button size="sm" variant="secondary" disabled={!selected.size} onClick={() => replaySelected.open([...selected])} data-testid="console-jobs-replay-selected">
@@ -172,7 +173,7 @@ export function JobsQueueTab() {
         {deadCount > 0 && (
           <Button size="sm" variant="secondary" onClick={() => replayAll.open(deadCount)} data-testid="console-jobs-replay-all"
             title={`${plural(deadCount, "job")} will be retried`}>
-            Replay all failed jobs ({deadCount.toLocaleString()})
+            Replay all failed jobs ({deadCount.toLocaleString(LOCALE)})
           </Button>
         )}
       </PermissionGate>

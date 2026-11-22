@@ -6,6 +6,7 @@
 import { Button } from "@/web/components/ui/button";
 import { IconAgent } from "@/web/components/ui/icon";
 import { DataTable } from "./components/data-table";
+import { WorkspacePicker, useWorkspaceParam } from "./components/workspace-picker";
 import type { FilterDef } from "./components/filter-bar";
 import { Empty, RelTime, StatusBadge } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
@@ -38,6 +39,7 @@ export function RunStatusBadge({ run }: { run: Pick<AgentRunRow, "status" | "lon
 }
 
 export function AgentRunsTab() {
+  const [orgId, setOrgId] = useWorkspaceParam();
   const cancel = useOperatorAction<AgentRunRow>({
     title: (r) => `Cancel this run of ${r.agentName ?? "the agent"}?`,
     description: (r) => `The run stops and is marked cancelled in ${r.workspaceName ?? "the workspace"}. The workspace's activity log shows that an operator cancelled it.`,
@@ -48,7 +50,9 @@ export function AgentRunsTab() {
   return (
     <>
       <DataTable<AgentRunRow>
-        label="Agent runs" path="/agents/runs"
+        label="Agent runs" params={orgId ? { orgId } : undefined}
+        actions={<WorkspacePicker value={orgId} onChange={setOrgId} testIdPrefix="console-agents-runs-workspace" />}
+        path="/agents/runs"
         filters={FILTERS} search={{ placeholder: "Search workspace or agent" }}
         defaultSort="createdAt:desc"
         rowKey={(r) => r.id} minWidth={720}

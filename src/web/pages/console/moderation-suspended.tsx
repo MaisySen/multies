@@ -7,7 +7,6 @@
  */
 import { num } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
-import { Badge } from "@/web/components/ui/misc";
 import { IconLock, IconShieldCheck } from "@/web/components/ui/icon";
 import { DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
@@ -69,7 +68,7 @@ export function LockoutsTab() {
           { key: "failures", header: "Failed attempts", sort: "failures", align: "right", cell: (l) => <span className="tabular-nums">{num(l.failures)}</span> },
           { key: "since", header: "Since", sort: "windowStart", secondary: true, cell: (l) => <RelTime at={l.windowStart} className="text-muted" /> },
           { key: "lifts", header: "Lock lifts in", sort: "lockedUntil", cell: (l) => (l.locked
-            ? <span className="inline-flex" title={l.lockedUntil ? `Until ${formatDateTime(l.lockedUntil)}` : undefined}><Badge tone="bad" dot className="whitespace-nowrap">{duration(l.unlocksInMs)}</Badge></span>
+            ? <StatusBadge state="locked" tone="bad" label={duration(l.unlocksInMs)} title={l.lockedUntil ? `Until ${formatDateTime(l.lockedUntil)}` : undefined} />
             : <StatusBadge state="unlocked" tone="neutral" label="Not locked" />) },
           { key: "actions", header: "", align: "right", cell: (l) => (canClear ? <Button size="sm" variant="secondary" onClick={() => clear.open(l)} data-testid="console-lockout-clear">Clear</Button> : null) },
         ]}

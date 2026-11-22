@@ -168,7 +168,7 @@ export function showValue(field: MobileField, v: unknown): string {
     if (field.path.startsWith("min_supported.")) return field.type === "version" ? "Any version" : "Any build";
     if (field.path === "ota.apply_on_resume_after_minutes") return "Off";
     if (field.path === "message") return "No message";
-    return "Not set";
+    return "None";
   }
   return String(v);
 }

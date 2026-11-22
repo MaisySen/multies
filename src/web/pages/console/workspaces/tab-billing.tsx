@@ -12,7 +12,7 @@ import { ADDON_ORDER, ADDONS } from "@/shared/plans";
 import { cn } from "@/web/lib/cn";
 import { KvList } from "../components/kv-list";
 import { consoleTable } from "../components/data-table";
-import { Day, EmptyRow, LoadError, RelTime, StatusBadge, compPlanLabel, humanize, planLabel, type StatusTone } from "../components/format";
+import { Day, EmptyRow, LoadError, RelTime, StatusBadge, compPlanLabel, humanize, planLabel } from "../components/format";
 import { usePermission } from "../guard";
 import { WorkspaceBillingActions } from "../billing-actions";
 import { BillingNotConnected, IdCell, StageBadge, StripeEventBadge, SubscriptionBadge, billingApi, billingKeys, type WorkspaceBilling } from "../billing-api";
@@ -75,13 +75,12 @@ function Addons({ b }: { b: WorkspaceBilling }) {
   );
 }
 
-const INVOICE_TONE: Record<string, StatusTone> = { paid: "ok", open: "warn", uncollectible: "bad", void: "neutral", draft: "neutral" };
 
 function Invoices({ b }: { b: WorkspaceBilling }) {
   if (b.invoicesError) return <EmptyRow className="text-warn">Couldn't read invoices from Stripe right now. Try again later.</EmptyRow>;
   if (!b.invoices.length) return <EmptyRow>Stripe has no invoices for this workspace.</EmptyRow>;
   return (
-    <div className={T.wrap} tabIndex={0} role="region" aria-label="Recent invoices">
+    <div className={consoleTable.wrap} tabIndex={0} role="region" aria-label="Recent invoices">
       <table className={consoleTable.table}>
         <thead className={T.head}>
           <tr>
@@ -94,7 +93,7 @@ function Invoices({ b }: { b: WorkspaceBilling }) {
             <tr key={i.id} className={T.row}>
               <td className={cn(T.td, "whitespace-nowrap")}>{i.number ?? "Draft"}</td>
               <td className={T.td}><Day at={i.createdAt} /></td>
-              <td className={T.td}><StatusBadge state={i.status ?? "unknown"} label={i.status ? humanize(i.status) : "Unknown"} tone={INVOICE_TONE[i.status ?? ""] ?? "neutral"} /></td>
+              <td className={T.td}><StatusBadge state={i.status ?? "unknown"} label={i.status ? humanize(i.status) : "Unknown"} /></td>
               <td className={cn(T.td, "text-right tabular-nums")}>{formatCents(i.total, i.currency)}</td>
               <td className={cn(T.td, consoleTable.secondary)}><IdCell id={i.id} label="invoice id" /></td>
             </tr>

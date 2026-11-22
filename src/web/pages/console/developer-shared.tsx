@@ -3,17 +3,17 @@ import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
-import { EMPTY, WorkspaceLink } from "./components/format";
+import { EMPTY, WorkspaceLink, workspaceHint } from "./components/format";
 
 // ---------------------------------------------------------------- what the server answers (dates as ISO strings)
 
 export interface DevApiKey {
-  id: string; orgId: string; orgName: string | null; name: string; prefix: string; scope: string; agentId: string | null;
+  id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; name: string; prefix: string; scope: string; agentId: string | null;
   createdByUserId: string | null; createdByEmail: string | null; lastUsedAt: string | null; createdAt: string;
 }
 
 export interface DevWebhookEndpoint {
-  id: string; orgId: string; orgName: string | null;
+  id: string; orgId: string; orgName: string | null; ownerEmail?: string | null;
   /** Only the address's origin (its path can hold a token). */
   url: string; description: string | null; events: string[];
   format: "json" | "slack" | "discord" | "teams"; connector: string | null; enabled: boolean; disabledReason: string | null;
@@ -21,7 +21,7 @@ export interface DevWebhookEndpoint {
 }
 
 export interface DevWebhookDelivery {
-  id: string; orgId: string; orgName: string | null; endpointId: string; endpointUrl: string | null; eventType: string;
+  id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; endpointId: string; endpointUrl: string | null; eventType: string;
   status: "pending" | "delivered" | "failed"; attempts: number; responseStatus: number | null; lastError: string | null;
   /** "<event type>: <field names>" (never values). */
   payloadPreview: string; nextAttemptAt: string | null; deliveredAt: string | null; createdAt: string;
@@ -30,7 +30,7 @@ export interface DevWebhookDelivery {
 export interface DevOAuthClient { id: string; name: string; redirectUris: string[]; clientUri: string | null; createdAt: string }
 
 export interface DevOAuthGrant {
-  id: string; orgId: string; orgName: string | null; clientId: string; clientName: string | null;
+  id: string; orgId: string; orgName: string | null; ownerEmail?: string | null; clientId: string; clientName: string | null;
   userId: string; userEmail: string | null; scope: "full" | "read"; redirectUri: string;
   lastUsedAt: string | null; revokedAt: string | null; createdAt: string;
 }
@@ -48,9 +48,9 @@ export const developerApi = {
 
 // ---------------------------------------------------------------- cells
 
-/** A workspace name that opens it in the console, with a short id under it so two of one name can be told apart. */
-export function Workspace({ id, name }: { id: string; name: string | null }) {
-  return <WorkspaceLink id={id} name={name} hint={id.replace(/^org_/, "").slice(0, 8)} />;
+/** A workspace name that opens it in the console, with its owner's email (else a short id) under it. */
+export function Workspace({ id, name, ownerEmail }: { id: string; name: string | null; ownerEmail?: string | null }) {
+  return <WorkspaceLink id={id} name={name} hint={workspaceHint(id, ownerEmail)} />;
 }
 
 /** "https://hooks.example.com" reads as "hooks.example.com". */

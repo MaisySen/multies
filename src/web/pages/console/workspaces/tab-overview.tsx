@@ -9,6 +9,7 @@ import { KvList } from "../components/kv-list";
 import { Day, RelTime, StatusBadge, humanize, type StatusTone } from "../components/format";
 import { usePermission } from "../guard";
 import { Section, capText, useLimitActions, workspacePlanLabel, wsPath, type WorkspaceOverview } from "./tab-shared";
+import { LOCALE } from "@/shared/locale";
 
 const BUDGET: Record<string, { label: string; tone: StatusTone }> = {
   ok: { label: "Normal", tone: "ok" }, near: { label: "Near the budget", tone: "warn" }, over: { label: "Over the budget", tone: "bad" }, off: { label: "Not enforced", tone: "neutral" },
@@ -64,14 +65,14 @@ export function WorkspaceOverviewTab({ w }: { w: WorkspaceOverview }) {
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">Daily send cap</p>
-              <p className="text-[13px] text-muted">{capText(o.sendCapDaily, "a day")}. Plan allows {(w.limits.dailySends ?? 0).toLocaleString()} a day. Sent today: {w.counts.sendsToday.toLocaleString()}.</p>
+              <p className="text-[13px] text-muted">{capText(o.sendCapDaily, "a day")}. Plan allows {(w.limits.dailySends ?? 0).toLocaleString(LOCALE)} a day. Sent today: {w.counts.sendsToday.toLocaleString(LOCALE)}.</p>
             </div>
             {canLimits && <Button size="sm" variant="secondary" onClick={() => limits.openSendCap({ ...target, current: o.sendCapDaily })} data-testid="console-workspaces-send-cap">Change</Button>}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">Call minutes cap</p>
-              <p className="text-[13px] text-muted">{capText(o.meetingMinutesCap, "minutes a month")}. Used this month: {w.counts.meetingMinutesThisMonth.toLocaleString()}.</p>
+              <p className="text-[13px] text-muted">{capText(o.meetingMinutesCap, "minutes a month")}. Used this month: {w.counts.meetingMinutesThisMonth.toLocaleString(LOCALE)}.</p>
             </div>
             {canLimits && <Button size="sm" variant="secondary" onClick={() => limits.openMeetingCap({ ...target, current: o.meetingMinutesCap })} data-testid="console-workspaces-meeting-cap">Change</Button>}
           </div>
@@ -81,7 +82,7 @@ export function WorkspaceOverviewTab({ w }: { w: WorkspaceOverview }) {
       <Section title="Write budget today" description="Rows this workspace wrote today against its daily budget. It resets at midnight UTC.">
         <Card className="space-y-2 p-4" data-testid="console-workspaces-write-budget">
           <div className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
-            <span className="tabular-nums">{b.used.toLocaleString()} of {b.budget.toLocaleString()} rows</span>
+            <span className="tabular-nums">{b.used.toLocaleString(LOCALE)} of {b.budget.toLocaleString(LOCALE)} rows</span>
             <span className="flex items-center gap-2">
               <StatusBadge state={b.level} label={budget?.label} tone={budget?.tone} />
               <span className="text-subtle">Resets <RelTime at={b.resetAt} /></span>

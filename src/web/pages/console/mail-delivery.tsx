@@ -4,7 +4,6 @@
  * addresses of recipients: what happened, where, and when.
  */
 import { useState } from "react";
-import { useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { consoleKeys } from "@/web/lib/console-api";
 import { num } from "@/web/lib/format";
@@ -15,6 +14,7 @@ import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { IconMailWarning } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { DataTable, consoleTable } from "./components/data-table";
+import { WorkspacePicker, useWorkspaceParam } from "./components/workspace-picker";
 import { useUrlParams, type FilterDef } from "./components/filter-bar";
 import { useOperatorAction } from "./components/reason-dialog";
 import { Empty, EmptyRow, LoadError, RelTime, StatusBadge, humanize, statusTone, type StatusTone } from "./components/format";
@@ -87,7 +87,7 @@ function WorstWorkspaces({ days, onPick }: { days: string; onPick: (orgId: strin
       ) : !q.data.items.length ? (
         <EmptyRow>No workspace stands out. Workspaces with at least 10 sent messages and any failures in this window show here, worst first.</EmptyRow>
       ) : (
-        <div className={T.wrap} tabIndex={0} role="region" aria-label="Workspaces with the most failures" data-testid="console-mail-worst">
+        <div className={consoleTable.wrap} tabIndex={0} role="region" aria-label="Workspaces with the most failures" data-testid="console-mail-worst">
           <table className={consoleTable.table}>
             <thead className={T.head}>
               <tr>
@@ -102,7 +102,7 @@ function WorstWorkspaces({ days, onPick }: { days: string; onPick: (orgId: strin
             <tbody className={T.body}>
               {q.data.items.map((w) => (
                 <tr key={w.orgId} className={T.row}>
-                  <td className={T.td}><Workspace id={w.orgId} name={w.orgName} /></td>
+                  <td className={T.td}><Workspace id={w.orgId} name={w.orgName} ownerEmail={w.ownerEmail} /></td>
                   <td className={cn(T.td, "text-right")}><StatusBadge state="rate" label={pct(w.failureRate)} tone={w.failureRate >= 0.05 ? "bad" : w.failureRate >= 0.02 ? "warn" : "neutral"} /></td>
                   <td className={cn(T.td, "whitespace-nowrap text-right tabular-nums")}>{num(w.failed)} of {num(w.total)}</td>
                   <td className={cn(T.td, "text-right tabular-nums", consoleTable.secondary)}>{num(w.bounced)}</td>
@@ -144,7 +144,7 @@ function HeldSends({ orgId }: { orgId: string }) {
         empty="No held sends. Messages a sending limit holds until tomorrow show here."
         columns={[
           { key: "reason", header: "Why it was held", cell: (s) => <span className="line-clamp-2 max-w-sm">{s.reason || "A sending limit"}</span> },
-          { key: "workspace", header: "Workspace", cell: (s) => <Workspace id={s.orgId} name={s.orgName} /> },
+          { key: "workspace", header: "Workspace", cell: (s) => <Workspace id={s.orgId} name={s.orgName} ownerEmail={s.ownerEmail} /> },
           { key: "from", header: "From", secondary: true, cell: (s) => (s.mailboxAddress ? <span className="text-muted">{s.mailboxAddress}</span> : <Empty>A removed mailbox</Empty>) },
           { key: "recipients", header: "Recipients", align: "right", secondary: true, cell: (s) => <span className="tabular-nums">{num(s.recipients)}</span> },
           { key: "due", header: "Due", cell: (s) => (s.forced ? <StatusBadge state="sending" label="Sending now" tone="ok" /> : <RelTime at={s.dueAt} />) },
@@ -160,13 +160,7 @@ function HeldSends({ orgId }: { orgId: string }) {
 
 export function DeliveryTab() {
   const url = useUrlParams(FILTERS, { sort: "createdAt:desc" });
-  const [params, setParams] = useSearchParams();
-  const orgId = params.get("orgId") ?? "";
-  const setOrg = (id: string) => setParams((prev) => {
-    const next = new URLSearchParams(prev);
-    if (id) next.set("orgId", id); else next.delete("orgId");
-    return next;
-  }, { replace: true });
+  const [orgId, setOrg] = useWorkspaceParam();
   const days = url.values.window || "7";
   return (
     <div className="space-y-8">
@@ -176,14 +170,14 @@ export function DeliveryTab() {
         <DataTable<MailDelivery>
           label="Failed deliveries" path="/mail/deliveries" filters={FILTERS} defaultSort="createdAt:desc"
           params={orgId ? { orgId } : undefined}
-          actions={orgId ? <Button size="sm" variant="secondary" onClick={() => setOrg("")} data-testid="console-mail-all-workspaces">Show every workspace</Button> : undefined}
+          actions={<WorkspacePicker value={orgId} onChange={setOrg} testIdPrefix="console-mail-workspace" />}
           rowKey={(d) => d.id}
           empty={{ icon: <IconMailWarning />, title: "No failed deliveries", body: "Nothing bounced, failed or was refused in this window. Try a longer window or another status." }}
           columns={[
             { key: "when", header: "When", sort: "createdAt", cell: (d) => <RelTime at={d.createdAt} className="text-muted" /> },
             { key: "status", header: "Status", cell: (d) => <StatusBadge state={d.status} label={deliveryLabel(d.status)} tone={deliveryTone(d.status)} /> },
             { key: "direction", header: "Direction", secondary: true, cell: (d) => <span className="text-muted">{d.direction === "outbound" ? "Sent" : "Received"}</span> },
-            { key: "workspace", header: "Workspace", cell: (d) => <Workspace id={d.orgId} name={d.orgName} /> },
+            { key: "workspace", header: "Workspace", cell: (d) => <Workspace id={d.orgId} name={d.orgName} ownerEmail={d.ownerEmail} /> },
             { key: "detail", header: "Error", cell: (d) => (d.detail ? <span className="line-clamp-2 max-w-md text-xs text-muted" title={d.detail}>{d.detail}</span> : <Empty>None given</Empty>) },
           ]}
         />

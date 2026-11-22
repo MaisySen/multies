@@ -66,7 +66,7 @@ function Actions({ w }: { w: WorkspaceOverview }) {
     <>
       <PermissionGate permission="workspaces.suspend">
         {o.suspendedAt
-          ? <Button variant="primary" onClick={() => restore.open()} data-testid="console-workspaces-restore">Restore</Button>
+          ? <Button variant="secondary" onClick={() => restore.open()} data-testid="console-workspaces-restore">Restore</Button>
           : <Button variant="danger" onClick={() => suspend.open()} data-testid="console-workspaces-suspend">Suspend</Button>}
       </PermissionGate>
       <PermissionGate permission="workspaces.limits">

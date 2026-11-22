@@ -75,7 +75,7 @@ export function WorkspaceFlagsTab({ orgId }: { orgId: string }) {
         actions={state !== "all" ? showAllButton : undefined}
         rowKey={(r) => r.key}
         empty={plainDefault
-          ? { icon: <IconFlag />, title: "No own settings", body: <>This workspace uses the default for every flag.<span className="mt-4 flex justify-center">{showAllButton}</span></> }
+          ? { icon: <IconFlag />, title: "No own settings", body: "This workspace uses the default for every flag. Show all flags lists them.", action: null }
           : { icon: <IconFlag />, title: "No flags match", body: "Try another search, group or Show choice." }}
         columns={[
           { key: "flag", header: "Flag", className: "min-w-[11rem] sm:min-w-[14rem]", cell: (r) => (
