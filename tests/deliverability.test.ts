@@ -11,10 +11,15 @@ import { mailauthAuthenticator } from "@/server/services/mail/mailauth";
 
 const RESEND_SECRET = `whsec_${Buffer.from("resend-test-secret-0123456789ab").toString("base64")}`;
 
+// The summary and the health score only count reports from the last 30 days, so the fixture covers
+// yesterday (UTC) on the test's clock rather than a fixed date that ages out of that window.
+const reportEnd = Math.floor(Date.now() / 86400_000) * 86400 - 1;
+const reportBegin = reportEnd - 86399;
+
 const dmarcXml = (domain: string, id = "rep-1") => `<?xml version="1.0" encoding="UTF-8" ?>
 <feedback>
   <report_metadata><org_name>google.com</org_name><email>noreply-dmarc-support@google.com</email><report_id>${id}</report_id>
-    <date_range><begin>1792627200</begin><end>1792713599</end></date_range></report_metadata>
+    <date_range><begin>${reportBegin}</begin><end>${reportEnd}</end></date_range></report_metadata>
   <policy_published><domain>${domain}</domain><adkim>r</adkim><aspf>r</aspf><p>none</p><sp>none</sp><pct>100</pct></policy_published>
   <record><row><source_ip>209.85.220.41</source_ip><count>40</count><policy_evaluated><disposition>none</disposition><dkim>pass</dkim><spf>pass</spf></policy_evaluated></row>
     <identifiers><header_from>${domain}</header_from></identifiers><auth_results><dkim><domain>${domain}</domain><result>pass</result></dkim><spf><domain>${domain}</domain><result>pass</result></spf></auth_results></record>
