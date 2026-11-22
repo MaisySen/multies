@@ -218,7 +218,9 @@ describe("users changes", () => {
     expect((await owner.c.post(`/api/console/users/${ro.id}/sessions/${sid}/revoke`, { reason: "Testing the rule" })).body.error.code).toBe("target_is_operator");
     expect((await userRow(ctx, ro.id))!.banned).toBeFalsy();
     expect(await sessionCount(ctx, ro.id)).toBeGreaterThan(0);
-    // Help with sign in still works on an operator.
-    expect((await owner.c.post(`/api/console/users/${ro.id}/clear-lockout`, { reason: "Locked out" })).status).toBe(200);
+    // OPS1 security (L3): clearing an operator's lockout is refused here too; an owner uses System, lockouts (by email).
+    expect((await owner.c.post(`/api/console/users/${ro.id}/clear-lockout`, { reason: "Locked out" })).body.error.code).toBe("target_is_operator");
+    await (await import("@/server/services/lockout")).recordFailure(ctx.db, "ro@ops.test", ctx.deps.now());
+    expect((await owner.c.post("/api/console/system/lockouts/clear", { email: "ro@ops.test", reason: "Locked out" })).status).toBe(200);
   }, 60_000);
 });

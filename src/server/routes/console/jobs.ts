@@ -6,7 +6,7 @@
  *                            createdAt, runAt or attempts (jobs.read). Payloads are shown as structure only.
  * GET  /data-moves           { items, nextCursor }: imports and exports by kind, status, workspace, days (jobs.read)
  * POST /replay               { ids, reason } replays the selected dead jobs, at most 500 (jobs.manage)
- * POST /replay-all           { reason } replays every dead job (jobs.manage)
+ * POST /replay-all           { reason } replays every dead job (jobs.manage, recent sign in)
  * POST /:id/replay           { reason } replays one dead job (jobs.manage)
  * POST /:id/mark-dead        { reason } stops a waiting job, or a running one whose lease ran out (jobs.manage)
  *
@@ -96,7 +96,7 @@ export function jobsRoutes() {
       }, () => replayJobsByIds(c.var.deps, body.ids));
       return c.json(r);
     })
-    .post("/replay-all", requireOperator("jobs.manage"), async (c) => {
+    .post("/replay-all", requireOperator("jobs.manage", { stepUp: true }), async (c) => {
       const body = await parseBody(c, z.object({ reason: reasonSchema }));
       type R = Awaited<ReturnType<typeof replayAllDead>>;
       const r = await operatorAction(c, {

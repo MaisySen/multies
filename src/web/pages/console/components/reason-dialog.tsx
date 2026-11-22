@@ -30,6 +30,11 @@ import { Field, Textarea } from "@/web/components/ui/input";
 import { StepUpDialog } from "./step-up-dialog";
 
 export const REASON_MIN = 3;
+/**
+ * OPS1 security review: who sees a reason. Operator actions on a workspace also write the workspace's own activity
+ * log with the reason, which its admins read, so every reason dialog says so (one generic line for every dialog).
+ */
+export const REASON_VISIBILITY = "Reasons are recorded. For actions on a workspace, its admins can see the reason.";
 export const REASON_MAX = 300;
 
 /** null when the reason is fine, else what to fix. */
@@ -58,10 +63,13 @@ export function ReasonDialog({ open, onClose, onSubmit, title, description, conf
     <Dialog open={open} onClose={onClose} title={title} description={description}>
       <form onSubmit={submit} className="space-y-5 text-left" data-testid="reason-dialog">
         {fields}
-        <Field label="Reason" hint={reasonHint ?? "Kept in the audit log with your name."} error={error ?? undefined}>
-          {(p) => <Textarea {...p} ref={ref} rows={3} maxLength={REASON_MAX + 50} value={value} placeholder="Why you are doing this"
-            onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(e); }} />}
-        </Field>
+        <div className="space-y-1">
+          <Field label="Reason" hint={reasonHint ?? REASON_VISIBILITY} error={error ?? undefined}>
+            {(p) => <Textarea {...p} ref={ref} rows={3} maxLength={REASON_MAX + 50} value={value} placeholder="Why you are doing this"
+              onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(e); }} />}
+          </Field>
+          {reasonHint ? <p className="text-xs text-subtle" data-testid="reason-dialog-visibility">{REASON_VISIBILITY}</p> : null}
+        </div>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant={tone === "danger" ? "danger" : "primary"} loading={busy} disabled={!canSubmit}>{confirmLabel}</Button>

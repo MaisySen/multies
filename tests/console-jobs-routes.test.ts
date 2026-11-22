@@ -4,6 +4,7 @@
  * one-job change). Payload content never reaches the list (structure only).
  */
 import { describe, expect, it, beforeAll, beforeEach } from "vitest";
+import { resetDeniedLog } from "@/server/auth/operator";
 import { eq } from "drizzle-orm";
 import { Client, makeTestApp } from "./helpers";
 import { signUpAs, type Ctx } from "./console-kit";
@@ -40,6 +41,7 @@ beforeEach(async () => {
   base = ctx.deps.now().getTime();
   await ctx.db.delete(jobs);
   await ctx.db.delete(platformAuditLogs);
+  resetDeniedLog(); // OPS1 security (L4): the access.denied rate limit starts fresh per test
 }, 60_000);
 
 describe("GET /api/console/jobs", () => {
@@ -130,7 +132,9 @@ describe("GET /api/console/jobs/data-moves", () => {
 });
 
 describe("job changes", () => {
-  const audits = () => ctx.db.select().from(platformAuditLogs).all();
+  // OPS1 security (L4): refused attempts write access.denied rows of their own; these tests read the change rows.
+  const audits = async () => (await ctx.db.select().from(platformAuditLogs).all()).filter((r) => r.action !== "access.denied");
+  const denied = async () => (await ctx.db.select().from(platformAuditLogs).all()).filter((r) => r.action === "access.denied");
 
   it("replays one dead job with a reason, audited on the platform and in the workspace", async () => {
     await insertJob("job_one");
@@ -141,6 +145,8 @@ describe("job changes", () => {
     expect((await customer.post("/api/console/jobs/job_one/replay", { reason: "Retry after the fix" })).status).toBe(403);
     expect((await new Client(ctx.app).post("/api/console/jobs/job_one/replay", { reason: "Retry after the fix" })).status).toBe(401);
     expect(await audits()).toHaveLength(0);
+    // The two refused operators (support, read only) are on the log as access.denied; the customer and the anonymous call are not.
+    expect((await denied()).map((r) => r.actorRole).sort()).toEqual(["ops_readonly", "ops_support"]);
 
     const r = await admin.post("/api/console/jobs/job_one/replay", { reason: "Retry after the fix" });
     expect(r.status).toBe(200);
