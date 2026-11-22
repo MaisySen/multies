@@ -262,7 +262,7 @@ export function createApp(deps: Deps) {
     // R112: anonymous reports write no access line at all (not even the path and status).
     if (c.req.path.startsWith("/api/") && c.req.path !== "/api/health" && !c.req.path.startsWith("/api/pub/report/")) {
       const status = c.res.status;
-      const fields = { method: c.req.method, path: c.req.routePath && c.req.routePath !== "/*" ? c.req.routePath : c.req.path, status, ms: Date.now() - started, user: c.var.auth?.userId, org: c.var.auth?.orgId };
+      const fields = { method: c.req.method, path: c.req.routePath && c.req.routePath !== "/*" ? c.req.routePath : c.req.path, status, ms: Date.now() - started, user: c.var.auth?.userId ?? c.var.logUser?.userId, org: c.var.auth?.orgId ?? c.var.logUser?.orgId ?? undefined };
       // R40 deploy 3 (free plan CPU): a successful read writes no access line in production; the platform's own
       // request log already has it, and building and printing the JSON line cost CPU on every page load.
       const quietRead = status < 400 && (c.req.method === "GET" || c.req.method === "HEAD") && deps.config.mode === "production";
@@ -587,7 +587,7 @@ export function createApp(deps: Deps) {
   app.all("/api/admin/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
   // OPS1: the operator console API, built on its first request (one dynamic import) so other requests load none of it.
   let consoleApp: import("hono").Hono<AppEnv> | undefined;
-  const consoleVars = new WeakMap<Request, { deps: Deps; ip: string; requestId: string; log: AppEnv["Variables"]["log"] }>();
+  const consoleVars = new WeakMap<Request, { deps: Deps; ip: string; requestId: string; log: AppEnv["Variables"]["log"]; auth?: AppEnv["Variables"]["auth"] }>();
   const consoleHandler = async (c: Context<AppEnv>) => {
     if (!consoleApp) {
       const { consoleRoutes } = await import("./routes/console");
@@ -596,10 +596,15 @@ export function createApp(deps: Deps) {
       built.onError(errorHandler);
       consoleApp = built;
     }
-    consoleVars.set(c.req.raw, { deps: c.var.deps, ip: c.var.ip, requestId: c.var.requestId, log: c.var.log });
+    const holder: { deps: Deps; ip: string; requestId: string; log: AppEnv["Variables"]["log"]; auth?: AppEnv["Variables"]["auth"] } = { deps: c.var.deps, ip: c.var.ip, requestId: c.var.requestId, log: c.var.log };
+    consoleVars.set(c.req.raw, holder);
     let ctx: Parameters<import("hono").Hono<AppEnv>["fetch"]>[2];
     try { ctx = c.executionCtx; } catch { ctx = undefined; }
-    return consoleApp.fetch(c.req.raw, c.env, ctx);
+    const res = await consoleApp.fetch(c.req.raw, c.env, ctx);
+    // OPS1 security (L4): the console resolved the session in its own context; hand its user id to this one so the
+    // access log line names the operator (only the log reads logUser; c.var.auth stays unset here on purpose).
+    if (holder.auth?.userId) c.set("logUser", { userId: holder.auth.userId, orgId: holder.auth.orgId ?? null });
+    return res;
   };
   app.all("/api/console", consoleHandler);
   app.all("/api/console/*", consoleHandler);

@@ -25,7 +25,8 @@ import { metricsRoutes } from "./metrics";
 import { mobileRoutes } from "./mobile";
 import { announcementsRoutes } from "./announcements";
 
-type ParentVars = { deps: AppEnv["Variables"]["deps"]; ip: string; requestId: string; log: AppEnv["Variables"]["log"] };
+/** OPS1 security (L4): `auth` is written back once the console resolved the session, so app.ts's access log names who asked. */
+type ParentVars = { deps: AppEnv["Variables"]["deps"]; ip: string; requestId: string; log: AppEnv["Variables"]["log"]; auth?: AppEnv["Variables"]["auth"] };
 
 /** The console's areas and where each is mounted under /api/console. */
 export const CONSOLE_AREAS = {
@@ -55,7 +56,11 @@ export function consoleRoutes(parentVars?: WeakMap<Request, ParentVars>) {
   app.use("*", async (c, next) => {
     const p = parentVars?.get(c.req.raw);
     if (p) { c.set("deps", p.deps); c.set("ip", p.ip); c.set("requestId", p.requestId); c.set("log", p.log); }
-    await next();
+    try {
+      await next();
+    } finally {
+      if (p && c.var.auth) p.auth = c.var.auth; // OPS1 security (L4)
+    }
   });
   // Unknown console paths answer 401 or 403 to someone who is not an operator, never a list of what exists.
   app.use("*", operatorSession);

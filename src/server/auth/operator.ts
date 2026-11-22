@@ -49,6 +49,54 @@ export function isFreshSignIn(deps: Pick<Deps, "config" | "now">, auth: Pick<Aut
   return age <= deps.config.operator.freshMinutes * 60_000;
 }
 
+/*
+ * OPS1 security review L4 (a): a refused privileged attempt on a console change (403 forbidden from requireOperator,
+ * step_up_required, impersonating, two_factor_required) writes one platform audit row "access.denied" with the
+ * permission, method and path (never the body). Reads are not logged. At most one row per operator per route per
+ * minute, and at most DENIED_PER_MINUTE rows per operator per minute, in this isolate's memory, so one client cannot
+ * flood the table. An account with no operator role is not logged (anyone can make one).
+ */
+const DENIED_WINDOW_MS = 60_000;
+const DENIED_PER_MINUTE = 20;
+const DENIED_KEYS_MAX = 5_000;
+const deniedSeen = new Map<string, number>();
+const deniedCount = new Map<string, { n: number; since: number }>();
+
+/** Test hook: forgets the rate limit of access.denied rows. */
+export function resetDeniedLog() { deniedSeen.clear(); deniedCount.clear(); }
+
+async function recordDenied(c: Context<AppEnv>, auth: AuthContext, code: string, permission?: Permission): Promise<void> {
+  if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS") return;
+  const actorId = auth.impersonatedBy ?? auth.userId;
+  if (!actorId) return;
+  const now = Date.now();
+  const route = c.req.routePath && c.req.routePath !== "/*" ? c.req.routePath : c.req.path;
+  const key = `${actorId}|${c.req.method} ${route}`;
+  const last = deniedSeen.get(key);
+  if (last !== undefined && now - last < DENIED_WINDOW_MS) return;
+  const cnt = deniedCount.get(actorId);
+  if (cnt && now - cnt.since < DENIED_WINDOW_MS) {
+    if (cnt.n >= DENIED_PER_MINUTE) return;
+    cnt.n++;
+  } else {
+    deniedCount.set(actorId, { n: 1, since: now });
+  }
+  if (deniedSeen.size >= DENIED_KEYS_MAX) deniedSeen.delete(deniedSeen.keys().next().value as string);
+  if (deniedCount.size >= DENIED_KEYS_MAX) deniedCount.delete(deniedCount.keys().next().value as string);
+  deniedSeen.set(key, now);
+  try {
+    const { platformAudit } = await import("../services/console/audit");
+    await platformAudit(c.var.deps.db, {
+      actorUserId: actorId, actorEmail: auth.impersonatedBy ? null : auth.email, actorRole: auth.impersonatedBy ? null : auth.platformRole ?? null,
+      ip: c.var.ip ?? null, userAgent: c.req.header("user-agent") ?? null, requestId: c.var.requestId ?? null,
+      action: "access.denied", targetType: "route", targetId: `${c.req.method} ${route}`.slice(0, 200),
+      metadata: { code, permission: permission ?? null, method: c.req.method, path: c.req.path.slice(0, 300), ...(auth.impersonatedBy ? { impersonating: auth.userId } : {}) },
+    });
+  } catch (err) {
+    c.var.deps.reportError?.(err, { where: "console.access_denied" });
+  }
+}
+
 /** Resolves and checks the operator for this request, once (a second call in the same request is a no-op). */
 export const operatorSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (c.var.operator) return next();
@@ -61,14 +109,20 @@ export const operatorSession: MiddlewareHandler<AppEnv> = async (c, next) => {
     noteRequestCaller(auth);
     return next();
   }
-  if (auth.impersonatedBy) throw new HttpError(403, "impersonating", "Stop viewing as this person first. The operator console is not available while you view as someone else.");
+  c.set("auth", auth); // OPS1 security (L4): the access log names who asked, refused or not (app.ts reads it back)
+  if (auth.impersonatedBy) {
+    await recordDenied(c, auth, "impersonating");
+    throw new HttpError(403, "impersonating", "Stop viewing as this person first. The operator console is not available while you view as someone else.");
+  }
   if (!isOperatorRole(auth.platformRole)) throw new HttpError(403, "forbidden", NOT_OPERATOR_MESSAGE);
   if (!meetsTwoFactorRule(c.var.deps, auth)) {
+    await recordDenied(c, auth, "two_factor_required");
     throw new HttpError(403, "two_factor_required", "Turn on two-step sign in for your account, then sign in again to open the operator console.");
   }
   // OPS1 security (M2): the rule is about this session, not only the account flag. A session created at or before
   // the account's two-step enrolment never passed the second step (auth/two-factor-enrolment.ts), so sign in again.
   if (twoFactorRuleApplies(c.var.deps, auth) && !(await sessionPostdatesEnrolment(c.var.deps.db, auth))) {
+    await recordDenied(c, auth, "two_factor_required");
     throw new HttpError(403, "two_factor_required", "Sign in again to open the operator console. This session started before two-step sign in was turned on, so it never asked for your code.");
   }
   c.set("auth", auth);
@@ -84,8 +138,12 @@ export function requireOperator(permission: Permission, opts: { stepUp?: boolean
   const stepUp = !!opts.stepUp;
   const guard: MiddlewareHandler<AppEnv> = async (c, next) => {
     const role = c.var.operator?.role ?? c.var.auth?.platformRole;
-    if (!can(role, permission)) throw new HttpError(403, "forbidden", "Your operator role can't do that.");
+    if (!can(role, permission)) {
+      if (c.var.auth && isOperatorRole(role)) await recordDenied(c, c.var.auth, "forbidden", permission); // OPS1 security (L4)
+      throw new HttpError(403, "forbidden", "Your operator role can't do that.");
+    }
     if (stepUp && !isFreshSignIn(c.var.deps, c.var.auth)) {
+      await recordDenied(c, c.var.auth, "step_up_required", permission); // OPS1 security (L4)
       throw new HttpError(403, "step_up_required", `Sign in again to do this. It needs a sign in from the last ${c.var.deps.config.operator.freshMinutes} minutes.`, { freshMinutes: c.var.deps.config.operator.freshMinutes });
     }
     await next();
