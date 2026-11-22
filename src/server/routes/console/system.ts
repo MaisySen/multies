@@ -5,7 +5,8 @@
  *                          reads against budget, busiest workspaces today, uptime, integrations (configured or not, never
  *                          keys), circuit breakers (the answering isolate only) and rate limits
  *   GET  /lockouts         { items, nextCursor } (system.read) ?status=locked|all|any (locked; any is all) &sort=lockedUntil|failures|windowStart:dir
- *   POST /lockouts/clear   { email, reason } (users.unlock) clears the failed sign in count and lock
+ *   POST /lockouts/clear   { email, reason } (users.unlock) clears the failed sign in count and lock; an operator's or a
+ *                          PLATFORM_ADMIN_EMAILS address only for owners (403 target_is_operator)
  *   POST /sentry-test      { reason } (system.manage) sends one test error to Sentry, as POST /api/admin/sentry-test
  */
 import { Hono, type Context } from "hono";
@@ -18,6 +19,7 @@ import { parseBody, parseQuery } from "../../middleware";
 import { operatorSession, requireOperator } from "../../auth/operator";
 import { operatorAction, reasonSchema } from "../../services/console/audit";
 import { clearLockout, listLockouts, systemSnapshot, type LockoutSortField } from "../../services/console/system";
+import { isBootstrapListed, isProtectedAccount } from "../../services/console/users";
 import type { ConsoleCursor, ConsolePage, ConsolePageResult } from "../../services/console/jobs";
 
 const STALE = "That page link is out of date. Start the list again.";
@@ -73,7 +75,13 @@ export function systemRoutes() {
     .post("/lockouts/clear", requireOperator("users.unlock"), async (c) => {
       const body = await parseBody(c, z.object({ email: z.string().trim().min(3, "Give the account's email address.").max(320), reason: reasonSchema }));
       const email = body.email.toLowerCase();
-      const user = await c.var.deps.db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+      const user = await c.var.deps.db.select({ id: users.id, email: users.email, role: users.role }).from(users).where(eq(users.email, email)).get();
+      // OPS1 security (L3): an operator's or a PLATFORM_ADMIN_EMAILS address is for owners only (support can't help
+      // someone guess an operator's password faster).
+      const protectedAddress = user ? isProtectedAccount(c.var.deps.config, user) : isBootstrapListed(c.var.deps.config, { id: "", email });
+      if (protectedAddress && c.var.operator?.role !== "admin") {
+        throw new HttpError(403, "target_is_operator", "This address belongs to a platform operator. Only an owner can clear its sign in lockout.");
+      }
       type R = Awaited<ReturnType<typeof clearLockout>>;
       const out = await operatorAction(c, {
         action: "user.lockout_cleared", targetType: "user", targetId: user?.id ?? email, reason: body.reason,
