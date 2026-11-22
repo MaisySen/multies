@@ -17,7 +17,7 @@ export interface SystemSnapshot {
   release: string;
   migrations: { ok: true; pending: string[] } | { ok: false; error: "unreadable" };
   database: { meter: "on" | "off"; writes: SystemWrites | null; reads: SystemReads | null };
-  busiestWorkspaces: { day: string; budget: number; items: { orgId: string; workspaceName: string | null; rowsWritten: number; level: "ok" | "near" | "over" | "off" }[] };
+  busiestWorkspaces: { day: string; budget: number; items: { orgId: string; workspaceName: string | null; ownerEmail?: string | null; rowsWritten: number; level: "ok" | "near" | "over" | "off" }[] };
   integrations: {
     sentryApi: boolean; sentryWeb: boolean; outbound: string; billing: boolean; billingTestMode: boolean;
     auth0: boolean; google: boolean; github: boolean; mailServer: boolean; writeBudgetMeter: boolean;

@@ -15,7 +15,7 @@ import { IconCheckCircle, IconHourglass, IconPlay, IconWarning, IconWorkflow } f
 import { cn } from "@/web/lib/cn";
 import { consoleTable as T, DataTable, tableProps } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
-import { Empty, JobStatusBadge, jobStatusLabel, jobTypeLabel, Labelled, LoadError, RelTime, WorkspaceLink } from "./components/format";
+import { Empty, JobStatusBadge, jobStatusLabel, jobTypeLabel, Labelled, LoadError, RelTime, WorkspaceLink, workspaceHint } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { PermissionGate, usePermission } from "./guard";
 import { OLDEST_WAIT_WARN_MS, ageText, jobsApi, jobsKeys, type ConsoleJob, type JobStats, type JobStatus } from "./jobs-api";
@@ -205,7 +205,7 @@ export function JobsQueueTab() {
               </span>
             ) },
             { key: "workspace", header: "Workspace", cell: (j) => (j.orgId
-              ? <WorkspaceLink id={j.orgId} name={j.workspaceName} className="max-w-[12rem]" />
+              ? <WorkspaceLink id={j.orgId} name={j.workspaceName} hint={workspaceHint(j.orgId, j.ownerEmail)} className="max-w-[12rem]" />
               : <Empty>No workspace</Empty>) },
             { key: "attempts", header: "Attempts", sort: "attempts", align: "right", cell: (j) => <span className="whitespace-nowrap tabular-nums">{j.attempts} of {j.maxAttempts}</span> },
             { key: "error", header: "Last error", cell: (j) => (j.lastError

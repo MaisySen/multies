@@ -159,8 +159,8 @@ describe("abuse signals", () => {
       { id: "abu_4", orgId: orgB, kind: "outbound_held", score: 30, createdAt: new Date(NOW - H), resolvedAt: new Date(NOW) },
     ]);
     expect(await abuseSummaryByWorkspace(ctx.deps)).toEqual([
-      { orgId: orgA, workspaceName: "Acme", openEvents: 2, topScore: 12, lastEventAt: new Date(NOW - H).toISOString(), suspended: false },
-      { orgId: orgB, workspaceName: "Beta Works", openEvents: 1, topScore: 6, lastEventAt: new Date(NOW - H).toISOString(), suspended: false },
+      { orgId: orgA, workspaceName: "Acme", ownerEmail: "olive@acme.io", openEvents: 2, topScore: 12, lastEventAt: new Date(NOW - H).toISOString(), suspended: false },
+      { orgId: orgB, workspaceName: "Beta Works", ownerEmail: "bea@beta.io", openEvents: 1, topScore: 6, lastEventAt: new Date(NOW - H).toISOString(), suspended: false },
     ]);
   });
 
@@ -196,8 +196,8 @@ describe("suspended workspaces", () => {
     const list = await listSuspendedWorkspaces(ctx.deps, pageOf("suspendedAt", "desc", 50));
     expect(list.next).toBeNull();
     expect(list.items).toEqual([
-      { orgId: orgA, workspaceName: "Acme", suspendedAt: new Date(NOW).toISOString(), reason: "Phishing links", automatic: false, suspendedBy: { userId: userB, email: "bea@beta.io" }, openAbuseEvents: 1 },
-      { orgId: orgB, workspaceName: "Beta Works", suspendedAt: new Date(NOW - 5 * H).toISOString(), reason: expect.stringMatching(/^Automatic:/), automatic: true, suspendedBy: null, openAbuseEvents: 0 },
+      { orgId: orgA, workspaceName: "Acme", ownerEmail: "olive@acme.io", suspendedAt: new Date(NOW).toISOString(), reason: "Phishing links", automatic: false, suspendedBy: { userId: userB, email: "bea@beta.io" }, openAbuseEvents: 1 },
+      { orgId: orgB, workspaceName: "Beta Works", ownerEmail: "bea@beta.io", suspendedAt: new Date(NOW - 5 * H).toISOString(), reason: expect.stringMatching(/^Automatic:/), automatic: true, suspendedBy: null, openAbuseEvents: 0 },
     ]);
     const byName = await walk((cursor) => listSuspendedWorkspaces(ctx.deps, pageOf("name", "asc", 1, cursor)), (w) => w.orgId);
     expect(byName).toEqual([orgA, orgB]);

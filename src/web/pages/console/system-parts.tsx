@@ -8,7 +8,7 @@ import { Card } from "@/web/components/ui/misc";
 import { IconActivity, IconBuilding, IconDatabase } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { consoleTable as T, tableProps } from "./components/data-table";
-import { EmptyRow, formatDay, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
+import { EmptyRow, formatDay, RelTime, StatusBadge, WorkspaceLink, workspaceHint } from "./components/format";
 import { providerLabel, type SystemReads, type SystemSnapshot, type SystemWrites } from "./system-api";
 
 const fmt = (n: number) => n.toLocaleString(LOCALE);
@@ -131,7 +131,7 @@ export function BusiestWorkspaces({ b }: { b: SystemSnapshot["busiestWorkspaces"
             const l = WS_LEVEL[w.level] ?? WS_LEVEL.off;
             return (
               <tr key={w.orgId} className={T.row}>
-                <td className={T.td}><WorkspaceLink id={w.orgId} name={w.workspaceName} className="max-w-[16rem]" /></td>
+                <td className={T.td}><WorkspaceLink id={w.orgId} name={w.workspaceName} hint={workspaceHint(w.orgId, w.ownerEmail)} className="max-w-[16rem]" /></td>
                 <td className={cn(T.td, "text-right tabular-nums")}>{fmt(w.rowsWritten)}</td>
                 {b.budget > 0 && <td className={cn(T.td, "text-right tabular-nums text-muted", T.secondary)}>{Math.round((w.rowsWritten / b.budget) * 100)}%</td>}
                 <td className={T.td}><StatusBadge state={w.level} tone={l.tone} label={l.label} dot={false} /></td>

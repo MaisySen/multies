@@ -19,6 +19,7 @@ import { uptimeHistory, type DayUptime } from "../status";
 import { WORKSPACE_ROWS_METRIC, workspaceLevel, type WorkspaceBudgetLevel } from "../workspace-budget";
 import { healthView, readsView, writeBudget, type WriteBudgetLevel } from "../write-budget";
 import { iso, ms, pageParts, type ConsolePage, type ConsolePageResult, type SortDef } from "./jobs";
+import { withOwnerEmail } from "./owners";
 
 // ------------------------------------------------------------------ snapshot
 
@@ -41,7 +42,8 @@ export interface SystemSnapshot {
     day: string;
     /** The per workspace daily row budget (0 when the guard is off). */
     budget: number;
-    items: { orgId: string; workspaceName: string | null; rowsWritten: number; level: WorkspaceBudgetLevel }[];
+    /** ownerEmail: the workspace's first owner, so two workspaces with one name can be told apart. */
+    items: { orgId: string; workspaceName: string | null; ownerEmail: string | null; rowsWritten: number; level: WorkspaceBudgetLevel }[];
   };
   integrations: {
     sentryApi: boolean; sentryWeb: boolean; outbound: string; billing: boolean; billingTestMode: boolean;
@@ -88,7 +90,7 @@ async function busiest(deps: Deps): Promise<SystemSnapshot["busiestWorkspaces"]>
     .orderBy(desc(usageCounters.count)).limit(BUSIEST_WORKSPACES);
   return {
     day, budget: cfg.daily,
-    items: rows.map((r) => ({ orgId: r.orgId, workspaceName: r.workspaceName ?? null, rowsWritten: Number(r.n), level: workspaceLevel(Number(r.n), cfg) })),
+    items: await withOwnerEmail(deps, rows.map((r) => ({ orgId: r.orgId, workspaceName: r.workspaceName ?? null, rowsWritten: Number(r.n), level: workspaceLevel(Number(r.n), cfg) }))),
   };
 }
 

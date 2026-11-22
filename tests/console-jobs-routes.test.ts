@@ -68,7 +68,7 @@ describe("GET /api/console/jobs", () => {
     expect((await readonly.get("/api/console/jobs?type=webhook.deliver")).body.items.map((j: { id: string }) => j.id)).toEqual(["job_other"]);
     const ws = await readonly.get(`/api/console/jobs?workspace=${alpha}`);
     expect(ws.body.items).toHaveLength(5);
-    expect(ws.body.items[0]).toMatchObject({ workspaceName: "Alpha", orgId: alpha, attempts: 8, lastError: "boom" });
+    expect(ws.body.items[0]).toMatchObject({ workspaceName: "Alpha", ownerEmail: "admin@ops.test", orgId: alpha, attempts: 8, lastError: "boom" });
     expect(JSON.stringify(ws.body)).not.toContain(SECRET);
     expect(ws.body.items[0].payloadPreview).toContain("messageId");
 
@@ -124,7 +124,7 @@ describe("GET /api/console/jobs/data-moves", () => {
     expect(next.body.nextCursor).toBeNull();
     expect((await readonly.get("/api/console/jobs/data-moves?kind=export")).body.items.map((m: { id: string }) => m.id)).toEqual(["dm_2"]);
     const failed = await readonly.get("/api/console/jobs/data-moves?status=failed");
-    expect(failed.body.items).toEqual([expect.objectContaining({ id: "dm_0", workspaceName: "Alpha", done: 4, total: 10, error: "bad row" })]);
+    expect(failed.body.items).toEqual([expect.objectContaining({ id: "dm_0", workspaceName: "Alpha", ownerEmail: "admin@ops.test", done: 4, total: 10, error: "bad row" })]);
     expect(JSON.stringify(failed.body)).not.toContain("secret-file-name");
     expect((await readonly.get("/api/console/jobs/data-moves?sort=fileName:desc")).status).toBe(422);
     expect((await readonly.get("/api/console/jobs/data-moves?kind=teleport")).status).toBe(422);

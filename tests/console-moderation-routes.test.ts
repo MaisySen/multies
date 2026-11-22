@@ -64,7 +64,7 @@ describe("reports", () => {
     expect(harassment.body.items.map((r: { id: string }) => r.id).sort()).toEqual(["rpt_page1", "rpt_page3"]);
     const ws = await readonly.get(`/api/console/moderation/reports?workspace=${otherOrg}`);
     expect(ws.body.items.map((r: { id: string }) => r.id)).toEqual(["rpt_other"]);
-    expect(ws.body.items[0].workspaceName).toBe("Other Org");
+    expect(ws.body.items[0]).toMatchObject({ workspaceName: "Other Org", ownerEmail: "odd@other.test" });
     const q = await readonly.get("/api/console/moderation/reports?q=zebra-needle");
     expect(q.body.items.map((r: { id: string }) => r.id)).toEqual(["rpt_other"]);
     expect((await readonly.get("/api/console/moderation/reports?sort=name:asc")).status).toBe(400);
@@ -139,7 +139,8 @@ describe("abuse signals", () => {
     expect((await readonly.get("/api/console/moderation/abuse?sort=kind:asc")).status).toBe(400);
     const summary = await readonly.get("/api/console/moderation/abuse/summary");
     expect(summary.body.items.map((s: { orgId: string }) => s.orgId)).toEqual([otherOrg, custOrg]);
-    expect(summary.body.items[1]).toMatchObject({ workspaceName: "Cara Co", openEvents: 3, topScore: 30 });
+    expect(summary.body.items[1]).toMatchObject({ workspaceName: "Cara Co", ownerEmail: "cara@customer.test", openEvents: 3, topScore: 30 });
+    expect(kind.body.items.every((e: { ownerEmail: string | null }) => typeof e.ownerEmail === "string")).toBe(true);
   });
 
   it("resolving needs a reason and moderation.act, works by ids or for a workspace, and is audited", async () => {

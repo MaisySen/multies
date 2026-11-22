@@ -21,6 +21,7 @@ import { HttpError } from "../../lib/errors";
 import { containsAny } from "../../lib/like-search";
 import { inIds } from "../../lib/sql-chunks";
 import { getOrg } from "../plans";
+import { withOwnerEmail } from "./owners";
 import { actOnReport, REPORT_REASONS, type ReportAction, type ReportReason } from "../suite/reports-r35";
 
 // ---------------------------------------------------------------- paging (the fixed console data-layer contract)
@@ -109,6 +110,8 @@ export interface ConsoleReport {
   workspaceId: string | null;
   orgId: string | null;
   workspaceName: string | null;
+  /** The workspace's first owner's email (withOwnerEmail), so two workspaces with one name can be told apart. */
+  ownerEmail: string | null;
   messageId: string | null;
   snapshotText: string | null;
   snapshotAuthorId: string | null;
@@ -149,7 +152,7 @@ export async function listReports(deps: Deps, input: ListReportsInput): Promise<
   const now = deps.now().getTime();
   return {
     next: page.next,
-    items: page.items.map(({ r, ...x }) => ({
+    items: await withOwnerEmail(deps, page.items.map(({ r, ...x }) => ({
       id: r.id, status: r.status, action: r.action, targetType: r.targetType, context: r.context, reason: r.reason, note: r.note,
       workspaceId: r.orgId, orgId: r.orgId, workspaceName: x.workspaceName,
       messageId: r.messageId, snapshotText: r.snapshotText, snapshotAuthorId: r.snapshotAuthorId,
@@ -157,7 +160,7 @@ export async function listReports(deps: Deps, input: ListReportsInput): Promise<
       target: r.targetUserId ? { id: r.targetUserId, name: x.targetName, email: x.targetEmail, suspended: !!x.targetBanned } : null,
       createdAt: r.createdAt.toISOString(), ageHours: Math.floor((now - r.createdAt.getTime()) / 3600_000),
       resolvedAt: r.resolvedAt?.toISOString() ?? null, resolvedBy: r.resolvedBy, resolutionNote: r.resolutionNote,
-    })),
+    }))),
   };
 }
 
@@ -226,6 +229,8 @@ export interface ConsoleAbuseEvent {
   id: string;
   orgId: string;
   workspaceName: string;
+  /** The workspace's first owner's email (withOwnerEmail), so two workspaces with one name can be told apart. */
+  ownerEmail: string | null;
   kind: string;
   score: number;
   detail: string | null;
@@ -256,13 +261,15 @@ export async function listAbuseEvents(deps: Deps, input: ListAbuseEventsInput): 
   const page = k.page(rows, (r) => ({ v: sortField === "score" ? r.score : r.createdAt, id: r.id }));
   return {
     next: page.next,
-    items: page.items.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), resolvedAt: r.resolvedAt?.toISOString() ?? null })),
+    items: await withOwnerEmail(deps, page.items.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), resolvedAt: r.resolvedAt?.toISOString() ?? null }))),
   };
 }
 
 export interface AbuseWorkspaceSummary {
   orgId: string;
   workspaceName: string;
+  /** The workspace's first owner's email (withOwnerEmail), so two workspaces with one name can be told apart. */
+  ownerEmail: string | null;
   openEvents: number;
   topScore: number;
   lastEventAt: string;
@@ -280,10 +287,10 @@ export async function abuseSummaryByWorkspace(deps: Deps, opts: { limit?: number
     .where(isNull(abuseEvents.resolvedAt))
     .groupBy(abuseEvents.orgId, organizations.name, organizations.suspendedAt)
     .orderBy(desc(top), desc(count()), asc(abuseEvents.orgId)).limit(limit);
-  return rows.map((r) => ({
+  return withOwnerEmail(deps, rows.map((r) => ({
     orgId: r.orgId, workspaceName: r.workspaceName, openEvents: r.openEvents, topScore: Number(r.topScore ?? 0),
     lastEventAt: new Date(Number(r.lastAt)).toISOString(), suspended: !!r.suspendedAt,
-  }));
+  })));
 }
 
 export type ResolveAbuseTarget = { ids: string[] } | { orgId: string };
@@ -313,6 +320,8 @@ export type SuspendedSortField = (typeof SUSPENDED_SORT_FIELDS)[number];
 export interface SuspendedWorkspace {
   orgId: string;
   workspaceName: string;
+  /** The workspace's first owner's email (withOwnerEmail), so two workspaces with one name can be told apart. */
+  ownerEmail: string | null;
   suspendedAt: string;
   reason: string | null;
   /** The spam filter suspended it (services/abuse.ts maybeAutoSuspend), not an operator. */
@@ -345,7 +354,7 @@ export async function listSuspendedWorkspaces(deps: Deps, page: PageRequest<Susp
     .orderBy(desc(platformAuditLogs.createdAt)) : [];
   return {
     next: p.next,
-    items: p.items.map((r) => {
+    items: await withOwnerEmail(deps, p.items.map((r) => {
       const at = r.suspendedAt!;
       const automatic = (r.reason ?? "").startsWith(AUTO_PREFIX);
       const row = automatic ? undefined : audits.find((a) => a.orgId === r.id && a.at.getTime() >= at.getTime());
@@ -353,7 +362,7 @@ export async function listSuspendedWorkspaces(deps: Deps, page: PageRequest<Susp
         orgId: r.id, workspaceName: r.name, suspendedAt: at.toISOString(), reason: r.reason, automatic,
         suspendedBy: row ? { userId: row.actorUserId, email: row.actorEmail } : null, openAbuseEvents: Number(r.openAbuse ?? 0),
       };
-    }),
+    })),
   };
 }
 

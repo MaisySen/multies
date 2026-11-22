@@ -13,7 +13,7 @@ import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { IconFlag, IconSearch, IconShieldCheck, IconWarning } from "@/web/components/ui/icon";
 import { REPORT_REASONS } from "../app/work/report-sheet-r35";
 import { FilterBar, useUrlParams, type FilterDef } from "./components/filter-bar";
-import { Empty, LoadError, PersonLink, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
+import { Empty, LoadError, PersonLink, RelTime, StatusBadge, WorkspaceLink, workspaceHint } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { usePermission } from "./guard";
 import { ageTone, moderationApi, type ConsoleReport } from "./moderation-api";
@@ -131,7 +131,7 @@ export function ReportsTab() {
                         {r.target ? <PersonLink id={r.target.id} name={r.target.name} email={r.target.email} className="max-w-full" /> : <Empty />}
                       </Fact>
                       <Fact label="Reported by"><PersonLink id={r.reporter.id} name={r.reporter.name} email={r.reporter.email} className="max-w-full" /></Fact>
-                      {r.orgId && <Fact label="Workspace"><WorkspaceLink id={r.orgId} name={r.workspaceName} className="max-w-full" /></Fact>}
+                      {r.orgId && <Fact label="Workspace"><WorkspaceLink id={r.orgId} name={r.workspaceName} hint={workspaceHint(r.orgId, r.ownerEmail)} className="max-w-full" /></Fact>}
                     </dl>
                     {r.resolutionNote && <p className="text-[12.5px] text-muted">Note: {r.resolutionNote}</p>}
                     {r.status === "open" && canAct && (

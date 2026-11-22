@@ -16,6 +16,7 @@ import type { Deps } from "../../context";
 import { dataMoves, jobs, organizations } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { replayJobs } from "../jobs";
+import { withOwnerEmail } from "./owners";
 
 // ------------------------------------------------------------------ paging (shared by the console data layer)
 
@@ -217,6 +218,8 @@ export interface JobFilters {
 export interface ConsoleJob {
   id: string; type: string; status: JobStatus;
   orgId: string | null; workspaceName: string | null;
+  /** The workspace's first owner's email (withOwnerEmail), so two workspaces with one name can be told apart. */
+  ownerEmail: string | null;
   attempts: number; maxAttempts: number;
   runAt: string; lockedUntil: string | null; createdAt: string; updatedAt: string;
   /** lastError with addresses and tokens taken out, at most 300 characters. */
@@ -249,12 +252,13 @@ export async function listJobsFiltered(deps: Deps, filters: JobFilters, page: Co
       default: return ms(r.updatedAt ?? r.createdAt);
     }
   };
-  return p.finish(rows, (r) => ({ v: value(r), id: r.id }), (r) => ({
+  const out = p.finish(rows, (r) => ({ v: value(r), id: r.id }), (r) => ({
     id: r.id, type: r.type, status: r.status, orgId: r.orgId, workspaceName: r.workspaceName ?? null,
     attempts: r.attempts, maxAttempts: r.maxAttempts, runAt: iso(r.runAt)!, lockedUntil: iso(r.lockedUntil),
     createdAt: iso(r.createdAt)!, updatedAt: iso(r.updatedAt ?? r.createdAt)!,
     lastError: redactError(r.lastError), payloadPreview: redactPayload(r.payload),
   }));
+  return { ...out, items: await withOwnerEmail(deps, out.items) };
 }
 
 // ------------------------------------------------------------------ job mutations
@@ -346,6 +350,8 @@ export interface DataMoveFilters {
 
 export interface ConsoleDataMove {
   id: string; orgId: string; workspaceName: string | null;
+  /** The workspace's first owner's email (withOwnerEmail), so two workspaces with one name can be told apart. */
+  ownerEmail: string | null;
   kind: "import" | "export"; source: string; status: DataMoveStatus;
   total: number; done: number;
   /** The error with addresses and tokens taken out. File names, download tokens and the creator's address are never returned. */
@@ -377,9 +383,10 @@ export async function listDataMoves(deps: Deps, filters: DataMoveFilters, page: 
       filters.orgId ? eq(dataMoves.orgId, filters.orgId) : undefined,
       p.after,
     )).orderBy(...p.orderBy).limit(p.take);
-  return p.finish(rows, (r) => ({ v: p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.createdAt), id: r.id }), (r) => ({
+  const out = p.finish(rows, (r) => ({ v: p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.createdAt), id: r.id }), (r) => ({
     id: r.id, orgId: r.orgId, workspaceName: r.workspaceName ?? null, kind: r.kind, source: r.source.slice(0, 40), status: r.status,
     total: r.total, done: r.done, error: redactError(r.error), createdByUserId: r.createdByUserId,
     createdAt: iso(r.createdAt)!, updatedAt: iso(r.updatedAt)!, finishedAt: iso(r.finishedAt), lastStepAt: iso(r.lastStepAt), expiresAt: iso(r.expiresAt),
   }));
+  return { ...out, items: await withOwnerEmail(deps, out.items) };
 }

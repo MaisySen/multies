@@ -10,7 +10,7 @@ import { IconShieldCheck } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { consoleTable as T, DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
-import { EmptyRow, humanize, LoadError, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
+import { EmptyRow, humanize, LoadError, RelTime, StatusBadge, WorkspaceLink, workspaceHint } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { usePermission } from "./guard";
 import { moderationApi, type AbuseEvent, type AbuseSummary } from "./moderation-api";
@@ -54,7 +54,7 @@ function Summary() {
             <tbody className={T.body}>
               {items.map((w) => (
                 <tr key={w.orgId} className={T.row}>
-                  <td className={T.td}><span className="flex flex-wrap items-center gap-1.5"><WorkspaceLink id={w.orgId} name={w.workspaceName} className="max-w-[14rem]" />{w.suspended && <StatusBadge state="suspended" label="Suspended" />}</span></td>
+                  <td className={T.td}><span className="flex flex-wrap items-center gap-1.5"><WorkspaceLink id={w.orgId} name={w.workspaceName} hint={workspaceHint(w.orgId, w.ownerEmail)} className="max-w-[14rem]" />{w.suspended && <StatusBadge state="suspended" label="Suspended" />}</span></td>
                   <td className={cn(T.td, "text-right tabular-nums")}>{num(w.openEvents)}</td>
                   <td className={cn(T.td, "text-right tabular-nums", T.secondary)}>{num(w.topScore)}</td>
                   <td className={cn(T.td, "text-muted", T.secondary)}><RelTime at={w.lastEventAt} /></td>
@@ -93,7 +93,7 @@ export function AbuseTab() {
           rowKey={(e) => e.id} minWidth={680}
           empty={{ icon: <IconShieldCheck />, title: "No signals here", body: "Change the status filter to see dismissed signals." }}
           columns={[
-            { key: "ws", header: "Workspace", cell: (e) => <WorkspaceLink id={e.orgId} name={e.workspaceName} className="max-w-[14rem]" /> },
+            { key: "ws", header: "Workspace", cell: (e) => <WorkspaceLink id={e.orgId} name={e.workspaceName} hint={workspaceHint(e.orgId, e.ownerEmail)} className="max-w-[14rem]" /> },
             { key: "kind", header: "Signal", cell: (e) => <span className="flex flex-col"><span title={e.kind}>{humanize(e.kind)}</span>{e.detail && <span className="line-clamp-2 max-w-xs text-xs text-subtle">{e.detail}</span>}</span> },
             { key: "score", header: "Score", sort: "score", align: "right", cell: (e) => <span className="tabular-nums">{num(e.score)}</span> },
             { key: "when", header: "When", sort: "createdAt", cell: (e) => <RelTime at={e.createdAt} className="text-muted" /> },

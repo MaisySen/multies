@@ -9,14 +9,14 @@ export interface JobStatRow { status: JobStatus; type: string; count: number; ol
 export interface JobStats { byStatus: Record<JobStatus, number>; byStatusAndType: JobStatRow[]; oldestPendingAgeMs: number; at: string }
 
 export interface ConsoleJob {
-  id: string; type: string; status: JobStatus; orgId: string | null; workspaceName: string | null;
+  id: string; type: string; status: JobStatus; orgId: string | null; workspaceName: string | null; ownerEmail?: string | null;
   attempts: number; maxAttempts: number; runAt: string; lockedUntil: string | null; createdAt: string; updatedAt: string;
   lastError: string | null; payloadPreview: string;
 }
 
 export type DataMoveStatus = "running" | "stopped" | "done" | "undone" | "failed" | "ready" | "expired";
 export interface ConsoleDataMove {
-  id: string; orgId: string; workspaceName: string | null; kind: "import" | "export"; source: string; status: DataMoveStatus;
+  id: string; orgId: string; workspaceName: string | null; ownerEmail?: string | null; kind: "import" | "export"; source: string; status: DataMoveStatus;
   total: number; done: number; error: string | null; createdByUserId: string | null;
   createdAt: string; updatedAt: string; finishedAt: string | null; lastStepAt: string | null; expiresAt: string | null;
 }

@@ -10,7 +10,7 @@ import { Button } from "@/web/components/ui/button";
 import { IconLock, IconShieldCheck } from "@/web/components/ui/icon";
 import { DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
-import { Empty, formatDateTime, PersonLink, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
+import { Empty, formatDateTime, PersonLink, RelTime, StatusBadge, WorkspaceLink, workspaceHint } from "./components/format";
 import { useOperatorAction } from "./components/reason-dialog";
 import { usePermission } from "./guard";
 import { CLEAR_LOCKOUT, duration, moderationApi, type Lockout, type SuspendedWorkspace } from "./moderation-api";
@@ -30,7 +30,7 @@ export function SuspendedTab() {
         rowKey={(w) => w.orgId} rowHref={(w) => `/console/workspaces/${encodeURIComponent(w.orgId)}`} minWidth={720}
         empty={{ icon: <IconShieldCheck />, title: "No suspended workspaces", body: "Workspaces suspended by an operator or the spam filter show here." }}
         columns={[
-          { key: "name", header: "Workspace", sort: "name", cell: (w) => <WorkspaceLink id={w.orgId} name={w.workspaceName} className="max-w-[14rem]" /> },
+          { key: "name", header: "Workspace", sort: "name", cell: (w) => <WorkspaceLink id={w.orgId} name={w.workspaceName} hint={workspaceHint(w.orgId, w.ownerEmail)} className="max-w-[14rem]" /> },
           { key: "reason", header: "Reason", cell: (w) => (w.reason ? <span className="line-clamp-2 max-w-xs">{w.reason}</span> : <Empty>No reason given</Empty>) },
           { key: "when", header: "Suspended", sort: "suspendedAt", cell: (w) => <RelTime at={w.suspendedAt} className="text-muted" /> },
           { key: "by", header: "By", secondary: true, cell: (w) => (w.automatic ? <StatusBadge state="automatic" tone="warn" dot={false} label="Automatic" /> : w.suspendedBy ? (

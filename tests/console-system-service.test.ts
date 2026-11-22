@@ -64,8 +64,8 @@ describe("systemSnapshot", () => {
     expect(s.busiestWorkspaces.day).toBe(day);
     expect(s.busiestWorkspaces.budget).toBe(1000);
     expect(s.busiestWorkspaces.items).toEqual([
-      { orgId: alpha, workspaceName: "Alpha", rowsWritten: 950, level: "near" },
-      { orgId: beta, workspaceName: "Beta", rowsWritten: 20, level: "ok" },
+      { orgId: alpha, workspaceName: "Alpha", ownerEmail: "owner@alpha.test", rowsWritten: 950, level: "near" },
+      { orgId: beta, workspaceName: "Beta", ownerEmail: "owner@beta.test", rowsWritten: 20, level: "ok" },
     ]);
     expect(s.integrations).toMatchObject({ outbound: expect.any(String), billing: expect.any(Boolean), auth0: expect.any(Boolean), writeBudgetMeter: false, sentryApi: true });
     expect(s.circuitBreakers).toEqual({ scope: "this_isolate", providers: [{ provider: "outbound", state: "closed" }, { provider: "stripe", state: "closed" }] });

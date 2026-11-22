@@ -16,6 +16,7 @@ export interface ConsoleReport {
   note: string | null;
   orgId: string | null;
   workspaceName: string | null;
+  ownerEmail?: string | null;
   messageId: string | null;
   snapshotText: string | null;
   reporter: { id: string; name: string | null; email: string | null };
@@ -28,11 +29,11 @@ export interface ConsoleReport {
 
 export interface ReportCounts { open: number; olderThan12h: number; olderThan24h: number; oldestAt: string | null }
 
-export interface AbuseEvent { id: string; orgId: string; workspaceName: string; kind: string; score: number; detail: string | null; createdAt: string; resolvedAt: string | null }
-export interface AbuseSummary { orgId: string; workspaceName: string; openEvents: number; topScore: number; lastEventAt: string; suspended: boolean }
+export interface AbuseEvent { id: string; orgId: string; workspaceName: string; ownerEmail?: string | null; kind: string; score: number; detail: string | null; createdAt: string; resolvedAt: string | null }
+export interface AbuseSummary { orgId: string; workspaceName: string; ownerEmail?: string | null; openEvents: number; topScore: number; lastEventAt: string; suspended: boolean }
 
 export interface SuspendedWorkspace {
-  orgId: string; workspaceName: string; suspendedAt: string; reason: string | null; automatic: boolean;
+  orgId: string; workspaceName: string; ownerEmail?: string | null; suspendedAt: string; reason: string | null; automatic: boolean;
   suspendedBy: { userId: string | null; email: string | null } | null; openAbuseEvents: number;
 }
 

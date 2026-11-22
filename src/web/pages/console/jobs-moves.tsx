@@ -5,7 +5,7 @@
 import { IconArrowRightLeft } from "@/web/components/ui/icon";
 import { DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
-import { humanize, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
+import { humanize, RelTime, StatusBadge, WorkspaceLink, workspaceHint } from "./components/format";
 import { MOVE_STATUS_LABEL, MOVE_STATUS_TONE, type ConsoleDataMove, type DataMoveStatus } from "./jobs-api";
 import { LOCALE } from "@/shared/locale";
 
@@ -37,7 +37,7 @@ export function JobsDataMovesTab() {
       rowKey={(m) => m.id} minWidth={720}
       empty={{ icon: <IconArrowRightLeft />, title: "No imports or exports", body: "Imports and exports started in this window show here with how far they got." }}
       columns={[
-        { key: "workspace", header: "Workspace", cell: (m) => <WorkspaceLink id={m.orgId} name={m.workspaceName} /> },
+        { key: "workspace", header: "Workspace", cell: (m) => <WorkspaceLink id={m.orgId} name={m.workspaceName} hint={workspaceHint(m.orgId, m.ownerEmail)} /> },
         { key: "kind", header: "Kind", cell: (m) => (
           <span className="flex flex-col">
             <span className="font-medium">{m.kind === "import" ? "Import" : "Export"}</span>
