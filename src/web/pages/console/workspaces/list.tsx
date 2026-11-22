@@ -10,6 +10,7 @@ import { DataTable } from "../components/data-table";
 import type { FilterDef } from "../components/filter-bar";
 import { Empty, PersonLink, RelTime, planLabel } from "../components/format";
 import { StateBadges, workspacePlanLabel, wsPath, type WorkspaceRow } from "./tab-shared";
+import { LOCALE } from "@/shared/locale";
 
 const FILTERS: FilterDef[] = [
   {
@@ -54,8 +55,8 @@ export function ConsoleWorkspacesPage() {
             key: "owner", header: "Owner", secondary: true,
             cell: (w) => (w.ownerEmail ? <PersonLink id={w.ownerUserId ?? null} email={w.ownerEmail} className="max-w-[16rem]" /> : <Empty>No owner</Empty>),
           },
-          { key: "people", header: "People", align: "right", secondary: true, cell: (w) => <span className="tabular-nums">{w.members.toLocaleString()}</span> },
-          { key: "domains", header: "Domains", align: "right", secondary: true, cell: (w) => <span className="tabular-nums">{w.domains.toLocaleString()}</span> },
+          { key: "people", header: "People", align: "right", secondary: true, cell: (w) => <span className="tabular-nums">{w.members.toLocaleString(LOCALE)}</span> },
+          { key: "domains", header: "Domains", align: "right", secondary: true, cell: (w) => <span className="tabular-nums">{w.domains.toLocaleString(LOCALE)}</span> },
           { key: "created", header: "Created", sort: "createdAt", align: "right", cell: (w) => <RelTime at={w.createdAt} className="text-muted" /> },
         ]}
       />

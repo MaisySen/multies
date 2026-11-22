@@ -3,12 +3,9 @@ import { mockConsoleMe } from "./support/console-me";
 
 /**
  * OPS1 Trends: the trend charts on a workspace's Usage tab (/console/workspaces/:id/usage; the old /trends address
- * redirects there, keeping ?range=). The operator, the workspace and its trends
- * are mocked (GET /api/console/me, /api/console/workspaces/:id..., /api/console/metrics/workspaces/:id); the server's
- * own checks are covered by tests/console-metrics-routes.test.ts.
- *
- * The Overview trends block (OverviewTrends, with its owner "Fill in history" action) is not mounted on a page yet,
- * so it has no spec here; add one when the Overview mounts it.
+ * redirects there, keeping ?range=), and the platform trends block on the console Overview (/console). The operator,
+ * the workspace and the trends are mocked (GET /api/console/me, /api/console/overview, /api/console/workspaces/:id...,
+ * /api/console/metrics...); the server's own checks are covered by tests/console-metrics-routes.test.ts.
  */
 const ORG = "org_e2e_trends";
 
@@ -127,4 +124,62 @@ test("a workspace's Usage trends say when there is no data, and shows an error w
   await expect(mail.getByTestId("trend-line")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("console-workspace-trends-ai").getByTestId("chart-empty")).toBeVisible();
   await expect(page.getByTestId("console-workspace-trends-usage")).toContainText("This workspace has no daily usage counters in this range.");
+});
+
+/** The platform trends read: flow counts on every day (only today live, nothing stored yet), stock counts empty. */
+function platformTrends(days: number) {
+  const now = Date.now();
+  const list = Array.from({ length: days }, (_, i) => dayOf(now - (days - 1 - i) * 86_400_000));
+  const flow = (base: number) => list.map((_, i) => base + (i % 3));
+  const none = () => list.map(() => null);
+  return {
+    from: list[0], to: list[list.length - 1], liveDay: list[list.length - 1], days: list,
+    series: {
+      signups: flow(3), workspaces_created: flow(1), deliveries_sent: flow(40), deliveries_failed: flow(2), ai_calls: flow(10),
+      jobs_dead: flow(0), webhook_deliveries_failed: flow(0), uptime_pct: none(),
+      workspaces_paid: none(), workspaces_past_due: none(), workspaces_suspended: none(),
+    },
+    // Nothing stored yet: the owner tier is offered "Fill in history".
+    firstDay: {},
+  };
+}
+
+async function mockOverview(page: Page) {
+  await page.route("**/api/console/overview", (r) => r.fulfill({ json: {
+    attention: [], totals: { users: 3, workspaces: 2, domains: 0, mailboxes: 0, deliveries24h: 0 }, newest: [],
+  } }));
+  await page.route((u) => u.pathname === "/api/console/metrics/registry", (r) => r.fulfill({ json: { metrics: [], ranges: [7, 30, 90], maxBackfillDays: 90 } }));
+  await page.route((u) => u.pathname === "/api/console/metrics", (r) => {
+    const q = new URL(r.request().url()).searchParams;
+    return r.fulfill({ json: platformTrends(Number(q.get("days") ?? 30) || 30) });
+  });
+}
+
+test("the Overview shows the platform trends, says No data yet for counts kept by day, and hides Fill in history from a read-only operator", async ({ page }) => {
+  await mockConsoleMe(page, "ops_readonly");
+  await mockOverview(page);
+  await signUp(page);
+  await page.goto("/console");
+  const block = page.getByTestId("console-trends");
+  await expect(block).toBeVisible({ timeout: 20_000 });
+  await expect(block.getByRole("heading", { name: "Trends" })).toBeVisible();
+  await expect(page.getByTestId("console-trends-tiles")).toBeVisible();
+  // A flow count has a number; the paid workspaces count (a stock kept once a day) has none yet.
+  await expect(page.getByTestId("console-trends-tile-signups").getByTestId("kpi-value")).not.toHaveText("No data");
+  await expect(page.getByTestId("console-trends-tile-workspaces_paid").getByTestId("kpi-value")).toHaveText("No data");
+  await expect(page.getByTestId("console-trends-mail").getByTestId("trend-line")).toBeVisible({ timeout: 15_000 });
+  const state = page.getByTestId("console-trends-state");
+  await expect(state.getByTestId("chart-empty")).toContainText("No data yet");
+  await expect(page.getByTestId("console-trends-uptime")).toHaveText("No uptime checks recorded yet.");
+  // Read only: no Fill in history, even with nothing stored.
+  await expect(page.getByTestId("console-trends-backfill")).toHaveCount(0);
+});
+
+test("the Overview offers Fill in history to the owner tier while nothing is stored", async ({ page }) => {
+  await mockConsoleMe(page, "admin");
+  await mockOverview(page);
+  await signUp(page);
+  await page.goto("/console");
+  await expect(page.getByTestId("console-trends")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("console-trends-backfill")).toBeVisible({ timeout: 15_000 });
 });

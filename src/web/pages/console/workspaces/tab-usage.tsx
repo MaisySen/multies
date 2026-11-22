@@ -14,11 +14,12 @@ import { usePermission } from "../guard";
 import { ViewChips } from "../trends-chips";
 import { orderCounters, pointsOf, useTrendRange, useWorkspaceTrends } from "../trends-data";
 import { Section, type WorkspaceOverview } from "./tab-shared";
+import { LOCALE } from "@/shared/locale";
 
 type MailView = "outbound" | "inbound";
 type AiView = "calls" | "units";
 
-function UsageMeter({ label, used, max, format = (n: number) => n.toLocaleString() }: { label: string; used: number | undefined; max: number | null | undefined; format?: (n: number) => string }) {
+function UsageMeter({ label, used, max, format = (n: number) => n.toLocaleString(LOCALE) }: { label: string; used: number | undefined; max: number | null | undefined; format?: (n: number) => string }) {
   const n = used ?? 0;
   const unlimited = max === null || max === undefined || !Number.isFinite(max) || max <= 0;
   return (

@@ -5,7 +5,7 @@
 import { DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
 import { useOperatorAction } from "./components/reason-dialog";
-import { Empty, RelTime, StatusBadge, dnsFailingText, dnsRecordLabel, humanize, type StatusTone } from "./components/format";
+import { Empty, RelTime, StatusBadge, dnsFailingText, humanize, type StatusTone } from "./components/format";
 import { usePermission } from "./guard";
 import { Button } from "@/web/components/ui/button";
 import { IconGlobe, IconShieldCheck } from "@/web/components/ui/icon";
@@ -24,13 +24,8 @@ const DOMAIN_STATUS: FilterDef = {
   ],
 };
 
-const domainTone: Record<MailDomain["status"], StatusTone> = { verified: "ok", pending: "warn", failed: "bad" };
 const domainLabel: Record<MailDomain["status"], string> = { verified: "Verified", pending: "Waiting for DNS", failed: "Failed" };
-const sendingTone: Record<NonNullable<MailDomain["sending"]>["status"], StatusTone> = { verified: "ok", pending: "warn", queued: "warn", error: "bad" };
-/** The shared DNS labels plus the ownership check, which the shared map does not name yet. */
-const recordLabel = (code: string) => (code === "ownership" ? "Ownership TXT" : dnsRecordLabel(code));
-const failingText = (codes: string[]) => (codes.includes("ownership") ? `${codes.map(recordLabel).join(", ")} missing` : dnsFailingText(codes));
-const sendingLabel:Record<NonNullable<MailDomain["sending"]>["status"], string> = { verified: "Verified", pending: "Waiting", queued: "Waiting", error: "Error" };
+const sendingLabel: Record<NonNullable<MailDomain["sending"]>["status"], string> = { verified: "Verified", pending: "Waiting", queued: "Waiting", error: "Error" };
 
 export function DomainsTab() {
   const canAct = usePermission("mail.manage");
@@ -49,13 +44,13 @@ export function DomainsTab() {
         empty={{ icon: <IconGlobe />, title: "No domains here", body: "Every domain in this view is verified. Pick Any to see all of them." }}
         columns={[
           { key: "name", header: "Domain", sort: "name", cell: (d) => <span className="font-medium">{d.name}</span> },
-          { key: "workspace", header: "Workspace", cell: (d) => <Workspace id={d.orgId} name={d.orgName} /> },
-          { key: "status", header: "State", cell: (d) => <StatusBadge state={d.status} label={domainLabel[d.status]} tone={domainTone[d.status]} /> },
+          { key: "workspace", header: "Workspace", cell: (d) => <Workspace id={d.orgId} name={d.orgName} ownerEmail={d.ownerEmail} /> },
+          { key: "status", header: "State", cell: (d) => <StatusBadge state={d.status} label={domainLabel[d.status]} /> },
           { key: "sending", header: "Sending", secondary: true, cell: (d) => (d.sending
-            ? <span title={d.sending.detail ?? undefined}><StatusBadge state={d.sending.status} label={sendingLabel[d.sending.status] ?? humanize(d.sending.status)} tone={sendingTone[d.sending.status]} /></span>
+            ? <span title={d.sending.detail ?? undefined}><StatusBadge state={d.sending.status} label={sendingLabel[d.sending.status] ?? humanize(d.sending.status)} /></span>
             : <Empty className="whitespace-nowrap">Not set up</Empty>) },
           { key: "failing", header: "Failing records", cell: (d) => (d.failingRecords.length
-            ? <span className="text-bad" title={d.failingRecords.join(", ")}>{failingText(d.failingRecords)}</span>
+            ? <span className="text-bad" title={d.failingRecords.join(", ")}>{dnsFailingText(d.failingRecords)}</span>
             : <Empty />) },
           { key: "checked", header: "Last checked", sort: "lastCheckedAt", secondary: true, cell: (d) => <RelTime at={d.lastCheckedAt} className="text-muted" /> },
           { key: "actions", header: "", align: "right", cell: (d) => (canAct
@@ -95,7 +90,7 @@ export function SuppressionsTab() {
         columns={[
           { key: "address", header: "Address", sort: "address", cell: (s) => <span className="font-medium">{s.address}</span> },
           { key: "reason", header: "Reason", cell: (s) => <StatusBadge state={s.reason} label={reasonLabel[s.reason]} tone={reasonTone[s.reason]} /> },
-          { key: "workspace", header: "Workspace", cell: (s) => <Workspace id={s.orgId} name={s.orgName} /> },
+          { key: "workspace", header: "Workspace", cell: (s) => <Workspace id={s.orgId} name={s.orgName} ownerEmail={s.ownerEmail} /> },
           { key: "detail", header: "Detail", secondary: true, cell: (s) => (s.detail ? <span className="line-clamp-2 max-w-xs text-xs text-muted" title={s.detail}>{s.detail}</span> : <Empty />) },
           { key: "added", header: "Added", sort: "createdAt", secondary: true, cell: (s) => <RelTime at={s.createdAt} className="text-muted" /> },
           { key: "actions", header: "", align: "right", cell: (s) => (canAct

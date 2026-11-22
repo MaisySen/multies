@@ -122,6 +122,14 @@ describe("agents console lists", () => {
     expect((await readonly.get(`${BASE}/runs?days=500`)).status).toBe(422);
   }, 60_000);
 
+  it("runs: say when a list across workspaces looked at recent runs only", async () => {
+    expect((await readonly.get(`${BASE}/runs`)).body.recentOnly).toBeUndefined();
+    expect((await readonly.get(`${BASE}/runs?status=failed`)).body.recentOnly).toBeUndefined();
+    expect((await readonly.get(`${BASE}/runs?status=all`)).body.recentOnly).toBe(true);
+    expect((await readonly.get(`${BASE}/runs?status=succeeded`)).body.recentOnly).toBe(true);
+    expect((await readonly.get(`${BASE}/runs?status=all&orgId=${alpha.orgId}`)).body.recentOnly).toBeUndefined();
+  }, 60_000);
+
   it("refuses a sort outside the whitelist and a broken cursor", async () => {
     for (const path of ["runs?sort=result:desc", "triggers?sort=instructions:asc", "approvals?sort=payload:asc", "ai-usage?sort=orgId:desc", "ai-key-problems?sort=keyEnc:desc", "runs?sort=createdAt:sideways"]) {
       const r = await readonly.get(`${BASE}/${path}`);

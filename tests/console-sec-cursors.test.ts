@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { makeTestApp } from "./helpers";
 import { assertCursorFromItems, signUpAs, type Ctx } from "./console-kit";
 import { consoleRoutes } from "@/server/routes/console";
-import { members } from "@/server/db/schema";
+import { apiKeys, deliveries, members, organizations, suppressions, webhookDeliveries, webhookEndpoints } from "@/server/db/schema";
 import type { Client } from "./helpers";
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -50,6 +50,16 @@ describe("console lists and cursors", () => {
     const cus = await signUpAs(ctx, "cus@example.com", null, "Cus");
     orgId = (await ctx.db.select().from(members).where(eq(members.userId, cus.id)).get())!.organizationId;
     for (let i = 0; i < 3; i++) await signUpAs(ctx, `u${i}@example.com`, null, `W${i}`);
+    // Two rows in each list that gained ownerEmail (billing, mail, developer), so limit=1 pages carry a cursor.
+    const now = Date.now();
+    for (let i = 0; i < 2; i++) {
+      await ctx.db.insert(apiKeys).values({ id: `key_c${i}`, orgId, name: `Key ${i}`, prefix: `mk_live_c${i}`, keyHash: `hash-secret-${i}-9d8c7b6a`, scope: "full" });
+      await ctx.db.insert(webhookEndpoints).values({ id: `whe_c${i}`, orgId, url: `https://hooks.slack.com/services/T/B/SECRETCURSOR${i}`, events: "[\"*\"]", secretEnc: "x", description: `Hook ${i}` });
+      await ctx.db.insert(webhookDeliveries).values({ id: `whd_c${i}`, orgId, endpointId: `whe_c${i}`, eventType: "message.received", payload: "{\"data\":{}}", status: "failed", attempts: 6, createdAt: new Date(now - i * 1000) });
+      await ctx.db.insert(deliveries).values({ id: `dlv_c${i}`, orgId, direction: "outbound", fromAddress: "a@cus.example", toAddress: `hidden${i}@else.example`, subject: "Hi", status: "bounced", provider: "test", createdAt: new Date(now - i * 1000) });
+      await ctx.db.insert(suppressions).values({ id: `sup_c${i}`, orgId, address: `gone${i}@else.example`, reason: "hard_bounce" });
+    }
+    await ctx.db.update(organizations).set({ stripeCustomerId: "cus_cursor_1", subscriptionStatus: "active" }).where(eq(organizations.id, orgId));
   }, 120_000);
 
   it("a cursor of the wrong type is 400 bad_cursor on every list, never 500", async () => {
@@ -85,6 +95,54 @@ describe("console lists and cursors", () => {
         expect(r.status, `${p} ${cur}`).toBe(400);
         expect(r.body.error.code).toBe("bad_cursor");
       }
+    }
+  }, 120_000);
+
+  it("every list's nextCursor carries only values its items show (including the lists that gained ownerEmail)", async () => {
+    const checked: string[] = [];
+    for (const p of listPaths(orgId)) {
+      const r = await owner.get(`${p}${p.includes("?") ? "&" : "?"}limit=1`);
+      if (r.status !== 200 || !r.body?.nextCursor) continue;
+      if (p === "/api/console/flags") {
+        // Flags page by position in a fixed list: the cursor is the last shown flag's key and a constant 0.
+        const cur = JSON.parse(Buffer.from(r.body.nextCursor.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString());
+        expect(cur).toEqual({ v: 0, t: "n", id: r.body.items[r.body.items.length - 1].key });
+        checked.push(p);
+        continue;
+      }
+      assertCursorFromItems(r.body);
+      expect(Buffer.from(r.body.nextCursor.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString()).not.toMatch(/SECRETCURSOR|hash-secret|hidden\d@/);
+      checked.push(p);
+    }
+    for (const p of ["/api/console/developer/api-keys", "/api/console/developer/webhooks", "/api/console/developer/webhook-deliveries", "/api/console/mail/deliveries", "/api/console/mail/suppressions", "/api/console/users", "/api/console/workspaces"]) {
+      expect(checked, p).toContain(p);
+    }
+    // ownerEmail is output only: it is on the items, and searching for it matches nothing on lists that do not search emails.
+    const hooks = await owner.get("/api/console/developer/webhooks");
+    expect(hooks.body.items[0].ownerEmail).toBe("cus@example.com");
+    expect((await owner.get("/api/console/developer/webhooks?q=cus@example.com")).body.items).toEqual([]);
+    expect((await owner.get("/api/console/developer/api-keys?q=cus@example.com")).body.items).toEqual([]);
+  }, 120_000);
+
+  it("recentOnly lists still page by nextCursor with the strict cursor checks", async () => {
+    const now = Date.now();
+    for (let i = 0; i < 3; i++) {
+      await ctx.db.insert(webhookDeliveries).values({ id: `whd_r${i}`, orgId, endpointId: "whe_c0", eventType: "message.received", payload: "{}", status: "delivered", attempts: 1, createdAt: new Date(now - (i + 5) * 1000) });
+      await ctx.db.insert(deliveries).values({ id: `dlv_r${i}`, orgId, direction: "outbound", fromAddress: "a@cus.example", toAddress: `r${i}@else.example`, subject: "Hi", status: "delivered", provider: "test", createdAt: new Date(now - (i + 5) * 1000) });
+    }
+    for (const [p, want] of [["/api/console/developer/webhook-deliveries?status=delivered", ["whd_r0", "whd_r1", "whd_r2"]], ["/api/console/mail/deliveries?status=delivered", ["dlv_r0", "dlv_r1", "dlv_r2"]]] as const) {
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      for (let n = 0; n < 10; n++) {
+        const r = await owner.get(`${p}&limit=1${cursor ? `&cursor=${cursor}` : ""}`);
+        expect(r.status, p).toBe(200);
+        expect(r.body.recentOnly, p).toBe(true);
+        assertCursorFromItems(r.body);
+        seen.push(...r.body.items.map((i: { id: string }) => i.id));
+        cursor = r.body.nextCursor;
+        if (!cursor) break;
+      }
+      expect(seen, p).toEqual(want);
     }
   }, 120_000);
 

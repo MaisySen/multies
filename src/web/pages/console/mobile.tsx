@@ -95,7 +95,6 @@ function MobileForm({ data }: { data: MobileConfigResponse }) {
         <JsonDiff
           before={Object.fromEntries(review.changes.map((c) => [label(c), showValue(c.field, c.before)]))}
           after={Object.fromEntries(review.changes.map((c) => [label(c), showValue(c.field, c.after)]))}
-          label={(k) => k}
         />
         {raised.length > 0 && <RaiseWarning changes={raised} />}
       </div>

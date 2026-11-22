@@ -12,6 +12,7 @@ import { Badge, Skeleton } from "@/web/components/ui/misc";
 import { Field, Input } from "@/web/components/ui/input";
 import { useOperatorAction } from "../components/reason-dialog";
 import { StatusBadge, compPlanLabel, planLabel } from "../components/format";
+import { LOCALE } from "@/shared/locale";
 
 // ---------------------------------------------------------------- wire types
 
@@ -114,7 +115,7 @@ export function LoadingBlock({ rows = 3 }: { rows?: number }) {
 }
 
 /** "Plan default" for null, "Off" for 0, the number otherwise. */
-export const capText = (cap: number | null, unit: string) => (cap === null ? "Plan default" : cap === 0 ? "Off" : `${cap.toLocaleString()} ${unit}`);
+export const capText = (cap: number | null, unit: string) => (cap === null ? "Plan default" : cap === 0 ? "Off" : `${cap.toLocaleString(LOCALE)} ${unit}`);
 
 // ---------------------------------------------------------------- limit actions
 

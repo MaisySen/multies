@@ -56,7 +56,7 @@ export function WebhookFailuresTab() {
             return f === EMPTY ? <Empty /> : <span className="line-clamp-2 block min-w-[7rem] max-w-[10rem] text-xs text-muted" title={f}>{f}</span>;
           } },
           { key: "endpoint", header: "Endpoint", cell: (d) => <span className="block max-w-[11rem] [overflow-wrap:anywhere]">{hostOf(d.endpointUrl)}</span> },
-          { key: "workspace", header: "Workspace", cell: (d) => <Workspace id={d.orgId} name={d.orgName} /> },
+          { key: "workspace", header: "Workspace", cell: (d) => <Workspace id={d.orgId} name={d.orgName} ownerEmail={d.ownerEmail} /> },
           { key: "status", header: "Status", cell: statusBadge },
           { key: "error", header: "Last error", secondary: true, cell: (d) => (d.lastError || d.responseStatus
             ? <span className="line-clamp-2 block min-w-[8rem] max-w-[14rem] text-xs text-muted" title={d.lastError ?? undefined}>{d.responseStatus ? `HTTP ${d.responseStatus}` : ""}{d.responseStatus && d.lastError ? ": " : ""}{d.lastError ?? ""}</span>
@@ -129,7 +129,7 @@ export function WebhookEndpointsTab() {
               <span className="text-xs text-muted">{[FORMAT_LABEL[e.format] ?? e.format, e.description].filter(Boolean).join(", ")}</span>
             </span>
           ) },
-          { key: "workspace", header: "Workspace", cell: (e) => <Workspace id={e.orgId} name={e.orgName} /> },
+          { key: "workspace", header: "Workspace", cell: (e) => <Workspace id={e.orgId} name={e.orgName} ownerEmail={e.ownerEmail} /> },
           { key: "events", header: "Events", secondary: true, cell: eventsCell },
           { key: "state", header: "State", cell: endpointState },
           { key: "failures", header: "Failures, 7 days", align: "right", cell: (e) => (e.recentFailures > 0

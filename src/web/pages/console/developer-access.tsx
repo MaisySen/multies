@@ -42,7 +42,7 @@ export function ApiKeysTab() {
             </span>
           ) },
           { key: "scope", header: "Access", cell: (k) => <span className="flex flex-wrap gap-1">{scopeLabel(k.scope)}{k.agentId && <Badge>Agent</Badge>}</span> },
-          { key: "workspace", header: "Workspace", cell: (k) => <Workspace id={k.orgId} name={k.orgName} /> },
+          { key: "workspace", header: "Workspace", cell: (k) => <Workspace id={k.orgId} name={k.orgName} ownerEmail={k.ownerEmail} /> },
           { key: "by", header: "Created by", secondary: true, cell: (k) => <PersonLink id={k.createdByUserId} email={k.createdByEmail} /> },
           { key: "used", header: "Last used", sort: "lastUsedAt", cell: (k) => <RelTime at={k.lastUsedAt} className="text-muted" /> },
           { key: "created", header: "Created", sort: "createdAt", secondary: true, cell: (k) => <Day at={k.createdAt} className="text-muted" /> },
@@ -89,7 +89,7 @@ export function ConnectedAppsTab() {
         columns={[
           { key: "app", header: "App", cell: (g) => (g.clientName ? <span className="font-medium">{g.clientName}</span> : <Empty>Removed app</Empty>) },
           { key: "person", header: "Person", cell: (g) => <PersonLink id={g.userId} email={g.userEmail} /> },
-          { key: "workspace", header: "Workspace", cell: (g) => <Workspace id={g.orgId} name={g.orgName} /> },
+          { key: "workspace", header: "Workspace", cell: (g) => <Workspace id={g.orgId} name={g.orgName} ownerEmail={g.ownerEmail} /> },
           { key: "scope", header: "Access", secondary: true, cell: (g) => scopeLabel(g.scope) },
           { key: "state", header: "State", cell: grantState },
           { key: "used", header: "Last used", sort: "lastUsedAt", secondary: true, cell: (g) => <RelTime at={g.lastUsedAt} className="text-muted" /> },
@@ -108,9 +108,9 @@ export function RegisteredAppsTab() {
   return (
     <DataTable<DevOAuthClient>
       label="Registered apps" path="/developer/oauth-clients" defaultSort="createdAt:desc"
-      search={{ placeholder: "Search apps" }}
+      search={{ placeholder: "Search apps" }} recentNote="Showing recent registrations only. Apps are not tied to a workspace."
       rowKey={(a) => a.id}
-      empty={{ icon: <IconPlug />, title: "No registered apps match", body: "Apps that registered to connect in the last 90 days show here. Search by name to find older ones." }}
+      empty={{ icon: <IconPlug />, title: "No registered apps match", body: "Apps that registered to connect in the last 90 days show here. Search by name to look further back." }}
       columns={[
         { key: "name", header: "App", sort: "name", cell: (a) => <span className="font-medium">{a.name}</span> },
         { key: "site", header: "Website", cell: (a) => (a.clientUri ? <span className="text-muted">{hostOf(a.clientUri)}</span> : <Empty />) },

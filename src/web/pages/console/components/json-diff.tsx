@@ -7,6 +7,7 @@
  */
 import { cn } from "@/web/lib/cn";
 import { EMPTY, auditFieldLabel, formatDateTime } from "./format";
+import { LOCALE } from "@/shared/locale";
 
 type Flat = Record<string, unknown>;
 
@@ -31,7 +32,7 @@ export function showValue(v: unknown): string {
   if (v === null || v === "") return EMPTY;
   if (typeof v === "boolean") return v ? "Yes" : "No";
   if (typeof v === "string") return ISO.test(v) ? formatDateTime(v) : v;
-  if (typeof v === "number") return v.toLocaleString();
+  if (typeof v === "number") return v.toLocaleString(LOCALE);
   return JSON.stringify(v);
 }
 

@@ -22,6 +22,8 @@ import { Button } from "@/web/components/ui/button";
 import { Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { lazyPage } from "@/web/components/lazy-page";
+import { LOCALE } from "@/shared/locale";
+import { formatDay as formatCalendarDay } from "./format";
 
 // ---------------------------------------------------------------- types
 
@@ -167,15 +169,19 @@ const DAY_FORMAT: Record<DayStyle, Intl.DateTimeFormatOptions> = {
   medium: { day: "numeric", month: "short", year: "numeric" },
   long: { weekday: "short", day: "numeric", month: "short", year: "numeric" },
 };
-/** "Nov 21" (axis ticks), "Nov 21, 2026" (notes), "Sat, Nov 21, 2026" (tooltips). The day is read as a UTC date. */
-export function formatDay(day: string, style: DayStyle = "short", locale?: string): string {
+/**
+ * Day first, like every console date: "21 Nov" (axis ticks), "21 Nov 2026" (notes, the shared formatDay), "Sat, 21 Nov
+ * 2026" (tooltips). The day is read as a UTC date.
+ */
+export function formatDay(day: string, style: DayStyle = "short", locale: string = LOCALE): string {
   const ms = dayMs(day);
   if (Number.isNaN(ms)) return day;
+  if (style === "medium") return formatCalendarDay(ms, { locale, timeZone: "UTC" });
   return new Intl.DateTimeFormat(locale, { ...DAY_FORMAT[style], timeZone: "UTC" }).format(ms);
 }
 
 /**
- * A plain sentence for screen readers: "Sent: 1,234 on Nov 21, 2026, up 12% from 1,100 on Oct 23, 2026."
+ * A plain sentence for screen readers: "Sent: 1,234 on 21 Nov 2026, up 12% from 1,100 on 23 Oct 2026."
  * Compares the last day with data against the first day with data in the range.
  */
 export function describeTrend(label: string, rows: readonly TrendPoint[], format: (n: number) => string = (n) => formatNumber(n), locale?: string): string {
@@ -370,7 +376,7 @@ export interface KpiTileProps {
   periodLabel?: string;
   /** Optional daily values for a sparkline under the number. */
   trend?: readonly TrendPoint[];
-  /** For numbers that only started being recorded on a day (YYYY-MM-DD): shows "Since Nov 21, 2026". */
+  /** For numbers that only started being recorded on a day (YYYY-MM-DD): shows "Since 21 Nov 2026". */
   since?: string | null;
   /** Makes the whole tile a link (for example to the list behind the number). */
   to?: string;

@@ -87,7 +87,7 @@ function Header({ d, refresh }: { d: ConsoleUserDetail; refresh?: ReactNode }) {
             {a.can.ban && (p.banned
               ? <Button variant="secondary" onClick={() => a.unban.open()} data-testid="console-users-unban">Unban</Button>
               : <Button variant="danger" onClick={() => a.ban.open()} data-testid="console-users-ban">Ban</Button>)}
-            {!a.self && <ImpersonateButton userId={p.id} orgId={orgId} />}
+            {!a.self && <ImpersonateButton userId={p.id} orgId={orgId} size="md" />}
             {more.length > 0 && (
               <Menu label="More actions" sheet trigger={<Button variant="secondary" data-testid="console-users-more"><IconMore className="h-4 w-4" aria-hidden />More</Button>}>
                 {more}

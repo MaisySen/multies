@@ -116,7 +116,9 @@ describe("console billing lists", () => {
     const p1 = await h.readonly.get("/api/console/billing/events?limit=2");
     expect(p1.body.items.map((e: { id: string }) => e.id)).toEqual(["evt_3", "evt_2"]);
     const p2 = await h.readonly.get(`/api/console/billing/events?limit=2&cursor=${p1.body.nextCursor}`);
-    expect(p2.body.items).toMatchObject([{ id: "evt_1", orgName: "Acme", summary: "Invoice MM-1 paid: A$12.00" }]);
+    expect(p2.body.items).toMatchObject([{ id: "evt_1", orgName: "Acme", ownerEmail: "owner@acme.test", summary: "Invoice MM-1 paid: A$12.00" }]);
+    // A Stripe event with no workspace has no owner either.
+    expect(p1.body.items[0]).toMatchObject({ id: "evt_3", ownerEmail: null });
     expect(p2.body.nextCursor).toBeNull();
     expect((await h.readonly.get("/api/console/billing/events?type=invoice.paid")).body.items.map((e: { id: string }) => e.id)).toEqual(["evt_1"]);
     expect((await h.readonly.get(`/api/console/billing/events?orgId=${h.orgId}`)).body.items).toHaveLength(2);
@@ -128,6 +130,7 @@ describe("console billing lists", () => {
     ]);
     const refs = await h.readonly.get("/api/console/billing/referrals");
     expect(refs.body.items.map((r: { id: string }) => r.id)).toEqual(["ref_2", "ref_1"]);
+    expect(refs.body.items[1]).toMatchObject({ referrerOwnerEmail: "owner@acme.test", referredOwnerEmail: null });
     expect((await h.readonly.get("/api/console/billing/referrals?status=pending")).body.items.map((r: { id: string }) => r.id)).toEqual(["ref_2"]);
     expect((await h.readonly.get("/api/console/billing/referrals?status=nope")).status).toBe(400);
     expect((await h.readonly.get("/api/console/billing/referrals?sort=code:asc")).status).toBe(400);

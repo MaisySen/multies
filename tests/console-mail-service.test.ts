@@ -77,7 +77,13 @@ describe("deliveries", () => {
     expect(Object.keys(all.items[0]!)).not.toContain("subject");
 
     expect((await listDeliveries(ctx.deps, { orgId: orgB }, page("createdAt"))).items.map((d) => d.id)).toEqual([fB, inbound]);
-    expect((await listDeliveries(ctx.deps, { status: ["delivered"] }, page("createdAt"))).items).toHaveLength(1);
+    const delivered = await listDeliveries(ctx.deps, { status: ["delivered"] }, page("createdAt"));
+    expect(delivered.items).toHaveLength(1);
+    // Unscoped and not failures: only the newest rows were read, and the page says so.
+    expect(delivered.recentOnly).toBe(true);
+    expect(delivered.items[0]).toHaveProperty("ownerEmail");
+    expect(all.recentOnly).toBeUndefined();
+    expect((await listDeliveries(ctx.deps, { status: ["delivered"], orgId: orgB }, page("createdAt"))).recentOnly).toBeUndefined();
     expect((await listDeliveries(ctx.deps, { direction: "inbound" }, page("createdAt"))).items.map((d) => d.id)).toEqual([inbound]);
     expect((await listDeliveries(ctx.deps, { q: "SPAM@bad" }, page("createdAt"))).items.map((d) => d.id)).toEqual([inbound]);
     // The window bounds both ends: the 8 day old bounce only shows in a window that reaches it.
@@ -115,7 +121,7 @@ describe("deliveries", () => {
     await addDelivery(orgA, "rejected", t, { direction: "inbound" }); // inbound is not counted
     const top = await deliveryFailureRateByWorkspace(ctx.deps, { limit: 5 });
     expect(top.map((r) => r.orgId)).toEqual([orgB, orgA]);
-    expect(top[0]).toEqual({ orgId: orgB, orgName: "Beta Co", total: 10, failed: 5, bounced: 0, complained: 1, failureRate: 0.5 });
+    expect(top[0]).toEqual({ orgId: orgB, orgName: "Beta Co", ownerEmail: "b@beta.io", total: 10, failed: 5, bounced: 0, complained: 1, failureRate: 0.5 });
     expect(top[1]).toMatchObject({ total: 10, failed: 2, bounced: 2, failureRate: 0.2 });
     expect(await deliveryFailureRateByWorkspace(ctx.deps, { limit: 1 })).toHaveLength(1);
     expect(await deliveryFailureRateByWorkspace(ctx.deps, { minTotal: 11 })).toEqual([]);

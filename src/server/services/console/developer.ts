@@ -16,7 +16,7 @@ import { newestRows } from "./recent-rows";
 import { deleteApiKey } from "../developer/api-keys";
 import { revokeGrant } from "../developer/oauth";
 import { replayFailed, updateEndpoint } from "../developer/webhooks";
-import { clampLimit, clip, found, keysetAfter, keysetOrder, ms, pageOf, resolveWindow, sortSpec, timeKey, type Page, type PageRequest, type SortSpec, type TimeWindow } from "./mail";
+import { clampLimit, clip, found, keysetAfter, keysetOrder, ms, pageOf, resolveWindow, sortSpec, timeKey, withOwners, type Page, type PageRequest, type SortSpec, type TimeWindow } from "./mail";
 
 // ---------------------------------------------------------------- API keys
 
@@ -41,7 +41,7 @@ export interface ApiKeyFilters {
  * workspace's Delete, or `revokeApiKey`) removes its row, so every listed key works.
  */
 export interface ConsoleApiKey {
-  id: string; orgId: string; orgName: string | null; name: string; prefix: string;
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; name: string; prefix: string;
   /** "full", "read" or a space separated list of per area scopes. */
   scope: string; agentId: string | null;
   createdByUserId: string | null; createdByEmail: string | null;
@@ -67,8 +67,8 @@ export async function listApiKeys(deps: Deps, filters: ApiKeyFilters, page: Page
       keysetAfter(spec, k.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, k.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, (r) => ({ ...r, createdByEmail: r.createdByEmail ?? null }),
-    (r) => ({ v: page.sort.field === "name" ? r.name : ms(page.sort.field === "lastUsedAt" ? r.lastUsedAt : r.createdAt), id: r.id }));
+  return withOwners(deps, pageOf(rows, limit, (r) => ({ ...r, createdByEmail: r.createdByEmail ?? null }),
+    (r) => ({ v: page.sort.field === "name" ? r.name : ms(page.sort.field === "lastUsedAt" ? r.lastUsedAt : r.createdAt), id: r.id })));
 }
 
 export interface RevokedApiKey { id: string; orgId: string; name: string; prefix: string }
@@ -107,7 +107,7 @@ export interface WebhookEndpointFilters {
 
 /** A webhook endpoint. Never its signing secret; `url` is the origin only. */
 export interface ConsoleWebhookEndpoint {
-  id: string; orgId: string; orgName: string | null; url: string; description: string | null; events: string[];
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; url: string; description: string | null; events: string[];
   format: "json" | "slack" | "discord" | "teams"; connector: string | null; enabled: boolean; disabledReason: string | null;
   /** Deliveries in a row that ran out of retries (the endpoint is switched off at 5). */
   consecutiveDead: number;
@@ -145,9 +145,9 @@ export async function listWebhookEndpoints(deps: Deps, filters: WebhookEndpointF
       .groupBy(webhookDeliveries.endpointId)
     : [];
   const failures = new Map(counts.map((c) => [c.endpointId, Number(c.n)]));
-  return pageOf(rows, limit, (r) => ({
+  return withOwners(deps, pageOf(rows, limit, (r) => ({
     ...r, url: webhookUrlOrigin(r.url) ?? "", events: parseEvents(r.events), format: r.format ?? "json", disabledReason: clip(r.disabledReason), recentFailures: failures.get(r.id) ?? 0,
-  }), (r) => ({ v: ms(r.createdAt), id: r.id }));
+  }), (r) => ({ v: ms(r.createdAt), id: r.id })));
 }
 
 function parseEvents(raw: string): string[] {
@@ -180,7 +180,7 @@ export interface WebhookDeliveryFilters {
 
 /** One delivery series. The payload is never returned: only the names of its top-level data fields. */
 export interface ConsoleWebhookDelivery {
-  id: string; orgId: string; orgName: string | null; endpointId: string; endpointUrl: string | null; eventType: string;
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; endpointId: string; endpointUrl: string | null; eventType: string;
   status: WebhookDeliveryStatus; attempts: number; responseStatus: number | null; lastError: string | null;
   /** e.g. "message.bounced: id, mailboxId, to" (field names only, at most 120 characters). */
   payloadPreview: string;
@@ -206,6 +206,7 @@ export async function listWebhookDeliveries(deps: Deps, filters: WebhookDelivery
     if (!endpointIds.length) return { items: [], next: null };
   }
   const d = webhookDeliveries;
+  const recentOnly = !endpointIds && statuses.includes("delivered");
   const rows = await deps.db.select({
     id: d.id, orgId: d.orgId, endpointId: d.endpointId, eventType: d.eventType, status: d.status, attempts: d.attempts, responseStatus: d.responseStatus,
     lastError: d.lastError, nextAttemptAt: d.nextAttemptAt, deliveredAt: d.deliveredAt, createdAt: d.createdAt,
@@ -221,15 +222,16 @@ export async function listWebhookDeliveries(deps: Deps, filters: WebhookDelivery
       gte(d.createdAt, from), lt(d.createdAt, to),
       // Delivered across every workspace: the newest rows only. The unary + keeps SQLite off webhook_deliveries_due_idx
       // there, which would read every delivered row.
-      ...(endpointIds || !statuses.includes("delivered") ? [inIds(d.status, statuses)] : [inIds(sql`+${d.status}`, statuses), newestRows(d)]),
+      ...(recentOnly ? [inIds(sql`+${d.status}`, statuses), newestRows(d)] : [inIds(d.status, statuses)]),
       filters.eventType ? eq(d.eventType, filters.eventType) : undefined,
       keysetAfter(spec, d.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, d.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, ({ dataKeys, ...r }) => ({
+  const out = await withOwners(deps, pageOf(rows, limit, ({ dataKeys, ...r }) => ({
     ...r, endpointUrl: webhookUrlOrigin(r.endpointUrl), lastError: clip(r.lastError),
     payloadPreview: `${r.eventType}${dataKeys ? `: ${dataKeys}` : ""}`.slice(0, 120),
-  }), (r) => ({ v: ms(r.createdAt), id: r.id }));
+  }), (r) => ({ v: ms(r.createdAt), id: r.id })));
+  return recentOnly ? { ...out, recentOnly } : out;
 }
 
 export interface RedeliverResult { id: string; orgId: string; endpointId: string; replayed: number }
@@ -279,8 +281,10 @@ export async function listOAuthClients(deps: Deps, filters: OAuthClientFilters, 
       keysetAfter(spec, c.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, c.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, (r) => ({ id: r.id, name: r.name, redirectUris: parseEvents(r.redirectUris), clientUri: r.clientUri, createdAt: r.createdAt }),
+  const out = pageOf(rows, limit, (r) => ({ id: r.id, name: r.name, redirectUris: parseEvents(r.redirectUris), clientUri: r.clientUri, createdAt: r.createdAt }),
     (r) => ({ v: page.sort.field === "name" ? r.name : ms(r.createdAt), id: r.id }));
+  // Always the newest registrations only (clients have no workspace to narrow by).
+  return { ...out, recentOnly: true };
 }
 
 // ---------------------------------------------------------------- OAuth grants
@@ -302,7 +306,7 @@ export interface OAuthGrantFilters {
 
 /** One person's sign in of an OAuth client to one workspace. Never the code, refresh token, their hashes or the PKCE challenge. */
 export interface ConsoleOAuthGrant {
-  id: string; orgId: string; orgName: string | null; clientId: string; clientName: string | null;
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; clientId: string; clientName: string | null;
   userId: string; userEmail: string | null; scope: "full" | "read"; redirectUri: string;
   lastUsedAt: Date | null; revokedAt: Date | null; createdAt: Date;
 }
@@ -335,8 +339,9 @@ export async function listOAuthGrants(deps: Deps, filters: OAuthGrantFilters, pa
       keysetAfter(spec, g.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, g.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, (r) => ({ ...r, clientName: r.clientName ?? null, userEmail: r.userEmail ?? null }),
-    (r) => ({ v: ms(page.sort.field === "lastUsedAt" ? r.lastUsedAt : r.createdAt), id: r.id }));
+  const out = await withOwners(deps, pageOf(rows, limit, (r) => ({ ...r, clientName: r.clientName ?? null, userEmail: r.userEmail ?? null }),
+    (r) => ({ v: ms(page.sort.field === "lastUsedAt" ? r.lastUsedAt : r.createdAt), id: r.id })));
+  return filters.orgId ? out : { ...out, recentOnly: true };
 }
 
 export interface RevokedOAuthGrant { id: string; orgId: string; clientId: string; userId: string }

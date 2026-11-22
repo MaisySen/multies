@@ -48,7 +48,11 @@ export function consoleRetry(failures: number, err: unknown): boolean {
 }
 
 /** Every console list answers this (services/console/listing.ts on the server). */
-export interface Page<T> { items: T[]; nextCursor: string | null }
+export interface Page<T> {
+  items: T[]; nextCursor: string | null;
+  /** The list looked only at the newest rows of a busy table (no workspace picked); DataTable says so under the table. */
+  recentOnly?: boolean;
+}
 
 export interface ConsoleMe {
   user: { id: string; email: string; name: string };

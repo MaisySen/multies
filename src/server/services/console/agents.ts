@@ -108,10 +108,11 @@ export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: 
     : [];
   const failedRecent = and(RUN_FAILED_SQL, gte(agentRuns.createdAt, since));
   // With no long-running run the condition is the failed one alone, so SQLite reads only the partial index.
+  const recentOnly = !filters.orgId && status !== "attention" && status !== "long_running" && status !== "failed";
   const statusCond = status === "attention" ? (longIds.length ? or(failedRecent, inIds(agentRuns.id, longIds)) : failedRecent)
     : status === "long_running" ? inIds(agentRuns.id, longIds)
       : status === "failed" ? RUN_FAILED_SQL
-        : and(status === "all" ? undefined : eq(agentRuns.status, status), filters.orgId ? undefined : newestRows(agentRuns));
+        : and(status === "all" ? undefined : eq(agentRuns.status, status), recentOnly ? newestRows(agentRuns) : undefined);
   const rows = await deps.db.select({
     id: agentRuns.id, orgId: agentRuns.orgId, workspaceName: organizations.name, ownerEmail: OWNER_EMAIL, taskId: agentRuns.taskId,
     agentUserId: agentRuns.agentUserId, agentName: users.name, status: agentRuns.status, triggerId: agentRuns.triggerId,
@@ -126,7 +127,7 @@ export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: 
       p.after,
     ))
     .orderBy(...p.orderBy).limit(p.take);
-  return p.finish(rows, (r) => ({ v: p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.createdAt), id: r.id }), (r) => {
+  const out = p.finish(rows, (r) => ({ v: p.field === "updatedAt" ? ms(r.updatedAt) : ms(r.createdAt), id: r.id }), (r) => {
     const active = r.status === "queued" || r.status === "running";
     const from = r.status === "running" ? r.startedAt ?? r.createdAt : r.status === "queued" ? r.createdAt : r.startedAt;
     const to = active ? now : r.finishedAt ? ms(r.finishedAt) : null;
@@ -139,6 +140,7 @@ export async function listAgentRuns(deps: Deps, filters: AgentRunFilters, page: 
       longRunning: active && !!from && now - ms(from) > LONG_RUNNING_MS,
     };
   });
+  return recentOnly ? { ...out, recentOnly } : out;
 }
 
 export interface CancelAgentRunResult { id: string; orgId: string; previousStatus: RunStatus; status: RunStatus }

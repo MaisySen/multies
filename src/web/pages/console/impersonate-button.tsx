@@ -5,14 +5,17 @@
  *
  *   <ImpersonateButton userId={user.id} />                 their last used workspace
  *   <ImpersonateButton userId={m.userId} orgId={org.id} /> a given workspace they belong to
+ *   <ImpersonateButton userId={user.id} size="md" />       beside a page header's other buttons (default "sm")
  */
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { Button } from "@/web/components/ui/button";
 import { IconEye } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { usePermission } from "./guard";
 import { useOperatorAction } from "./components/reason-dialog";
+
+type ButtonSize = NonNullable<ComponentProps<typeof Button>["size"]>;
 
 type Mode = "view" | "act";
 
@@ -38,7 +41,7 @@ function ModeChoice({ value, onChange, canAct }: { value: Mode; onChange: (m: Mo
   );
 }
 
-export function ImpersonateButton({ userId, orgId }: { userId: string; orgId?: string }) {
+export function ImpersonateButton({ userId, orgId, size = "sm" }: { userId: string; orgId?: string; size?: ButtonSize }) {
   const canView = usePermission("impersonation.view");
   const canAct = usePermission("impersonation.act");
   const [mode, setMode] = useState<Mode>("view");
@@ -57,7 +60,7 @@ export function ImpersonateButton({ userId, orgId }: { userId: string; orgId?: s
   if (!canView) return null;
   return (
     <>
-      <Button variant="secondary" size="sm" onClick={() => { setMode("view"); start.open(); }} data-testid="console-impersonate-button">
+      <Button variant="secondary" size={size} onClick={() => { setMode("view"); start.open(); }} data-testid="console-impersonate-button">
         <IconEye className="h-4 w-4" aria-hidden /> View as
       </Button>
       {start.dialog}

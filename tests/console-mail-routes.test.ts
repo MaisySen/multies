@@ -123,6 +123,24 @@ describe("deliveries and failure rates", () => {
     expect((await readonly.get("/api/console/mail/deliveries?cursor=not-a-cursor")).status).toBe(400);
   }, 120_000);
 
+  it("name each workspace's owner, and say when a list looked at recent rows only", async () => {
+    const now = Date.now();
+    await addDelivery(orgA, "bounced", new Date(now - HOUR));
+    await addDelivery(orgA, "delivered", new Date(now - HOUR));
+    const failures = await readonly.get("/api/console/mail/deliveries");
+    expect(failures.body.items[0]).toMatchObject({ orgId: orgA, ownerEmail: "a@alpha.test" });
+    // Failures read an index: the whole window, no note.
+    expect(failures.body.recentOnly).toBeUndefined();
+    // Other statuses across every workspace look at the newest rows only, and say so.
+    const delivered = await readonly.get("/api/console/mail/deliveries?status=delivered");
+    expect(delivered.status).toBe(200);
+    expect(delivered.body.recentOnly).toBe(true);
+    // One workspace reads its own index: everything in the window.
+    expect((await readonly.get(`/api/console/mail/deliveries?status=delivered&orgId=${orgA}`)).body.recentOnly).toBeUndefined();
+    const domainsList = await readonly.get("/api/console/mail/domains?status=pending,verified,failed");
+    expect(domainsList.body.items.find((d: { orgId: string }) => d.orgId === orgB)).toMatchObject({ ownerEmail: "b@beta.test" });
+  }, 60_000);
+
   it("ranks workspaces by outbound failure rate", async () => {
     for (let i = 0; i < 9; i++) await addDelivery(orgB, "delivered", new Date(Date.now() - (i + 5) * HOUR));
     const r = await readonly.get("/api/console/mail/failure-rates?window=7");

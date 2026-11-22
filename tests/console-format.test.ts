@@ -4,6 +4,7 @@
  * first sort direction of a column, the console's own read (server messages kept, no retries on an answer), and the
  * small states rendered to static markup.
  */
+import { readFileSync } from "node:fs";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createElement, type FunctionComponent, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -12,10 +13,12 @@ import {
   AUDIT_ACTIONS_WITHOUT_REASON, EMPTY, Empty, JobStatusBadge, OperatorRoleBadge, PersonLink, RelTime, StatusBadge, TwoStepBadge, WorkspaceLink,
   auditActionLabel, auditFieldLabel, compPlanLabel, dnsFailingText, dnsRecordLabel, eventTypeLabel, formatDateTime, formatDay, humanize,
   integrationLabel, jobStatusLabel, jobTypeLabel, planLabel, relativeTime, statusTone,
+  EVENT_TYPE_LABELS, JOB_TYPE_LABELS, shortWorkspaceId, workspaceHint,
 } from "../src/web/pages/console/components/format";
+import { WEBHOOK_EVENTS } from "../src/server/services/developer/webhooks";
 import { EmptyRow, LoadError, consoleErrorMessage, isNoAccess } from "../src/web/pages/console/components/states";
 import { firstSortDir } from "../src/web/pages/console/components/data-table";
-import { showValue } from "../src/web/pages/console/components/json-diff";
+import { JsonDiff, showValue } from "../src/web/pages/console/components/json-diff";
 import { ApiError } from "../src/web/lib/api";
 import { consoleGet, consoleRetry } from "../src/web/lib/console-api";
 
@@ -34,6 +37,42 @@ describe("plain labels", () => {
     expect(humanize("")).toBe(EMPTY);
     expect(humanize(null)).toBe(EMPTY);
   });
+  it("keeps known words whole and leaves ready-made labels alone", () => {
+    expect(humanize("minIosBuild")).toBe("Min iOS build");
+    expect(humanize("iPhoneBuild")).toBe("iPhone build");
+    expect(humanize("oldest_iphone_build")).toBe("Oldest iPhone build");
+    expect(humanize("oauthGrantId")).toBe("OAuth grant ID");
+    expect(humanize("OAuthGrant")).toBe("OAuth grant");
+    expect(humanize("apiKeyUrl")).toBe("API key URL");
+    expect(humanize("APIKey")).toBe("API key");
+    expect(humanize("dns.mx_record")).toBe("DNS MX record");
+    expect(humanize("requireSso")).toBe("Require SSO");
+    expect(humanize("ai_calls")).toBe("AI calls");
+    expect(humanize("userId")).toBe("User ID");
+    expect(humanize("ios")).toBe("iOS");
+    expect(humanize("macOSVersion")).toBe("macOS version");
+    // Never inside an ordinary word.
+    expect(humanize("paidAt")).toBe("Paid at");
+    expect(humanize("said")).toBe("Said");
+    expect(humanize("video_ids")).toBe("Video ids");
+    // Anything with a space is already words.
+    expect(humanize("Oldest iPhone build allowed")).toBe("Oldest iPhone build allowed");
+    expect(humanize("Min build (iOS)")).toBe("Min build (iOS)");
+    expect(auditFieldLabel("Oldest iPhone build allowed")).toBe("Oldest iPhone build allowed");
+    const diff = html(JsonDiff, { before: { "Oldest iPhone build allowed": "100" }, after: { "Oldest iPhone build allowed": "120" } });
+    expect(diff).toContain(">Oldest iPhone build allowed<");
+    expect(diff).not.toContain("i phone");
+  });
+  it("labels every job type the server registers and every webhook event it sends", () => {
+    const src = readFileSync(new URL("../src/server/services/jobs.ts", import.meta.url), "utf8");
+    const union = /export type JobType = ([^;]+);/.exec(src)![1]!;
+    const types = [...union.matchAll(/"([a-z0-9_.-]+)"/g)].map((m) => m[1]!);
+    expect(types.length).toBeGreaterThan(5);
+    for (const t of types) expect(JOB_TYPE_LABELS[t], t).toBeTruthy();
+    for (const e of WEBHOOK_EVENTS) expect(EVENT_TYPE_LABELS[e], e).toBeTruthy();
+    expect(eventTypeLabel("webhook.test")).toBe("Test event");
+    expect(jobTypeLabel("demo.seed_suite")).toBe("Demo workspace setup");
+  });
   it("names plans the way the customer app does", () => {
     expect(planLabel("starter")).toBe("Free");
     expect(planLabel("pro")).toBe("Pro");
@@ -45,10 +84,13 @@ describe("plain labels", () => {
   it("words jobs, events, DNS records and audit actions, with a humanised fallback", () => {
     expect(jobTypeLabel("mail.deliver")).toBe("Mail delivery");
     expect(jobTypeLabel("test.something_new")).toBe("Test something new");
-    expect(eventTypeLabel("message.bounced")).toBe("Message bounced");
+    expect(eventTypeLabel("message.bounced")).toBe("Mail bounced");
+    expect(eventTypeLabel("brand_new.event")).toBe("Brand new event");
     expect(eventTypeLabel("chat.message.created")).toBe("Chat message sent");
     expect(dnsRecordLabel("return_mx")).toBe("Return path MX");
     expect(dnsRecordLabel("bimi")).toBe("BIMI");
+    expect(dnsRecordLabel("ownership")).toBe("Ownership TXT");
+    expect(dnsFailingText(["ownership", "mx"])).toBe("Ownership TXT, MX missing");
     expect(dnsFailingText(["mx", "spf"])).toBe("MX, SPF missing");
     expect(dnsFailingText([])).toBe(EMPTY);
     expect(auditActionLabel("workspace.unsuspended")).toBe("Workspace restored");
@@ -124,6 +166,13 @@ describe("components", () => {
     expect(ws).toContain('title="org_1"');
     expect(ws).toContain("owner@acme.test");
     expect(html(WorkspaceLink, { id: null, name: null })).toContain(">None<");
+    expect(shortWorkspaceId("org_5f2c9a1be7d4")).toBe("5f2c9a1b");
+    expect(workspaceHint("org_5f2c9a1be7d4", "owner@acme.test")).toBe("owner@acme.test");
+    expect(workspaceHint("org_5f2c9a1be7d4", null)).toBe("5f2c9a1b");
+    expect(workspaceHint(null, null)).toBeNull();
+    // The hover text is the raw state unless the page gives its own.
+    expect(html(StatusBadge, { state: "locked", label: "9 min" })).toContain('title="locked"');
+    expect(html(StatusBadge, { state: "locked", label: "9 min", title: "Until 21 Nov 2026, 10:12 pm" })).toContain('title="Until 21 Nov 2026, 10:12 pm"');
     const p = html(PersonLink, { id: "usr_1", name: "Ada", email: "ada@x.test" });
     expect(p).toContain('href="/console/users/usr_1"');
     expect(p).toContain("ada@x.test");

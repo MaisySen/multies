@@ -22,7 +22,11 @@ import { replayJobs } from "../jobs";
 export type SortDir = "asc" | "desc";
 export interface ConsoleCursor { v: string | number; id: string }
 export interface ConsolePage<F extends string = string> { limit: number; cursor: ConsoleCursor | null; sort: { field: F | string; dir: SortDir } }
-export interface ConsolePageResult<T> { items: T[]; next: ConsoleCursor | null }
+export interface ConsolePageResult<T> {
+  items: T[]; next: ConsoleCursor | null;
+  /** True when an unscoped list looked only at the newest rows (recent-rows.ts): older ones need a workspace filter. */
+  recentOnly?: boolean;
+}
 
 export const CONSOLE_PAGE_MAX = 200;
 export const CONSOLE_PAGE_DEFAULT = 50;

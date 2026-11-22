@@ -4,10 +4,10 @@
  */
 import type { ReactNode } from "react";
 import { LOCALE } from "@/shared/locale";
-import { Card, tableStyles } from "@/web/components/ui/misc";
+import { Card } from "@/web/components/ui/misc";
 import { IconActivity, IconBuilding, IconDatabase } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
-import { consoleTable as T } from "./components/data-table";
+import { consoleTable as T, tableProps } from "./components/data-table";
 import { EmptyRow, formatDay, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
 import { providerLabel, type SystemReads, type SystemSnapshot, type SystemWrites } from "./system-api";
 
@@ -121,7 +121,7 @@ export function BusiestWorkspaces({ b }: { b: SystemSnapshot["busiestWorkspaces"
   if (!b.items.length) return <EmptyRow icon={<IconBuilding />}>No writes counted yet today. Workspaces show here as they write to the database.</EmptyRow>;
   return (
     <div className={T.wrap} tabIndex={0} role="region" aria-label="Busiest workspaces today" data-testid="console-system-busiest">
-      <table className={cn(tableStyles.table, "sm:min-w-[480px]")}>
+      <table {...tableProps(0)}>
         <thead className={T.head}><tr>
           <th className={T.th}>Workspace</th><th className={cn(T.th, "text-right")}>Rows written</th>
           {b.budget > 0 && <th className={cn(T.th, "text-right", T.secondary)}>Of daily budget</th>}<th className={T.th}>Status</th>

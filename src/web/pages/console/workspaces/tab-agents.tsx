@@ -3,6 +3,7 @@ import { IconAgent } from "@/web/components/ui/icon";
 import { consoleTable as T } from "../components/data-table";
 import { EmptyRow, LoadError, RelTime, StatusBadge } from "../components/format";
 import { LoadingBlock, Section, useWorkspacePart } from "./tab-shared";
+import { LOCALE } from "@/shared/locale";
 
 interface Agent {
   id: string; name: string; description: string | null; address: string | null; approvalMode: "always" | "external" | "never";
@@ -31,7 +32,7 @@ export function WorkspaceAgentsTab({ orgId }: { orgId: string }) {
                     <td className={T.td}><span className="flex min-w-0 flex-col"><span className="font-medium">{a.name}</span>{a.address && <span className="text-xs text-subtle">{a.address}</span>}</span></td>
                     <td className={T.td}><StatusBadge state={a.status} label={a.status === "active" ? "Active" : "Paused"} /></td>
                     <td className={`${T.td} ${T.secondary}`}>{APPROVAL[a.approvalMode]}{a.allowedRecipients && <span className="block text-xs text-subtle">Only {a.allowedRecipients.length} allowed recipients</span>}</td>
-                    <td className={`${T.td} text-right tabular-nums`}>{a.sendCapDaily.toLocaleString()}</td>
+                    <td className={`${T.td} text-right tabular-nums`}>{a.sendCapDaily.toLocaleString(LOCALE)}</td>
                     <td className={`${T.td} ${T.secondary} text-right tabular-nums`}>{a.apiKeys}</td>
                     <td className={`${T.td} ${T.secondary} text-right`}><RelTime at={a.createdAt} /></td>
                   </tr>

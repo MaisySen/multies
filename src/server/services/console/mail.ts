@@ -17,6 +17,7 @@ import { badRequest, HttpError, notFound } from "../../lib/errors";
 import { containsAny } from "../../lib/like-search";
 import { inIds } from "../../lib/sql-chunks";
 import { newestRows } from "./recent-rows";
+import { ownerEmails, withOwnerEmail } from "./owners";
 import { sendingState, verifyDomain } from "../domains";
 import { unsuppress } from "../deliverability/suppressions";
 import { sendQueuedAnyway } from "../mail/send-queue-r34";
@@ -29,7 +30,11 @@ export type SortDir = "asc" | "desc";
 /** A keyset position: the sort field's value (epoch ms for times, a string for text) and the row id. */
 export interface PageCursor { v: string | number; id: string }
 export interface PageRequest<F extends string = string> { limit: number; cursor: PageCursor | null; sort: { field: F; dir: SortDir } }
-export interface Page<T> { items: T[]; next: PageCursor | null }
+export interface Page<T> {
+  items: T[]; next: PageCursor | null;
+  /** True when an unscoped list looked only at the newest rows (recent-rows.ts): older ones need a workspace filter. */
+  recentOnly?: boolean;
+}
 /** A time range [from, to). Missing ends default per list (usually the last 7 days). */
 export interface TimeWindow { from?: Date | null; to?: Date | null }
 
@@ -70,6 +75,11 @@ export function keysetAfter(spec: SortSpec, idCol: SQLWrapper, dir: SortDir, cur
 
 export function keysetOrder(spec: SortSpec, idCol: SQLWrapper, dir: SortDir): SQL[] {
   return dir === "desc" ? [desc(spec.expr), desc(idCol)] : [asc(spec.expr), asc(idCol)];
+}
+
+/** The page with each item's workspace owner email added, in one lookup for the whole page (owners.ts). */
+export async function withOwners<T extends { orgId: string | null }>(deps: Deps, page: Page<T>): Promise<Page<T & { ownerEmail: string | null }>> {
+  return { ...page, items: await withOwnerEmail(deps, page.items) };
 }
 
 /** Rows were read with limit + 1: trims the extra one and builds the next cursor from the last item kept. */
@@ -131,7 +141,7 @@ export interface DeliveryFilters {
 
 /** One delivery attempt. No subject and no message content. */
 export interface ConsoleDelivery {
-  id: string; orgId: string; orgName: string | null; direction: "inbound" | "outbound"; status: DeliveryStatus;
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; direction: "inbound" | "outbound"; status: DeliveryStatus;
   fromAddress: string; toAddress: string; provider: string; providerMessageId: string | null; messageId: string | null;
   /** The provider's or our reason, clipped to 300 characters. */
   detail: string | null; createdAt: Date;
@@ -150,6 +160,8 @@ export async function listDeliveries(deps: Deps, filters: DeliveryFilters, page:
   const statuses = filters.status?.length ? filters.status : [...DELIVERY_FAILURE_STATUSES];
   for (const s of statuses) if (!(DELIVERY_STATUSES as readonly string[]).includes(s)) throw badRequest(`Unknown delivery status "${s}".`);
   const q = filters.q?.trim();
+  const failuresOnly = statuses.every(isFailure);
+  const recentOnly = !failuresOnly && !filters.orgId;
   const rows = await deps.db.select({ d: deliveries, orgName: organizations.name }).from(deliveries)
     .leftJoin(organizations, eq(organizations.id, deliveries.orgId))
     .where(and(
@@ -157,20 +169,21 @@ export async function listDeliveries(deps: Deps, filters: DeliveryFilters, page:
       gte(deliveries.createdAt, from), lt(deliveries.createdAt, to),
       inIds(deliveries.status, statuses),
       // Failures only: the partial index's own condition, so SQLite can use it. Otherwise, unscoped: the newest rows.
-      statuses.every(isFailure) ? DELIVERY_FAILED_SQL : filters.orgId ? undefined : newestRows(deliveries),
+      failuresOnly ? DELIVERY_FAILED_SQL : recentOnly ? newestRows(deliveries) : undefined,
       filters.direction ? eq(deliveries.direction, filters.direction) : undefined,
       q ? containsAny([deliveries.toAddress, deliveries.fromAddress], q) : undefined,
       keysetAfter(spec, deliveries.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, deliveries.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, ({ d, orgName }) => ({
+  const out = await withOwners(deps, pageOf(rows, limit, ({ d, orgName }) => ({
     id: d.id, orgId: d.orgId, orgName, direction: d.direction, status: d.status, fromAddress: d.fromAddress, toAddress: d.toAddress,
     provider: d.provider, providerMessageId: d.providerMessageId, messageId: d.messageId, detail: clip(d.detail), createdAt: d.createdAt,
-  }), ({ d }) => ({ v: ms(d.createdAt), id: d.id }));
+  }), ({ d }) => ({ v: ms(d.createdAt), id: d.id })));
+  return recentOnly ? { ...out, recentOnly } : out;
 }
 
 export interface WorkspaceFailureRate {
-  orgId: string; orgName: string | null;
+  orgId: string; orgName: string | null; ownerEmail: string | null;
   /** Outbound delivery rows in the window. */
   total: number; failed: number; bounced: number; complained: number;
   /** failed / total, 0 to 1. */
@@ -207,8 +220,9 @@ export async function deliveryFailureRateByWorkspace(deps: Deps, opts: { window?
     .filter((r) => r.total >= minTotal && r.failed > 0)
     .sort((a, b) => b.failed / b.total - a.failed / a.total || b.failed - a.failed || (a.orgId < b.orgId ? -1 : a.orgId > b.orgId ? 1 : 0))
     .slice(0, limit);
-  const names = await orgNames(deps, rows.map((r) => r.orgId));
-  return rows.map((r) => ({ ...r, orgName: names.get(r.orgId) ?? null, failureRate: r.total ? r.failed / r.total : 0 }));
+  const ids = rows.map((r) => r.orgId);
+  const [names, owners] = await Promise.all([orgNames(deps, ids), ownerEmails(deps, ids)]);
+  return rows.map((r) => ({ ...r, orgName: names.get(r.orgId) ?? null, ownerEmail: owners.get(r.orgId) ?? null, failureRate: r.total ? r.failed / r.total : 0 }));
 }
 
 /** Workspace names for a set of ids, one statement (inIds binds one variable past 20 ids). */
@@ -233,7 +247,7 @@ export interface DomainFilters { status?: DomainStatus[]; orgId?: string; q?: st
 
 /** A domain's state. Never the DKIM keys or the verification token. */
 export interface ConsoleDomain {
-  id: string; orgId: string; orgName: string | null; name: string; status: DomainStatus;
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; name: string; status: DomainStatus;
   /** Sending through the outbound provider: null when the domain was never registered there. */
   sending: { status: "queued" | "error" | "verified" | "pending"; detail: string | null } | null;
   /** DNS record ids that did not pass on the last check. */
@@ -258,11 +272,11 @@ export async function listDomains(deps: Deps, filters: DomainFilters, page: Page
       keysetAfter(spec, domains.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, domains.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, (d) => ({
+  return withOwners(deps, pageOf(rows, limit, (d) => ({
     id: d.id, orgId: d.orgId, orgName: d.orgName, name: d.name, status: d.status,
     sending: d.providerStatus ? sendingState(d.providerStatus) : null,
     failingRecords: failing(d.lastCheck), createdAt: d.createdAt, verifiedAt: d.verifiedAt, lastCheckedAt: d.lastCheckedAt,
-  }), (d) => ({ v: page.sort.field === "name" ? d.name : ms(page.sort.field === "lastCheckedAt" ? d.lastCheckedAt : d.createdAt), id: d.id }));
+  }), (d) => ({ v: page.sort.field === "name" ? d.name : ms(page.sort.field === "lastCheckedAt" ? d.lastCheckedAt : d.createdAt), id: d.id })));
 }
 
 function failing(lastCheck: string | null): string[] {
@@ -308,7 +322,7 @@ export interface SuppressionFilters {
   window?: TimeWindow;
 }
 
-export interface ConsoleSuppression { id: string; orgId: string; orgName: string | null; address: string; reason: SuppressionReason; detail: string | null; createdAt: Date }
+export interface ConsoleSuppression { id: string; orgId: string; orgName: string | null; ownerEmail: string | null; address: string; reason: SuppressionReason; detail: string | null; createdAt: Date }
 
 /**
  * Index: `suppressions_org_address_uq (org_id, address)` with `orgId`. Without it the list is limited to a created_at
@@ -329,8 +343,8 @@ export async function listSuppressions(deps: Deps, filters: SuppressionFilters, 
       keysetAfter(spec, suppressions.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, suppressions.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, ({ s, orgName }) => ({ id: s.id, orgId: s.orgId, orgName, address: s.address, reason: s.reason, detail: clip(s.detail, 200), createdAt: s.createdAt }),
-    ({ s }) => ({ v: page.sort.field === "address" ? s.address : ms(s.createdAt), id: s.id }));
+  return withOwners(deps, pageOf(rows, limit, ({ s, orgName }) => ({ id: s.id, orgId: s.orgId, orgName, address: s.address, reason: s.reason, detail: clip(s.detail, 200), createdAt: s.createdAt }),
+    ({ s }) => ({ v: page.sort.field === "address" ? s.address : ms(s.createdAt), id: s.id })));
 }
 
 export interface RemovedSuppression { id: string; orgId: string; address: string; reason: SuppressionReason }
@@ -365,7 +379,7 @@ export interface QueuedSendFilters {
 
 /** A message a sending limit queued until tomorrow. No subject, no body, no recipient addresses. */
 export interface ConsoleQueuedSend {
-  id: string; orgId: string; orgName: string | null; mailboxId: string; mailboxAddress: string | null;
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; mailboxId: string; mailboxAddress: string | null;
   /** Why the limit held it (our own copy, e.g. "New workspaces send to 20 outside recipients a day"). */
   reason: string; recipients: number; forced: boolean; dueAt: Date; createdAt: Date;
 }
@@ -386,7 +400,7 @@ export async function listQueuedSendsAll(deps: Deps, filters: QueuedSendFilters,
       keysetAfter(spec, mailSchedules.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, mailSchedules.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, ({ r, orgName, address }) => {
+  return withOwners(deps, pageOf(rows, limit, ({ r, orgName, address }) => {
     let p: Partial<SendPayload> = {};
     try { p = JSON.parse(r.payload ?? "{}") as SendPayload; } catch { /* a broken payload still lists */ }
     const i = p.input;
@@ -394,7 +408,7 @@ export async function listQueuedSendsAll(deps: Deps, filters: QueuedSendFilters,
       id: r.id, orgId: r.orgId, orgName, mailboxId: r.mailboxId, mailboxAddress: address, reason: clip(p.held ?? "", 200) ?? "",
       recipients: i ? (i.to?.length ?? 0) + (i.cc?.length ?? 0) + (i.bcc?.length ?? 0) : 0, forced: !!p.force, dueAt: r.dueAt, createdAt: r.createdAt,
     };
-  }, ({ r }) => ({ v: ms(page.sort.field === "createdAt" ? r.createdAt : r.dueAt), id: r.id }));
+  }, ({ r }) => ({ v: ms(page.sort.field === "createdAt" ? r.createdAt : r.dueAt), id: r.id })));
 }
 
 /** A queued send's id, workspace and state (no payload), or a 404. */
@@ -437,7 +451,7 @@ export interface MailConnectionFilters { status?: MailConnectionStatus[]; orgId?
 
 /** A connected outside mailbox. Never the password or OAuth token, nor the sync state. */
 export interface ConsoleMailConnection {
-  id: string; orgId: string; orgName: string | null; mailboxId: string; provider: string; email: string;
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; mailboxId: string; provider: string; email: string;
   imapHost: string; smtpHost: string; authKind: "password" | "oauth"; status: MailConnectionStatus; lastError: string | null;
   initialDone: boolean; messagesSynced: number; lastSyncAt: Date | null; nextSyncAt: Date | null; createdAt: Date;
 }
@@ -464,8 +478,8 @@ export async function listMailConnections(deps: Deps, filters: MailConnectionFil
       keysetAfter(spec, c.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, c.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, (r) => ({ ...r, lastError: clip(r.lastError) }),
-    (r) => ({ v: page.sort.field === "email" ? r.email : ms(page.sort.field === "lastSyncAt" ? r.lastSyncAt : r.createdAt), id: r.id }));
+  return withOwners(deps, pageOf(rows, limit, (r) => ({ ...r, lastError: clip(r.lastError) }),
+    (r) => ({ v: page.sort.field === "email" ? r.email : ms(page.sort.field === "lastSyncAt" ? r.lastSyncAt : r.createdAt), id: r.id })));
 }
 
 // ---------------------------------------------------------------- import jobs
@@ -483,7 +497,7 @@ export interface ImportJobFilters {
 
 /** A mail import. Never the source app password. */
 export interface ConsoleImportJob {
-  id: string; orgId: string; orgName: string | null; mailboxId: string; provider: "gmail" | "outlook" | "imap"; sourceHost: string;
+  id: string; orgId: string; orgName: string | null; ownerEmail: string | null; mailboxId: string; provider: "gmail" | "outlook" | "imap"; sourceHost: string;
   status: ImportJobStatus; messagesDone: number; messagesTotal: number | null; error: string | null;
   claimedAt: Date | null; heartbeatAt: Date | null; finishedAt: Date | null; createdAt: Date;
 }
@@ -508,5 +522,5 @@ export async function listImportJobs(deps: Deps, filters: ImportJobFilters, page
       keysetAfter(spec, j.id, page.sort.dir, page.cursor),
     ))
     .orderBy(...keysetOrder(spec, j.id, page.sort.dir)).limit(limit + 1);
-  return pageOf(rows, limit, (r) => ({ ...r, error: clip(r.error) }), (r) => ({ v: ms(r.createdAt), id: r.id }));
+  return withOwners(deps, pageOf(rows, limit, (r) => ({ ...r, error: clip(r.error) }), (r) => ({ v: ms(r.createdAt), id: r.id })));
 }

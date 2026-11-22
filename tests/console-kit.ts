@@ -30,7 +30,8 @@ export function assertCursorFromItems(body: { items: Record<string, unknown>[]; 
   if (!body.nextCursor) return;
   const raw = Buffer.from(body.nextCursor.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString();
   const cur = JSON.parse(raw) as { v: unknown; t?: string; id: unknown };
-  const item = body.items.find((i) => i.id === cur.id);
+  // The tie breaker is the item's id (or, for a list keyed by workspace, its orgId).
+  const item = body.items.find((i) => i.id === cur.id) ?? body.items.find((i) => i.orgId === cur.id);
   if (!item) throw new Error(`nextCursor id ${String(cur.id)} is not an item on the page`);
   const seen = new Set<string>();
   const walk = (x: unknown) => {

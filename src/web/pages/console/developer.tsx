@@ -5,11 +5,13 @@
  *   API keys           name, prefix, access, workspace, who made it, last used (never the key); Revoke
  *   Connected apps     OAuth connections per person and workspace; Revoke
  *   Registered apps    OAuth clients
- * ?orgId= narrows every tab to one workspace. Changes need developer.manage and a reason (server checks again).
+ * ?orgId= narrows every tab to one workspace (picked by name with the workspace picker above the tabs). Changes need
+ * developer.manage and a reason (server checks again).
  */
-import { Link } from "react-router";
+import { useSearchParams } from "react-router";
 import { PageHeader } from "@/web/components/ui/misc";
 import { QueryTabs, TabPanel, queryTabSearch, useQueryTab } from "./components/detail-tabs";
+import { WorkspacePicker } from "./components/workspace-picker";
 import { WebhookEndpointsTab, WebhookFailuresTab } from "./developer-webhooks";
 import { ApiKeysTab, ConnectedAppsTab, RegisteredAppsTab } from "./developer-access";
 import { useWorkspaceScope } from "./developer-shared";
@@ -26,16 +28,20 @@ type TabId = (typeof TABS)[number]["id"];
 export function ConsoleDeveloperPage() {
   const scope = useWorkspaceScope();
   const tab: TabId = useQueryTab(TABS);
+  const [, setParams] = useSearchParams();
+  // A new workspace (or every workspace) keeps only the tab: that tab's search and filters start fresh.
+  const setOrg = (id: string) => setParams(() => {
+    const next = new URLSearchParams(queryTabSearch(new URLSearchParams(), tab, tab === TABS[0].id));
+    if (id) next.set("orgId", id);
+    return next;
+  }, { replace: true });
   return (
     <div className="space-y-4">
       <PageHeader eyebrow="Product" title="Developer platform"
         description="Webhooks, API keys and connected apps across every workspace. Keys and secrets are never shown; for webhooks only field names are shown, never values." />
-      {scope.orgId && (
-        <p className="flex flex-wrap items-center gap-2 text-sm text-muted" data-testid="console-developer-scope">
-          Showing one workspace only.
-          <Link to={{ pathname: "/console/developer", search: queryTabSearch(new URLSearchParams(), tab, tab === TABS[0].id) }} replace className="font-medium text-fg hover:underline">Show every workspace</Link>
-        </p>
-      )}
+      <div className="flex flex-wrap items-center gap-2" data-testid="console-developer-scope">
+        <WorkspacePicker value={scope.orgId ?? ""} onChange={setOrg} testIdPrefix="console-developer-workspace" />
+      </div>
       {/* Only the tab and the workspace scope carry over; each tab's own search and filters start fresh. */}
       <QueryTabs tabs={TABS} label="Developer platform sections" testIdPrefix="console-developer-tab" keep={["orgId"]} />
       <TabPanel testIdPrefix="console-developer-tab" current={tab}>

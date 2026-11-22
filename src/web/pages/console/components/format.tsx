@@ -11,15 +11,18 @@
  *   planLabel(org.plan)                                  "Free", "Pro", "Business" (the customer app's names)
  *   compPlanLabel(org.compPlan)                          "Free Business plan" (a plan given for free)
  *   <StatusBadge state="failed" />                       red "Failed"; <StatusBadge state="past_due" label="Past due" />
+ *   <StatusBadge state="locked" label="9 min" title="Until 21 Nov 2026, 10:12 pm" />   your own hover text
  *   <JobStatusBadge status="dead" />                     red "Failed for good"
  *   <IntegrationBadge on={cfg.billing} />                "Connected" / "Not connected"
  *   <OperatorRoleBadge role="ops_support" />             "Support"
  *   <TwoStepBadge on={u.twoFactor} />                    green "On" / amber "Off"
- *   <WorkspaceLink id={orgId} name={name} hint={ownerEmail} />
+ *   <WorkspaceLink id={orgId} name={name} hint={workspaceHint(orgId, ownerEmail)} />   owner email, else a short id
  *   <PersonLink id={userId} name={name} email={email} />
  *   <Labelled raw={job.type} label={jobTypeLabel(job.type)} />   plain words, the raw id in the title
  *   jobTypeLabel("mail.deliver"), eventTypeLabel("message.bounced"), dnsRecordLabel("return_mx"),
  *   auditActionLabel("workspace.unsuspended"), auditFieldLabel("sendCapDaily"), humanize("mail.send") -> "Mail send"
+ *   humanize("minIosBuild") -> "Min iOS build" (KNOWN_WORDS keep their spelling); a label with a space comes back as is
+ *   shortWorkspaceId("org_5f2c9a1be7") -> "5f2c9a1b"
  *   <EmptyRow>No API keys yet.</EmptyRow>                a one-line empty state inside a section card
  *   <LoadError error={q.error} retry={() => q.refetch()} what="the workspace" />   403 reads "You don't have access"
  *   <BackLink to="/console/workspaces">All workspaces</BackLink>
@@ -117,17 +120,34 @@ export function Day({ at, empty, className }: { at: DateInput; empty?: ReactNode
 
 // ------------------------------------------------------------------ plain labels
 
-/** A raw id in plain words: "mail.send" -> "Mail send", "sendCapDaily" -> "Send cap daily", "past_due" -> "Past due". */
+/**
+ * Words that keep their own spelling inside a humanised id ("minIosBuild" -> "Min iOS build", "oauthGrantId" ->
+ * "OAuth grant ID"). Keys are lower case; values are how the word is written.
+ */
+export const KNOWN_WORDS: Record<string, string> = Object.fromEntries(
+  ["iPhone", "iPad", "iOS", "macOS", "OAuth", "API", "URL", "DNS", "SSO", "AI", "ID", "IP", "SMS", "MX", "SPF", "DKIM", "DMARC", "TXT", "SMTP", "IMAP", "JSON", "CSV", "HTML", "TOTP", "2FA"]
+    .map((w) => [w.toLowerCase(), w]),
+);
+// Mixed case words are matched whole first so camelCase splitting never cuts inside them ("iPhone", not "i Phone").
+const WHOLE = Object.values(KNOWN_WORDS).filter((w) => /[a-z0-9]/.test(w)).sort((a, b) => b.length - a.length);
+const PIECE = new RegExp(`${WHOLE.join("|")}|[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\\d+`, "g");
+/** Looks like a key or id (camelCase, snake_case, dotted or dashed path), not a ready-made label. */
+const IDENTIFIER = /^[A-Za-z0-9_.:/-]+$/;
+
+/**
+ * A raw id in plain words: "mail.send" -> "Mail send", "sendCapDaily" -> "Send cap daily", "past_due" -> "Past due",
+ * "minIosBuild" -> "Min iOS build". Anything that is not an identifier (it has a space, say "Oldest iPhone build
+ * allowed") is already words and comes back unchanged.
+ */
 export function humanize(raw: string | null | undefined): string {
   if (!raw) return EMPTY;
-  const words = raw
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[._:/-]+/g, " ")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-  if (!words) return raw;
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  if (!IDENTIFIER.test(raw)) return raw;
+  const pieces = raw.match(PIECE) ?? [];
+  if (!pieces.length) return raw;
+  const words = pieces.map((p) => KNOWN_WORDS[p.toLowerCase()] ?? p.toLowerCase());
+  const first = words[0]!;
+  if (!KNOWN_WORDS[first.toLowerCase()]) words[0] = first.charAt(0).toUpperCase() + first.slice(1);
+  return words.join(" ");
 }
 
 const lookup = (map: Record<string, string>, raw: string | null | undefined) => (raw ? map[raw] ?? humanize(raw) : EMPTY);
@@ -144,6 +164,7 @@ export function compPlanLabel(planId: string | null | undefined): string {
   return `Free ${planLabel(planId)} plan`;
 }
 
+/** Every background job type (services/jobs.ts JobType; a test keeps them in step). */
 export const JOB_TYPE_LABELS: Record<string, string> = {
   "mail.deliver": "Mail delivery",
   "system-mail.send": "Account email",
@@ -160,17 +181,33 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
 /** A background job type in plain words ("mail.deliver" -> "Mail delivery"). */
 export const jobTypeLabel = (type: string | null | undefined) => lookup(JOB_TYPE_LABELS, type);
 
+/** Every webhook event the app sends (services/developer/webhooks.ts WEBHOOK_EVENTS; a test keeps them in step). */
 export const EVENT_TYPE_LABELS: Record<string, string> = {
   "*": "Every event",
+  "webhook.test": "Test event",
+  "message.received": "Mail received", "message.sent": "Mail sent", "message.bounced": "Mail bounced", "message.complained": "Marked as spam",
+  "domain.verified": "Domain verified", "domain.failed": "Domain check failed",
+  "approval.requested": "Approval requested", "approval.decided": "Approval decided",
+  "agent.created": "Agent created", "agent.deleted": "Agent deleted",
+  "task.created": "Task created", "task.updated": "Task changed", "task.deleted": "Task deleted", "task.commented": "Task comment",
+  "task.file_added": "Task file added", "task.recurred": "Repeating task created",
+  "project.created": "Project created", "project.updated": "Project changed", "project.deleted": "Project deleted",
+  "doc.created": "Doc created", "doc.updated": "Doc changed", "doc.deleted": "Doc deleted",
+  "contact.created": "Contact created", "contact.updated": "Contact changed",
+  "deal.created": "Deal created", "deal.updated": "Deal changed",
+  "time_entry.created": "Time entry added", "time_entry.updated": "Time entry changed",
+  "form.submitted": "Form submitted",
+  "meeting.created": "Meeting created", "meeting.updated": "Meeting changed", "meeting.deleted": "Meeting deleted",
+  "custom_field.created": "Custom field created", "custom_field.updated": "Custom field changed", "custom_field.deleted": "Custom field deleted",
+  "guest.invited": "Guest invited", "guest.joined": "Guest joined", "guest.revoked": "Guest removed",
+  "chat.channel.created": "Chat channel created", "chat.message.created": "Chat message sent",
+  "chat.message.updated": "Chat message edited", "chat.message.deleted": "Chat message deleted", "chat.mention": "Chat mention",
+  "template.used": "Template used",
+  "goal.created": "Goal created", "goal.updated": "Goal changed", "goal.deleted": "Goal deleted",
   "incoming_hook.received": "Incoming hook received",
-  "chat.channel.created": "Chat channel created",
-  "chat.message.created": "Chat message sent",
-  "chat.message.updated": "Chat message edited",
-  "chat.message.deleted": "Chat message deleted",
-  "chat.mention": "Chat mention",
-  "task.file_added": "Task file added",
-  "time_entry.created": "Time entry added",
-  "time_entry.updated": "Time entry changed",
+  "booking.created": "Booking made", "booking.cancelled": "Booking cancelled",
+  "triage.created": "Triage item created", "triage.accepted": "Triage item accepted", "triage.declined": "Triage item declined", "triage.merged": "Triage item merged",
+  "comment.created": "Comment added", "comment.updated": "Comment edited", "comment.deleted": "Comment deleted",
 };
 /** A webhook event type in plain words ("message.bounced" -> "Message bounced"). */
 export const eventTypeLabel = (type: string | null | undefined) => lookup(EVENT_TYPE_LABELS, type);
@@ -178,6 +215,7 @@ export const eventTypeLabel = (type: string | null | undefined) => lookup(EVENT_
 export const DNS_RECORD_LABELS: Record<string, string> = {
   mx: "MX", spf: "SPF", dkim: "DKIM", dmarc: "DMARC",
   return_mx: "Return path MX", return_spf: "Return path SPF", return_cname: "Return path CNAME",
+  ownership: "Ownership TXT",
 };
 /** A DNS check id as the record people know ("return_mx" -> "Return path MX"). */
 export const dnsRecordLabel = (code: string | null | undefined) => (code ? DNS_RECORD_LABELS[code] ?? code.toUpperCase() : EMPTY);
@@ -274,6 +312,7 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
 export function auditFieldLabel(key: string | null | undefined): string {
   if (!key) return EMPTY;
   if (AUDIT_FIELD_LABELS[key]) return AUDIT_FIELD_LABELS[key]!;
+  if (/\s/.test(key)) return key; // already a label ("Oldest iPhone build allowed")
   return key.split(".").map((p) => AUDIT_FIELD_LABELS[p] ?? humanize(p)).join(": ");
 }
 
@@ -286,7 +325,7 @@ export function Labelled({ raw, label, className }: { raw: string | null | undef
 
 export type StatusTone = "ok" | "warn" | "bad" | "neutral" | "brand";
 
-const BAD = new Set(["failed", "failure", "fail", "error", "refused", "bounced", "rejected", "dead", "blocked", "suspended", "banned", "complained", "revoked", "disabled", "down"]);
+const BAD = new Set(["failed", "failure", "fail", "error", "auth_failed", "uncollectible", "refused", "bounced", "rejected", "dead", "blocked", "suspended", "banned", "complained", "revoked", "disabled", "down"]);
 const WARN = new Set(["waiting", "pending", "retrying", "queued", "held", "past_due", "pastdue", "needs_attention", "open", "near", "warn", "degraded", "half-open", "half_open", "trialing", "grace", "locked", "paused", "incomplete", "unpaid"]);
 const OK = new Set(["ok", "active", "delivered", "done", "sent", "connected", "verified", "resolved", "on", "healthy", "operational", "succeeded", "success", "paid", "enabled", "closed", "normal"]);
 const BRAND = new Set(["running", "in_progress", "processing"]);
@@ -304,10 +343,13 @@ export function statusTone(state: string | null | undefined): StatusTone {
   return "neutral";
 }
 
-/** A status pill that never wraps. `label` overrides the humanised state; `tone` overrides statusTone. */
-export function StatusBadge({ state, label, tone, dot = true, className }: { state: string | null | undefined; label?: ReactNode; tone?: StatusTone; dot?: boolean; className?: string }) {
+/**
+ * A status pill that never wraps. `label` overrides the humanised state; `tone` overrides statusTone; `title` overrides
+ * the hover text (the raw state by default), say "Until 21 Nov 2026, 10:12 pm".
+ */
+export function StatusBadge({ state, label, tone, dot = true, title, className }: { state: string | null | undefined; label?: ReactNode; tone?: StatusTone; dot?: boolean; title?: string; className?: string }) {
   return (
-    <span title={state ?? undefined} className="inline-flex shrink-0">
+    <span title={title ?? state ?? undefined} className="inline-flex shrink-0">
       <Badge tone={tone ?? statusTone(state)} dot={dot} className={cn("whitespace-nowrap", className)}>{label ?? humanize(state)}</Badge>
     </span>
   );
@@ -350,6 +392,12 @@ export function TabCount({ n, tone = "neutral" }: { n: number; tone?: StatusTone
 }
 
 // ------------------------------------------------------------------ links
+
+/** A workspace id short enough to show under its name ("org_5f2c9a1be7..." -> "5f2c9a1b"). */
+export const shortWorkspaceId = (id: string) => id.replace(/^org_/, "").slice(0, 8);
+/** The line under a workspace's name in a list: its owner's email (what an operator recognises), else a short id. */
+export const workspaceHint = (id: string | null | undefined, ownerEmail?: string | null): string | null =>
+  ownerEmail || (id ? shortWorkspaceId(id) : null);
 
 export const workspaceHref = (id: string) => `/console/workspaces/${encodeURIComponent(id)}`;
 export const personHref = (id: string) => `/console/users/${encodeURIComponent(id)}`;

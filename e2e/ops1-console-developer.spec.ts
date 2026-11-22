@@ -59,7 +59,7 @@ test("webhook failures first, filters in the address, Redeliver and Revoke send 
   await expect(page.getByTestId("console-developer-tab-failures")).toHaveAttribute("aria-current", "page");
   // The event in plain words (the raw type in its title), and a Fields column with field names only.
   await expect(page.getByRole("columnheader", { name: "Fields" })).toBeVisible();
-  await expect(page.getByText("Message bounced", { exact: true })).toHaveAttribute("title", "message.bounced");
+  await expect(page.getByText("Mail bounced", { exact: true })).toHaveAttribute("title", "message.bounced");
   await expect(page.getByText("id, mailboxId, to", { exact: true })).toBeVisible();
   await expect(page.getByText(/only field names are shown, never values/)).toBeVisible();
   await expect(page.getByText("hooks.harbour.example")).toBeVisible();
@@ -74,7 +74,7 @@ test("webhook failures first, filters in the address, Redeliver and Revoke send 
 
   // Redeliver: the dialog says the endpoint is switched back on, and the reason is sent.
   await page.getByTestId("console-developer-redeliver").click();
-  const re = page.getByRole("dialog", { name: 'Send the "Message bounced" event again?' });
+  const re = page.getByRole("dialog", { name: 'Send the "Mail bounced" event again?' });
   await expect(re).toBeVisible();
   await expect(re).toContainText("switches it back on");
   await re.getByLabel("Reason").fill("Customer fixed their receiver");
@@ -86,7 +86,7 @@ test("webhook failures first, filters in the address, Redeliver and Revoke send 
   await page.getByTestId("console-developer-tab-endpoints").click();
   await expect(page.getByTestId("console-developer-disable")).toHaveClass(/bg-bad-soft/);
   await expect(page.getByTestId("console-developer-enable")).not.toHaveClass(/bg-bad-soft/);
-  await expect(page.getByText("Message bounced", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Mail bounced", { exact: true }).first()).toBeVisible();
   const off = page.getByRole("table").getByText("Off", { exact: true });
   const offBox = await off.boundingBox();
   expect(offBox!.width).toBeLessThan(80);

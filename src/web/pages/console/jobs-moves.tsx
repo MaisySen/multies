@@ -7,6 +7,7 @@ import { DataTable } from "./components/data-table";
 import type { FilterDef } from "./components/filter-bar";
 import { humanize, RelTime, StatusBadge, WorkspaceLink } from "./components/format";
 import { MOVE_STATUS_LABEL, MOVE_STATUS_TONE, type ConsoleDataMove, type DataMoveStatus } from "./jobs-api";
+import { LOCALE } from "@/shared/locale";
 
 const MOVE_STATUSES: DataMoveStatus[] = ["failed", "running", "stopped", "ready", "done", "undone", "expired"];
 
@@ -23,7 +24,7 @@ function Step({ m }: { m: ConsoleDataMove }) {
   const pct = m.total > 0 ? Math.min(100, Math.round((m.done / m.total) * 100)) : null;
   return (
     <span className="flex flex-col">
-      <span className="whitespace-nowrap tabular-nums">{m.total > 0 ? `${m.done.toLocaleString()} of ${m.total.toLocaleString()}${pct !== null ? ` (${pct}%)` : ""}` : m.done.toLocaleString()}</span>
+      <span className="whitespace-nowrap tabular-nums">{m.total > 0 ? `${m.done.toLocaleString(LOCALE)} of ${m.total.toLocaleString(LOCALE)}${pct !== null ? ` (${pct}%)` : ""}` : m.done.toLocaleString(LOCALE)}</span>
       {m.lastStepAt && <span className="whitespace-nowrap text-xs text-subtle">Last step <RelTime at={m.lastStepAt} /></span>}
     </span>
   );
