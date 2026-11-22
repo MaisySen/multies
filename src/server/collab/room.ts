@@ -20,6 +20,19 @@ export const MESSAGE_QUERY_AWARENESS = 3;
 
 /** Close code a room uses when its state was thrown away; clients reload the saved doc. */
 export const CLOSE_RESET = 4000;
+/** OPS1 security (L2): close code for an operator's impersonation socket whose impersonation ended. */
+export const CLOSE_IMPERSONATION_ENDED = 4003;
+
+/** OPS1 security (L2): true when this message would change the document (a sync step 2 or an update). */
+export function isWriteMessage(data: Uint8Array): boolean {
+  try {
+    const decoder = decoding.createDecoder(data);
+    if (decoding.readVarUint(decoder) !== MESSAGE_SYNC) return false;
+    return decoding.peekVarUint(decoder) !== syncProtocol.messageYjsSyncStep1;
+  } catch {
+    return false;
+  }
+}
 
 export const COMPACT_AFTER = 100;
 

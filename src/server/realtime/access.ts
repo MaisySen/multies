@@ -6,7 +6,8 @@
 import type { Deps } from "../context";
 import { resolveAuthFor } from "../middleware";
 
-export type ChatLiveAccess = { ok: true; userId: string; orgId: string } | { ok: false; status: number; message: string };
+/** OPS1 security (L2): sessionId and, for an operator's impersonation session, when it expires (epoch ms). */
+export type ChatLiveAccess = { ok: true; userId: string; orgId: string; sessionId: string; until?: number } | { ok: false; status: number; message: string };
 
 export async function chatLiveAccess(deps: Deps, request: Request): Promise<ChatLiveAccess> {
   if (request.method !== "GET" || (request.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") {
@@ -29,7 +30,7 @@ export async function chatLiveAccess(deps: Deps, request: Request): Promise<Chat
   // so view and act sessions both may listen; typing and presence are HTTP writes that requireAuth refuses in view mode.
   const auth = await resolveAuthFor(deps, headers, { method: "GET", path: "/api/chat/live" }).catch(() => null);
   if (!auth?.userId || !auth.orgId || !auth.sessionId || auth.ssoBlocked) return { ok: false, status: 401, message: "Sign in first." };
-  return { ok: true, userId: auth.userId, orgId: auth.orgId };
+  return { ok: true, userId: auth.userId, orgId: auth.orgId, sessionId: auth.sessionId, ...(auth.impersonation ? { until: auth.impersonation.expiresAt.getTime() } : {}) };
 }
 
 export function sameHost(origin: string, host: string) {

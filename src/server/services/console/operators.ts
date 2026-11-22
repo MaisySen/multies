@@ -85,6 +85,7 @@ export async function changeOperatorRole(deps: Deps, id: string, role: OperatorR
   refuseEnvManaged(deps, t);
   await refuseLastOwner(deps, t, role);
   await deps.db.update(users).set({ role }).where(eq(users.id, t.id));
+  await (await import("./impersonation")).endImpersonationsNotAllowed(deps, t.id, role); // OPS1 security (L2)
   return { before: { role: t.role }, after: { role }, user: { id: t.id, email: t.email } };
 }
 
@@ -95,5 +96,6 @@ export async function removeOperator(deps: Deps, id: string) {
   refuseEnvManaged(deps, t);
   await refuseLastOwner(deps, t, "user");
   await deps.db.update(users).set({ role: "user" }).where(eq(users.id, t.id));
+  await (await import("./impersonation")).endImpersonationsNotAllowed(deps, t.id, "user"); // OPS1 security (L2)
   return { before: { role: t.role }, after: { role: "user" }, user: { id: t.id, email: t.email } };
 }

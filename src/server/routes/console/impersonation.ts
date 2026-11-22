@@ -29,7 +29,7 @@ import { operatorImpersonations, sessions, users } from "../../db/schema";
 import { audit } from "../../services/audit";
 import { auditActor, operatorAction, platformAudit, reasonSchema } from "../../services/console/audit";
 import {
-  endImpersonationRow, IMPERSONATION_SECONDS, impersonationBySession, listImpersonations, membershipsOf, type ImpersonationEndReason,
+  closeImpersonationSockets, endImpersonationRow, IMPERSONATION_SECONDS, impersonationBySession, listImpersonations, membershipsOf, type ImpersonationEndReason,
 } from "../../services/console/impersonation";
 import { can, isOperatorRole, type Permission } from "@/shared/operator-permissions";
 
@@ -120,6 +120,7 @@ export function impersonationRoutes() {
 
       const now = deps.now();
       if (row) await endImpersonationRow(deps.db, row.id, reason, now);
+      await closeImpersonationSockets(deps, { sessionId: auth.sessionId, targetUserId: auth.userId }); // OPS1 security (L2)
       const operator = await deps.db.select({ id: users.id, email: users.email, role: users.role }).from(users).where(eq(users.id, auth.impersonatedBy)).get();
       await platformAudit(deps.db, {
         actorUserId: auth.impersonatedBy, actorEmail: operator?.email ?? row?.operatorEmail ?? null, actorRole: operator?.role ?? null,
@@ -217,6 +218,7 @@ export function impersonationRoutes() {
         if (row.sessionId) await deps.db.delete(sessions).where(and(eq(sessions.id, row.sessionId), eq(sessions.userId, row.targetUserId)));
         await endImpersonationRow(deps.db, row.id, "revoked", now);
       });
+      await closeImpersonationSockets(deps, row); // OPS1 security (L2): its live sockets end with it
       // The 15 second read cache in this isolate must not keep answering for the ended session.
       clearAuthCache();
       return c.json({ ok: true });

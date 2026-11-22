@@ -16,7 +16,7 @@ import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
 import { autoWorkspaceName } from "@/shared/person-name";
 import { REFERRAL_COOKIE } from "@/shared/referral-link";
 import { isOperatorRole } from "@/shared/operator-permissions";
-import { activeImpersonationFor, ALWAYS_BLOCKED_MESSAGE, impersonationBlock, VIEW_ONLY_MESSAGE } from "../services/console/impersonation"; // OPS1 impersonation
+import { activeImpersonationFor, closeImpersonationSockets, ALWAYS_BLOCKED_MESSAGE, impersonationBlock, VIEW_ONLY_MESSAGE } from "../services/console/impersonation"; // OPS1 impersonation
 
 /*
  * Route guards. Every route that acts for a person goes through requireAuth (the session
@@ -48,7 +48,9 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   // Such a session never runs the sign in side effects below (invite joins, a new workspace, referral, operator
   // bootstrap): a page load while viewing as someone must never write on their behalf.
   const impersonatedBy = (s.session as { impersonatedBy?: string | null }).impersonatedBy ?? null;
-  const impersonation = impersonatedBy ? await activeImpersonationFor(db, { id: s.session.id, userId: s.user.id, impersonatedBy }, deps.now()) : null;
+  const impersonation = impersonatedBy
+    ? await activeImpersonationFor(db, { id: s.session.id, userId: s.user.id, impersonatedBy }, deps.now(), (row) => closeImpersonationSockets(deps, row)) // OPS1 security (L2)
+    : null;
   if (impersonatedBy && !impersonation) return null;
   // The membership and the workspace's SSO rule in one query: on D1 each query is a round trip.
   const memberWithOrg = (where: ReturnType<typeof and>) => db.select({ member: members, requireSso: organizations.requireSso })

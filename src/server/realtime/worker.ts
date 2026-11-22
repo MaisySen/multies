@@ -24,6 +24,10 @@ export function durableChatLive(ns: unknown): ChatLiveBus | undefined {
       const res = await ns.get(ns.idFromName(hubName(orgId))).fetch(new Request("https://chat-hub/kick", { method: "POST", body: JSON.stringify({ userId }) }));
       if (!res.ok) throw new Error(`chat hub answered ${res.status}`);
     },
+    async kickSession(orgId, sessionId) { // OPS1 security (L2): the same /kick, by session
+      const res = await ns.get(ns.idFromName(hubName(orgId))).fetch(new Request("https://chat-hub/kick", { method: "POST", body: JSON.stringify({ sessionId }) }));
+      if (!res.ok) throw new Error(`chat hub answered ${res.status}`);
+    },
   };
 }
 
@@ -32,7 +36,8 @@ export async function chatLiveUpgrade(request: Request, ns: unknown, deps: Deps)
   if (!isChatHubNamespace(ns)) return Response.json({ error: { code: "live_off", message: "Live chat is not set up on this host." } }, { status: 503 });
   const access = await chatLiveAccess(deps, request);
   if (!access.ok) return Response.json({ error: { code: "live_denied", message: access.message } }, { status: access.status });
-  const headers = new Headers({ upgrade: "websocket", "x-chat-user": access.userId });
+  const headers = new Headers({ upgrade: "websocket", "x-chat-user": access.userId, "x-chat-session": access.sessionId });
+  if (access.until !== undefined) headers.set("x-chat-until", String(access.until)); // OPS1 security (L2)
   for (const name of ["sec-websocket-key", "sec-websocket-version", "sec-websocket-protocol", "sec-websocket-extensions"]) {
     const v = request.headers.get(name);
     if (v) headers.set(name, v);

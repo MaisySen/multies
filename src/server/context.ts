@@ -63,6 +63,8 @@ export interface Deps {
   presence?: import("./collab/thread-presence").PresenceStore;
   /** Round 32: the workspace live chat hub (the ChatHub Durable Object on Workers, MemoryChatHub on Node). Without it chat only polls. */
   chatLive?: import("./realtime/hub").ChatLiveBus;
+  /** OPS1 security (L2): the doc rooms on this process (Node), to close one session's sockets. Unset on Workers. */
+  collabLive?: { kickSession(sessionId: string): void };
   /** Round 23: who is in a video room (LiveKit RoomService). Tests inject a fake; without it the meeting keys decide. */
   callRooms?: import("./services/suite/calls").CallRooms;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;
@@ -97,7 +99,15 @@ export interface OperatorContext {
 }
 
 export interface AppEnv {
-  Variables: { deps: Deps; auth: AuthContext; ip: string; requestId: string; log: Logger; apiKeyOrg?: string; operator?: OperatorContext };
+  Variables: {
+    deps: Deps; auth: AuthContext; ip: string; requestId: string; log: Logger; apiKeyOrg?: string; operator?: OperatorContext;
+    /**
+     * OPS1 security (L4): who the access log line names when the route resolved the session in another context (the
+     * lazily built console app). Only the log reads it; `auth` stays unset there, so the cache rules for a write with
+     * no session (drop every workspace's copy) still apply to operator changes.
+     */
+    logUser?: { userId: string; orgId: string | null };
+  };
 }
 
 export type RateLimitScope = "auth" | "api" | "webhooks" | "app" | "handoff";

@@ -37,6 +37,25 @@ export async function publishChat(deps: Deps, c: ChannelAudienceRow, event: Chat
 }
 
 /**
+ * OPS1 security (L2): closes the live sockets one session opened (an operator's impersonation that ended): the chat
+ * hub's in every workspace the person belongs to (the same /kick the ban path uses, by session), and the doc rooms'
+ * on this process (deps.collabLive, Node). Never throws.
+ */
+export async function closeSessionSockets(deps: Deps, userId: string, sessionId: string, orgIds?: string[]) {
+  try { deps.collabLive?.kickSession(sessionId); } catch (err) { deps.reportError?.(err, { where: "collab.kick_session" }); }
+  const bus = deps.chatLive;
+  if (!bus?.kickSession) return;
+  try {
+    const ids = orgIds ?? (await deps.db.select({ o: members.organizationId }).from(members).where(eq(members.userId, userId))).map((r) => r.o);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>((resolve) => { timer = setTimeout(resolve, PUBLISH_TIMEOUT_MS); });
+    await Promise.race([Promise.all(ids.map((o) => bus.kickSession!(o, sessionId))), timeout]).finally(() => clearTimeout(timer));
+  } catch (err) {
+    deps.reportError?.(err, { where: "chat.live.kick_session" });
+  }
+}
+
+/**
  * PRIV1b (P65): closes every live socket of one person, in the given workspaces or (none given) every workspace they
  * belong to. Used when they leave or are removed and when their sessions end; a socket was only checked when it
  * opened. Their other tabs reconnect through the session check. Never throws.

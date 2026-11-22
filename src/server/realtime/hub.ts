@@ -51,8 +51,12 @@ export type ChatLiveEvent =
   /** R47 (MB-139): the workspace change feed moved to `cursor`. No data: open task lists read the feed themselves (their own access rules). */
   | { t: "changes"; cursor: number };
 
-/** One open socket, as the hub sees it. */
-export interface HubConn { userId: string; openedAt: number; send(data: string): void; close(code: number, reason: string): void }
+/**
+ * One open socket, as the hub sees it. OPS1 security (L2): `sessionId` is the session that opened it, and `until` (epoch
+ * ms) is set for an operator's impersonation session: the socket is closed once that impersonation's expiry passes, and
+ * at once when the impersonation ends (kickSession).
+ */
+export interface HubConn { userId: string; openedAt: number; sessionId?: string; until?: number; send(data: string): void; close(code: number, reason: string): void }
 
 export function inAudience(audience: ChatAudience, userId: string) {
   return "all" in audience ? true : audience.userIds.includes(userId);
@@ -68,6 +72,7 @@ export function deliver(conns: Iterable<HubConn>, audience: ChatAudience, event:
   let sent = 0;
   for (const c of conns) {
     if (now - c.openedAt >= SOCKET_MAX_AGE_MS) { try { c.close(CLOSE_EXPIRED, "expired"); } catch { /* gone */ } continue; }
+    if (c.until !== undefined && now >= c.until) { try { c.close(CLOSE_REVOKED, "impersonation ended"); } catch { /* gone */ } continue; } // OPS1 security (L2)
     if (!inAudience(audience, c.userId)) continue;
     if (event.t === "typing" && event.userId === c.userId) continue;
     try { c.send(data); sent++; } catch { /* a dead socket is dropped by its close handler */ }
@@ -80,6 +85,15 @@ export interface ChatLiveBus {
   publish(orgId: string, audience: ChatAudience, event: ChatLiveEvent): Promise<void>;
   /** PRIV1b (P65): closes every socket of one person in this workspace's hub. */
   kick?(orgId: string, userId: string): Promise<void>;
+  /** OPS1 security (L2): closes the sockets one session opened in this workspace's hub (an ended impersonation). */
+  kickSession?(orgId: string, sessionId: string): Promise<void>;
+}
+
+/** OPS1 security (L2): closes the sockets one session opened. Returns how many. */
+export function kickSessionConns(conns: Iterable<HubConn>, sessionId: string) {
+  let n = 0;
+  for (const c of conns) if (c.sessionId === sessionId) { try { c.close(CLOSE_REVOKED, "impersonation ended"); n++; } catch { /* gone */ } }
+  return n;
 }
 
 /** PRIV1b (P65): closes the sockets of one person. Returns how many. */
@@ -127,5 +141,13 @@ export class MemoryChatHub implements ChatLiveBus {
     const mine = [...set].filter((c) => c.userId === userId);
     for (const c of mine) this.leave(orgId, c); // PRIV1b (P65): off the list at once, before the close event arrives
     kickUser(mine, userId);
+  }
+
+  async kickSession(orgId: string, sessionId: string) {
+    const set = this.hubs.get(orgId);
+    if (!set) return;
+    const mine = [...set].filter((c) => c.sessionId === sessionId);
+    for (const c of mine) this.leave(orgId, c);
+    kickSessionConns(mine, sessionId);
   }
 }

@@ -9,7 +9,7 @@
  * - GET with Upgrade: websocket, after chatLiveAccess passed. x-chat-user names the person.
  * - POST /publish { audience, event } from publishChat after a chat write.
  */
-import { CLOSE_FULL, deliver, helloFrame, kickUser, MAX_SOCKETS, type ChatAudience, type ChatLiveEvent, type HubConn } from "./hub";
+import { CLOSE_FULL, deliver, helloFrame, kickSessionConns, kickUser, MAX_SOCKETS, type ChatAudience, type ChatLiveEvent, type HubConn } from "./hub";
 
 interface HibernatingSocket {
   send(data: string): void;
@@ -25,7 +25,7 @@ export interface ChatHubState {
 declare const WebSocketPair: { new (): { 0: HibernatingSocket; 1: HibernatingSocket } };
 declare const WebSocketRequestResponsePair: { new (request: string, response: string): unknown } | undefined;
 
-type Attachment = { userId: string; openedAt: number };
+type Attachment = { userId: string; openedAt: number; sessionId?: string; until?: number }; // OPS1 security (L2): sessionId, until
 
 /** The ping the browser sends and the answer the runtime gives without waking the object. */
 export const PING = "ping";
@@ -51,7 +51,9 @@ export class ChatHub {
     }
     if (request.method === "POST" && url.pathname === "/kick") {
       // PRIV1b (P65): the person left the workspace or their sessions ended.
-      const body = (await request.json().catch(() => null)) as { userId?: string } | null;
+      // OPS1 security (L2): or one session's sockets (an ended impersonation).
+      const body = (await request.json().catch(() => null)) as { userId?: string; sessionId?: string } | null;
+      if (body?.sessionId) return Response.json({ closed: kickSessionConns(this.conns(), body.sessionId) });
       if (!body?.userId) return Response.json({ error: "bad_kick" }, { status: 400 });
       return Response.json({ closed: kickUser(this.conns(), body.userId) });
     }
@@ -64,7 +66,9 @@ export class ChatHub {
     if (this.ctx.getWebSockets().length > MAX_SOCKETS) {
       server.close(CLOSE_FULL, "full");
     } else {
-      server.serializeAttachment({ userId, openedAt: this.now() } satisfies Attachment);
+      const sessionId = request.headers.get("x-chat-session") || undefined;
+      const until = Number(request.headers.get("x-chat-until") ?? "");
+      server.serializeAttachment({ userId, openedAt: this.now(), ...(sessionId ? { sessionId } : {}), ...(Number.isFinite(until) && until > 0 ? { until } : {}) } satisfies Attachment);
       // R33: the first frame on the socket (the browser holds its sends until it arrives).
       try { server.send(JSON.stringify(helloFrame(this.seq, this.now()))); } catch { /* closed */ }
     }
@@ -89,7 +93,7 @@ export class ChatHub {
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment | null;
       if (!att?.userId) continue;
-      out.push({ userId: att.userId, openedAt: att.openedAt, send: (d) => ws.send(d), close: (code, reason) => ws.close(code, reason) });
+      out.push({ userId: att.userId, openedAt: att.openedAt, sessionId: att.sessionId, until: att.until, send: (d) => ws.send(d), close: (code, reason) => ws.close(code, reason) });
     }
     return out;
   }

@@ -6,14 +6,20 @@
 import type { Deps } from "../context";
 import { receiveOnly, resolveAuthFor } from "../middleware";
 import { HttpError } from "../lib/errors";
+import { eq } from "drizzle-orm";
+import { operatorImpersonations } from "../db/schema";
 
 type FetchApp = { fetch(request: Request): Response | Promise<Response> };
 
 /** Roles that may change a doc. Anyone else who can read it joins read-only. */
 const EDITORS = new Set(["owner", "admin", "member"]);
 
-/** silent: the connection's presence (cursor, name) is never shown to others (an operator viewing as someone). */
-export type CollabAccess = { ok: true; readOnly: boolean; silent?: boolean } | { ok: false; status: number; message: string };
+/**
+ * silent: the connection's presence (cursor, name) is never shown to others (an operator viewing as someone).
+ * OPS1 security (L2): sessionId opened it; impersonation is set for an operator's impersonation session (its row id and
+ * expiry), so the room can close the socket when it ends and re-check the row before applying an edit.
+ */
+export type CollabAccess = { ok: true; readOnly: boolean; silent?: boolean; sessionId?: string; impersonation?: { id: string; until: number } } | { ok: false; status: number; message: string };
 
 export async function collabAccess(app: FetchApp, deps: Deps, request: Request, docId: string): Promise<CollabAccess> {
   if (request.method !== "GET" || (request.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") {
@@ -43,7 +49,16 @@ export async function collabAccess(app: FetchApp, deps: Deps, request: Request, 
   }
   if (!auth) return { ok: false, status: 401, message: "Sign in first." };
   const viewOnly = receiveOnly(auth);
-  return { ok: true, readOnly: !EDITORS.has(String(auth.role)) || viewOnly, ...(viewOnly ? { silent: true } : {}) };
+  return {
+    ok: true, readOnly: !EDITORS.has(String(auth.role)) || viewOnly, ...(viewOnly ? { silent: true } : {}), sessionId: auth.sessionId,
+    ...(auth.impersonation ? { impersonation: { id: auth.impersonation.id, until: auth.impersonation.expiresAt.getTime() } } : {}),
+  };
+}
+
+/** OPS1 security (L2): true when the impersonation row still allows its session (not ended, not past its expiry). */
+export async function impersonationStillActive(deps: Pick<Deps, "db">, id: string, now: number): Promise<boolean> {
+  const row = await deps.db.select({ endedAt: operatorImpersonations.endedAt, expiresAt: operatorImpersonations.expiresAt }).from(operatorImpersonations).where(eq(operatorImpersonations.id, id)).get();
+  return !!row && !row.endedAt && row.expiresAt.getTime() > now;
 }
 
 function sameHost(origin: string, host: string) {

@@ -92,7 +92,8 @@ describe("doc co-editing socket", () => {
       const docId = await personDoc(ctx);
       const req = new Request(`http://localhost/api/docs/${docId}/collab`, { headers: { ...WS, cookie: op.c.cookie } });
       const access = await collabAccess(ctx.app, ctx.deps, req, docId);
-      expect(access).toEqual(mode === "view" ? { ok: true, readOnly: true, silent: true } : { ok: true, readOnly: false });
+      expect(access).toMatchObject(mode === "view" ? { ok: true, readOnly: true, silent: true } : { ok: true, readOnly: false });
+      expect(access).toMatchObject({ impersonation: { id: expect.any(String), until: expect.any(Number) } }); // OPS1 security (L2)
     }, 60_000);
   }
 });
@@ -152,7 +153,7 @@ describe("live chat socket", () => {
     for (const mode of ["view", "act"] as const) {
       const { ctx, op, target, orgId } = await impersonating(mode);
       const access = await chatLiveAccess(ctx.deps, new Request("http://localhost/api/chat/live", { headers: { ...WS, cookie: op.c.cookie } }));
-      expect(access, mode).toEqual({ ok: true, userId: target.id, orgId });
+      expect(access, mode).toMatchObject({ ok: true, userId: target.id, orgId, sessionId: expect.any(String), until: expect.any(Number) }); // OPS1 security (L2): session and expiry
     }
   }, 60_000);
 });

@@ -14,6 +14,7 @@
 import { and, desc, eq, gt, isNotNull, isNull, lte, or, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { DB } from "../../db";
+import type { Deps } from "../../context";
 import { members, operatorImpersonations, organizations, sessions, users } from "../../db/schema";
 import { listParams } from "./listing";
 import { can } from "@/shared/operator-permissions";
@@ -218,7 +219,7 @@ export async function endImpersonationRow(db: DB, id: string, reason: Impersonat
  * expiry is deleted (defence in depth: Better Auth stretches a 30 minute session to 30 days when the dont_remember
  * cookie is missing) and null is returned.
  */
-export async function activeImpersonationFor(db: DB, s: { id: string; userId: string; impersonatedBy: string }, now: Date): Promise<ActiveImpersonation | null> {
+export async function activeImpersonationFor(db: DB, s: { id: string; userId: string; impersonatedBy: string }, now: Date, onEnded?: (row: { sessionId: string | null; targetUserId: string }) => Promise<void>): Promise<ActiveImpersonation | null> {
   const row = await impersonationWithOperator(db, s.id);
   // The operator must still hold the permission for the mode (a demoted, removed or banned operator's session ends).
   const operatorMayStill = !!row && !row.operatorBanned && can(row.operatorRole, row.mode === "act" ? "impersonation.act" : "impersonation.view");
@@ -227,7 +228,34 @@ export async function activeImpersonationFor(db: DB, s: { id: string; userId: st
   }
   await db.delete(sessions).where(eq(sessions.id, s.id));
   if (row && !row.endedAt) await endImpersonationRow(db, row.id, row.expiresAt.getTime() <= now.getTime() ? "expired" : "invalid", now);
+  // OPS1 security (L2): its live sockets end with it (expiry detected, operator demoted or banned).
+  if (onEnded) await onEnded({ sessionId: s.id, targetUserId: s.userId }).catch(() => undefined);
   return null;
+}
+
+/** OPS1 security (L2): closes the live sockets an impersonation session opened (chat hub and doc rooms). Never throws. */
+export async function closeImpersonationSockets(deps: Deps, row: { sessionId: string | null; targetUserId: string }): Promise<void> {
+  if (!row.sessionId) return;
+  const { closeSessionSockets } = await import("../../realtime/publish");
+  await closeSessionSockets(deps, row.targetUserId, row.sessionId);
+}
+
+/**
+ * OPS1 security (L2): ends an operator's active impersonations that `role` no longer allows (a demoted or removed
+ * operator), deletes their sessions and closes their live sockets at once, instead of at the session's next request.
+ */
+export async function endImpersonationsNotAllowed(deps: Deps, operatorUserId: string, role: string | null): Promise<number> {
+  const now = deps.now();
+  const rows = await deps.db.select().from(operatorImpersonations)
+    .where(and(eq(operatorImpersonations.operatorUserId, operatorUserId), isNull(operatorImpersonations.endedAt), gt(operatorImpersonations.expiresAt, now)));
+  let n = 0;
+  for (const row of rows) {
+    if (can(role, row.mode === "act" ? "impersonation.act" : "impersonation.view")) continue;
+    if (row.sessionId) await deps.db.delete(sessions).where(eq(sessions.id, row.sessionId));
+    if (await endImpersonationRow(deps.db, row.id, "revoked", now)) n++;
+    await closeImpersonationSockets(deps, row);
+  }
+  return n;
 }
 
 export interface ImpersonationListItem {

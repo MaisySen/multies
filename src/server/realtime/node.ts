@@ -27,13 +27,13 @@ export function attachChatLive(server: Server, deps: Deps) {
         socket.end(`HTTP/1.1 ${access.status} ${access.message}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
         return;
       }
-      wss.handleUpgrade(req, socket, head, (ws) => join(ws, access.orgId, access.userId));
+      wss.handleUpgrade(req, socket, head, (ws) => join(ws, access.orgId, access.userId, access.sessionId, access.until));
     }).catch(() => socket.destroy());
   });
 
-  function join(ws: WebSocket, orgId: string, userId: string) {
+  function join(ws: WebSocket, orgId: string, userId: string, sessionId: string, until?: number) {
     const conn: HubConn = {
-      userId, openedAt: Date.now(),
+      userId, openedAt: Date.now(), sessionId, ...(until !== undefined ? { until } : {}), // OPS1 security (L2)
       send: (data) => { if (ws.readyState === ws.OPEN) ws.send(data); },
       close: (code, reason) => ws.close(code, reason),
     };
