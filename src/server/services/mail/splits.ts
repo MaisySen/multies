@@ -66,17 +66,19 @@ export function importantBaseCond(orgId: string): SQL {
  * (the caller already requires notBulkCond: no list headers, no robot address). First time means no earlier
  * message from that address in this mailbox. Failing or missing SPF or DKIM stays in Other.
  *
- * R59 hotfix (D1 reads): "first" is the earliest message per mailbox and sender, worked out ONCE per statement as an
- * uncorrelated set (one pass over the workspace's received mail, built only when some row gets this far). It used to
- * be a correlated EXISTS comparing lower(from_address) per row, which no index serves, so every unread Inbox row
- * scanned its whole mailbox: about 188k rows read per count on a 5k message backfilled mailbox.
+ * R59 hotfix (D1 reads): "first" was the earliest message per mailbox and sender, worked out once per statement as an
+ * uncorrelated set. Before that it was a correlated EXISTS comparing lower(from_address) per row, which no index
+ * serves (about 188k rows read per count on a 5k message backfilled mailbox).
+ *
+ * MPLAT-108 (D1 load): that set was still one window over every received message of the workspace on every badge poll
+ * (about 16.6k rows plus a sort per call on mymail-au, the biggest part of 78% of all D1 reads). The same answer is
+ * now kept on the row (messages.first_of_sender, kept by the 0171 triggers on every insert, move and delete), so the
+ * rule reads no other rows at all. tests/d1-load-mplat108.test.ts proves the flag equals the old window.
  */
-export function firstTimeAuthCond(orgId: string): SQL {
+export function firstTimeAuthCond(_orgId: string): SQL {
   const res = (k: string) => sql`lower(coalesce(json_extract(${messages.authResults}, ${sql.raw(`'$.${k}'`)}), ''))`;
   const passed = sql`(${messages.authResults} is not null and json_valid(${messages.authResults}) and ${res("spf")} = 'pass' and ${res("dkim")} = 'pass' and ${res("dmarc")} <> 'fail')`;
-  const first = sql`${messages.id} in (select f.id from (select p.id, row_number() over (partition by p.mailbox_id, lower(p.from_address) order by p.date, p.id) as rn
-    from messages p where p.org_id = ${orgId} and p.folder <> 'sent' and p.folder <> 'drafts') f where f.rn = 1)`;
-  return sql`(${messages.folder} <> 'sent' and ${passed} and ${first})`;
+  return sql`(${messages.folder} <> 'sent' and ${passed} and ${messages.firstOfSender} = 1)`;
 }
 
 export function ruleCond(r: SplitRuleT, orgId: string): SQL {
