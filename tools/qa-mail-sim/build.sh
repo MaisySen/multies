@@ -32,7 +32,12 @@ printf '%s' 'YW9njiXrFEBrSxHMZJzMW9/1ZgH46ZuY7IqxlYhQv9dxIEMVFUwAmcD29+WH7AofTII
 openssl dgst -sha512 -binary "$RUNNER_TEMP/expo-template.tgz" | cmp -s "$RUNNER_TEMP/template.digest" -
 cd "$RUNNER_TEMP/mail-fixture/mobile"
 # No raw build logs in the public job; dependencies are fetched only during preparation.
-quiet() { local label="$1"; shift; "$@" >"$RUNNER_TEMP/$label.log" 2>&1 || { printf 'Blocked at %s.\n' "$label"; exit 2; }; }
+quiet() {
+  local label="$1"; shift
+  printf 'Mail simulator stage started: %s.\n' "$label"
+  "$@" >"$RUNNER_TEMP/$label.log" 2>&1 || { printf 'Blocked at %s.\n' "$label"; exit 2; }
+  printf 'Mail simulator stage finished: %s.\n' "$label"
+}
 quiet npm npm ci --no-audit --no-fund --ignore-scripts
 # Prebuild may rewrite package.json; Xcode/Metro must still use the pinned manifest and modules.
 cp package.json "$RUNNER_TEMP/mail-package.json"
@@ -44,9 +49,10 @@ cp "$RUNNER_TEMP/mail-package.json" package.json
 cd ios
 quiet pods pod install
 safe_xcode() {
+  printf 'Mail simulator stage started: unsigned Xcode build.\n'
   local log="$RUNNER_TEMP/xcode.log" st=0
   "$@" >"$log" 2>&1 || st=$?
-  if (( st == 0 )); then return 0; fi
+  if (( st == 0 )); then printf 'Mail simulator stage finished: unsigned Xcode build.\n'; return 0; fi
   printf 'Xcode exited with status %s.\n' "$st"
   python3 - "$log" <<'PYDIAG'
 from collections import Counter

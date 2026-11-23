@@ -11,7 +11,7 @@ jobs:
   mail:
     if: github.event_name == 'push' && github.repository == 'MaisySen/multies' && !github.event.repository.private && github.ref == 'refs/heads/review/ios-mail-smoke-20261123'
     runs-on: macos-26
-    timeout-minutes: 25
+    timeout-minutes: 47
     defaults:
       run:
         shell: bash
@@ -23,8 +23,8 @@ jobs:
         with:
           node-version: '22.23.4'
       - name: Prepare and build unsigned simulator fixture
-        timeout-minutes: 19
+        timeout-minutes: 36
         run: bash tools/qa-mail-sim/build.sh
       - name: Boot a fresh simulator and run the two offline taps
-        timeout-minutes: 6
+        timeout-minutes: 9
         run: bash tools/qa-mail-sim/offline.sh "$RUNNER_TEMP/mail-fixture/mobile/ios/build/Build/Products/Release-iphonesimulator/Multies.app"
