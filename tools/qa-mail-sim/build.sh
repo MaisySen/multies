@@ -89,8 +89,12 @@ PYDIAG
   return 2
 }
 safe_xcode xcodebuild -workspace Multies.xcworkspace -scheme Multies -configuration Release \
-  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -arch arm64 \
+  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY= COMPILER_INDEX_STORE_ENABLE=NO
-[[ -f build/Build/Products/Release-iphonesimulator/Multies.app/main.jsbundle ]]
+app='build/Build/Products/Release-iphonesimulator/Multies.app'
+[[ -s "$app/main.jsbundle" && -f "$app/Info.plist" ]] || { echo 'Missing simulator application or JavaScript bundle.'; exit 2; }
+exec_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
+[[ "$exec_name" =~ ^[a-zA-Z0-9_.-]+$ && -f "$app/$exec_name" ]] || { echo 'Missing simulator executable.'; exit 2; }
+xcrun lipo -verify_arch arm64 "$app/$exec_name" || { echo 'Simulator executable does not contain arm64.'; exit 2; }
 printf '%s\n' 'Unsigned simulator fixture built.'
