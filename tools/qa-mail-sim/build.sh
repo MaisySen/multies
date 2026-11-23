@@ -9,7 +9,12 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0
 export JAVA_HOME="${JAVA_HOME_21_arm64:?Missing Java 21}"
 export PATH="$JAVA_HOME/bin:$PATH"
 [[ "$(uname -m)" == arm64 && "$(node -v)" == v22.23.4 ]]
-xcodebuild -version | grep -qx 'Xcode 26.4.1'
+xcodebuild -version > "$RUNNER_TEMP/mail-xcode-version.txt"
+if ! grep -Fqx 'Xcode 26.4.1' "$RUNNER_TEMP/mail-xcode-version.txt"; then
+  printf '%s\n' 'The pinned Xcode version did not match the runner.'
+  head -n 1 "$RUNNER_TEMP/mail-xcode-version.txt"
+  exit 2
+fi
 xcrun simctl list runtimes -j | python3 -c 'import json,sys; assert any(x["identifier"].endswith("iOS-26-4") and x["isAvailable"] for x in json.load(sys.stdin)["runtimes"])'
 # Source is the exact mobile subtree in this dedicated private repository—not a network pull from another repository.
 node "$fixture/prepare.mjs" "$GITHUB_WORKSPACE" "$RUNNER_TEMP/mail-fixture"
