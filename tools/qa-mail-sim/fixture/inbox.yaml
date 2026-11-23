@@ -1,0 +1,22 @@
+appId: au.fintex.multies.mailsmoke
+---
+- extendedWaitUntil:
+    visible:
+      id: sample
+    timeout: 20000
+- tapOn:
+    id: sample
+- tapOn: 'Inbox(, [0-9,]+ unread)?'
+- extendedWaitUntil:
+    visible: 'Smoke Fixture\. Multies Mail Smoke Inbox\..*'
+    timeout: 12000
+- tapOn: 'Smoke Fixture\. Multies Mail Smoke Inbox\..*'
+- assertVisible:
+    id: loading
+    text: Loading conversation
+- assertNotVisible: 'Plain text fixture opened from Inbox\.'
+- extendedWaitUntil:
+    visible: 'Plain text fixture opened from Inbox\.'
+    timeout: 22000
+- assertVisible: Multies Mail Smoke Inbox
+- assertNotVisible: Loading conversation

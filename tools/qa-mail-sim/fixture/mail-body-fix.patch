@@ -1,0 +1,74 @@
+diff --git a/mobile/__tests__/mail-body-r56b.test.ts b/mobile/__tests__/mail-body-r56b.test.ts
+--- a/mobile/__tests__/mail-body-r56b.test.ts
++++ b/mobile/__tests__/mail-body-r56b.test.ts
+@@ -1,5 +1,5 @@
+-import { bodyText, htmlToText, linkSegments } from "../src/lib/mail-body";
++import { bodyText, htmlToText, linkSegments, mailCodePoint } from "../src/lib/mail-body";
+ 
+ describe("mail body on the phone (R56b)", () => {
+   it("turns <https://...> into a tappable link without the brackets", () => {
+     const segs = linkSegments("Hi Bidur,\nNew device signed in <https://myaccount.google.com/notifications>.\nThanks");
+@@ -11,8 +11,35 @@
+     const segs = linkSegments("[image: Google]\nWrite to help@fintex.au or www.multies.si today");
+     expect(segs.filter((s) => s.kind === "link").map((s) => (s as { url: string }).url)).toEqual(["mailto:help@fintex.au", "https://www.multies.si"]);
+     expect(segs.map((s) => s.text).join("")).not.toContain("[image");
+   });
++  it("decodes numeric references without losing ordinary or supplementary characters", () => {
++    expect(bodyText({ text: "", html: "<p>It&#39;s &#65; &#x1F642;.</p>" })).toBe("It's A 🙂.");
++  });
++  it("uses replacement characters for values that are not valid HTML code points", () => {
++    for (const value of [0, -1, 0xd800, 0xdfff, 0x110000, Infinity, NaN, 1.5]) {
++      expect(mailCodePoint(value)).toBe("\ufffd");
++    }
++    expect(mailCodePoint(0xd7ff)).toBe("\ud7ff");
++    expect(mailCodePoint(0xe000)).toBe("\ue000");
++    expect(mailCodePoint(0x10ffff)).toBe("\u{10ffff}");
++  });
++  it("keeps an HTML-only message readable when numerical entities are out of range", () => {
++    const html = "<p>Delivery notice: &amp; &#x1F642; &#1114112; and &#xD800; end of text.</p>";
++    expect(bodyText({ text: "", html })).toBe("Delivery notice: & 🙂 \ufffd and \ufffd end of text.");
++  });
++  it("uses the same safe decoding for an HTML link label and keeps the link tappable", () => {
++    const html = '<p><a href="https://example.invalid/receipt">Receipt &#x110000;</a></p>';
++    const body = bodyText({ text: "", html });
++    expect(body).toContain("Receipt \ufffd");
++    expect(linkSegments(body)).toEqual(expect.arrayContaining([
++      { kind: "link", text: "https://example.invalid/receipt", url: "https://example.invalid/receipt" },
++    ]));
++  });
++  it("prefers the original plain-text part when one is present", () => {
++    expect(bodyText({ text: "Original plain text &#39;", html: "<p>Alternate format &#1114112;</p>" }))
++      .toBe("Original plain text &#39;");
++  });
+   it("gives HTML only mail a readable text version with links", () => {
+     const html = '<html><head><style>p{}</style></head><body><p>Hello&nbsp;there</p><p><a href="https://x.com/a?b=1&amp;c=2">Open it</a></p><img src="x"/><ul><li>One</li></ul></body></html>';
+     const t = htmlToText(html);
+     expect(t).toContain("Hello there");
+diff --git a/mobile/src/lib/mail-body.ts b/mobile/src/lib/mail-body.ts
+--- a/mobile/src/lib/mail-body.ts
++++ b/mobile/src/lib/mail-body.ts
+@@ -3,14 +3,21 @@
+  * mail that only has an HTML part (newsletters, receipts) instead of "no plain text version".
+  */
+ export type Segment = { kind: "text"; text: string } | { kind: "link"; text: string; url: string };
+ 
+-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'" };
++const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
++
++/** HTML numeric references outside the Unicode scalar range render as a replacement character. */
++export function mailCodePoint(value: number): string {
++  if (!Number.isInteger(value) || value < 1 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff)) return "\ufffd";
++  return String.fromCodePoint(value);
++}
++
+ function decode(s: string): string {
+   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+\d*);/gi, (m, e: string) => {
+     const k = e.toLowerCase();
+-    if (k.startsWith("#x")) return String.fromCodePoint(parseInt(k.slice(2), 16) || 32);
+-    if (k.startsWith("#")) return ENTITIES[k] ?? String.fromCodePoint(parseInt(k.slice(1), 10) || 32);
++    if (k.startsWith("#x")) return mailCodePoint(parseInt(k.slice(2), 16));
++    if (k.startsWith("#")) return mailCodePoint(parseInt(k.slice(1), 10));
+     return ENTITIES[k] ?? m;
+   });
+ }
+ 

@@ -1,0 +1,30 @@
+name: Isolated iPhone Mail check
+"on":
+  push:
+    branches: [review/ios-mail-smoke-20261123]
+permissions:
+  contents: read
+concurrency:
+  group: offline-iphone-mail-smoke
+  cancel-in-progress: false
+jobs:
+  mail:
+    if: github.event_name == 'push' && github.repository == 'MaisySen/multies' && !github.event.repository.private && github.ref == 'refs/heads/review/ios-mail-smoke-20261123'
+    runs-on: macos-26
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.23.4'
+      - name: Prepare and build unsigned simulator fixture
+        timeout-minutes: 19
+        run: bash tools/qa-mail-sim/build.sh
+      - name: Boot a fresh simulator and run the two offline taps
+        timeout-minutes: 6
+        run: bash tools/qa-mail-sim/offline.sh "$RUNNER_TEMP/mail-fixture/mobile/ios/build/Build/Products/Release-iphonesimulator/Multies.app"

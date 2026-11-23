@@ -1,0 +1,32 @@
+appId: au.fintex.multies.mailsmoke
+---
+- extendedWaitUntil:
+    visible: 'Explore with sample data|Inbox(, [0-9,]+ unread)?'
+    timeout: 20000
+- tapOn:
+    id: sample
+    optional: true
+- extendedWaitUntil:
+    visible: 'Inbox(, [0-9,]+ unread)?'
+    timeout: 20000
+- tapOn: 'Inbox(, [0-9,]+ unread)?'
+- tapOn:
+    id: open-search
+- tapOn:
+    id: search
+- inputText: Multies Mail Smoke Search
+- extendedWaitUntil:
+    visible:
+      id: search-mail-msg_smoke_search
+    timeout: 12000
+- tapOn:
+    id: search-mail-msg_smoke_search
+- assertVisible:
+    id: loading
+    text: Loading conversation
+- assertNotVisible: 'Search HTML is readable after � then 🙂\.'
+- extendedWaitUntil:
+    visible: 'Search HTML is readable after � then 🙂\.'
+    timeout: 22000
+- assertVisible: Multies Mail Smoke Search
+- assertNotVisible: Loading conversation
