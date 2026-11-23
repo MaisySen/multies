@@ -1,4 +1,4 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
@@ -6,7 +6,7 @@ import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalList
 import { CSS } from "@dnd-kit/utilities";
 import { useRevealRow, useWindowedList } from "@/web/lib/use-windowed-list"; // R44 (MB-210 follow up)
 import { getFocus } from "@/web/lib/commands/focus"; // R45: keyboard ring back on the full card after light cards
-import { IconAgent, IconChat, IconFlag, IconGrip, IconMail, IconPlus, IconTasks } from "@/web/components/ui/icon";
+import { IconAgent, IconChat, IconChevronRight, IconFlag, IconGrip, IconMail, IconPlus, IconTasks } from "@/web/components/ui/icon";
 import { Avatar } from "@/web/components/ui/misc";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -20,6 +20,7 @@ import { TagChips } from "./tasks-r84"; // R84: coloured workspace tags
 import { LimitChip, LimitMenu, overLimitToast } from "./board-lanes"; // R34 (MB-186)
 import { limitState, wouldExceed, type BoardLimits, type ColumnLimit } from "@/shared/board-lanes";
 import { tl, tr } from "@/web/i18n"; // POL4 (HQ MB-356)
+import { foldedColumnsKey, foldedLabel, liveFolded, parseFolded, toggleFolded } from "@/shared/board-columns-k1"; // K1
 
 export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; onOpen?: () => void; dragging?: boolean; handle?: React.ReactNode; /** R36: given, the card edits in place. */ project?: Project }) {
   return (
@@ -140,9 +141,14 @@ function BoardColumn({ list, project, onOpen, activeId, ...col }: Omit<React.Com
   const listRef = useRef<HTMLUListElement | null>(null);
   return (
     <Column {...col} count={list.length} listRef={listRef}>
-      <ColumnCards list={list} project={project} onOpen={onOpen} listRef={listRef} activeId={activeId} />
+      {!col.folded && <ColumnCards list={list} project={project} onOpen={onOpen} listRef={listRef} activeId={activeId} />}
     </Column>
   );
+}
+
+/** K1: the folded columns stored on this device (none where there is no storage, as on the server). */
+function readFolded(key: string): Set<string> {
+  try { return typeof localStorage === "undefined" ? new Set() : parseFolded(localStorage.getItem(key)); } catch { return new Set(); }
 }
 
 /**
@@ -200,7 +206,9 @@ export function ColumnComposer({ title, onQuickAdd, variant = "column" }: {
   );
 }
 
-function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, onQuickAdd, listRef }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void;
+function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, onQuickAdd, listRef, folded, onFold }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void;
+  /** K1: folded to a narrow strip (still a drop target), and the button that folds or opens it. */
+  folded?: boolean; onFold?: () => void;
   /** R44: the card list element, for the windowing hook. */
   listRef?: React.MutableRefObject<HTMLUListElement | null>;
   onQuickAdd?: (title: string) => Promise<unknown>;
@@ -208,6 +216,22 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, o
   limit?: ColumnLimit; onSetLimit?: (v: { max?: number | null; min?: number | null }) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col:${id}`, data: { statusId: id } });
   const over = limitState(count, limit) === "over";
+  if (folded) {
+    // K1: a folded column is a narrow strip with its name, count and limit state. The whole strip is the drop target
+    // (a card dropped here goes to the end of the column) and the button opens it again.
+    return (
+      <section ref={setNodeRef} aria-label={title} data-testid={`column-${title}`} data-folded="true" data-over={over ? "true" : undefined}
+        className={cn("flex w-11 shrink-0 flex-col items-center rounded-xl border border-t-2 border-line bg-surface/70 py-2 transition-colors duration-150 motion-reduce:transition-none sm:w-11 sm:flex-none", over ? "border-t-[#D70015]" : "border-t-transparent", isOver && "border-brand/40 bg-brand-soft/30")}>
+        <button type="button" onClick={onFold} aria-expanded={false} aria-label={foldedLabel(tl("taskstatus", title), count, limit?.max)} data-testid="column-fold"
+          className="flex min-h-11 w-full flex-1 flex-col items-center gap-2 rounded-lg px-1 py-1 text-subtle outline-none hover:bg-elevated hover:text-fg focus-visible:ring-2 focus-visible:ring-brand/60">
+          <IconChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: tone(color) }} aria-hidden />
+          <span className={cn("shrink-0 rounded-full px-1.5 text-[11.5px] font-semibold tabular-nums", over ? "bg-[#D70015]/10 text-[#D70015]" : "bg-elevated text-fg")} aria-hidden>{count}</span>
+          <span className="min-h-0 truncate text-[12.5px] font-semibold text-fg [writing-mode:vertical-rl]" aria-hidden>{tl("taskstatus", title)}</span>
+        </button>
+      </section>
+    );
+  }
   return (
     <section aria-label={title} data-testid={`column-${title}`} data-over={over ? "true" : undefined}
       className={cn("flex w-[min(280px,85vw)] shrink-0 sm:w-auto sm:min-w-[264px] sm:max-w-[400px] sm:flex-1 sm:basis-0 snap-start snap-always flex-col rounded-xl max-sm:w-[calc(100vw-4.5rem)] max-sm:max-w-[340px] border border-t-2 border-line bg-surface/70 transition-colors duration-150 motion-reduce:transition-none", over ? "border-t-[#D70015]" : "border-t-transparent", isOver && "border-brand/40")}>
@@ -218,6 +242,12 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, o
           <span className="truncate">{tl("taskstatus", title)}</span>
         </h2>
         <LimitChip count={count} limit={limit} />
+        {onFold && (
+          <button type="button" onClick={onFold} aria-expanded={true} aria-label={`Collapse ${tl("taskstatus", title)}`} title={`Collapse ${tl("taskstatus", title)}`} data-testid="column-fold"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-subtle hover:bg-elevated hover:text-fg sm:h-6 sm:w-6 sm:rounded">
+            <IconChevronRight className="h-3.5 w-3.5 rotate-180 max-sm:h-4 max-sm:w-4" aria-hidden />
+          </button>
+        )}
         {onSetLimit && <span className="ml-auto"><LimitMenu title={title} limit={limit} onSet={onSetLimit} /></span>}
         <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded sm:p-1")} aria-label={tr("tasks.add_a_task_to", { name: tl("taskstatus", title) })}><IconPlus className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" /></button>
       </header>
@@ -277,6 +307,15 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuick
   }, [groupBy, epicCols]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const [activeId, setActiveId] = useState<string | null>(null);
+  // K1: folded columns, kept on this device per project and per grouping.
+  const foldKey = foldedColumnsKey(project.id, byEpic ? "epic" : groupBy ? `field:${groupBy.id}` : "status");
+  const [folded, setFolded] = useState<Set<string>>(() => readFolded(foldKey));
+  useEffect(() => { setFolded(readFolded(foldKey)); }, [foldKey]);
+  const fold = useCallback((id: string) => setFolded((prev) => {
+    const next = liveFolded(toggleFolded(prev, id), cols.map((c) => c.id));
+    try { localStorage.setItem(foldKey, JSON.stringify([...next])); } catch { /* private mode */ }
+    return next;
+  }), [foldKey, cols]);
   // Local column assignment while dragging, so the card shows in the column it hovers.
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const columns = useMemo(() => {
@@ -332,7 +371,8 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuick
         {cols.map((s) => (
           <BoardColumn key={s.id} id={s.id} title={s.name} color={s.color} list={columns[s.id] ?? EMPTY} project={project} onOpen={onOpen} activeId={activeId} onAdd={() => onAdd(s.id)}
             onQuickAdd={onQuickAdd && !groupBy && !byEpic ? (title) => onQuickAdd(s.id, title) : undefined}
-            limit={limits?.[s.id]} onSetLimit={onSetLimit ? (v) => onSetLimit(s.id, v) : undefined} />
+            limit={limits?.[s.id]} onSetLimit={onSetLimit ? (v) => onSetLimit(s.id, v) : undefined}
+            folded={folded.has(s.id)} onFold={() => fold(s.id)} />
         ))}
       </div>
       <DragOverlay>{active ? <TaskCard t={active} dragging /> : null}</DragOverlay>

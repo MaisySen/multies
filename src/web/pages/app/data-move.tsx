@@ -5,6 +5,7 @@
  * Source app names appear only in the picker and its help text, so people can find their tool.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { suggestColumn } from "@/shared/status-import-k1"; // K1
 import { Link, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -64,6 +65,8 @@ export const SOURCES: Source[] = [
   { id: "workspace", kind: "workspace", label: "From another Multies workspace", hint: "Workspace ZIP", how: "The ZIP from Export workspace, from this or another workspace. Projects, tasks, contacts, meetings and docs come back.", accept: ".zip,application/zip", icon: <IconDatabaseBackup />, tint: "#0071E3" },
 ];
 
+/** K1: the status choice that keeps a file status as a new column even when a column means the same. */
+const ADD_NEW = "new";
 const MAX_BYTES = 6_000_000;
 const GROUP: Record<Group, { label: string; tone: "neutral" | "brand" | "ok" }> = { todo: { label: "To do", tone: "neutral" }, doing: { label: "Doing", tone: "brand" }, done: { label: "Done", tone: "ok" } };
 
@@ -214,7 +217,8 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
         const body: Record<string, unknown> = { kind: source.kind, fileName: file.name, content: file.content, mapping: mapping ?? undefined, moveId,
           projectId: target || null, projectName: target ? null : projectName,
           people: Object.fromEntries(Object.entries(who).map(([k, v]) => [k, v === "none" ? "" : v])),
-          statusMap: Object.fromEntries(Object.entries(statusMap).filter(([, v]) => v)) };
+          // K1: "Add as new" is sent as null, so the server does not fold it into a column with the same meaning.
+          statusMap: Object.fromEntries(Object.entries(statusMap).filter(([, v]) => v).map(([k, v]) => [k, v === ADD_NEW ? null : v])) };
         const r: RunAnswer = await api.post<RunAnswer>("/data-moves/imports/run", body, { idempotencyKey: `${runKey}-s${i}` });
         moveId = r.move.id;
         setProgress(r);
@@ -321,10 +325,17 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
                       <li key={s.name} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                         <span className="flex min-w-0 items-center gap-2 text-[13px]"><span className="truncate">{s.name}</span><Badge tone={GROUP[s.category].tone}>{GROUP[s.category].label}</Badge></span>
                         {project ? (
-                          <Select aria-label={`Status for ${s.name}`} className="w-44 max-sm:w-full" value={statusMap[s.name.toLowerCase()] ?? ""} onChange={(e) => setStatusMap({ ...statusMap, [s.name.toLowerCase()]: e.target.value })}>
-                            <option value="">{project.statuses.some((x) => x.name.toLowerCase() === s.name.toLowerCase()) ? "Same name" : "Add as new"}</option>
-                            {project.statuses.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                          </Select>
+                          (() => {
+                            // K1: a status that means the same as a column ("Complete" and "Done") starts on that column.
+                            const same = project.statuses.some((x) => x.name.toLowerCase() === s.name.toLowerCase());
+                            const suggested = same ? undefined : suggestColumn(s.name, project.statuses, s.category);
+                            return (
+                              <Select aria-label={`Status for ${s.name}`} className="w-44 max-sm:w-full" value={statusMap[s.name.toLowerCase()] ?? suggested?.id ?? (same ? "" : ADD_NEW)} onChange={(e) => setStatusMap({ ...statusMap, [s.name.toLowerCase()]: e.target.value })}>
+                                {same ? <option value="">Same name</option> : <option value={ADD_NEW}>Add as new</option>}
+                                {project.statuses.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                              </Select>
+                            );
+                          })()
                         ) : <span className="text-[12px] text-muted">New status</span>}
                       </li>
                     ))}
