@@ -46,11 +46,31 @@ def fixture_executable(app):
 
 
 def command(args, deadline, capture=False):
+    # The arguments can contain local paths and identifiers; report only fixed phase labels.
+    if args[:2] == ['xcrun', 'simctl'] and len(args) > 2:
+        phase = {
+            'list': 'list booted simulators',
+            'listapps': 'list installed apps',
+            'install': 'install fixture',
+            'launch': 'launch fixture',
+            'terminate': 'terminate fixture',
+        }.get(args[2], 'simulator command')
+    else:
+        phase = 'inspect fixture process' if args[:1] == ['ps'] else 'local fixture command'
+    announce = phase not in ('inspect fixture process', 'local fixture command')
+    if announce:
+        print(f'Mail simulator setup started: {phase}.', flush=True)
     try:
-        return subprocess.run(args, text=True, errors='replace', check=False, timeout=deadline,
-                              stdout=subprocess.PIPE if capture else subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except (subprocess.TimeoutExpired, OSError):
-        raise Blocked('A local tool was unavailable or timed out.') from None
+        result = subprocess.run(args, text=True, errors='replace', check=False, timeout=deadline,
+                                stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        raise Blocked(f'{phase} timed out after {deadline}s.') from None
+    except OSError:
+        raise Blocked(f'{phase}: tool could not start.') from None
+    if announce:
+        print(f'Mail simulator setup finished: {phase} (exit {result.returncode}).', flush=True)
+    return result
 
 
 def inspect_process(pid, executable):
