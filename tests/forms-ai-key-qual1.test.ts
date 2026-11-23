@@ -42,12 +42,13 @@ describe("forms AI draft on a refused workspace key (QUAL1 review)", () => {
     expect(r.body.fallback.message).toMatch(/^Built-in AI wrote this because Anthropic refused/);
   });
 
-  it("by default, answers 409 ai_key_refused and sends the description to no other processor", async () => {
+  it("by default, the workspace agent drafts the form and the key stays marked", async () => {
     const t = await setup({});
     const r = await t.owner.post("/api/forms/td7/ai-draft", { prompt: "A volunteer signup form" });
-    expect(r.status).toBe(409);
-    expect(r.body.error).toMatchObject({ code: "ai_key_refused", details: { fix: "/app/settings#ai" } });
-    expect(t.run).not.toHaveBeenCalled();
+    expect(r.status).toBe(200);
+    expect(t.run).toHaveBeenCalled();
+    expect(r.body.fallback).toMatchObject({ reason: "key_refused" });
+    expect((await t.deps.db.select().from(aiKeys).get())?.problem).toBe("key_refused");
   });
 
   it("the form builder shows the note", async () => {

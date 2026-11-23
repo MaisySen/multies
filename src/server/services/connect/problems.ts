@@ -1,7 +1,8 @@
 /**
  * Turns IMAP and SMTP failures into words a person can act on: wrong password, app password
  * needed, IMAP switched off, server not reachable. The provider's own text is matched, never shown
- * raw (it can carry account details), and never logged with the password.
+ * raw (it can carry account details), and never logged with the password. G1: a cleaned copy of the
+ * provider's reason rides beside the message as `detail`, so the real reason is visible.
  */
 import { CONNECT_PRESETS, type ConnectPresetId, type ConnectProblem } from "@/shared/mail-connect";
 import { SocketError } from "./socket";
@@ -12,7 +13,42 @@ function rawText(err: unknown): string {
   return [e?.serverResponseCode, e?.responseText, e?.response, e?.message, e?.code, e?.reply ? `${e.reply.code} ${e.reply.lines.join(" ")}` : ""].filter(Boolean).join(" ");
 }
 
+/**
+ * G1: the provider's own reason, safe to show: the server's words only (not our wrapper's "Command failed"), with
+ * bracketed IMAP codes, status numbers, links, addresses, network addresses and request ids taken out.
+ */
+export function providerDetail(err: unknown): string | undefined {
+  const e = err as { responseText?: string; reply?: { code: number; lines: string[] }; message?: string } | null;
+  const raw = e?.reply?.lines?.length ? e.reply.lines.join(" ") : e?.responseText ?? (err instanceof Error && !(err instanceof SocketError) ? e?.message : undefined);
+  if (!raw) return undefined;
+  const cleaned = raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\bhttps?:\/\/\S+/gi, " ")
+    .replace(/\[[A-Z0-9-]+\]/g, " ")
+    .replace(/\S+@\S+/g, " ")
+    .replace(/\b\d{1,3}(\.\d{1,3}){3}\b/g, " ")
+    .replace(/\b[0-9a-f]*:[0-9a-f:]{6,}\b/gi, " ")
+    .replace(/\b\d\.\d{1,3}\.\d{1,3}\b/g, " ")
+    .replace(/^\s*\d{3}\b/, " ")
+    .replace(/\S*\d\S*[a-z]\S*\d\S{6,}/gi, " ")
+    .replace(/\s-\s*gsmtp\b/gi, " ")
+    .replace(/\((Failure|Success)\)/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[\s:;,-]+$/, "");
+  if (!cleaned || /^(command failed|error)$/i.test(cleaned) || !/[a-z]{3}/i.test(cleaned)) return undefined;
+  return cleaned.length > 160 ? `${cleaned.slice(0, 157).trimEnd()}...` : cleaned;
+}
+
 export function classifyProblem(err: unknown, step: "imap" | "smtp", preset: ConnectPresetId, host: string): ConnectProblem {
+  const problem = classifyOnly(err, step, preset, host);
+  const detail = providerDetail(err);
+  return detail ? { ...problem, detail } : problem;
+}
+
+const GOOGLE = new Set<ConnectPresetId>(["gmail", "google_workspace"]);
+
+function classifyOnly(err: unknown, step: "imap" | "smtp", preset: ConnectPresetId, host: string): ConnectProblem {
   const text = rawText(err);
   const p = CONNECT_PRESETS[preset] ?? CONNECT_PRESETS.custom;
   const where = host || "the server";
@@ -37,6 +73,13 @@ export function classifyProblem(err: unknown, step: "imap" | "smtp", preset: Con
   if (/not enabled for IMAP|IMAP (access )?(is )?disabled|IMAP is disabled/i.test(text)) {
     return { code: "imap_disabled", step, message: `IMAP is turned off for this account. Turn on IMAP in your ${p.label} settings, then try again.` };
   }
+  // G1: Google stops a sign in it finds unusual until the person approves it in a browser.
+  // IMAP "[WEBALERT] Please log in via your web browser", SMTP "534 5.7.14 Please log in via your web browser".
+  if (/WEBALERT|log ?in via your web browser|5\.7\.14|web login required/i.test(text)) {
+    return GOOGLE.has(preset)
+      ? { code: "web_login_required", step, message: "Google paused this sign in as unusual. Open Gmail in your browser while signed in to this account, approve the security alert if you see one, then try again here." }
+      : { code: "web_login_required", step, message: `${where} wants you to sign in once in your browser first. Sign in to your mail on the web, then try again here.` };
+  }
   // Microsoft: basic sign in switched off for IMAP ("Login is disabled", LOGINDISABLED, BasicAuthBlocked)
   // or for SMTP (535 5.7.139 "SmtpClientAuthentication is disabled").
   if (/5\.7\.139|SmtpClientAuthentication|SMTP AUTH.*disabled|authentication is disabled/i.test(text)) {
@@ -53,7 +96,9 @@ export function classifyProblem(err: unknown, step: "imap" | "smtp", preset: Con
     return {
       code: "auth_failed", step,
       message: step === "imap"
-        ? `${p.label === "Other server" ? where : p.label} didn't accept that address and password. Most providers want an app password here, not your normal password.${appPw}`
+        ? GOOGLE.has(preset)
+          ? `${p.label} didn't accept that address and app password. An app password only works for the same Google account it was made in: check the account shown at the top of the app password page is this address, then make a new one.${appPw}`
+          : `${p.label === "Other server" ? where : p.label} didn't accept that address and password. Most providers want an app password here, not your normal password.${appPw}`
         : `The password works for reading mail but ${where} refused it for sending. Check the outgoing server and that SMTP is allowed for this account.`,
     };
   }

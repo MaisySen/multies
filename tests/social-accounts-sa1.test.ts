@@ -42,6 +42,16 @@ beforeEach(async () => {
 });
 
 describe("SA1 social accounts: one row per network account", () => {
+  it("the same Gmail account connected again is one row", async () => {
+    const first = await connectAs(owner, "gmail", { email: "ada@gmail.com", name: "Ada" });
+    const second = await connectAs(owner, "gmail", { email: "ada@gmail.com", name: "Ada" });
+    expect(second.account.refreshed).toBe(true);
+    const list = ((await owner.get("/api/apps/accounts")).body.accounts as { id: string; app: string }[]).filter((a) => a.app === "gmail");
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(second.id);
+    expect(mock.accounts.has(first.id)).toBe(false);
+  });
+
   it("connecting the same LinkedIn account twice keeps one row with a fresh sign in and its name", async () => {
     const first = await connectAs(owner, "linkedin");
     expect(first.account).toMatchObject({ app: "linkedin", name: "Ada", refreshed: false });

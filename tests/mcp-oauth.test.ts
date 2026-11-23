@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
+import { eq } from "drizzle-orm";
+import { members } from "@/server/db/schema";
 import { checkRedirectUri, pkceChallenge, GRANT_LAST_USED_EVERY_MS } from "@/server/services/developer/oauth";
 
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
@@ -47,6 +49,7 @@ describe("MCP OAuth: discovery", () => {
     const res = await ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", "content-type": "application/json" }, body: "{}" });
     expect(res.status).toBe(401);
     expect(res.headers.get("www-authenticate")).toContain('resource_metadata="http://localhost/.well-known/oauth-protected-resource/api/v1/mcp"');
+    expect(res.headers.get("www-authenticate")).toContain('scope="mcp:read mcp:write"');
   });
   it("publishes protected resource and authorisation server metadata", async () => {
     const prm = await (await ctx.app.request("/.well-known/oauth-protected-resource/api/v1/mcp", { headers: { host: "localhost" } })).json();
@@ -130,6 +133,8 @@ describe("MCP OAuth: sign in and tokens", () => {
     expect(noPkce.status).toBe(400);
     const badScope = await c.get(`/api/oauth/authorize?${new URLSearchParams({ ...(await authorizeParams(clientId)), scope: "admin" })}`);
     expect(badScope.body.error.code).toBe("invalid_scope");
+    const onlyOpenId = await c.get(`/api/oauth/authorize?${new URLSearchParams({ ...(await authorizeParams(clientId)), scope: "openid profile" })}`);
+    expect(onlyOpenId.body.error.code).toBe("invalid_scope");
     const badRedirect = await c.get(`/api/oauth/authorize?${new URLSearchParams({ ...(await authorizeParams(clientId)), redirect_uri: "https://evil.example/cb" })}`);
     expect(badRedirect.status).toBe(400);
   });
@@ -146,6 +151,19 @@ describe("MCP OAuth: sign in and tokens", () => {
     // The app asked only for mcp:read: choosing read and write on the page still gives read.
     const b = await signIn("full", { scope: "mcp:read" });
     expect((await exchange(b.clientId, b.code)).body.scope).toBe("mcp:read");
+    // Repeated scope params and an OpenID word still keep read and write when mcp:write was asked.
+    const clientId = (await register()).body.client_id as string;
+    const both = new URLSearchParams(await authorizeParams(clientId));
+    both.delete("scope");
+    both.append("scope", "mcp:read");
+    both.append("scope", "openid");
+    both.append("scope", "mcp:write");
+    const info = await c.get(`/api/oauth/authorize?${both}`);
+    expect(info.body.requestedScope).toBe("full");
+    const request = { ...Object.fromEntries(both.entries()), scope: both.getAll("scope").join(" ") };
+    const kept = await c.post("/api/oauth/authorize", { decision: "allow", scope: "full", request });
+    const url = new URL(kept.body.redirectTo);
+    expect((await exchange(clientId, url.searchParams.get("code")!)).body.scope).toBe("mcp:read mcp:write");
   });
 
   it("refresh rotates the refresh token; the old one stops working", async () => {
@@ -175,6 +193,27 @@ describe("MCP OAuth: sign in and tokens", () => {
 });
 
 describe("MCP OAuth: Settings and revoke", () => {
+  it("a second connect of the same app replaces the first, and only a human membership keeps the token", async () => {
+    const first = await signIn();
+    const t1 = await exchange(first.clientId, first.code);
+    const second = await signIn();
+    const t2 = await exchange(second.clientId, second.code);
+    const list = await c.get("/api/oauth/grants");
+    expect(list.body.grants).toHaveLength(1);
+    expect(list.body.grants[0].client).toBe("Claude");
+    const old = await ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${t1.body.access_token}`, "content-type": "application/json", accept: "application/json" }, body: "{}" });
+    expect(old.status).toBe(401);
+    const live = await ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${t2.body.access_token}`, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+    expect(live.status).toBe(200);
+    const userId = (await c.get("/api/account/me")).body.user.id as string;
+    await ctx.db.update(members).set({ kind: "agent" }).where(eq(members.userId, userId));
+    const agent = await ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${t2.body.access_token}`, "content-type": "application/json", accept: "application/json" }, body: "{}" });
+    expect(agent.status).toBe(401);
+    await ctx.db.update(members).set({ kind: "human" }).where(eq(members.userId, userId));
+    const human = await ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${t2.body.access_token}`, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+    expect(human.status).toBe(200);
+  });
+
   it("lists connected apps, disconnects one, and the token stops at once", async () => {
     const a = await signIn();
     const t = await exchange(a.clientId, a.code);

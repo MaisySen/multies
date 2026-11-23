@@ -11,7 +11,7 @@ import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
-import { ConnectMailboxForm, connectionsKey, useConnections } from "@/web/components/connect-mailbox";
+import { ConnectMailboxForm, connectionsKey, providerSaid, useConnections } from "@/web/components/connect-mailbox";
 import { isFullConnection, type ConnectionLimited, type ConnectionView } from "@/shared/mail-connect";
 import { Section } from "./settings";
 import { MailFolderArt } from "@/web/components/illustrations";
@@ -119,7 +119,7 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
   const reconnect = useMutation({
     mutationFn: () => api.put(`/connections/${c.id}`, { password }),
     onSuccess: () => { refresh(); setReconnecting(false); setPassword(""); toast.success(`${c.email} is reconnected`); },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "That didn't work. Try again."),
+    onError: (e) => { const said = providerSaid(e); setError(e instanceof ApiError ? `${e.message}${said ? ` (${c.providerLabel} said: ${said})` : ""}` : "That didn't work. Try again."); },
   });
   const remove = useMutation({
     mutationFn: () => api.del(`/connections/${c.id}`),

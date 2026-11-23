@@ -90,6 +90,14 @@ export async function readProfile(ctx: PublishCtx, app: string): Promise<Account
   }
 }
 
+/** An identity the platform already returned with the account, for apps that have no profile read of their own. */
+export function identityFromAccount(a: CpAccount): AccountProfile | null {
+  const bag = { ...(a.data ?? {}), ...(a.state?.val ?? {}) };
+  const id = str(bag.sub) ?? str(bag.email) ?? str(bag.username) ?? str(bag.id);
+  if (!id || id === a.id || id === a.user_id) return null;
+  return { externalId: id, name: str(bag.name) ?? str(bag.email) ?? str(bag.username), avatarUrl: httpsUrl(bag.picture) ?? httpsUrl(bag.avatar_url) ?? httpsUrl(bag.profile_image_url) };
+}
+
 export async function profilesFor(deps: Deps, orgId: string): Promise<Map<string, ProfileRow>> {
   const rows = await deps.db.select().from(socialAccountProfiles).where(eq(socialAccountProfiles.orgId, orgId)).all();
   return new Map(rows.map((r) => [r.accountId, { accountId: r.accountId, app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt }]));
@@ -126,6 +134,7 @@ export async function settleAccount(deps: Deps, cp: Composio, orgId: string, use
   try { p = await readProfile(ctx, app); } catch (err) {
     deps.log?.warn("social.profile_failed", { app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
   }
+  if (!p) p = identityFromAccount(a);
   const row: ProfileRow = { accountId: a.id, app, externalId: p?.externalId ?? null, name: p?.name ?? null, avatarUrl: p?.avatarUrl ?? null, checkedAt: now };
   if (!p) {
     // Keep a name we already had; only the time of the try changes.

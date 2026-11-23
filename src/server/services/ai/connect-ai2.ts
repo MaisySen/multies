@@ -320,7 +320,8 @@ const refusal = (code: Ai2ResultCode) =>
  * one tiny call on the chosen model. Throws a plain HttpError; never returns or logs the provider's body.
  */
 export async function proveKey(fetchImpl: typeof fetch, provider: Ai2ProviderId, apiKey: string, baseUrl: string | null, model: string, listRead: boolean): Promise<void> {
-  if (provider === "openrouter") {
+  // A live list plus OpenRouter's key endpoint is enough. A typed model, used because the list could not be read, is proved with a real call.
+  if (provider === "openrouter" && listRead) {
     let res: Response;
     try { res = await fetchImpl("https://openrouter.ai/api/v1/key", { method: "GET", redirect: "manual", headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(LIST_TIMEOUT_MS) }); }
     catch { throw refusal("unreachable"); }
@@ -360,8 +361,9 @@ export async function connectWithKey(deps: Deps, auth: AuthContext, input: { api
     const code = err instanceof Ai2Failure ? err.code : "unreachable";
     deps.log?.warn("ai2.connect_check_failed", { provider, code });
     if (code === "key_refused" || code === "no_credit") throw new HttpError(400, `ai_${code}`, AI2_RESULT_TEXT[code]);
-    // The list endpoint can be down or missing (some compatible servers) while chat works: the key is proven below.
-    models = AI2_CURATED_MODELS[provider]; live = false;
+    // A guessed model is not saved. The person types the model id, and that id is what gets proved.
+    if (!input.model?.trim()) throw badRequest("This provider's model list could not be read. Type a model id, then connect.");
+    models = []; live = false;
   }
   if (input.model) assertModelId(input.model);
   const model = input.model?.trim() || pickRecommended(provider, models);

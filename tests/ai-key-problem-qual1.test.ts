@@ -165,28 +165,34 @@ describe("a refused AI key is noted, shown and explained (QUAL1, rows 12 and 14)
 const fakeAi = () => ({ run: vi.fn(async (_model: string, _input: unknown) => ({ response: '{"summary":"Built in summary.","actionItems":[]}', usage: { prompt_tokens: 40, completion_tokens: 8 } })) });
 
 /**
- * Review of QUAL1 (defect 1): the stand-in was on by default, so on the first refusal a workspace that chose its own
- * provider had its mail sent to built-in AI (another processor) without an admin choosing it, and Settings, AI trust
- * said so only afterwards. Now it is off unless the deployment sets AI_KEY_FALLBACK=on, and when it is on the AI trust
- * list names the stand-in before any refusal.
+ * The workspace agent answers when the saved key is refused. The key stays marked, the answer says it was skipped,
+ * and Settings names the stand-in. AI2 off is the only case that does not stand in.
  */
-describe("built-in AI never stands in for a workspace's own key unless the deployment turns it on (QUAL1 review)", () => {
-  it("default config: a refused key answers 409 in plain words and the thread goes to no other processor", async () => {
+describe("the workspace agent answers when the saved key is refused", () => {
+  it("with no saved key, mail, Team AI and Tools answer on built-in AI", async () => {
+    const t = await setup();
+    expect((await t.c.del("/api/ai/key")).status).toBe(200);
+    const ai = fakeAi();
+    t.deps.ai = ai as unknown as typeof t.deps.ai;
+    const r = await t.c.post("/api/ai/summary", { messageId: t.messageId });
+    expect(r.status).toBe(200);
+    expect(r.body.provider).toBe("builtin");
+    expect((await t.c.get("/api/team-ai/state")).body.ai.source).toBe("built_in");
+    const tools = await askAi(t.deps, t.orgId, { task: "chat", system: "s", user: "hello" });
+    expect(tools).toMatchObject({ ok: true, source: "free" });
+  });
+
+  it("a refused key stays on the key, and mail is answered by built-in AI", async () => {
     const t = await setup();
     const ai = fakeAi();
     t.deps.ai = ai as unknown as typeof t.deps.ai;
-    const trust = async () => (await t.c.get("/api/ai-trust")).body.providers as { use: string; name: string }[];
-    expect((await trust()).some((p) => /refuse/i.test(p.use))).toBe(false);
     t.setAnswer(refused);
     const r = await t.c.post("/api/ai/summary", { messageId: t.messageId });
-    expect(r.status).toBe(409);
-    expect(r.body.error).toMatchObject({ code: "ai_key_refused", message: REFUSED, details: { fix: "/app/settings#ai" } });
-    expect(r.body.fallback).toBeUndefined();
-    expect(ai.run).not.toHaveBeenCalled();
-    // Settings: no stand-in claimed, the badge does not say built-in AI is answering, Team AI says nothing can run.
-    expect((await trust()).some((p) => /refuse/i.test(p.use))).toBe(false);
-    expect((await t.c.get("/api/ai/status")).body).toMatchObject({ problem: "key_refused", keyFallback: false });
-    expect((await t.c.get("/api/team-ai/state")).body.ai).toMatchObject({ source: "none", keyProblem: "key_refused" });
+    expect(r.status).toBe(200);
+    expect(r.body.fallback).toMatchObject({ reason: "key_refused" });
+    expect(ai.run).toHaveBeenCalled();
+    expect((await t.c.get("/api/ai/status")).body).toMatchObject({ problem: "key_refused", keyFallback: true });
+    expect((await t.c.get("/api/team-ai/state")).body.ai).toMatchObject({ source: "built_in", keyProblem: "key_refused" });
   });
 
   it("QUAL1 review: an @assistant mention on a refused key says so in the thread instead of going quiet", async () => {

@@ -47,7 +47,7 @@ describe("connect a mailbox: testing the connection", () => {
     expect(r.body.error.code).toBe("auth_failed");
     expect(r.body.error.message).toContain("app password");
     expect(r.body.error.message).toContain("myaccount.google.com/apppasswords");
-    expect(r.body.error.details).toEqual({ step: "imap" });
+    expect(r.body.error.details).toMatchObject({ step: "imap" });
   });
 
   it("says when Gmail wants an app password", async () => {
@@ -79,7 +79,7 @@ describe("connect a mailbox: testing the connection", () => {
     smtp.authReply = "535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled for the Tenant.";
     const r = await c.post("/api/connections/test", { email: GMAIL, password: PW });
     expect(r.body.error.code).toBe("smtp_disabled");
-    expect(r.body.error.details).toEqual({ step: "smtp" });
+    expect(r.body.error.details).toMatchObject({ step: "smtp" });
   });
 
   it("refuses private hosts, port 25 and bad addresses before connecting", async () => {

@@ -17,6 +17,14 @@ import { writeBudget } from "../services/write-budget";
 import { HttpError } from "../lib/errors";
 import { ssoBlocks } from "../auth/session";
 
+/** Every `scope` value, so `scope=mcp:read&scope=mcp:write` is not collapsed to one word. */
+function authorizeQuery(c: Context<AppEnv>): AuthorizeRequest {
+  const q = { ...c.req.query() } as AuthorizeRequest;
+  const scopes = c.req.queries("scope");
+  if (scopes?.length) q.scope = scopes.join(" ");
+  return q;
+}
+
 const origin = (c: Context<AppEnv>) => {
   const u = new URL(c.req.url);
   const proto = c.req.header("x-forwarded-proto") ?? u.protocol.slice(0, -1);
@@ -93,7 +101,7 @@ export function oauthRoutes() {
 
   // Consent: what the sign in page shows.
   r.get("/authorize", requireAuth, async (c) => {
-    const q = c.req.query() as AuthorizeRequest;
+    const q = authorizeQuery(c);
     try {
       const req = await checkAuthorizeRequest(c.var.deps, q);
       const workspaces = (await workspacesFor(c.var.deps, c.var.auth.userId)).filter((w) => !w.suspendedAt)

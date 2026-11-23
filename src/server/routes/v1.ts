@@ -185,7 +185,7 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
       const origin = new URL(c.req.url).origin;
       const xfHost = c.req.header("x-forwarded-host");
       const base = xfHost ? `${c.req.header("x-forwarded-proto") ?? "https"}://${xfHost}` : origin;
-      c.header("WWW-Authenticate", `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/api/v1/mcp"`);
+      c.header("WWW-Authenticate", `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/api/v1/mcp", scope="mcp:read mcp:write"`);
       return c.json({ error: { code: "unauthorized", message: "Sign in with OAuth or send an API key: Authorization: Bearer mm_live_..." } }, 401);
     }
     throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");

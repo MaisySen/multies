@@ -23,7 +23,14 @@ interface Info {
 export function OAuthAuthorizePage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const request = useMemo(() => Object.fromEntries(params.entries()), [params]);
+  const request = useMemo(() => {
+    const o: Record<string, string> = {};
+    for (const key of new Set(params.keys())) {
+      const all = params.getAll(key);
+      o[key] = key === "scope" ? all.join(" ") : all[all.length - 1] ?? "";
+    }
+    return o;
+  }, [params]);
   const qs = params.toString();
   const info = useQuery({ queryKey: ["oauth-authorize", qs], queryFn: () => api.get<Info>(`/oauth/authorize?${qs}`), retry: false });
   const [orgId, setOrgId] = useState("");

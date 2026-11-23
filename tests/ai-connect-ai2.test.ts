@@ -184,14 +184,15 @@ describe("AI2 routes", () => {
     expect((await c.post("/api/ai/connect", { apiKey: "zz-not-a-known-format-123456" })).status).toBe(400);
   });
 
-  it("falls back to the curated list when the live list cannot be read", async () => {
+  it("asks for a model id when the live list cannot be read, then proves that id", async () => {
     const { c, setAnswer } = await setup();
-    setAnswer((url) => url.includes("openrouter.ai/api/v1/key") ? Response.json({ data: { label: "x" } }) : new Response("SECRET_BODY", { status: 503 }));
-    const r = await c.post("/api/ai/connect", { apiKey: OR_KEY });
-    expect(r.body).toMatchObject({ connected: true, provider: "openrouter", model: AI2_CURATED_MODELS.openrouter[0]!.id, live: false });
-    const m = await c.post("/api/ai/models", {});
-    expect(m.body.live).toBe(false);
-    expect(m.body.note).toBe("Could not load the live list, showing common models.");
+    setAnswer((url) => url.includes("/chat/completions") ? Response.json({ choices: [{ message: { content: "OK" } }] }) : new Response("SECRET_BODY", { status: 503 }));
+    const missing = await c.post("/api/ai/connect", { apiKey: OR_KEY });
+    expect(missing.status).toBe(400);
+    expect(missing.body.error.message).toMatch(/model id/i);
+    expect((await c.get("/api/ai/status")).body.connected).toBe(false);
+    const r = await c.post("/api/ai/connect", { apiKey: OR_KEY, model: "openai/gpt-4o-mini" });
+    expect(r.body).toMatchObject({ connected: true, provider: "openrouter", model: "openai/gpt-4o-mini", live: false });
   });
 
   it("a made up key is never saved for any provider, even where the model list is public (MB-321)", async () => {

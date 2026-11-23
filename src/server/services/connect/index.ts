@@ -22,7 +22,7 @@ import { audit } from "../audit";
 import { ensurePlatformDomain } from "../free-address";
 import { getPlan } from "../plans";
 import { canOpen, isPersonalOwner, personalInfo, scopeFor } from "../mail-access-priv1a";
-import { CONNECT_PRESETS, presetForEmail, serversFor, type ConnectionLimited, type ConnectionView, type ConnectPresetId, type ServerSettings } from "@/shared/mail-connect";
+import { CONNECT_PRESETS, cleanAppPassword, presetForEmail, serversFor, type ConnectionLimited, type ConnectionView, type ConnectPresetId, type ConnectProblem, type ServerSettings } from "@/shared/mail-connect";
 import { imapflowConnector, type ImapAuth } from "./imap";
 import { nodeSocketOpenerLazy } from "./default-socket";
 import { classifyProblem, ConnectFailed } from "./problems";
@@ -76,7 +76,8 @@ export function resolveSettings(deps: Deps, input: ConnectInput) {
   }
   const username = (input.username?.trim() || email).slice(0, 320);
   const displayName = (input.displayName?.trim() || email.split("@")[0]).slice(0, 100);
-  return { email, preset, imap, smtp, username, displayName, savesSent: CONNECT_PRESETS[preset].savesSent };
+  const password = cleanAppPassword(preset, input.password);
+  return { email, preset, imap, smtp, username, displayName, password, savesSent: CONNECT_PRESETS[preset].savesSent };
 }
 
 export type ResolvedSettings = ReturnType<typeof resolveSettings>;
@@ -92,19 +93,25 @@ export async function testSettings(deps: Deps, s: Pick<ResolvedSettings, "preset
     const session = await imapConnector(deps)(s.imap, imapAuth, imapOpts(deps));
     try { await session.folders(); } finally { await session.close(); }
   } catch (err) {
-    throw new ConnectFailed(classifyProblem(err, "imap", s.preset, s.imap.host));
+    throw failedTest(deps, classifyProblem(err, "imap", s.preset, s.imap.host), s.preset);
   }
   try {
     await smtpVerify(socketOpener(deps), s.smtp, { user: s.username, secret: auth.secret, xoauth2: auth.xoauth2 });
   } catch (err) {
-    throw new ConnectFailed(classifyProblem(err, "smtp", s.preset, s.smtp.host));
+    throw failedTest(deps, classifyProblem(err, "smtp", s.preset, s.smtp.host), s.preset);
   }
+}
+
+/** A failed test is logged (step, code, preset and the cleaned reason; never the password or address). */
+function failedTest(deps: Deps, problem: ConnectProblem, preset: ConnectPresetId) {
+  deps.log?.warn("mail_connect.test_failed", { step: problem.step, code: problem.code, preset, detail: problem.detail ?? null });
+  return new ConnectFailed(problem);
 }
 
 export async function testConnection(deps: Deps, input: ConnectInput) {
   assertEnabled(deps);
   const s = resolveSettings(deps, input);
-  await testSettings(deps, s, { secret: input.password });
+  await testSettings(deps, s, { secret: s.password });
   return { ok: true as const, preset: s.preset, imap: s.imap, smtp: s.smtp };
 }
 
@@ -160,7 +167,7 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
   const kept = taken && taken.orgId === auth.orgId && (taken.personal ? !!auth.userId && taken.ownerUserId === auth.userId : !auth.userId || auth.role === "owner" || auth.role === "admin")
     && !(await connectionForMailbox(deps, taken.id)) && (await ensurePlatformDomain(deps, CONNECTED_DOMAIN)).id === taken.domainId ? taken.id : null;
   if (taken && !kept) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
-  const secret = extra.secret ?? input.password;
+  const secret = extra.secret ?? s.password;
   const authKind = extra.authKind ?? "password";
   if (authKind === "password") await testSettings(deps, s, { secret });
   const plan = await getPlan(deps.db, auth.orgId);
@@ -228,11 +235,11 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
     imap: { host: c.imapHost, port: c.imapPort, security: c.imapSecurity, ...input.imap },
     smtp: { host: c.smtpHost, port: c.smtpPort, security: c.smtpSecurity, ...input.smtp },
   });
-  await testSettings(deps, s, { secret: input.password });
+  await testSettings(deps, s, { secret: s.password });
   await deps.db.update(mailConnections).set({
     username: s.username, imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
     smtpHost: s.smtp.host, smtpPort: s.smtp.port, smtpSecurity: s.smtp.security, authKind: "password",
-    secretEnc: await encryptSecret(deps.config.appSecret, input.password), status: "active", lastError: null, nextSyncAt: deps.now(),
+    secretEnc: await encryptSecret(deps.config.appSecret, s.password), status: "active", lastError: null, nextSyncAt: deps.now(),
   }).where(eq(mailConnections.id, c.id));
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.reconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email } });
   const mb = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, c.mailboxId)).get())!;

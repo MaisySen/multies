@@ -65,7 +65,7 @@ export function aiCallError(err: unknown): HttpError | null {
   return problem ? keyProblemError(problem, err.provider) : providerFailureError(err);
 }
 
-/** QUAL1: built-in AI may stand in for a refused key (AI_KEY_FALLBACK=on, AI2 on, the binding present): ./keys keyFallbackOn. */
+/** The workspace agent stands in for a refused key whenever built-in AI is on this server: ./keys keyFallbackOn. */
 export const canFallBack = (deps: Deps) => keyFallbackOn(deps);
 
 /** Built-in AI's answer for a workspace whose own key just failed, or null when it is not there or cannot answer. */
