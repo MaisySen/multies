@@ -102,5 +102,5 @@ app='build/Build/Products/Release-iphonesimulator/Multies.app'
 [[ -s "$app/main.jsbundle" && -f "$app/Info.plist" ]] || { echo 'Missing simulator application or JavaScript bundle.'; exit 2; }
 exec_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
 [[ "$exec_name" =~ ^[a-zA-Z0-9_.-]+$ && -f "$app/$exec_name" ]] || { echo 'Missing simulator executable.'; exit 2; }
-xcrun lipo -verify_arch arm64 "$app/$exec_name" || { echo 'Simulator executable does not contain arm64.'; exit 2; }
+xcrun lipo "$app/$exec_name" -verify_arch arm64 || { echo 'Simulator executable does not contain arm64.'; exit 2; }
 printf '%s\n' 'Unsigned simulator fixture built.'
