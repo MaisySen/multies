@@ -14,6 +14,7 @@ import { badRequest, HttpError, notFound } from "../../lib/errors";
 import { inIds } from "../../lib/sql-chunks";
 import { BULK_LOCAL_PARTS, SPLITS_MAX, type MailSplit, type SplitRuleT, type SplitTab } from "@/shared/mail-splits";
 import { snoozeHiddenCond } from "./schedules";
+import { firstSenderReady } from "./first-sender";
 import { BUILT_IN_TABS, NOT_PROMO_WORDS, PROMO_LOCAL_PARTS, PROMO_WORDS, parsePins, type TabPins, type TabStyle } from "@/shared/mail-rules-r85";
 
 export interface SplitActor { orgId: string; userId: string; agentId?: string | null; scope?: string }
@@ -66,15 +67,21 @@ export function importantBaseCond(orgId: string): SQL {
  * (the caller already requires notBulkCond: no list headers, no robot address). First time means no earlier
  * message from that address in this mailbox. Failing or missing SPF or DKIM stays in Other.
  *
- * R59 hotfix (D1 reads): "first" is the earliest message per mailbox and sender, worked out ONCE per statement as an
- * uncorrelated set (one pass over the workspace's received mail, built only when some row gets this far). It used to
- * be a correlated EXISTS comparing lower(from_address) per row, which no index serves, so every unread Inbox row
- * scanned its whole mailbox: about 188k rows read per count on a 5k message backfilled mailbox.
+ * R59 hotfix (D1 reads): "first" was the earliest message per mailbox and sender, worked out once per statement as an
+ * uncorrelated set. Before that it was a correlated EXISTS comparing lower(from_address) per row, which no index
+ * serves (about 188k rows read per count on a 5k message backfilled mailbox).
+ *
+ * MPLAT-108 (D1 load): that set was still one window over every received message of the workspace on every badge poll
+ * (about 16.6k rows plus a sort per call on mymail-au, the biggest part of 78% of all D1 reads). The same answer is
+ * now kept on the row (messages.first_of_sender, kept by the 0171 triggers on every insert, move and delete), so the
+ * rule reads no other rows at all, once the rows stored before 0171 are filled (first-sender.ts; until then the window
+ * above stays). tests/d1-load-mplat108.test.ts proves the flag equals the old window.
  */
 export function firstTimeAuthCond(orgId: string): SQL {
   const res = (k: string) => sql`lower(coalesce(json_extract(${messages.authResults}, ${sql.raw(`'$.${k}'`)}), ''))`;
   const passed = sql`(${messages.authResults} is not null and json_valid(${messages.authResults}) and ${res("spf")} = 'pass' and ${res("dkim")} = 'pass' and ${res("dmarc")} <> 'fail')`;
-  const first = sql`${messages.id} in (select f.id from (select p.id, row_number() over (partition by p.mailbox_id, lower(p.from_address) order by p.date, p.id) as rn
+  // Until the one time fill of rows stored before 0171 is done (services/mail/first-sender.ts), the R59 window stays.
+  const first = firstSenderReady() ? sql`${messages.firstOfSender} = 1` : sql`${messages.id} in (select f.id from (select p.id, row_number() over (partition by p.mailbox_id, lower(p.from_address) order by p.date, p.id) as rn
     from messages p where p.org_id = ${orgId} and p.folder <> 'sent' and p.folder <> 'drafts') f where f.rn = 1)`;
   return sql`(${messages.folder} <> 'sent' and ${passed} and ${first})`;
 }

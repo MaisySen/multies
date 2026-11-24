@@ -14,6 +14,7 @@ import { messages, notifications, tasks } from "../db/schema";
 import { IsolateCache } from "../lib/isolate-cache";
 import { snoozeHiddenCond } from "./mail/schedules";
 import { hasPins, listSplits, splitCountParts, tabCondsFor, tabsState, type TabsState } from "./mail/splits";
+import { refreshFirstSenderReady } from "./mail/first-sender";
 import { unreadQuery } from "./suite/chat";
 import { scopeOf, type SuiteActor } from "./suite/common";
 import { inIds } from "../lib/sql-chunks";
@@ -105,6 +106,8 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
     })
     : null;
   const list = tabsMine?.list ?? [];
+  // MPLAT-108: the stored first time flag once its fill is done (one key read until then, none after).
+  if (splitsOn) await refreshFirstSenderReady(deps.db);
   // R59 hotfix: the Important rule is evaluated once per row; Other is "not claimed" minus Important.
   const { important, notClaimed } = splitCountParts(a.orgId, list);
   // R85T: senders or threads the person moved to a tab (R85 pins) change what Important and Other hold, so the counts

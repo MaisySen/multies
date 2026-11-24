@@ -13,6 +13,7 @@ import { agentTriggers, automations, dataMoves, flowDigestItems, flowRuns, flowW
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
 import { checkWriteBudget } from "./write-budget";
+import { fillFirstSender, firstSenderReady } from "./mail/first-sender"; // MPLAT-108
 import { randomToken } from "../lib/crypto";
 import { pruneRateLimits } from "../lib/rate-limit";
 import { pruneIdempotencyKeys } from "../lib/idempotency";
@@ -96,6 +97,8 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   if (inSlot(1) && deps.config.integrations.composio && deps.config.socialP2 !== false) await step("social_evergreen", async () => (await import("./integrations/social-p2")).runEvergreen(deps));
   // R118: the Social inbox and results, for workspaces that use them (a bounded read when none is due).
   if (inSlot(2) && deps.config.socialP2b !== false) await step("social_inbox", async () => (await import("./integrations/social-p2b")).runSocialP2bPass(deps));
+  // MPLAT-108: rows stored before 0171 get their first_of_sender flag, a few mailboxes a pass, until done. Nothing after.
+  if (!firstSenderReady()) await step("first_sender_fill", () => fillFirstSender(deps));
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
   if (inSlot(3)) await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
