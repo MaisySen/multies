@@ -89,6 +89,17 @@ describe("G1: Gmail sign in problems say what Google said", () => {
     expect(logged).not.toMatch(/secretname|Authentication failed/i);
   });
 
+  it("handles a hostile 200 KB reply quickly and still drops trailing filler words", () => {
+    const hostile = new SmtpError("auth", { code: 535, lines: ["Authentication failed" + " for".repeat(50_000) + " x"] }, "x");
+    const t0 = performance.now();
+    const d = classifyProblem(hostile, "smtp", "custom", "mail.example.com").detail;
+    expect(performance.now() - t0).toBeLessThan(250);
+    expect(d?.startsWith("Authentication failed")).toBe(true);
+    expect(d!.length).toBeLessThanOrEqual(160);
+    const trailing = new SmtpError("auth", { code: 535, lines: ["Authentication rejected for jdoe@example.com see https://example.com/help"] }, "x");
+    expect(classifyProblem(trailing, "smtp", "custom", "mail.example.com").detail).toBe("Authentication rejected");
+  });
+
   it("leaves out a detail with nothing useful in it", () => {
     expect(classifyProblem(new Error("Command failed"), "imap", "gmail", "imap.gmail.com").detail).toBeUndefined();
   });

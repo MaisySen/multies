@@ -16,6 +16,23 @@ function rawText(err: unknown): string {
   return [e?.serverResponseCode, e?.responseText, e?.response, e?.message, e?.code, e?.reply ? `${e.reply.code} ${e.reply.lines.join(" ")}` : ""].filter(Boolean).join(" ");
 }
 
+// A reply line can run to 1 MB from a custom server; the scrub only ever shows 160 characters, so it reads the first
+// 2 KB (cut at a space, so no half address or half network address is left at the edge) and stays linear.
+const RAW_MAX = 2048;
+function capRaw(raw: string): string {
+  if (raw.length <= RAW_MAX) return raw;
+  const cut = raw.lastIndexOf(" ", RAW_MAX);
+  return raw.slice(0, cut > 0 ? cut : RAW_MAX);
+}
+
+// Words left with nothing after them once a value was taken out ("for from see"), taken off word by word.
+const FILLER = new Set(["for", "from", "see", "by", "at", "via"]);
+function dropTrailingFiller(s: string): string {
+  const words = s.split(" ");
+  while (words.length > 1 && FILLER.has(words[words.length - 1].toLowerCase())) words.pop();
+  return words.join(" ");
+}
+
 /**
  * G1: the provider's own reason, safe to show: the server's words only (not our wrapper's "Command failed"), with
  * bracketed IMAP codes, status numbers, links, addresses, network addresses and request ids taken out.
@@ -24,7 +41,7 @@ export function providerDetail(err: unknown): string | undefined {
   const e = err as { responseText?: string; reply?: { code: number; lines: string[] }; message?: string } | null;
   const raw = e?.reply?.lines?.length ? e.reply.lines.join(" ") : e?.responseText ?? (err instanceof Error && !(err instanceof SocketError) ? e?.message : undefined);
   if (!raw) return undefined;
-  const cleaned = raw
+  const cleaned = dropTrailingFiller(capRaw(raw)
     .replace(/<[^>]*>/g, " ")
     .replace(/\bhttps?:\/\/\S+/gi, " ")
     .replace(/\[[A-Z0-9-]+\]/g, " ")
@@ -41,9 +58,7 @@ export function providerDetail(err: unknown): string | undefined {
     .replace(/\s-\s*gsmtp\b/gi, " ")
     .replace(/\((Failure|Success)\)/gi, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    // Words left with nothing after them once a value was taken out ("for from see").
-    .replace(/(\s+\b(?:for|from|see|by|at|via)\b)+(?=\s*$)/gi, "")
+    .trim())
     .replace(/(\s+\b(?:for|from|see|by|at|via)\b)+(?=\s+(?:for|from|see|by|at|via)\b)/gi, "")
     .replace(/[\s:;,-]+$/, "");
   if (!cleaned || /^(command failed|error)$/i.test(cleaned) || !/[a-z]{3}/i.test(cleaned)) return undefined;
