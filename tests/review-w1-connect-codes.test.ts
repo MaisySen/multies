@@ -2,7 +2,8 @@
  * Wave 1 review V5: the emailed connect code (P60) could be brute forced. verifyConnection read the wrong tries, then
  * compared, so parallel guesses all got through; a resend reset the tries every minute; and connecting again mailed a
  * fresh code to any address without limit. Now each guess takes a try atomically before it is compared, a resend
- * keeps the tries, one connection gets at most 5 codes, and one address at most 5 codes a day from any workspace.
+ * keeps the tries, one connection gets at most 5 codes, and one address at most 5 codes a day from one workspace
+ * (Wave 2 review X4: per workspace and per person, with 20 a day across everyone).
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
@@ -61,17 +62,23 @@ describe("Wave 1 review V5: the connect code can't be brute forced", () => {
     } finally { ctx.deps.now = real; }
   });
 
-  it("one address gets at most five codes a day, whoever connects it", async () => {
-    let sent = 0;
-    for (let i = 0; i < 5; i++) {
-      const who = i % 2 ? c : await signup(`p${i}@other${i}.io`);
-      const r = await who.post("/api/connections", CUSTOM);
-      expect(r.status).toBe(201);
-      sent++;
-    }
-    expect(sent).toBe(5);
-    const blocked = await (await signup("eve@evil.io")).post("/api/connections", CUSTOM);
-    expect(blocked.status).toBe(429);
-    expect(ctx.outbound.sent.filter((m) => m.to.includes(ME) && /code/i.test(m.subject))).toHaveLength(5);
+  it("one workspace sends an address at most five codes a day; Wave 2 review X4: another workspace still can", async () => {
+    const eve = await signup("eve@evil.io");
+    const real = ctx.deps.now;
+    let t = real().getTime();
+    ctx.deps.now = () => new Date(t);
+    try {
+      // Eve connects ME five times (each connect replaces her own waiting one), then is refused.
+      for (let i = 0; i < 5; i++) {
+        expect((await eve.post("/api/connections", CUSTOM)).status).toBe(201);
+        t += 61_000;
+      }
+      expect((await eve.post("/api/connections", CUSTOM)).status).toBe(429);
+      // Before X4 the cap was global, so the real owner was locked out for the day too. Her workspace still gets a code.
+      const mine = await c.post("/api/connections", CUSTOM);
+      expect(mine.status).toBe(201);
+      expect(mine.body.connection.status).toBe("verifying");
+    } finally { ctx.deps.now = real; }
+    expect(ctx.outbound.sent.filter((m) => m.to.includes(ME) && /code/i.test(m.subject))).toHaveLength(6);
   });
 });

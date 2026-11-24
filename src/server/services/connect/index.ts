@@ -168,31 +168,49 @@ export const PENDING_CONNECTION_MS = 24 * 3_600_000;
 const CODE_TTL_MS = 60 * 60_000;
 const CODE_MIN_GAP_MS = 60_000;
 const CODE_MAX_TRIES = 5;
-/** Wave 1 review V5: codes one connection may ask for, and codes one address may receive from any workspace, a day. */
+/** Wave 1 review V5: codes one connection may ask for. */
 export const CODES_PER_CONNECTION = 5;
-export const CODES_PER_ADDRESS_DAY = 5;
+/**
+ * Wave 2 review X4: codes one address may receive a day, counted per workspace and per person (so another workspace
+ * can't use up the real owner's), and a higher cap across everyone as abuse protection.
+ */
+export const CODES_PER_ADDRESS_WORKSPACE_DAY = 5;
+export const CODES_PER_ADDRESS_PERSON_DAY = 5;
+export const CODES_PER_ADDRESS_DAY = 20;
 const DAY_MS = 24 * 3_600_000;
 
 /**
- * Wave 1 review V5: counts one emailed code against the connection and the address, in D1 (api_rate_limits, a fixed
- * 24 hour window swept by maintenance), so restarts and other instances share it. One atomic upsert each; refuses with
- * 429 past either cap, before the code is made or anything else is written.
+ * Wave 1 review V5: counts one emailed code in D1 (api_rate_limits, a fixed 24 hour window swept by maintenance), so
+ * restarts and other instances share it. One atomic upsert each; refuses with 429 past a cap, before the code is made
+ * or anything else is written. Wave 2 review X4: the address cap was global, so an attacker in another workspace could
+ * lock the real owner out every day. Now it counts per (address, workspace) and per (address, person), with a global
+ * cap of 20 a day; the first code of the day for a workspace with nothing waiting for that address always goes out.
  */
-async function claimCodeSend(deps: Deps, email: string, connectionId: string | null) {
+export async function claimCodeSend(deps: Deps, who: { email: string; orgId: string; userId?: string | null; connectionId: string | null }) {
   const now = deps.now().getTime();
   const { sha256Hex } = await import("../../lib/crypto");
-  const take = async (key: string, cap: number) => {
+  const take = async (key: string) => {
     const row = await deps.db.insert(apiRateLimits).values({ key, hits: 1, resetAt: now + DAY_MS })
       .onConflictDoUpdate({ target: apiRateLimits.key, set: {
         hits: sql`case when ${apiRateLimits.resetAt} <= ${now} then 1 else ${apiRateLimits.hits} + 1 end`,
         resetAt: sql`case when ${apiRateLimits.resetAt} <= ${now} then ${now + DAY_MS} else ${apiRateLimits.resetAt} end`,
       } }).returning({ hits: apiRateLimits.hits }).get();
-    return (row?.hits ?? cap + 1) <= cap;
+    return row?.hits ?? Number.MAX_SAFE_INTEGER;
   };
-  if (!await take(`connect-code-addr:${await sha256Hex(email.trim().toLowerCase())}`, CODES_PER_ADDRESS_DAY)) {
-    throw new HttpError(429, "rate_limited", `We have sent ${email} as many codes as we will today. Try again tomorrow.`);
+  const email = who.email.trim().toLowerCase();
+  const addr = await sha256Hex(email);
+  const tooMany = () => new HttpError(429, "rate_limited", `We have sent ${who.email} as many codes as we will today. Try again tomorrow.`);
+  const inWorkspace = await take(`connect-code-addr-ws:${addr}:${who.orgId}`);
+  if (inWorkspace > CODES_PER_ADDRESS_WORKSPACE_DAY) throw tooMany();
+  if (who.userId && await take(`connect-code-addr-user:${addr}:${who.userId}`) > CODES_PER_ADDRESS_PERSON_DAY) throw tooMany();
+  const everyone = await take(`connect-code-addr:${addr}`);
+  if (everyone > CODES_PER_ADDRESS_DAY) {
+    // The first code today for a workspace with no connection already waiting on this address always goes out.
+    const waiting = inWorkspace === 1 ? await deps.db.select({ id: mailConnections.id }).from(mailConnections)
+      .where(and(eq(mailConnections.orgId, who.orgId), eq(mailConnections.email, email), eq(mailConnections.status, "verifying"))).get() : { id: "" };
+    if (waiting) throw tooMany();
   }
-  if (connectionId && !await take(`connect-code-conn:${connectionId}`, CODES_PER_CONNECTION)) {
+  if (who.connectionId && await take(`connect-code-conn:${who.connectionId}`) > CODES_PER_CONNECTION) {
     throw new HttpError(429, "rate_limited", "This connection has had as many codes as it can. Remove it and connect the mailbox again.");
   }
 }
@@ -289,7 +307,7 @@ export async function resendConnectionCode(deps: Deps, auth: AuthContext, id: st
     const wait = Math.ceil((CODE_MIN_GAP_MS - (now - c.verifySentAt.getTime())) / 1000);
     throw new HttpError(429, "rate_limited", `A code was just sent. You can ask for another in ${wait} seconds.`, { retryAfterSeconds: wait });
   }
-  await claimCodeSend(deps, c.email, c.id);
+  await claimCodeSend(deps, { email: c.email, orgId: c.orgId, userId: auth.userId || null, connectionId: c.id });
   await sendConnectCode(deps, c);
   return { sent: true as const };
 }
@@ -340,7 +358,7 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
   // PRIV1b (P60): an unrecognised server proves nothing about the address: the connection waits for an emailed code.
   const needsCode = authKind === "password" && !serversProveAddress(s);
   const id = newId("mcn");
-  if (needsCode) await claimCodeSend(deps, s.email, id); // Wave 1 review V5: before anything is written
+  if (needsCode) await claimCodeSend(deps, { email: s.email, orgId: auth.orgId, userId: auth.userId || null, connectionId: id }); // Wave 1 review V5: before anything is written
   if (replacing) await dropPending(deps, pending!);
   const plan = await getPlan(deps.db, auth.orgId);
   const domain = await ensurePlatformDomain(deps, CONNECTED_DOMAIN);
@@ -415,7 +433,7 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
   const userChanged = s.username.trim().toLowerCase() !== c.username.trim().toLowerCase();
   const reverify = c.status !== "verifying" && (hostChanged || userChanged) && !serversProveAddress(s);
   const waits = c.status === "verifying" || reverify;
-  if (reverify) await claimCodeSend(deps, c.email, c.id); // Wave 1 review V5: before anything is written
+  if (reverify) await claimCodeSend(deps, { email: c.email, orgId: c.orgId, userId: auth.userId || null, connectionId: c.id }); // Wave 1 review V5: before anything is written
   await deps.db.update(mailConnections).set({
     username: s.username, imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
     smtpHost: s.smtp.host, smtpPort: s.smtp.port, smtpSecurity: s.smtp.security, authKind: "password",
