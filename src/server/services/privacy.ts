@@ -21,6 +21,7 @@ import { toMboxEntry } from "./data-move/formats";
 import { WITHHELD_TEXT, withheldRow } from "./agents/platform-mail";
 import { endPersonalMail } from "./team";
 import { callerStampOf, viaLabel } from "@/shared/audit-caller";
+import { parseAddressList } from "./mail/address-list"; // Wave 3 review Y8 (d)
 
 const PAGE = 200;
 const enc = new TextEncoder();
@@ -159,9 +160,9 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
             if (!page.length) break;
             const atts = await db.select().from(attachments).where(inIds(attachments.messageId, page.map((m) => m.id)));
             const lines = page.map((m) => JSON.stringify(hide(m)
-              ? { ...m, to: JSON.parse(m.to), cc: JSON.parse(m.cc), bcc: JSON.parse(m.bcc), text: WITHHELD_TEXT, html: null, snippet: WITHHELD_TEXT.slice(0, 200), attachments: [], withheld: "platform_mail" }
+              ? { ...m, ...exportAddresses(m), text: WITHHELD_TEXT, html: null, snippet: WITHHELD_TEXT.slice(0, 200), attachments: [], withheld: "platform_mail" }
               : {
-                ...m, to: JSON.parse(m.to), cc: JSON.parse(m.cc), bcc: JSON.parse(m.bcc),
+                ...m, ...exportAddresses(m),
                 attachments: atts.filter((a) => a.messageId === m.id).map(({ messageId: _m, ...a }) => a),
               })).join("\n") + "\n";
             file.push(enc.encode(lines));
@@ -230,4 +231,22 @@ export async function beforeUserDelete(deps: Deps, userId: string) {
   }
   // PRIV1b (CB2): a deleted account's live chat sockets close now; a socket was only checked when it opened.
   if (mine.length) await (await import("../realtime/publish")).closeUserSockets(deps, userId, mine.map((m) => m.organizationId));
+}
+
+/**
+ * Wave 3 review Y8 (d): a message's to, cc and bcc for the export, as [{ address, name? }] (parseAddressList). A stored
+ * value that isn't JSON, or has entries with no address, also goes out as it was (toRaw, ccRaw, bccRaw), so nothing is
+ * lost and one old row never fails the whole export.
+ */
+function exportAddresses(m: { to: string; cc: string; bcc: string }) {
+  const out: Record<string, unknown> = {};
+  for (const k of ["to", "cc", "bcc"] as const) {
+    const raw = m[k];
+    const list = parseAddressList(raw);
+    out[k] = list;
+    let whole: boolean;
+    try { const v = JSON.parse(raw || "[]"); whole = Array.isArray(v) ? v.length === list.length : list.length === 1; } catch { whole = !raw; }
+    if (!whole) out[`${k}Raw`] = raw;
+  }
+  return out;
 }
