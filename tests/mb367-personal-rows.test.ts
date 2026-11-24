@@ -52,6 +52,11 @@ describe("MB-367: the recent activity a member sees carries no mailbox address",
     expect(memberSafeAudit(row).metadata).toEqual({ pkg: "left-pad@1.2.3", plain: "hello" });
   });
 
+  it("Wave 1 review V13: an address on a Unicode top level domain goes; digits-only labels still don't count", () => {
+    const row = { ip: null, actorEmail: null, metadata: { a: "x@primer.рф", b: "मेल@उदाहरण.भारत", c: "note for y@shop.中国 today", pkg: "left-pad@1.2.3", v: "lib@2.0.10" } };
+    expect(memberSafeAudit(row).metadata).toEqual({ pkg: "left-pad@1.2.3", v: "lib@2.0.10" });
+  });
+
   it("W5: under a secret key (token, ip, invitation) every value goes, numbers too; an address key keeps a count", () => {
     const row = { ip: "1.2.3.4", actorEmail: null, metadata: { token: 123456, ip: 3232235777, invitationId: 42, userAgent: true, recipients: 3, emailCount: 2, ok: true } };
     expect(memberSafeAudit(row).metadata).toEqual({ recipients: 3, emailCount: 2, ok: true });

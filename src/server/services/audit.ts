@@ -82,7 +82,8 @@ const SECRET_KEYS = /^ip$|ipAddress|userAgent|invit|token/i;
 // W5: a display name beside an address in the same object is that address's person.
 const NAME_KEYS = /^(name|displayName|display_name|fromName|toName|senderName)$/i;
 // W5: the domain ends in an alphabetic label, so a version like pkg@1.2.3 is not an address; quoted local parts count.
-const ADDRESS = /(?:"[^"]*"|[^\s@<>"]+)@(?:[^\s@<>"]+\.)+[A-Za-z]{2,}/;
+// Wave 1 review V13: the label's letters are any script's (x@primer.рф, a .भारत address), with its combining marks.
+const ADDRESS = /(?:"[^"]*"|[^\s@<>"]+)@(?:[^\s@<>"]+\.)+\p{L}[\p{L}\p{M}]+/u;
 const DROP = Symbol("drop");
 
 /** W5: an address in any spelling: fullwidth ＠ (NFKC), percent encoded (%40), quoted local part. Prefers hiding. */
