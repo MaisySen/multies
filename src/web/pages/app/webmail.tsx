@@ -822,15 +822,22 @@ const TRIAGE_LABEL: Record<string, string> = { needs_reply: "Needs a reply", inv
 /** QUAL1: an AI answer may say built-in AI wrote it because the workspace's own key was refused. */
 type AiFallbackNote = { fallback?: { reason: string; message: string } };
 
+/**
+ * Round 2 (PR 20 leftover): a good answer on the workspace's own key (no stand-in) while the key problem banner shows
+ * means the key works again, so the AI status is read again and the banner clears. Exported for tests.
+ */
+export const keyWorksAgain = (problemShown: boolean, answer: AiFallbackNote | undefined) => problemShown && !!answer && !answer.fallback;
+
 /** Summaries, triage and drafted replies, on the workspace's own AI key (bring your own AI). */
 export function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: string) => void }) { // exported for tests (QUAL1)
   const status = useAiStatus();
   const qc = useQueryClient();
   // QUAL1 (audit rows 12, 14): a key refusal changes what Settings shows, so the status is read again after one.
   const onAiError = (e: Error) => { if (e instanceof ApiError && AI_KEY_CODES.has(e.code)) void qc.invalidateQueries({ queryKey: ["ai-status"] }); };
-  const summary = useMutation({ mutationFn: () => api.post<{ summary: string; actionItems: string[] } & AiFallbackNote>("/ai/summary", { messageId }), onError: onAiError });
-  const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } } & AiFallbackNote>("/ai/triage", { messageId }), onError: onAiError });
-  const draft = useMutation({ mutationFn: () => api.post<{ text: string } & AiFallbackNote>("/ai/draft", { messageId }), onSuccess: (r) => onDraft(r.text), onError: onAiError });
+  const onAiAnswer = (r: AiFallbackNote) => { if (keyWorksAgain(!!(status.data?.connected && status.data?.problem), r)) void qc.invalidateQueries({ queryKey: ["ai-status"] }); };
+  const summary = useMutation({ mutationFn: () => api.post<{ summary: string; actionItems: string[] } & AiFallbackNote>("/ai/summary", { messageId }), onSuccess: onAiAnswer, onError: onAiError });
+  const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } } & AiFallbackNote>("/ai/triage", { messageId }), onSuccess: onAiAnswer, onError: onAiError });
+  const draft = useMutation({ mutationFn: () => api.post<{ text: string } & AiFallbackNote>("/ai/draft", { messageId }), onSuccess: (r) => { onAiAnswer(r); onDraft(r.text); }, onError: onAiError });
   // AI2 (MB-330), QUAL1 (row 12): every failure stays on the page in plain words with Retry, not only in a toast.
   const failed = [summary, draft, triage].find((m) => m.isError && m.error);
   const aiFailure = failed?.error ? errorMessage(failed.error) : null;
