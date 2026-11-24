@@ -8,6 +8,7 @@
 import { HttpError } from "../../lib/errors";
 import { isPublicHost } from "../../lib/ssrf";
 import { assertPublicHost, checkUrlShape, readCapped } from "../../lib/safe-fetch";
+import { codePointText } from "../../lib/code-point"; // B4: a remote server can send any number
 
 export interface CalDavAuth { username: string; password: string }
 export interface RemoteCalendar { url: string; name: string; color: string | null }
@@ -93,7 +94,7 @@ export async function davRequest(opts: DavOptions, url: string, init: { method: 
 const decode = (s: string) => s
   .replace(/^\s*<!\[CDATA\[([\s\S]*)\]\]>\s*$/, "$1")
   .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#13;/g, "\r").replace(/&#10;/g, "\n")
-  .replace(/&#(\d+);/g, (_m, n: string) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_m, n: string) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, "&");
+  .replace(/&#(\d+);/g, (_m, n: string) => codePointText(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_m, n: string) => codePointText(parseInt(n, 16))).replace(/&amp;/g, "&");
 
 /** Elements named `local` (any namespace prefix) in an XML text: their inner text. */
 export function xmlAll(xml: string, local: string): string[] {

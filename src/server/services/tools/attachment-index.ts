@@ -53,6 +53,7 @@ import { attachmentBytes } from "../mail/store";
 import { writeBudget } from "../write-budget";
 import { engineFetch, type EngineConfig } from "./engine-client";
 import { classifyAttachment } from "./attachment-classify";
+import { codePointText } from "../../lib/code-point"; // B4: an attachment can hold any number
 import { ATTACHMENT_FOLDERS, ATTACHMENT_FOLDER_LABELS, INDEX_OCR_LANGS, type AttachmentFolder, type FileFolderCount } from "@/shared/attachment-folders";
 
 // ---------------------------------------------------------------- limits (one place)
@@ -137,7 +138,7 @@ export async function indexStop(deps: Deps): Promise<IndexStop | null> {
 // ---------------------------------------------------------------- text extraction on the Worker
 
 const decodeXml = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(Number.parseInt(n, 16))).replace(/&amp;/g, "&");
+  .replace(/&#(\d+);/g, (_, n) => codePointText(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => codePointText(Number.parseInt(n, 16))).replace(/&amp;/g, "&");
 
 /** Text of a .txt/.csv/.md, .docx or .xlsx file, or null when it cannot be read. Bounded by textCap. */
 export function extractLocal(filename: string, bytes: Uint8Array): string | null {
