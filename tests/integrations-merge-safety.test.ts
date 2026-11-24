@@ -145,7 +145,7 @@ describe("folding a second connection to the same account, with a failure at eac
 });
 
 describe("which identities can merge two connections", () => {
-  const acct = (data: Record<string, unknown>, val?: Record<string, unknown>) => ({ id: "ca_1", user_id: "h:org", toolkit: { slug: "gmail" }, data, ...(val ? { state: { val } } : {}) });
+  const acct = (data: Record<string, unknown>, val?: Record<string, unknown>) => ({ id: "ca_1", user_id: "h:org", status: "ACTIVE", toolkit: { slug: "gmail" }, data, ...(val ? { state: { val } } : {}) });
 
   it("a bare id, username, email or sub in the platform's data is not trusted", () => {
     expect(identityFromAccount(acct({ id: "12345" }))).toBeNull();
