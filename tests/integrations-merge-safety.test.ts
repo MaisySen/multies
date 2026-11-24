@@ -162,6 +162,38 @@ describe("folding a second connection to the same account, with a failure at eac
     const conf = await owner.post(`/api/apps/accounts/${id}/confirm`);
     expect(conf.status).toBe(200);
     expect(conf.body.account).toMatchObject({ id, status: "active", refreshed: true });
+    // R3: the older connection keeps a marker row saying it waits to be removed (sorted after the kept row's id).
+    expect(await profileRows()).toEqual([[first.id, `removal-pending:${id}`], [id, "person:mock1"]].sort());
+  });
+});
+
+describe("after the platform refused to remove the older connection (R3)", () => {
+  it("the next listing neither shows it nor folds the new sign in into it, and removal is retried later", async () => {
+    const first = await connectAs(owner, "linkedin");
+    const id = await start(owner, "linkedin");
+    const realFetch = ctx.deps.fetch;
+    let refuse = true;
+    let deletes = 0;
+    ctx.deps.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "DELETE" && String(input).includes(first.id)) { deletes++; if (refuse) return Response.json({ error: "down" }, { status: 500 }); }
+      if ((init?.method ?? "GET") === "DELETE" && String(input).includes(id)) throw new Error(`the new connection ${id} must never be removed`);
+      return realFetch(input, init);
+    }) as typeof fetch;
+    expect((await owner.post(`/api/apps/accounts/${id}/confirm`)).body.account).toMatchObject({ refreshed: true });
+    expect(mock.accounts.has(first.id)).toBe(true); // still on the platform
+    const shown = async () => ((await owner.get("/api/apps/accounts")).body.accounts as { id: string; app: string }[]).filter((a) => a.app === "linkedin").map((a) => a.id);
+    expect(await shown()).toEqual([id]);
+    expect(await shown()).toEqual([id]);
+    expect(mock.accounts.has(id)).toBe(true);
+    expect(deletes).toBe(1); // not retried within the hour
+    // An hour later the removal is tried again, and now the platform takes it.
+    refuse = false;
+    const t = Date.now() + 2 * 3_600_000;
+    ctx.deps.now = () => new Date(t);
+    expect(await shown()).toEqual([id]);
+    expect(deletes).toBe(2);
+    expect(mock.accounts.has(first.id)).toBe(false);
+    expect(await shown()).toEqual([id]);
     expect(await profileRows()).toEqual([[id, "person:mock1"]]);
   });
 });
