@@ -163,7 +163,7 @@ describe("folding a second connection to the same account, with a failure at eac
     expect(conf.status).toBe(200);
     expect(conf.body.account).toMatchObject({ id, status: "active", refreshed: true });
     // R3: the older connection keeps a marker row saying it waits to be removed (sorted after the kept row's id).
-    expect(await profileRows()).toEqual([[first.id, `removal-pending:${id}`], [id, "person:mock1"]].sort());
+    expect(await profileRows()).toEqual([[first.id, `removal-pending:${id}:${first.id}`], [id, "person:mock1"]].sort());
   });
 });
 
@@ -192,6 +192,28 @@ describe("listing accounts (R4)", () => {
 });
 
 describe("after the platform refused to remove the older connection (R3)", () => {
+  it("two connections waiting to be removed into the same kept one each keep their marker (F2)", async () => {
+    const first = await connectAs(owner, "linkedin");
+    const id = await start(owner, "linkedin");
+    const orgId = await orgIdOf("owner-merge@acme.io");
+    // Another older connection already waits to be removed into the same kept one (as a repointed marker leaves it).
+    const other = await start(owner, "linkedin");
+    await ctx.db.insert(socialAccountProfiles).values({ orgId, accountId: other, app: "linkedin", externalId: `removal-pending:${id}`, checkedAt: new Date() });
+    const realFetch = ctx.deps.fetch;
+    ctx.deps.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "DELETE" && !String(input).includes(id)) return Response.json({ error: "down" }, { status: 500 });
+      if ((init?.method ?? "GET") === "DELETE") throw new Error(`the kept connection ${id} must never be removed`);
+      return realFetch(input, init);
+    }) as typeof fetch;
+    expect((await owner.post(`/api/apps/accounts/${id}/confirm`)).body.account).toMatchObject({ refreshed: true });
+    const rows = new Map((await ctx.db.select().from(socialAccountProfiles).where(eq(socialAccountProfiles.orgId, orgId)).all()).map((r) => [r.accountId, r.externalId]));
+    expect(rows.get(first.id)).toMatch(new RegExp(`^removal-pending:${id}`));
+    // The next listing shows only the kept connection, and it is still there.
+    const shown = ((await owner.get("/api/apps/accounts")).body.accounts as { id: string; app: string }[]).filter((a) => a.app === "linkedin").map((a) => a.id);
+    expect(shown).toEqual([id]);
+    expect(mock.accounts.has(id)).toBe(true);
+  });
+
   it("the next listing neither shows it nor folds the new sign in into it, and removal is retried later", async () => {
     const first = await connectAs(owner, "linkedin");
     const id = await start(owner, "linkedin");

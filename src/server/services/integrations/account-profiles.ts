@@ -199,7 +199,7 @@ export async function settleAccount(deps: Deps, cp: Composio, orgId: string, use
         deps.log?.warn("social.merge_remove_failed", { app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
         // R3: the older connection is still live on the platform with no profile row. Left so, the next listing would
         // settle it as a fresh connection and fold the newest one into it. A marker row says it waits to be removed.
-        try { await upsert(deps, orgId, { accountId: old, app, externalId: `${REMOVAL_PENDING}${a.id}`.slice(0, 300), name: null, avatarUrl: null, checkedAt: now }); } catch (e) {
+        try { await upsert(deps, orgId, { accountId: old, app, externalId: pendingMarker(a.id, old), name: null, avatarUrl: null, checkedAt: now }); } catch (e) {
           deps.log?.warn("social.merge_mark_failed", { app, error: e instanceof Error ? e.message.slice(0, 200) : String(e) });
         }
       }
@@ -271,9 +271,19 @@ export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, 
   return { profiles, merged };
 }
 
-/** R3: the external id a profile row carries while its connection, folded into `<kept id>`, waits to be removed. */
+/**
+ * R3: the external id a profile row carries while its connection, folded into `<kept id>`, waits to be removed. F2: it
+ * ends with the waiting connection's own id, so two connections waiting on one kept connection never share it (the
+ * external id is unique per workspace and app). A marker without that ending is read as pointing at all of the rest.
+ */
 const REMOVAL_PENDING = "removal-pending:";
-const pendingInto = (p: ProfileRow) => (p.externalId?.startsWith(REMOVAL_PENDING) ? p.externalId.slice(REMOVAL_PENDING.length) : null);
+const pendingMarker = (kept: string, old: string) => `${REMOVAL_PENDING}${kept}:${old}`;
+function pendingInto(p: ProfileRow): string | null {
+  if (!p.externalId?.startsWith(REMOVAL_PENDING)) return null;
+  const rest = p.externalId.slice(REMOVAL_PENDING.length);
+  const own = `:${p.accountId}`;
+  return rest.endsWith(own) ? rest.slice(0, -own.length) : rest;
+}
 
 /**
  * R3: connections folded into another whose removal the platform refused. While the kept connection is live they stay
