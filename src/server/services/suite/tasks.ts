@@ -1332,22 +1332,28 @@ export async function deleteView(deps: Deps, actor: SuiteActor, id: string) {
  * were refused) is an AI and carries isAgent. With `pickers` (the assignee and mention pickers and filters), one that
  * is the inbox of a mail agent in this workspace is left out, so the one AI shows once (as its mail agent). Without
  * it (names, workload, capacity) everyone stays, so tasks already assigned to it keep their name.
+ * Round 2 (PR 23): with `pickers`, a mail agent that an AI agent member is linked to (R26 inbox link) is left out too,
+ * so that pair shows once, as the member (the entry with a person-like profile, keys and pause). An agent entry says
+ * isAgent, and paused when the agent is paused.
  */
 export async function assignees(deps: Deps, orgId: string, opts: { pickers?: boolean } = {}) {
   const [ms, ags] = await Promise.all([
-    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt, agentInboxId: agentInboxIdAt(users.email) }).from(members).innerJoin(users, eq(users.id, members.userId))
+    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt, linkedAgentId: members.linkedAgentId, agentInboxId: agentInboxIdAt(users.email) }).from(members).innerJoin(users, eq(users.id, members.userId))
       .where(eq(members.organizationId, orgId)),
     deps.db.select({ id: agents.id, name: agents.name, status: agents.status, mailboxId: agents.mailboxId }).from(agents).where(eq(agents.orgId, orgId)),
   ]);
   const agentInboxes = new Set(ags.map((a) => a.mailboxId));
   const twin = (m: { agentInboxId: string | null }) => !!m.agentInboxId && agentInboxes.has(m.agentInboxId);
+  // Round 2 (PR 23): mail agents an AI agent member is linked to; in the pickers the member stands for both.
+  // A paused member leaves the pickers, so then its agent stays.
+  const linked = new Set(ms.filter((m) => m.kind === "agent" && m.linkedAgentId && !m.disabledAt && !twin(m)).map((m) => m.linkedAgentId!));
   return [
     // An AI agent member is assigned like a person; its internal address is never shown.
     ...(opts.pickers ? ms.filter((m) => !twin(m)) : ms).map((m) => {
       const ai = m.kind === "agent" || !!m.agentInboxId;
       return { id: `member:${m.id}`, type: "member" as const, name: m.name, email: ai ? null : m.email as string | null, ...(ai ? { isAgent: true } : {}), ...(m.disabledAt ? { paused: true } : {}) }; // R26: pickers hide paused agents
     }),
-    ...ags.map((a) => ({ id: `agent:${a.id}`, type: "agent" as const, name: a.name, email: null as string | null })),
+    ...(opts.pickers ? ags.filter((a) => !linked.has(a.id)) : ags).map((a) => ({ id: `agent:${a.id}`, type: "agent" as const, name: a.name, email: null as string | null, isAgent: true, ...(a.status === "paused" ? { paused: true } : {}) })),
   ];
 }
 
