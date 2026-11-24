@@ -242,16 +242,22 @@ export async function resendConnectionCode(deps: Deps, auth: AuthContext, id: st
 /** The maintenance pass: connections still waiting for their code after PENDING_CONNECTION_MS go, with their mailbox. */
 export async function pruneUnverifiedConnections(deps: Deps, limit = 50): Promise<number> {
   const cutoff = new Date(deps.now().getTime() - PENDING_CONNECTION_MS);
-  const rows = await deps.db.select({ id: mailConnections.id, mailboxId: mailConnections.mailboxId }).from(mailConnections)
+  const rows = await deps.db.select({ id: mailConnections.id, mailboxId: mailConnections.mailboxId, madeMailbox: mailConnections.madeMailbox }).from(mailConnections)
     .where(and(eq(mailConnections.status, "verifying"), lt(mailConnections.createdAt, cutoff))).limit(limit).all();
   for (const r of rows) await dropPending(deps, r);
   return rows.length;
 }
 
-/** Removes a connection that never got its code, and the mailbox it made (nothing was synced into it). */
-async function dropPending(deps: Deps, r: { id: string; mailboxId: string }) {
-  await deps.db.delete(mailConnections).where(and(eq(mailConnections.id, r.id), eq(mailConnections.status, "verifying")));
-  await deps.db.delete(mailboxes).where(eq(mailboxes.id, r.mailboxId));
+/**
+ * Removes a connection that never got its code, and the mailbox it made (nothing was synced into it). Wave 1 review
+ * V4: a kept copy it took over (a legal hold kept it after its connection was removed) is never deleted with it: it
+ * stays, suspended, as it was before.
+ */
+async function dropPending(deps: Deps, r: { id: string; mailboxId: string; madeMailbox: boolean }) {
+  const gone = await deps.db.delete(mailConnections).where(and(eq(mailConnections.id, r.id), eq(mailConnections.status, "verifying"))).returning({ id: mailConnections.id });
+  if (!gone.length) return;
+  if (r.madeMailbox) await deps.db.delete(mailboxes).where(eq(mailboxes.id, r.mailboxId));
+  else await deps.db.update(mailboxes).set({ status: "suspended" }).where(eq(mailboxes.id, r.mailboxId));
 }
 
 /** Tests, then saves the connection and its mailbox. The first sync runs right after. */
@@ -259,15 +265,19 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
   assertEnabled(deps);
   const s = resolveSettings(deps, { ...input, password: input.password || extra.secret || "" });
   // PRIV1b (P60): a connection still waiting for its code holds no claim on the address: it proved nothing, so a new
-  // connect (by anyone) replaces it. Checked once the new settings are valid; nothing synced into it.
-  const pending = await deps.db.select({ id: mailConnections.id, mailboxId: mailConnections.mailboxId }).from(mailConnections)
+  // connect replaces it (Wave 1 review V4: never taking a kept copy from its owner, below). Nothing synced into it.
+  const pending = await deps.db.select({ id: mailConnections.id, mailboxId: mailConnections.mailboxId, orgId: mailConnections.orgId, madeMailbox: mailConnections.madeMailbox }).from(mailConnections)
     .innerJoin(mailboxes, eq(mailboxes.id, mailConnections.mailboxId)).where(and(eq(mailboxes.address, s.email), eq(mailConnections.status, "verifying"))).get();
   const taken = await deps.db.select({ id: mailboxes.id, orgId: mailboxes.orgId, domainId: mailboxes.domainId, personal: mailboxes.personal, ownerUserId: mailboxes.ownerUserId }).from(mailboxes).where(eq(mailboxes.address, s.email)).get();
   // PRIV1b (P58): a copy kept for a legal hold after its connection was removed goes back to whoever it belongs to (the
   // personal owner; an admin or key for a team one) when they connect the address again, held or not.
-  const kept = taken && taken.orgId === auth.orgId && (taken.personal ? !!auth.userId && taken.ownerUserId === auth.userId : !auth.userId || auth.role === "owner" || auth.role === "admin")
-    && !(await connectionForMailbox(deps, taken.id)) && (await ensurePlatformDomain(deps, CONNECTED_DOMAIN)).id === taken.domainId ? taken.id : null;
-  const replacing = !!pending && !!taken && taken.id === pending.mailboxId;
+  const mine = !!taken && taken.orgId === auth.orgId && (taken.personal ? !!auth.userId && taken.ownerUserId === auth.userId : !auth.userId || auth.role === "owner" || auth.role === "admin")
+    && (await ensurePlatformDomain(deps, CONNECTED_DOMAIN)).id === taken.domainId;
+  // Wave 1 review V4: a waiting connection is replaced only when that can't take anything from anyone: in this workspace,
+  // or, from another workspace, only when it made its own (empty) mailbox. A kept copy it took over is never deleted:
+  // its owner takes it over again, anyone else is refused.
+  const replacing = !!pending && !!taken && taken.id === pending.mailboxId && (pending.orgId === auth.orgId || pending.madeMailbox) && (pending.madeMailbox || mine);
+  const kept = mine && (replacing ? !pending!.madeMailbox : !(await connectionForMailbox(deps, taken!.id))) ? taken!.id : null;
   if (taken && !kept && !replacing) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
   const secret = extra.secret ?? s.password;
   const authKind = extra.authKind ?? "password";
@@ -288,7 +298,7 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
     imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
     smtpHost: s.smtp.host, smtpPort: s.smtp.port, smtpSecurity: s.smtp.security,
     authKind, secretEnc: await encryptSecret(deps.config.appSecret, secret), savesSent: s.savesSent,
-    status: needsCode ? "verifying" : "active", nextSyncAt: needsCode ? null : deps.now(), createdByUserId: auth.userId || null,
+    status: needsCode ? "verifying" : "active", nextSyncAt: needsCode ? null : deps.now(), createdByUserId: auth.userId || null, madeMailbox: !kept,
   });
   if (needsCode) await sendConnectCode(deps, { id, orgId: auth.orgId, email: s.email });
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.connected", targetType: "mailbox", targetId: mailboxId, metadata: { address: s.email, provider: s.preset, authKind, ...(needsCode ? { waitingForCode: true } : {}) } });

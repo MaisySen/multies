@@ -873,6 +873,8 @@ export const mailConnections = sqliteTable("mail_connections", {
   verifyExpiresAt: ts("verify_expires_at"),
   verifyTries: integer("verify_tries").notNull().default(0),
   verifySentAt: ts("verify_sent_at"),
+  /** Wave 1 review V4 (0177): this connection made its mailbox; false when it took over a kept (legal hold) copy. */
+  madeMailbox: integer("made_mailbox", { mode: "boolean" }).notNull().default(false),
   nextSyncAt: ts("next_sync_at"),
   initialDone: integer("initial_done", { mode: "boolean" }).notNull().default(false),
   /** JSON: per folder UIDVALIDITY and last UID seen, plus the Sent, Archive and Trash paths. */

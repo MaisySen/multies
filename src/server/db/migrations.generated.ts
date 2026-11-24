@@ -1915,5 +1915,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- W6 (round 2): a connection folded into another waits to be removed (a removal-pending marker row) while the platform\n-- refuses the removal. This keeps when that started, so a connection whose kept one is gone and whose removal has\n-- failed for a week is shown to admins again to disconnect by hand. Null on every existing row; old code never reads it.\nALTER TABLE `social_account_profiles` ADD `removal_failed_since` integer;"
     ]
+  },
+  {
+    "name": "0177_connection_made_mailbox",
+    "statements": [
+      "-- Wave 1 review V4: whether a connection made its own mailbox (1) or took over a kept one (0: a copy kept for a legal\n-- hold after its connection was removed). Dropping a connection that never got its emailed code (P60) removes only a\n-- mailbox it made. 0 on existing rows, so nothing made before this is ever removed by that path; old code never reads it.\nALTER TABLE `mail_connections` ADD `made_mailbox` integer DEFAULT 0 NOT NULL;"
+    ]
   }
 ];
