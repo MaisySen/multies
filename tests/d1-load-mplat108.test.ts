@@ -163,6 +163,59 @@ describe("first_of_sender equals the old window after every kind of write (MPLAT
   });
 });
 
+describe("the fill pages through big mailboxes and survives a failing one (F4)", () => {
+  const reset = () => {
+    db().prepare("update messages set first_of_sender = 0").run();
+    db().prepare("delete from app_settings where key = ?").run(FIRST_SENDER_KEY);
+    forgetFirstSenderReady();
+  };
+  const markOf = () => (db().prepare("select value from app_settings where key = ?").get(FIRST_SENDER_KEY) as { value: string } | undefined)?.value;
+
+  it("fills a mailbox a page of senders at a time, saving where it stopped", async () => {
+    for (let i = 0; i < 30; i++) put({ from: `s${i % 7}@d.io`, date: min(100 - i) });
+    reset();
+    const first = await fillFirstSender(ctx.deps, { sendersPerPage: 2, budgetMs: 0 });
+    expect(first.done).toBe(false);
+    const saved = JSON.parse(markOf()!) as { at?: { box: string; sender: string } };
+    expect(saved.at).toMatchObject({ sender: expect.any(String) });
+    expect(flagged().length).toBeGreaterThan(0);
+    expect(flagged().length).toBeLessThan(7);
+    let passes = 1;
+    while (!(await fillFirstSender(ctx.deps, { sendersPerPage: 2, budgetMs: 0 })).done) expect(++passes).toBeLessThan(40);
+    expect(passes).toBeGreaterThan(3);
+    agree();
+    expect(markOf()).toBe("done");
+  });
+
+  it("a mailbox whose fill fails is set aside, the others are filled, and it is never marked done until it is", async () => {
+    for (let i = 0; i < 20; i++) put({ from: `q${i % 5}@d.io`, date: min(100 - i), mailbox: i % 2 ? mailbox2 : mailboxId });
+    reset();
+    const dialect = (ctx.db as unknown as { dialect: { sqlToQuery(s: unknown): { sql: string; params: unknown[] } } }).dialect;
+    const realRun = ctx.db.run.bind(ctx.db);
+    const realAll = ctx.db.all.bind(ctx.db);
+    const fails = (q: unknown) => typeof q !== "string" && dialect.sqlToQuery(q).params.includes(mailbox2);
+    const spyRun = vi.spyOn(ctx.db, "run").mockImplementation(((q: Parameters<typeof ctx.db.run>[0]) => { if (fails(q)) throw new Error("D1_ERROR: statement too long"); return realRun(q); }) as typeof ctx.db.run);
+    const spyAll = vi.spyOn(ctx.db, "all").mockImplementation(((q: Parameters<typeof ctx.db.all>[0]) => { if (fails(q)) throw new Error("D1_ERROR: statement too long"); return realAll(q); }) as typeof ctx.db.all);
+    let r;
+    try { r = await fillFirstSender(ctx.deps); } finally { spyRun.mockRestore(); spyAll.mockRestore(); }
+    expect(r.done).toBe(false);
+    expect(firstSenderReady()).toBe(false);
+    expect(JSON.parse(markOf()!).retry).toEqual([mailbox2]);
+    // The other mailbox is filled already.
+    const inOne = (db().prepare("select id from messages where mailbox_id = ? and first_of_sender = 1").all(mailboxId) as unknown[]).length;
+    expect(inOne).toBe(5);
+    // Once the mailbox can be read, the next pass fills it and the fill is done.
+    expect((await fillFirstSender(ctx.deps)).done).toBe(true);
+    agree();
+  });
+
+  it("each page reads one mailbox's senders through the first sender index", () => {
+    const plan = (db().prepare("explain query plan select distinct lower(from_address) as k from messages where mailbox_id = ? and folder <> 'sent' and folder <> 'drafts' and lower(from_address) > ? order by 1 limit 200").all("m", "a") as { detail: string }[]).map((p) => p.detail).join(" ");
+    expect(plan).toMatch(/messages_sender_first_idx/);
+    expect(plan).not.toMatch(/TEMP B-TREE/);
+  });
+});
+
 describe("counts and the Important list are identical to the old rule (MPLAT-108)", () => {
   /** The old Important rule: the same SQL with the stored flag swapped back for the R59 window. */
   function oldImportant(): { sql: string; params: unknown[] } {
