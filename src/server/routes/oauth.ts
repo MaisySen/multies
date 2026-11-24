@@ -18,6 +18,9 @@ import { HttpError } from "../lib/errors";
 import { ssoBlocks } from "../auth/session";
 
 /** The raw link, read the same way on GET and POST (parseAuthorizeQuery refuses repeated keys and joins `scope`). */
+/** R7: the longest sign in link (its query) both the consent screen and Allow take. */
+const AUTHORIZE_QUERY_MAX = 8000;
+
 function authorizeQuery(c: Context<AppEnv>): AuthorizeRequest {
   return parseAuthorizeQuery(new URL(c.req.url).searchParams);
 }
@@ -99,6 +102,9 @@ export function oauthRoutes() {
   // Consent: what the sign in page shows.
   r.get("/authorize", requireAuth, async (c) => {
     try {
+      // R7: Allow sends this same link back (POST, query), which takes at most AUTHORIZE_QUERY_MAX characters; a longer
+      // one is refused here, before the consent screen, not after the person clicks Allow.
+      if (new URL(c.req.url).search.slice(1).length > AUTHORIZE_QUERY_MAX) throw new OAuthError(400, "invalid_request", "This sign in link is too long. Start again from the app you are connecting.");
       const req = await checkAuthorizeRequest(c.var.deps, authorizeQuery(c));
       const workspaces = (await workspacesFor(c.var.deps, c.var.auth.userId)).filter((w) => !w.suspendedAt)
         // PRIV1b (P41): say up front which workspaces this sign in can't connect, instead of a 403 after Allow.
@@ -116,7 +122,7 @@ export function oauthRoutes() {
     const input = await parseBody(c, z.object({
       decision: z.enum(["allow", "deny"]), orgId: z.string().max(64).optional(), scope: z.enum(["read", "full"]).default("full"),
       // The consent page sends the raw link (`query`), which the server reads exactly as GET did. `request` (one value per key) is kept for older pages and API callers.
-      query: z.string().max(8000).optional(),
+      query: z.string().max(AUTHORIZE_QUERY_MAX).optional(),
       request: z.record(z.string(), z.string().max(4000)).optional(),
     }).refine((b) => b.query !== undefined || b.request !== undefined, { message: "Send the sign in request." }));
     const { deps, auth } = c.var;

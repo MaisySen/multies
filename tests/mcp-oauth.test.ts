@@ -127,6 +127,22 @@ describe("MCP OAuth: sign in and tokens", () => {
     try { expect((await exchange(a.clientId, a.code)).body.error).toBe("invalid_grant"); } finally { ctx.deps.now = real; }
   });
 
+  it("a sign in link too long for Allow is refused before consent, not after (R7)", async () => {
+    const clientId = (await register()).body.client_id as string;
+    const base = new URLSearchParams(await authorizeParams(clientId)).toString();
+    const pad = (n: number) => `${base}&pad=${"s".repeat(n - base.length - "&pad=".length)}`;
+    const long = pad(8001);
+    expect(long.length).toBe(8001);
+    const shown = await c.get(`/api/oauth/authorize?${long}`);
+    expect(shown.status).toBe(400);
+    expect(shown.body.error.code).toBe("invalid_request");
+    // At the limit, consent shows and Allow works with the same link.
+    const fits = pad(8000);
+    expect((await c.get(`/api/oauth/authorize?${fits}`)).status).toBe(200);
+    const allow = await c.post("/api/oauth/authorize", { decision: "allow", scope: "full", query: fits });
+    expect(allow.status).toBe(200);
+  });
+
   it("requires PKCE S256 and known scopes on the sign in request", async () => {
     const clientId = (await register()).body.client_id as string;
     const noPkce = await c.get(`/api/oauth/authorize?${new URLSearchParams({ ...(await authorizeParams(clientId)), code_challenge_method: "plain" })}`);
