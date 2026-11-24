@@ -1,7 +1,7 @@
 import { mirrorInbound } from "../mailserver";
 import { emitEvent } from "../developer/webhooks";
 import { ingestDmarcAttachments } from "../deliverability/dmarc";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
 import { aliases, deliveries, domains, mailboxes, messages } from "../../db/schema";
@@ -224,7 +224,11 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     for (const to of external) {
       // Round 2 (PR 23): nor to an address another workspace hosts: delivered there it would arrive as ordinary mail,
       // without the mark, readable in full by that workspace's keys and agents.
-      const detail = await agentAddress(db, to) ? NOT_FORWARDED_TO_AGENT : hostedElsewhere.has(to) ? NOT_FORWARDED_TO_OTHER_WORKSPACE : null;
+      // Wave 2 review X10: an address another workspace connected as a mailbox (a Gmail it syncs) counts as hosted there
+      // too: its copy is stored in that workspace the same way. One indexed read (mailboxes.address), platform mail only.
+      const elsewhere = hostedElsewhere.has(to) || !!(await db.select({ id: mailboxes.id }).from(mailboxes)
+        .where(and(eq(mailboxes.address, to.trim().toLowerCase()), ne(mailboxes.orgId, alias.orgId))).get());
+      const detail = await agentAddress(db, to) ? NOT_FORWARDED_TO_AGENT : elsewhere ? NOT_FORWARDED_TO_OTHER_WORKSPACE : null;
       if (!detail) { keep.push(to); continue; }
       await logDelivery(db, { orgId: alias.orgId, direction: "outbound", fromAddress: alias.address, toAddress: to, subject, status: "rejected", provider: deps.outbound.name, detail });
     }

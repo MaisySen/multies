@@ -4,7 +4,7 @@ import { unzipSync, strFromU8 } from "fflate";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
-import { aliases, deliveries, domains, messages } from "@/server/db/schema";
+import { aliases, deliveries, domains, mailboxes, messages } from "@/server/db/schema";
 import { ACCOUNT_MAIL_NOT_SENT_TO_AGENT, sendSystemEmail } from "@/server/services/system-mail";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { NOT_FORWARDED_TO_AGENT, NOT_FORWARDED_TO_OTHER_WORKSPACE } from "@/server/services/agents/platform-mail";
@@ -348,6 +348,29 @@ describe("AIS1 row 32 (review): a forward never hands the platform's own mail to
     // Outside senders' mail through the same alias still goes there.
     await outside("fwd2@acme.io", "noreply@service.example", "Your code", `Your code is ${CODE}`);
     expect(ctx.outbound.sent.filter((m) => m.to.includes("inbox@gamma.test")).map((m) => m.subject)).toEqual(["Your code"]);
+  });
+
+  it("Wave 2 review X10: nor to an address connected as a mailbox in another workspace", async () => {
+    const other = new Client(ctx.app);
+    await other.signup("boss@delta.test", "Delta Boss");
+    const otherOrg = (await other.get("/api/account/me")).body.organization.id as string;
+    const { ensurePlatformDomain } = await import("@/server/services/free-address");
+    const { CONNECTED_DOMAIN } = await import("@/server/services/connect");
+    const connected = await ensurePlatformDomain(ctx.deps, CONNECTED_DOMAIN);
+    // A Gmail address another workspace connected: its mail is copied there, readable by that workspace's keys.
+    await ctx.db.insert(mailboxes).values({ id: "mbx_x10conn", orgId: otherOrg, domainId: connected.id, localPart: "delta.boss", address: "delta.boss@gmail.example", displayName: "Delta", quotaMb: 100, personal: true });
+    await ctx.db.insert(aliases).values({ id: "als_fwd3", orgId, domainId, localPart: "fwd3", address: "fwd3@acme.io", destinations: JSON.stringify(["delta.boss@gmail.example", "me@home.example"]) });
+    const sys = ctx.deps.config.systemFrom.address;
+    const r = await deliverInbound(ctx.deps, {
+      envelopeFrom: sys, rcptTo: "fwd3@acme.io", sizeBytes: 300, via: "test",
+      email: { messageId: "<sys.fwd3@localhost>", from: { address: sys, name: "Multies" }, to: [{ address: "fwd3@acme.io" }], cc: [], subject: "Reset your Multies password", text: `Choose a new password: http://localhost/reset-password/${SECRET}`, date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    expect(r.forwardedTo).toEqual(["me@home.example"]);
+    const log = await ctx.db.select().from(deliveries).where(eq(deliveries.toAddress, "delta.boss@gmail.example"));
+    expect(log.map((d) => [d.status, d.detail])).toEqual([["rejected", NOT_FORWARDED_TO_OTHER_WORKSPACE]]);
+    // Outside senders' mail through the same alias still goes there.
+    await outside("fwd3@acme.io", "noreply@service.example", "Your code", `Your code is ${CODE}`);
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("delta.boss@gmail.example")).map((m) => m.subject)).toEqual(["Your code"]);
   });
 
   it("a person whose own sign in alias also copies their agent still gets a password reset; the agent's copy is withheld", async () => {
