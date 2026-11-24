@@ -94,7 +94,8 @@ export async function listAccounts(deps: Deps, auth: AuthContext): Promise<Conne
   if (mine.some((a) => canPostTo(a.toolkit?.slug ?? ""))) {
     try {
       const { backfillProfiles } = await import("./account-profiles");
-      ({ profiles, merged } = await backfillProfiles(deps, cp, auth.orgId, userId, mine, canPostTo));
+      // R4: settling can fold and remove a connection on the platform, so only an owner or admin's listing does it.
+      ({ profiles, merged } = await backfillProfiles(deps, cp, auth.orgId, userId, mine, canPostTo, { settle: isAdmin(auth) }));
     } catch (err) { deps.log?.warn("social.profiles_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
   }
   // SOC1: whether LinkedIn granted organization access (company Pages), read from the login's granted scope.

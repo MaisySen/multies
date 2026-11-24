@@ -229,10 +229,21 @@ async function upsert(deps: Deps, orgId: string, r: ProfileRow) {
  * the newest connection of a pair is the one kept, then drops profile rows of connections that are gone.
  * Returns the profiles and the ids that were folded into another connection (the caller leaves them out).
  */
-export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, userId: string, accounts: CpAccount[], isSocial: (app: string) => boolean): Promise<{ profiles: Map<string, ProfileRow>; merged: Set<string> }> {
+export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, userId: string, accounts: CpAccount[], isSocial: (app: string) => boolean, opts: { settle?: boolean } = {}): Promise<{ profiles: Map<string, ProfileRow>; merged: Set<string> }> {
   const profiles = await profilesFor(deps, orgId);
   const now = deps.now().getTime();
   const live = new Set(accounts.map((a) => a.id));
+  // R4: only an owner or admin's listing settles, folds and removes connections; anyone else's only reads.
+  if (opts.settle === false) {
+    const hidden = new Set<string>();
+    for (const [id, p] of [...profiles]) {
+      const into = pendingInto(p);
+      if (!into) continue;
+      profiles.delete(id);
+      if (live.has(into)) hidden.add(id);
+    }
+    return { profiles, merged: hidden };
+  }
   // R3: older connections already folded whose removal the platform refused: hidden, never settled, removal retried.
   const merged = await retryPendingRemovals(deps, cp, orgId, profiles, live);
   const due = accounts

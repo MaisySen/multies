@@ -167,6 +167,30 @@ describe("folding a second connection to the same account, with a failure at eac
   });
 });
 
+describe("listing accounts (R4)", () => {
+  it("a member's listing reads only: it never folds or removes a connection; an admin's listing still does", async () => {
+    const first = await connectAs(owner, "linkedin");
+    const id = await start(owner, "linkedin"); // signed in on the platform, not confirmed yet
+    const orgId = await orgIdOf("owner-merge@acme.io");
+    const member = new Client(ctx.app);
+    await member.signup("member-list@acme.io", "Kiran Rao", "");
+    const u = (await ctx.db.select().from(users).where(eq(users.email, "member-list@acme.io")).get())!;
+    await ctx.db.insert(members).values({ id: `mem_${u.id}`, organizationId: orgId, userId: u.id, role: "member" });
+    await ctx.db.run(sql`update sessions set active_organization_id = ${orgId} where user_id = ${u.id}`);
+    const before = await profileRows();
+    const r = await member.get("/api/apps/accounts");
+    expect(r.status).toBe(200);
+    expect((r.body.accounts as { id: string }[]).map((a) => a.id).sort()).toEqual([first.id, id].sort());
+    expect(mock.accounts.has(first.id)).toBe(true);
+    expect(mock.accounts.has(id)).toBe(true);
+    expect(await profileRows()).toEqual(before);
+    // The owner's listing settles the new connection and folds the older one into it, as before.
+    await owner.get("/api/apps/accounts");
+    expect(mock.accounts.has(first.id)).toBe(false);
+    expect(mock.accounts.has(id)).toBe(true);
+  });
+});
+
 describe("after the platform refused to remove the older connection (R3)", () => {
   it("the next listing neither shows it nor folds the new sign in into it, and removal is retried later", async () => {
     const first = await connectAs(owner, "linkedin");
