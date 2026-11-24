@@ -174,15 +174,20 @@ describe("the fill pages through big mailboxes and survives a failing one (F4)",
   it("fills a mailbox a page of senders at a time, saving where it stopped", async () => {
     for (let i = 0; i < 30; i++) put({ from: `s${i % 7}@d.io`, date: min(100 - i) });
     reset();
-    const first = await fillFirstSender(ctx.deps, { sendersPerPage: 2, budgetMs: 0 });
-    expect(first.done).toBe(false);
-    const saved = JSON.parse(markOf()!) as { at?: { box: string; sender: string } };
-    expect(saved.at).toMatchObject({ sender: expect.any(String) });
-    expect(flagged().length).toBeGreaterThan(0);
-    expect(flagged().length).toBeLessThan(7);
-    let passes = 1;
-    while (!(await fillFirstSender(ctx.deps, { sendersPerPage: 2, budgetMs: 0 })).done) expect(++passes).toBeLessThan(40);
-    expect(passes).toBeGreaterThan(3);
+    // Mailboxes are filled in id order, and an empty one may come first: look at every pass's saved mark.
+    const halfway: { at: { box: string; sender: string }; flagged: number }[] = [];
+    let passes = 0;
+    for (;;) {
+      expect(++passes).toBeLessThan(40);
+      const r = await fillFirstSender(ctx.deps, { sendersPerPage: 2, budgetMs: 0 });
+      if (r.done) break;
+      const saved = JSON.parse(markOf()!) as { at?: { box: string; sender: string } };
+      if (saved.at) halfway.push({ at: saved.at, flagged: flagged().length });
+    }
+    // The mailbox with mail stopped part way more than once, a page further each time, with its place saved.
+    expect(halfway.length).toBeGreaterThan(1);
+    expect(halfway.every((h) => h.at.box === mailboxId && typeof h.at.sender === "string" && h.flagged > 0 && h.flagged < 7)).toBe(true);
+    expect(halfway.map((h) => h.flagged)).toEqual([...halfway.map((h) => h.flagged)].sort((x, y) => x - y));
     agree();
     expect(markOf()).toBe("done");
   });
