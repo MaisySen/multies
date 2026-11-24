@@ -20,6 +20,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { collectTaskItems, sectionsOf, type PMNodeLike } from "@/shared/action-items";
 import type { SuiteActor } from "./common";
 import { roomParticipants, visibleMeeting } from "./calls";
+import { closedReason } from "./meeting-open-meet";
 import { ensureNotesDocOnce, zoneOf } from "./meeting-notes";
 import { notBlockedBy } from "./reports-r35"; // R35: meeting chat leaves out blocked people
 
@@ -114,11 +115,13 @@ export function digestText(s: Omit<SoFar, "text">): string {
 export async function summarySoFar(deps: Deps, a: SuiteActor, meetingId: string): Promise<SoFar> {
   const m = await visibleMeeting(deps, a, meetingId);
   const now = deps.now().getTime();
-  const ps = m.status === "scheduled" ? await roomParticipants(deps, m.room).catch(() => []) : [];
+  // Wave 3 review Y8 (c): closed by closedReason (a series between its meetings is closed too), not by the raw status.
+  const closed = closedReason(m, deps.now()) !== null;
+  const ps = closed ? [] : await roomParticipants(deps, m.room).catch(() => []);
   const joined = ps.map((p) => p.joinedAt).filter((t): t is number => typeof t === "number" && t > 0);
   // A chat call starts when it is made; a scheduled meeting starts when the first person joins it (else its start time).
   const startedAt = m.channelId ? m.startsAt.getTime() : joined.length ? Math.min(...joined) : m.startsAt.getTime();
-  const state: SoFar["state"] = m.status !== "scheduled" ? "ended" : ps.length ? "live" : "waiting";
+  const state: SoFar["state"] = closed ? "ended" : ps.length ? "live" : "waiting";
   const d = m.docId ? await deps.db.select({ id: docs.id, title: docs.title, content: docs.content }).from(docs).where(and(eq(docs.orgId, a.orgId), eq(docs.id, m.docId), isNull(docs.deletedAt))).get() : undefined;
   let notes: SoFar["notes"] = null;
   if (d) {

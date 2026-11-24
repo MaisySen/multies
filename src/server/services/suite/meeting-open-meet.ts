@@ -25,7 +25,8 @@ export function closedReason(m: OpenCheck, now: Date): "ended" | "cancelled" | n
     const next = expandWeekly(m.startsAt, parseRrule(m.recurrence, tz), tz, m.endedAt, new Date(now.getTime() + JOIN_EARLY_MS), 1);
     return next.length ? null : "ended";
   } catch {
-    return null;
+    // Wave 3 review Y8 (b): a recurrence we can't read never reopens a link that a call ended: closed.
+    return "ended";
   }
 }
 
