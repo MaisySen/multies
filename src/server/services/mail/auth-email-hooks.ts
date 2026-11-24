@@ -253,7 +253,11 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
       await sendMessage(deps, actor, { mailboxId: h.mb.id, to: [s.to.toLowerCase()], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.replyTo ? { replyTo: mail.replyTo } : {}) }, h.h.senderName ? { fromName: h.h.senderName } : {});
     }
   } catch (err) {
-    return fail(500, err instanceof Error ? err.message : "Sending failed.");
+    // B8: the caller (Supabase, and through it the person signing up) gets fixed words; the cause stays in our log.
+    // An HttpError is one of our own refusals (its words can name the recipient), so only its code is logged.
+    deps.log?.error("auth_hook.send_failed", { hookId: h.h.id, error: err instanceof HttpError ? `${err.status} ${err.code}` : (err instanceof Error ? err.message : String(err)).slice(0, 500) });
+    if (!(err instanceof HttpError)) deps.reportError?.(err, { where: "auth_hook.send" });
+    return fail(500, "Sending failed. Try again in a moment.");
   }
   if (!h.h.lastUsedAt || deps.now().getTime() - h.h.lastUsedAt.getTime() > 15 * 60_000) {
     await deferrableWrite(deps, "last_used", `hook:${h.h.id}`, () => deps.db.update(authEmailHooks).set({ lastUsedAt: deps.now() }).where(eq(authEmailHooks.id, h.h.id))); // R32: deferrable
