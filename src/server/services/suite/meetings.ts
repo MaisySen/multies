@@ -155,7 +155,7 @@ export async function createMeeting(deps: Deps, actor: SuiteActor, input: Meetin
   if (opts.id && opts.retry && await deps.db.select({ id: meetings.id }).from(meetings).where(and(eq(meetings.id, opts.id), eq(meetings.orgId, actor.orgId))).get()) return { meeting: out(deps, await meetingRow(deps, actor.orgId, opts.id)), invites: null }; // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   const suggested = input.source ? await fromSource(deps, actor, input.source) : { title: "Meeting", invitees: [] as string[], mailboxId: undefined, sourceId: undefined };
   const invitees = [...new Set((input.invitees ?? suggested.invitees).map((e) => e.trim().toLowerCase()).filter(Boolean))];
-  const bad = invitees.filter((e) => !EMAIL.test(e));
+  const bad = invitees.filter((e) => e.length > 254 || !EMAIL.test(e)); // B6: the length first, for any caller
   if (bad.length) throw new HttpError(422, "validation_failed", `Not an email address: ${bad.join(", ")}`);
   if (invitees.length > 50) throw new HttpError(422, "validation_failed", "Invite up to 50 guests.");
   const now = deps.now();
@@ -196,7 +196,7 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
   if (patch.status !== undefined) { set.status = patch.status; if (patch.status === "ended") set.endedAt = deps.now(); }
   if (patch.invitees !== undefined) {
     const list = [...new Set(patch.invitees.map((e) => e.trim().toLowerCase()).filter(Boolean))];
-    const bad = list.filter((e) => !EMAIL.test(e));
+    const bad = list.filter((e) => e.length > 254 || !EMAIL.test(e)); // B6
     if (bad.length) throw new HttpError(422, "validation_failed", `Not an email address: ${bad.join(", ")}`);
     set.invitees = JSON.stringify(list.slice(0, 50));
   }

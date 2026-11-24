@@ -602,7 +602,7 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
     description: "Schedule a video meeting, optionally from a thread, task or contact (which fills in the title and guests). With sendInvites the calendar invite is emailed as the agent; it may wait for a person to approve it, and the result says so.",
     inputSchema: {
       title: z.string().max(200).optional(), startsAt: z.string().optional().describe("ISO date and time. Default now."), durationMin: z.number().int().min(5).max(480).optional(),
-      sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional(), invitees: z.array(z.string()).max(50).optional(),
+      sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional(), invitees: z.array(z.string().max(254)).max(50).optional(), // B6: as the app and v1 schemas
       sendInvites: z.boolean().optional(), agentId: z.string().optional().describe("Workspace keys: the agent inbox the invite is sent from."),
       repeats: z.string().max(200).optional().describe("A weekly series as an RRULE, e.g. FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=10 (weekly only, interval 1 or 2). Kept in the workspace time zone."),
     },

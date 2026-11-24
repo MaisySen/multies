@@ -97,7 +97,8 @@ export function checkRows(data: string[][], mapping: CsvMapping, headerLines = 1
     const at = (f: CsvField) => (mapping[f] >= 0 ? r[mapping[f]] ?? "" : "");
     const email = at("email").trim().toLowerCase().replace(/^mailto:/, "");
     if (!email) { invalid.push({ line, reason: "No email" }); return; }
-    if (!EMAIL.test(email) || email.length > 254) { invalid.push({ line, reason: "Email looks wrong" }); return; }
+    // B6: the length first; the pattern backtracks on a long value.
+    if (email.length > 254 || !EMAIL.test(email)) { invalid.push({ line, reason: "Email looks wrong" }); return; }
     if (seen.has(email)) { duplicatesInFile++; return; }
     seen.add(email);
     const full = cut(at("name"), 120) || cut([at("firstName"), at("lastName")].map((x) => x.trim()).filter(Boolean).join(" "), 120);
