@@ -361,9 +361,12 @@ export async function connectWithKey(deps: Deps, auth: AuthContext, input: { api
     const code = err instanceof Ai2Failure ? err.code : "unreachable";
     deps.log?.warn("ai2.connect_check_failed", { provider, code });
     if (code === "key_refused" || code === "no_credit") throw new HttpError(400, `ai_${code}`, AI2_RESULT_TEXT[code]);
-    // A guessed model is not saved. The person types the model id, and that id is what gets proved.
-    if (!input.model?.trim()) throw badRequest("This provider's model list could not be read. Type a model id, then connect.");
-    models = []; live = false;
+    // The list endpoint can be down or missing (some compatible servers) while chat works. Like the model picker after
+    // connecting, fall back to the common list; a typed model id wins. Either way the model is proved with a real call
+    // below (proveKey with listRead false), so a model the key cannot use is never saved. Only a provider with no
+    // common list (a custom server) needs a typed model id.
+    models = AI2_CURATED_MODELS[provider] ?? []; live = false;
+    if (!input.model?.trim() && !models.length) throw badRequest("This server's model list could not be read. Type a model id, then connect.");
   }
   if (input.model) assertModelId(input.model);
   const model = input.model?.trim() || pickRecommended(provider, models);

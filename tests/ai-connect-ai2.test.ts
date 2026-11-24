@@ -184,15 +184,37 @@ describe("AI2 routes", () => {
     expect((await c.post("/api/ai/connect", { apiKey: "zz-not-a-known-format-123456" })).status).toBe(400);
   });
 
-  it("asks for a model id when the live list cannot be read, then proves that id", async () => {
+  it("falls back to the common list when the live list cannot be read, and proves the picked model with a real call", async () => {
+    const { c, setAnswer, calls } = await setup();
+    setAnswer((url) => url.includes("/chat/completions") ? Response.json({ choices: [{ message: { content: "OK" } }] }) : new Response("SECRET_BODY", { status: 503 }));
+    const r = await c.post("/api/ai/connect", { apiKey: OR_KEY });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ connected: true, provider: "openrouter", model: AI2_CURATED_MODELS.openrouter[0]!.id, live: false });
+    noSecret(r.body);
+    const proof = calls.find((x) => x.url.includes("/chat/completions"))!;
+    expect(JSON.parse(proof.body).model).toBe(AI2_CURATED_MODELS.openrouter[0]!.id);
+    const m = await c.post("/api/ai/models", {});
+    expect(m.body.live).toBe(false);
+    expect(m.body.note).toBe("Could not load the live list, showing common models.");
+  });
+
+  it("a typed model id is used and proved when the live list cannot be read", async () => {
     const { c, setAnswer } = await setup();
     setAnswer((url) => url.includes("/chat/completions") ? Response.json({ choices: [{ message: { content: "OK" } }] }) : new Response("SECRET_BODY", { status: 503 }));
-    const missing = await c.post("/api/ai/connect", { apiKey: OR_KEY });
+    const r = await c.post("/api/ai/connect", { apiKey: OR_KEY, model: "openai/gpt-4o-mini" });
+    expect(r.body).toMatchObject({ connected: true, provider: "openrouter", model: "openai/gpt-4o-mini", live: false });
+  });
+
+  it("asks for a model id only when the list cannot be read and the provider has no common list (a custom server)", async () => {
+    const { c, setAnswer } = await setup();
+    setAnswer((url) => url.includes("cloudflare-dns.com") ? Response.json({ Answer: [{ type: 1, data: "93.184.216.34" }] })
+      : url.includes("/chat/completions") ? Response.json({ choices: [{ message: { content: "OK" } }] }) : new Response("SECRET_BODY", { status: 503 }));
+    const missing = await c.post("/api/ai/connect", { apiKey: "my-own-server-key-123456", provider: "custom", baseUrl: "https://llm.example.com/v1" });
     expect(missing.status).toBe(400);
     expect(missing.body.error.message).toMatch(/model id/i);
     expect((await c.get("/api/ai/status")).body.connected).toBe(false);
-    const r = await c.post("/api/ai/connect", { apiKey: OR_KEY, model: "openai/gpt-4o-mini" });
-    expect(r.body).toMatchObject({ connected: true, provider: "openrouter", model: "openai/gpt-4o-mini", live: false });
+    const typed = await c.post("/api/ai/connect", { apiKey: "my-own-server-key-123456", provider: "custom", baseUrl: "https://llm.example.com/v1", model: "my-typed-model" });
+    expect(typed.body).toMatchObject({ connected: true, provider: "custom", model: "my-typed-model", live: false });
   });
 
   it("a made up key is never saved for any provider, even where the model list is public (MB-321)", async () => {
