@@ -30,6 +30,8 @@ import { mailConnections } from "../../db/schema";
 import { connectionSecret } from ".";
 import { imapflowWatcher, type InboxWatch, type InboxWatcher } from "./imap";
 import { syncConnection, type SyncResult } from "./sync";
+import { classifyProblem } from "./problems";
+import type { ConnectPresetId } from "@/shared/mail-connect";
 
 export type LiveMode = "push" | "poll" | "check" | "off";
 export interface LiveTouch { mode: LiveMode; until: number }
@@ -181,7 +183,8 @@ export class LiveMail {
         this.kick(id);
       });
     } catch (err) {
-      deps.log?.warn("mail_live.watch_failed", { connection: id, error: (err as Error).message });
+      // R6: the code only, as sync.ts: a server's own words can name the account.
+      deps.log?.warn("mail_live.watch_failed", { connection: id, code: classifyProblem(err, "imap", c.provider as ConnectPresetId, c.imapHost).code });
       s.lastCheck = this.now();
       this.kick(id);
       return;
@@ -221,7 +224,7 @@ export class LiveMail {
           }
           if (r.more && !r.skipped) s.again = true;
         } catch (err) {
-          deps.log?.warn("mail_live.sync_failed", { connection: id, error: (err as Error).message });
+          deps.log?.warn("mail_live.sync_failed", { connection: id, code: classifyProblem(err, "imap", "custom", "").code }); // R6: the code only
         }
       } while (s.again);
     })().finally(() => { s.syncing = undefined; });

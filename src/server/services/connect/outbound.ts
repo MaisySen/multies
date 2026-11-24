@@ -43,7 +43,7 @@ export function connectionOutbound(deps: Deps, c: Connection): OutboundProvider 
         const retryable = err instanceof SmtpError ? err.retryable && err.stage !== "auth" : problem.code === "timeout" || problem.code === "unreachable";
         throw new OutboundError(problem.message, retryable);
       }
-      if (!c.savesSent) await appendToSent(deps, c, access, msg.messageId, raw).catch((err) => deps.log?.warn("mail_connect.sent_copy_failed", { connection: c.id, error: (err as Error).message }));
+      if (!c.savesSent) await appendToSent(deps, c, access, msg.messageId, raw).catch((err) => deps.log?.warn("mail_connect.sent_copy_failed", { connection: c.id, code: classifyProblem(err, "imap", c.provider as ConnectPresetId, c.imapHost).code })); // R6: the code only
       const rejected = res.rejected.length ? ` ${res.rejected.length} address(es) refused: ${res.rejected.map((r) => r.address).join(", ")}.` : "";
       return { provider: "own-smtp", status: "sent", providerMessageId: msg.messageId, detail: `Sent through ${c.smtpHost}.${rejected}` };
     },
