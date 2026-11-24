@@ -5,7 +5,7 @@ import * as Clipboard from "expo-clipboard";
 import { Button, EmptyState, Loading, Segmented } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { success, warning } from "@/lib/haptics";
-import { EXPIRY_CHOICES, linkLine, noAccess, type Expiry, type ShareLink } from "@/lib/docs";
+import { DEFAULT_EXPIRY, EXPIRY_CHOICES, linkLine, noAccess, type Expiry, type ShareLink } from "@/lib/docs";
 import { plainProblem, useShareActions, useShareLinks } from "@/lib/docs-queries";
 import { colors, radius, space } from "@/theme";
 
@@ -19,7 +19,8 @@ export default function DocShare() {
   const member = !!me?.organization;
   const q = useShareLinks(id, member);
   const { create, revoke } = useShareActions(id ?? "");
-  const [expiry, setExpiry] = useState<Expiry>("never");
+  // Round 2 (PR 24): a new link ends after 30 days by default, as on the web; Always stays a choice.
+  const [expiry, setExpiry] = useState<Expiry>(DEFAULT_EXPIRY);
   const [showWs, setShowWs] = useState(true);
   const [fresh, setFresh] = useState<ShareLink | null>(null);
   const [copied, setCopied] = useState(false);

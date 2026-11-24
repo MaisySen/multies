@@ -241,6 +241,8 @@ export interface ShareLink { id: string; kind: "doc" | "project_board"; targetId
 export interface ShareList { links: ShareLink[]; allowShareLinks: boolean }
 export type Expiry = "never" | "7" | "30";
 export const EXPIRY_CHOICES: { id: Expiry; label: string }[] = [{ id: "never", label: "Always" }, { id: "7", label: "7 days" }, { id: "30", label: "30 days" }];
+/** Round 2 (PR 24): a new share link works 30 days unless the person picks another choice (the web's default too). */
+export const DEFAULT_EXPIRY: Expiry = "30";
 export const expiryDays = (e: Expiry): 7 | 30 | null => (e === "never" ? null : e === "7" ? 7 : 30);
 
 /** "Made 1 Nov 2026, works until 8 Nov 2026" for a link row. */

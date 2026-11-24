@@ -310,8 +310,10 @@ describe("Docs screens", () => {
     await screen.findByTestId("share-fresh");
     await fireEvent.press(screen.getByTestId("share-copy"));
     await waitFor(() => expect(mockCopy).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/multies\.si\/s\//)));
-    const row = await screen.findByText(/works until turned off/);
+    // Round 2 (PR 24, changed on purpose): a new link ends after 30 days by default, as on the web.
+    const row = await screen.findByText(/works until \d{1,2} \w+ \d{4}/);
     expect(row).toBeTruthy();
+    expect(screen.queryByText(/works until turned off/)).toBeNull();
     const revoke = screen.getAllByTestId(/^share-revoke-/)[0];
     await fireEvent.press(revoke);
     await screen.findByText("No active links.");
