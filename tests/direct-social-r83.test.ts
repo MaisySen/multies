@@ -4,6 +4,7 @@
  * with creator info rules, video list, Threads post and profile, the signed TikTok webhook and the signed_request
  * delete callback.
  */
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { Client, makeTestApp } from "./helpers";
@@ -246,6 +247,27 @@ describe("R83 TikTok", () => {
     expect(await verifyTikTokSignature(`t=${t},s=${s}`, "body", ["k"], t * 1000)).toBe(true);
     expect(await verifyTikTokSignature(`t=${t},s=${s}`, "body2", ["k"], t * 1000)).toBe(false);
     expect(await verifyTikTokSignature(undefined, "body", ["k"], t * 1000)).toBe(false);
+  });
+});
+
+describe("R83 TikTok deployment settings", () => {
+  // The owner approved TikTok for production (Nov 2026): production posts through the production app, staging stays unset.
+  const wrangler = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const section = (name: string) => {
+    const start = wrangler.indexOf(`\n[${name}]\n`);
+    expect(start).toBeGreaterThanOrEqual(0);
+    const rest = wrangler.slice(start + name.length + 4);
+    const end = rest.search(/\n\[/);
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+  const value = (text: string, key: string) => text.match(new RegExp(`^${key}\\s*=\\s*"([^"]*)"`, "m"))?.[1];
+
+  it("production vars set TIKTOK_MODE to production", () => {
+    expect(value(section("vars"), "TIKTOK_MODE")).toBe("production");
+  });
+
+  it("staging leaves TIKTOK_MODE unset", () => {
+    expect(value(section("env.staging.vars"), "TIKTOK_MODE")).toBeUndefined();
   });
 });
 

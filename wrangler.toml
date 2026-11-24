@@ -222,8 +222,9 @@ WEBINAR_R114 = "on" # R114: webinar mode for meetings, verifier v22 PASS 21:23 U
 # The app's public address. The workers.dev address keeps working (same Worker, same data);
 # www.multies.si redirects to the apex and app.multies.si serves the app too.
 APP_URL = "https://multies.si"
-# R83: TikTok posts through the sandbox app until TikTok approves the production app; then set "production".
-TIKTOK_MODE = "sandbox"
+# R83: TikTok approved the production app (owner, Nov 2026), so production posts through it with
+# TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET (secrets). Staging leaves the mode unset. docs/runbooks/tiktok.md
+TIKTOK_MODE = "production"
 # The TikTok app has no Display API yet, so video.list is not asked for; the list shows posts made from Multies.
 TIKTOK_SCOPES = "user.info.basic,video.upload,video.publish"
 DEMO_MODE = "true"
