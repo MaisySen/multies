@@ -346,16 +346,21 @@ describe("AIS1 row 1: a guest invite never goes out without a person", () => {
     expect((await owner.post(`/api/guests/${row.id}/confirm`, {})).status).toBe(404);
   });
 
-  it("an agent's guest invite waits for approval even when the agent sends without approval", async () => {
-    // The agent may write to anyone here, so what holds the invite is the guest rule, not the agent's allowed recipients
-    // (a new agent starts with its own domains only once the guardrails branch is merged).
+  it("an agent's guest invite waits unsent with no link until a person confirms it, even when the agent sends without approval", async () => {
+    // Round 2 (PR 23, changed on purpose): it used to go through the agent's approval queue as mail from its inbox, with
+    // the guest link in it, so the agent held the link. Now it waits like a key's invite, and a person sends it.
     await ctx.db.update(agents).set({ approvalMode: "never", allowedRecipients: null });
     const project = (await owner.post("/api/projects", { name: "Launch" })).body.project;
     const r = await api(agentKey, "POST", `/projects/${project.id}/guests`, { email: "client@example.com" });
     expect(r.status).toBe(201);
-    expect(r.body.delivery.status).toBe("pending_approval");
-    expect(await ctx.db.select().from(sendApprovals)).toHaveLength(1);
+    expect(r.body.delivery.status).toBe("awaiting_confirmation");
+    expect(JSON.stringify(r.body)).not.toContain("/g/");
+    expect(await ctx.db.select().from(sendApprovals)).toHaveLength(0);
     expect(ctx.outbound.sent.filter((m) => m.to.includes("client@example.com"))).toEqual([]);
+    const row = (await ctx.db.select().from(projectGuests).where(eq(projectGuests.email, "client@example.com")).get())!;
+    expect(row.inviteHash).toBeNull();
+    expect((await owner.post(`/api/guests/${row.id}/confirm`, {})).status).toBe(200);
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("client@example.com")).map((m) => m.subject)).toEqual(["You're invited to Launch"]);
   });
 });
 

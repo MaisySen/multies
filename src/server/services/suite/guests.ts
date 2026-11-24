@@ -9,7 +9,7 @@
  */
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { isMimeType, isSafeToken, looksLikeEmail } from "../../lib/input-checks";
-import type { AuthContext, Deps } from "../../context";
+import type { Deps } from "../../context";
 import { docs, organizations, projectGuests, sendApprovals, taskFiles, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { hmacSha256Hex, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
@@ -60,9 +60,11 @@ function inviteText(inviter: string, org: string, project: string) {
 
 /**
  * Invites a guest. A person sends the invite at once through Multies' own account mail.
- * AIS1 (audit row 1): an invite lets someone in, so it never goes out without a person. An agent's invite (mail from
- * its inbox) always waits in the approval queue, whatever the agent's own approval rule; a workspace key's or a
- * connected app's waits unsent, with no link, until a person confirms it (confirmGuest).
+ * AIS1 (audit row 1): an invite lets someone in, so it never goes out without a person. Round 2 (PR 23): every
+ * non-person invite, an agent's included, waits unsent with no link until a person confirms it (confirmGuest), which
+ * mails it through Multies' own account mail. An agent never holds the guest link (before, an agent's invite went
+ * through its approval queue as mail from its inbox, link and all). acceptInvite still honours an approvalId on rows
+ * made that way before.
  */
 export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: string, input: { email: string; name?: string }) {
   assertWritable(actor);
@@ -76,7 +78,7 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
     const count = (await listGuests(deps, actor.orgId, project.id)).length;
     if (count >= MAX_GUESTS_PER_PROJECT) throw new HttpError(422, "too_many_guests", `A project can have up to ${MAX_GUESTS_PER_PROJECT} guests.`);
   }
-  const held = !actor.agentId && !isPersonSession(actor);
+  const held = !isPersonSession(actor);
   if (held && existing?.status === "active") {
     return { guest: presentGuest(existing), delivery: { status: "not_sent" as const, detail: "This guest has already joined." } };
   }
@@ -99,15 +101,6 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
   let delivery: { status: "sent" | "pending_approval" | "not_sent" | "awaiting_confirmation"; approvalId?: string; detail?: string };
   if (held) {
     delivery = { status: "awaiting_confirmation", detail: GUEST_HELD_DETAIL };
-  } else if (actor.agentId) {
-    const { requestSend } = await import("../agents");
-    const res = await requestSend(deps, actor as unknown as AuthContext & { agentId: string }, actor.agentId, {
-      to: [email], subject, text: `${inviteText(actor.name, org?.name ?? "Multies", project.name)}\n\nOpen the project: ${url}\n`,
-    }, { requireApproval: true });
-    if (res.status === "pending_approval") {
-      await deps.db.update(projectGuests).set({ approvalId: res.approval.id }).where(eq(projectGuests.id, id));
-      delivery = { status: "pending_approval", approvalId: res.approval.id };
-    } else delivery = { status: "sent" };
   } else {
     delivery = await mailGuestInvite(deps, actor, { email, url, subject, org: org?.name ?? "Multies", project: project.name });
   }

@@ -691,7 +691,7 @@ function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
 
   server.registerTool("invite_guest", {
     title: "Invite a guest to a project", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
-    description: "Invite an outside person by email to one project. Guests are free and see only that project's tasks, comments and docs. The invite email goes from this agent's inbox and always waits for a person to approve it, whatever the agent's approval rule. An AI agent's address can't be invited.",
+    description: "Invite an outside person by email to one project. Guests are free and see only that project's tasks, comments and docs. Nothing is sent yet: the invite waits (delivery.status awaiting_confirmation) until a person confirms it in the project's Guests, and Multies emails it then. The agent never gets the guest link. An AI agent's address can't be invited.",
     inputSchema: { projectId: z.string(), email: z.string().email(), name: z.string().max(80).optional() },
   }, tool(async (x: { projectId: string; email: string; name?: string }) => {
     writable();

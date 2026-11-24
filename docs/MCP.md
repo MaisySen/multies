@@ -131,7 +131,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `set_project_health` | Set a project's health |
 | `update_project` | Rename a project or change its key (a key used by another project, any case, is refused with key_taken; R33) |
 | `list_guests` | List a project's guests |
-| `invite_guest` | Invite a guest to a project. AIS1: the invite email always waits for a person to approve it, and an AI agent's address is refused (`agent_address`) |
+| `invite_guest` | Invite a guest to a project. Nothing is sent until a person confirms it in the project's Guests (`delivery.status: "awaiting_confirmation"`); the agent never gets the guest link. An AI agent's address is refused (`agent_address`) |
 | `list_epics` | List epics with progress: done of total, percent, points when tasks carry points (round 21, registered in src/server/routes/mcp-r21-types.ts) |
 | `get_epic` | One epic with its items and progress (round 21) |
 | `add_to_epic` | Put tasks, stories or bugs in an epic, or take them out with `remove: true` (round 21) |
