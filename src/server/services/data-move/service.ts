@@ -535,7 +535,8 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   const c = parseJson<Created>(m.created, {});
   // PRIV1b (P12): Undo deletes mail out of the target mailbox. A personal one: its owner (or a Send as share), or the
   // person who ran the import.
-  if (c.mailboxId && !actor.system && m.createdByUserId !== actor.userId && await personalInfo(deps.db, actor.orgId, c.mailboxId)) {
+  // Wave 1 review V2: "the person who ran it" is a person; a workspace key of that person counts as nobody.
+  if (c.mailboxId && !actor.system && (!personOf(actor as CallerLike) || m.createdByUserId !== personOf(actor as CallerLike)) && await personalInfo(deps.db, actor.orgId, c.mailboxId)) {
     await assertOpen(deps.db, callerWho(actor), c.mailboxId, "send");
   }
   // PRIV1b (P44): Undo never deletes mail under a legal hold; checked before anything is removed.

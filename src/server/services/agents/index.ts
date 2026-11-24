@@ -156,7 +156,9 @@ async function assertOwnPersonal(deps: Deps, actor: Actor, ids: string[]) {
   if (!ids.length) return;
   const rows = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId }).from(mailboxes)
     .where(and(eq(mailboxes.orgId, actor.orgId), eq(mailboxes.personal, true), inIds(mailboxes.id, ids)));
-  if (rows.some((r) => !actor.userId || r.owner !== actor.userId)) throw forbidden("Only its owner can give a personal mailbox to an agent.");
+  // Wave 1 review V2: a workspace key acts for nobody (personOf), so even its maker's own personal mailbox is refused.
+  const me = personOf(actor);
+  if (rows.some((r) => !me || r.owner !== me)) throw forbidden("Only its owner can give a personal mailbox to an agent.");
 }
 
 const actorFields = (actor: Actor) => ({ actorUserId: actor.userId || null, actorEmail: actor.email });
@@ -305,7 +307,8 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
     id, orgId: actor.orgId, mailboxId, name: input.name, description: input.description ?? null,
     approvalMode: input.approvalMode ?? "always", sendCapDaily: cap,
     allowedRecipients: allow ? JSON.stringify(allow) : null,
-    createdByUserId: actor.userId || null,
+    // Wave 1 review V2: the person who made it, never a key's maker: the agent's key opens its maker's personal mailboxes.
+    createdByUserId: personOf(actor) || null,
   });
   if (extra.length) await db.insert(agentMailboxAccess).values(extra.map((m) => ({ agentId: id, mailboxId: m, orgId: actor.orgId })));
   await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.created", targetType: "agent", targetId: id, metadata: { name: input.name, address, approvalMode: input.approvalMode ?? "always", sendCapDaily: cap, allowedRecipients: allow, via: actor.apiKeyId ? "api" : "app" } });
@@ -398,7 +401,9 @@ export async function createAgentKey(deps: Deps, actor: Actor, agentId: string, 
   assertWorkspaceActor(actor);
   const { a } = await row(deps, actor.orgId, agentId);
   // PRIV1b (P4): a key to an agent that holds a personal mailbox is minted only by the agent's maker.
-  if (!actor.userId || actor.userId !== a.createdByUserId) {
+  // Wave 1 review V2: a workspace key counts as nobody, even when its maker made the agent.
+  const me = personOf(actor);
+  if (!me || me !== a.createdByUserId) {
     const personal = await deps.db.select({ id: mailboxes.id }).from(agentMailboxAccess).innerJoin(mailboxes, eq(mailboxes.id, agentMailboxAccess.mailboxId))
       .where(and(eq(agentMailboxAccess.agentId, a.id), eq(mailboxes.personal, true))).limit(1).get();
     if (personal) throw forbidden("This agent works a personal mailbox. Only the person who made it can create its keys.");
