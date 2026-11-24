@@ -289,12 +289,10 @@ export function mailRoutes() {
       // Round 22: a shared draft reply. Saving over a draft somebody else took over, or one that changed
       // in another window, answers 409 instead of overwriting. The delete is the optimistic check: only
       // the first of two saves of the same draft finds it.
+      // B9: the new copy is stored first and the old one deleted after, so a failed store leaves the old draft as it
+      // was (it used to be deleted first and lost). A save that loses the race takes its own new copy back out.
       let before: { threadId: string; inReplyTo: string | null } | undefined;
-      if (input.id) {
-        before = await checkDraftSave(deps, auth, input.id, mb.id);
-        const gone = await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), ownedBy(auth.userId))).returning({ id: messages.id });
-        if (!gone.length) await checkDraftSave(deps, auth, input.id, mb.id);
-      }
+      if (input.id) before = await checkDraftSave(deps, auth, input.id, mb.id);
       // A reply draft stays in its thread, also when it is reopened from Drafts and saved again.
       const target = (await replyTarget(deps, auth, input.inReplyToId)) ?? (before ? { threadId: before.threadId, messageIdHeader: before.inReplyTo } : null);
       const id = await storeMessage(deps.db, {
@@ -304,6 +302,13 @@ export function mailRoutes() {
         to: input.to.map((address) => ({ address })), cc: (input.cc ?? []).map((address) => ({ address })), bcc: (input.bcc ?? []).map((address) => ({ address })),
         subject: input.subject, text: input.text, html: input.html, date: deps.now(), isRead: true,
       });
+      if (input.id) {
+        const gone = await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), ownedBy(auth.userId))).returning({ id: messages.id });
+        if (!gone.length) {
+          await deps.db.delete(messages).where(and(eq(messages.id, id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
+          await checkDraftSave(deps, auth, input.id, mb.id);
+        }
+      }
       return c.json({ id }, 201);
     });
 }
