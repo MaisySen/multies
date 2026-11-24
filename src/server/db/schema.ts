@@ -191,6 +191,8 @@ export const domains = sqliteTable("domains", {
   /** JSON: last DnsCheckReport. */
   lastCheck: text("last_check"),
   lastCheckedAt: ts("last_checked_at"),
+  /** Wave 1 review V7 (0178): when a person last asked for a check (Add domain, Verify); the scheduled re-check doesn't set it. */
+  verifyAttemptedAt: ts("verify_attempted_at"),
   verifiedAt: ts("verified_at"),
   catchAllMailboxId: text("catch_all_mailbox_id"),
   /** The outbound provider's id for this domain (Resend), once registered for sending and receiving. */

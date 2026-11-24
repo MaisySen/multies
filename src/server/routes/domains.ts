@@ -4,7 +4,7 @@ import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { createDomainSchema } from "@/shared/schemas";
 import { audit } from "../services/audit";
-import { createDomain, deleteDomain, getDomain, listDomains, presentDomain, setCatchAll, verifyDomain } from "../services/domains";
+import { createDomain, deleteDomain, getDomain, listDomains, markVerifyAttempt, presentDomain, setCatchAll, verifyDomain } from "../services/domains";
 import { RateLimiter } from "../lib/rate-limit";
 import { tooMany } from "../lib/errors";
 
@@ -22,6 +22,7 @@ export function domainRoutes() {
       const d = await createDomain(deps, auth.orgId, name);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "domain.added", targetType: "domain", targetId: d.id, metadata: { name }, ip: c.var.ip });
       // First check right away: some people add DNS before they add the domain.
+      await markVerifyAttempt(deps, d.id);
       const { report, status } = await verifyDomain(deps, d);
       return c.json({ domain: presentDomain({ ...d, status, lastCheck: JSON.stringify(report), lastCheckedAt: new Date(report.checkedAt) }, deps) }, 201);
     })
@@ -33,6 +34,7 @@ export function domainRoutes() {
       const { auth, deps } = c.var;
       if (!verifyLimiter.take(auth.orgId)) throw tooMany("Checking too often. DNS needs a moment. Try again shortly.");
       const d = await getDomain(deps.db, auth.orgId, c.req.param("id"));
+      await markVerifyAttempt(deps, d.id); // Wave 1 review V7: a claim someone is working on is not released
       const { report, status, changed } = await verifyDomain(deps, d);
       if (changed) {
         await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: `domain.${status}`, targetType: "domain", targetId: d.id, metadata: { name: d.name }, ip: c.var.ip });

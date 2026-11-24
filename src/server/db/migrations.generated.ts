@@ -1921,5 +1921,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- Wave 1 review V4: whether a connection made its own mailbox (1) or took over a kept one (0: a copy kept for a legal\n-- hold after its connection was removed). Dropping a connection that never got its emailed code (P60) removes only a\n-- mailbox it made. 0 on existing rows, so nothing made before this is ever removed by that path; old code never reads it.\nALTER TABLE `mail_connections` ADD `made_mailbox` integer DEFAULT 0 NOT NULL;"
     ]
+  },
+  {
+    "name": "0178_domain_verify_attempted",
+    "statements": [
+      "-- Wave 1 review V7: when someone in the workspace last asked Multies to check a domain's DNS (Add domain, or Verify).\n-- The scheduled re-check does not set it. A claim checked by a person in the last 7 days is not released. Null on\n-- existing rows (so the release rule falls back to the claim's age, as before); old code never reads it.\nALTER TABLE `domains` ADD `verify_attempted_at` integer;"
+    ]
   }
 ];
