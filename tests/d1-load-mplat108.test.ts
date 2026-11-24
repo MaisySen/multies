@@ -205,12 +205,78 @@ describe("the fill pages through big mailboxes and survives a failing one (F4)",
     try { r = await fillFirstSender(ctx.deps); } finally { spyRun.mockRestore(); spyAll.mockRestore(); }
     expect(r.done).toBe(false);
     expect(firstSenderReady()).toBe(false);
-    expect(JSON.parse(markOf()!).retry).toEqual([mailbox2]);
+    // W2 (round 2): the mark keeps how often it failed and when it may be tried again (15 minutes after one failure).
+    expect(JSON.parse(markOf()!).retry).toEqual([{ box: mailbox2, tries: 1, next: expect.any(Number) }]);
     // The other mailbox is filled already.
     const inOne = (db().prepare("select id from messages where mailbox_id = ? and first_of_sender = 1").all(mailboxId) as unknown[]).length;
     expect(inOne).toBe(5);
-    // Once the mailbox can be read, the next pass fills it and the fill is done.
-    expect((await fillFirstSender(ctx.deps)).done).toBe(true);
+    // Before its wait is over the next pass leaves it (and is not done); once it is over, the mailbox is filled.
+    expect((await fillFirstSender(ctx.deps)).done).toBe(false);
+    const real = ctx.deps.now;
+    ctx.deps.now = () => new Date(real().getTime() + 16 * 60_000);
+    try { expect((await fillFirstSender(ctx.deps)).done).toBe(true); } finally { ctx.deps.now = real; }
+    agree();
+  });
+
+  /** Makes every statement that names one of `boxes` fail, for the duration of `fn`. */
+  async function failing<T>(boxes: string[], fn: () => Promise<T>): Promise<T> {
+    const dialect = (ctx.db as unknown as { dialect: { sqlToQuery(s: unknown): { sql: string; params: unknown[] } } }).dialect;
+    const realRun = ctx.db.run.bind(ctx.db);
+    const realAll = ctx.db.all.bind(ctx.db);
+    const fails = (q: unknown) => typeof q !== "string" && dialect.sqlToQuery(q).params.some((p) => boxes.includes(p as string));
+    const spyRun = vi.spyOn(ctx.db, "run").mockImplementation(((q: Parameters<typeof ctx.db.run>[0]) => { if (fails(q)) throw new Error("D1_ERROR: busy"); return realRun(q); }) as typeof ctx.db.run);
+    const spyAll = vi.spyOn(ctx.db, "all").mockImplementation(((q: Parameters<typeof ctx.db.all>[0]) => { if (fails(q)) throw new Error("D1_ERROR: busy"); return realAll(q); }) as typeof ctx.db.all);
+    try { return await fn(); } finally { spyRun.mockRestore(); spyAll.mockRestore(); }
+  }
+
+  it("W1: a mailbox that failed once and then runs out of time carries on from where it stopped, and finishes", async () => {
+    for (let i = 0; i < 24; i++) put({ from: `w${i}@d.io`, date: min(100 - i), mailbox: mailbox2 });
+    reset();
+    await failing([mailbox2], () => fillFirstSender(ctx.deps));
+    expect(JSON.stringify(JSON.parse(markOf()!).retry)).toContain(mailbox2);
+    const real = ctx.deps.now;
+    ctx.deps.now = () => new Date(real().getTime() + 16 * 60_000);
+    try {
+      // Two senders a pass and no time: 24 senders need about 12 passes if each carries on where the last stopped.
+      let passes = 0;
+      while (!(await fillFirstSender(ctx.deps, { sendersPerPage: 2, budgetMs: 0 })).done) expect(++passes).toBeLessThan(20);
+    } finally { ctx.deps.now = real; }
+    agree();
+    expect(markOf()).toBe("done");
+  });
+
+  it("W2: mailboxes that keep failing don't keep new ones waiting, are reported once when parked, and the fill is never done", async () => {
+    const reported: unknown[] = [];
+    ctx.deps.reportError = (err, c) => { reported.push(c); };
+    for (let i = 0; i < 4; i++) put({ from: `k${i}@d.io`, date: min(100 - i), mailbox: mailbox2 });
+    reset();
+    const real = ctx.deps.now;
+    let t = real().getTime();
+    ctx.deps.now = () => new Date(t);
+    try {
+      await failing([mailbox2], () => fillFirstSender(ctx.deps, { mailboxesPerPass: 1 }));
+      while (JSON.parse(markOf()!).after < mailbox2) await failing([mailbox2], () => fillFirstSender(ctx.deps, { mailboxesPerPass: 1 }));
+      // A new mailbox arrives; mailbox2 is due again. One mailbox a pass: the new one goes first.
+      // (An id that sorts after every other one, and a row the triggers didn't flag, as one stored before 0171.)
+      const box3 = "mbx_zzzzzzzzzzzzzzzz";
+      db().prepare("insert into mailboxes (id, org_id, domain_id, local_part, address, display_name, quota_mb, created_at) select ?, org_id, domain_id, 'w2new', 'w2new@acme.io', 'New', quota_mb, created_at from mailboxes where id = ?").run(box3, mailbox2);
+      put({ from: "new@d.io", date: min(1), mailbox: box3 });
+      db().prepare("update messages set first_of_sender = 0 where mailbox_id = ?").run(box3);
+      t += 16 * 60_000;
+      await failing([mailbox2], () => fillFirstSender(ctx.deps, { mailboxesPerPass: 1 }));
+      expect((db().prepare("select count(*) n from messages where mailbox_id = ? and first_of_sender = 1").get(box3) as { n: number }).n).toBe(1);
+      // It keeps failing: reported once, when it reaches five failures, and the fill is never marked done.
+      for (let i = 0; i < 12; i++) {
+        t += 25 * 3_600_000;
+        expect((await failing([mailbox2], () => fillFirstSender(ctx.deps))).done).toBe(false);
+      }
+      expect(reported.filter((r) => (r as { where?: string }).where === "first_sender.fill")).toHaveLength(1);
+      expect(markOf()).not.toBe("done");
+      expect(firstSenderReady()).toBe(false);
+      // Once it can be read it is filled on its next daily try, and the fill is done.
+      t += 25 * 3_600_000;
+      expect((await fillFirstSender(ctx.deps)).done).toBe(true);
+    } finally { ctx.deps.now = real; }
     agree();
   });
 

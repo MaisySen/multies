@@ -40,16 +40,28 @@ export async function refreshFirstSenderReady(db: DB): Promise<boolean> {
 
 /**
  * F4: where the fill stands. `after`: every mailbox id up to it is filled. `at`: the mailbox being filled, and the last
- * sender (lower case) done in it. `retry`: mailboxes whose fill failed, tried again first on the next pass. The fill
- * is "done" only when no mailbox is left, none is half filled and none waits to be tried again.
+ * sender (lower case) done in it. `retry`: mailboxes whose fill failed, each with its failed tries and when it may be
+ * tried again. The fill is "done" only when no mailbox is left, none is half filled and none waits to be tried again.
  */
-interface FillMark { after: string; at?: { box: string; sender: string | null }; retry: string[] }
+interface Retry { box: string; tries: number; next: number }
+interface FillMark { after: string; at?: { box: string; sender: string | null }; retry: Retry[] }
+
+/** W2: a failed mailbox waits 15 minutes, doubling with each failure up to a day. */
+const RETRY_BASE_MS = 15 * 60_000;
+const RETRY_MAX_MS = 24 * 3_600_000;
+/** W2: after this many failures a mailbox is parked: reported once, then tried once a day without reporting. */
+export const FILL_MAX_TRIES = 5;
 
 function readMark(v: string | undefined): FillMark {
   if (!v) return { after: "", retry: [] };
   try {
-    const o = JSON.parse(v) as Partial<FillMark>;
-    if (o && typeof o === "object") return { after: typeof o.after === "string" ? o.after : "", at: o.at, retry: Array.isArray(o.retry) ? o.retry.filter((x): x is string => typeof x === "string") : [] };
+    const o = JSON.parse(v) as { after?: unknown; at?: FillMark["at"]; retry?: unknown };
+    if (o && typeof o === "object") {
+      // A mark saved before W2 kept retry as a list of mailbox ids: each counts as failed once, due now.
+      const retry = Array.isArray(o.retry) ? o.retry.flatMap((x): Retry[] => typeof x === "string" ? [{ box: x, tries: 1, next: 0 }]
+        : x && typeof x === "object" && typeof (x as Retry).box === "string" ? [{ box: (x as Retry).box, tries: Number((x as Retry).tries) || 1, next: Number((x as Retry).next) || 0 }] : []) : [];
+      return { after: typeof o.after === "string" ? o.after : "", at: o.at, retry };
+    }
   } catch { /* a plain mailbox id */ }
   return { after: v, retry: [] };
 }
@@ -78,8 +90,9 @@ async function fillMailbox(db: DB, box: string, from: string | null, perPage: nu
 
 /**
  * One maintenance step: fills first_of_sender mailbox by mailbox (at most `mailboxesPerPass`, stopping after
- * `budgetMs`), writing the mark after each one, so no progress is lost. F4: a mailbox whose fill fails is reported and
- * set aside for the next pass instead of stopping the others; the fill is never marked done while one is unfilled.
+ * `budgetMs`), writing the mark after each one, so no progress is lost. F4: a mailbox whose fill fails is set aside
+ * instead of stopping the others; the fill is never marked done while one is unfilled. W2: it is tried again after a
+ * growing wait, after the new mailboxes, and reported once when it has failed FILL_MAX_TRIES times.
  */
 export async function fillFirstSender(deps: Deps, opts: { mailboxesPerPass?: number; sendersPerPage?: number; budgetMs?: number } = {}): Promise<{ filled: number; done: boolean }> {
   if (ready) return { filled: 0, done: true };
@@ -96,34 +109,43 @@ export async function fillFirstSender(deps: Deps, opts: { mailboxesPerPass?: num
   };
   let filled = 0;
   let tried = 0;
+  const now = deps.now().getTime();
   /** Fills one mailbox from `from`; false when the pass should stop (out of time). */
   const one = async (box: string, from: string | null): Promise<boolean> => {
     tried++;
+    const before = mark.retry.find((r) => r.box === box);
+    mark.retry = mark.retry.filter((r) => r.box !== box);
     try {
       const r = await fillMailbox(db, box, from, perPage, deadline);
-      if (r.done) { filled++; mark.retry = mark.retry.filter((x) => x !== box); if (mark.at?.box === box) mark.at = undefined; }
+      if (r.done) { filled++; if (mark.at?.box === box) mark.at = undefined; }
+      // W1: a mailbox stopped by the deadline is the one half filled (`at`), resumed from its last sender next pass,
+      // whether it came new or from the retry list; it is no longer on the retry list, so it never restarts from the top.
       else mark.at = { box, sender: r.sender };
     } catch (err) {
-      deps.log?.warn("first_sender.fill_failed", { mailbox: box, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
-      deps.reportError?.(err, { where: "first_sender.fill" });
       if (mark.at?.box === box) mark.at = undefined;
-      if (!mark.retry.includes(box)) mark.retry.push(box);
+      const tries = (before?.tries ?? 0) + 1;
+      mark.retry.push({ box, tries, next: now + Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (tries - 1)) });
+      deps.log?.warn("first_sender.fill_failed", { mailbox: box, tries, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+      // W2: reported once, when it is parked, not on every pass.
+      if (tries === FILL_MAX_TRIES) deps.reportError?.(err, { where: "first_sender.fill", mailbox: box, parked: true });
     }
     if (box > mark.after && mark.at?.box !== box) mark.after = box;
     await save();
     return Date.now() < deadline && mark.at === undefined;
   };
-  // Mailboxes set aside on an earlier pass first, each tried once a pass, then the one left half filled, then new ones.
-  for (const box of [...mark.retry]) {
-    if (tried >= perPass || !(await one(box, null))) return { filled, done: false };
-  }
+  // W1, W2: the one left half filled first (from where it stopped), then new mailboxes, then failed ones that are due,
+  // so mailboxes that keep failing never use up the pass before new ones get theirs.
   if (mark.at && (tried >= perPass || !(await one(mark.at.box, mark.at.sender)))) return { filled, done: false };
   for (;;) {
     const next = await db.select({ id: mailboxes.id }).from(mailboxes).where(mark.after ? gt(mailboxes.id, mark.after) : undefined).orderBy(asc(mailboxes.id)).limit(1).get();
     if (!next) break;
     if (tried >= perPass || !(await one(next.id, null))) return { filled, done: false };
   }
-  if (mark.retry.length) return { filled, done: false }; // one failed on this pass: never done while it is unfilled
+  for (const r of [...mark.retry].filter((x) => x.next <= now).sort((a, b) => a.next - b.next)) {
+    if (tried >= perPass || !(await one(r.box, null))) return { filled, done: false };
+  }
+  // Never done while a mailbox is unfilled: the old window stays in use meanwhile, so counts stay right.
+  if (mark.retry.length || mark.at) return { filled, done: false };
   await db.insert(appSettings).values({ key: FIRST_SENDER_KEY, value: DONE }).onConflictDoUpdate({ target: appSettings.key, set: { value: DONE } });
   ready = true;
   return { filled, done: true };
