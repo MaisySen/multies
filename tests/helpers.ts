@@ -47,7 +47,10 @@ export async function makeTestApp(env: Record<string, string> = {}, opts: { fetc
   // Round 2: tests stand behind a trusted proxy (TRUST_PROXY), so a client's CF-Connecting-IP names its address, and per
   // address limits can be tested. Wave 1 review V9: only the configured header counts (TRUST_PROXY_HEADER); tests use
   // CF-Connecting-IP. tests/client-ip-r2.test.ts covers TRUST_PROXY off and the X-Forwarded-For default.
-  const deps: Deps = { db, indexDb, config: loadConfig({ APP_SECRET: "t".repeat(40), TRUST_PROXY: "true", TRUST_PROXY_HEADER: "cf-connecting-ip", ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch, log: nullLogger };
+  // W4: the leaked-password check (on by default in production) calls api.pwnedpasswords.com, and tests have no
+  // network, so a test that sets APP_MODE=production would fail its sign-up. Off here unless a test sets it;
+  // tests/password-breach-w4.test.ts turns it on with a stubbed fetch.
+  const deps: Deps = { db, indexDb, config: loadConfig({ APP_SECRET: "t".repeat(40), TRUST_PROXY: "true", TRUST_PROXY_HEADER: "cf-connecting-ip", PASSWORD_BREACH_CHECK: "false", ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch, log: nullLogger };
   const app = createApp(deps);
   appDbs.set(app, db);
   return { app, deps, db, indexDb, dns, outbound };
