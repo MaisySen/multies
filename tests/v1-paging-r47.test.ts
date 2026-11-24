@@ -40,11 +40,12 @@ describe("public task list paging", () => {
     expect(all.tasks).toHaveLength(7);
     expect(all.next).toBeNull();
     // The nested path pages the same way.
-    const projectId = (await (await ctx.app.request("/api/v1/tasks?limit=1", { headers: h })).json() as { tasks: { projectId: string }[] }).tasks[0].projectId;
-    const p1 = (await (await ctx.app.request(`/api/v1/projects/${projectId}/tasks?limit=4`, { headers: h })).json()) as { tasks: unknown[]; next: string | null };
+    const listed = (await (await ctx.app.request("/api/v1/tasks?limit=1", { headers: h })).json() as { tasks: { projectId: string }[] }).tasks[0].projectId;
+    expect(listed).toBe(projectId);
+    const p1 = (await (await ctx.app.request(`/api/v1/projects/${listed}/tasks?limit=4`, { headers: h })).json()) as { tasks: unknown[]; next: string | null };
     expect(p1.tasks).toHaveLength(4);
     expect(p1.next).toBeTruthy();
-    const p2 = (await (await ctx.app.request(`/api/v1/projects/${projectId}/tasks?limit=4&cursor=${encodeURIComponent(p1.next!)}`, { headers: h })).json()) as { tasks: unknown[]; next: string | null };
+    const p2 = (await (await ctx.app.request(`/api/v1/projects/${listed}/tasks?limit=4&cursor=${encodeURIComponent(p1.next!)}`, { headers: h })).json()) as { tasks: unknown[]; next: string | null };
     expect(p2.tasks).toHaveLength(3);
     expect(p2.next).toBeNull();
     // A made up cursor and an unknown parameter are refused.
