@@ -166,17 +166,19 @@ export interface ConnectProblem {
   detail?: string;
 }
 
-/** Providers whose app passwords are 16 letters, shown in four groups of four. */
+/** Providers whose app passwords are 16 letters, often shown in four groups of four. */
 const LETTER_CODE_PRESETS = new Set<ConnectPresetId>(["gmail", "google_workspace", "yahoo"]);
 
 /**
- * Cleans a pasted app password. A value that is exactly one 16 letter code comes back as four groups.
- * Anything else, including a normal password that happens to have 16 letters, is returned as typed.
+ * Cleans a pasted app password by taking spaces out, never by adding them: Google ignores the spaces it shows, and
+ * Yahoo's codes have none. Only a value shaped like an app password is touched: 16 letters, typed as one run or as
+ * four groups of four (any spaces, non breaking spaces, zero width characters or a trailing line break around them).
+ * It comes back as the 16 letters. Anything else, and every other provider, is returned exactly as typed.
  */
 export function cleanAppPassword(preset: ConnectPresetId, password: string): string {
   if (!LETTER_CODE_PRESETS.has(preset)) return password;
   const groups = password.replace(/[\u200b-\u200d\u2060\ufeff]/g, "").split(/[\s\u00a0]+/).filter(Boolean);
   const bare = groups.join("");
   if (!/^[a-z]{16}$/i.test(bare) || !(groups.length === 1 || groups.every((g) => g.length === 4))) return password;
-  return bare.match(/.{4}/g)!.join(" ");
+  return bare;
 }

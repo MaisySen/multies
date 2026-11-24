@@ -13,7 +13,8 @@ import { cleanAppPassword } from "@/shared/mail-connect";
  * (IMAP on 993 and SMTP on 465 and 587, from a local Workers runtime, with a made up address and code).
  */
 const GMAIL = "ada.lovelace@gmail.com";
-const PW = "abcd efgh ijkl mnop";
+// Google ignores spaces in an app password; Multies keeps the 16 letters without them.
+const PW = "abcdefghijklmnop";
 const IMAP_BAD = { message: "Command failed", responseText: "Invalid credentials (Failure)", serverResponseCode: "AUTHENTICATIONFAILED", authenticationFailed: true };
 const SMTP_BAD = new SmtpError("auth", { code: 535, lines: ["5.7.8 Username and Password not accepted. For more information, go to", "5.7.8  https://support.google.com/mail/?p=BadCredentials 98e67ed59e1d1-3b197d27d26sm2360566a91.13 - gsmtp"] },
   "535 5.7.8 Username and Password not accepted. For more information, go to 5.7.8  https://support.google.com/mail/?p=BadCredentials 98e67ed59e1d1-3b197d27d26sm2360566a91.13 - gsmtp");
@@ -50,8 +51,42 @@ describe("G1: Gmail sign in problems say what Google said", () => {
 
   it("never shows an address, a link or a network address in the detail", () => {
     const p = classifyProblem({ responseText: "[AUTHENTICATIONFAILED] Invalid credentials for ada@gmail.com from 34.169.219.26 see https://x.example/a (Failure)", authenticationFailed: true }, "imap", "gmail", "imap.gmail.com");
-    expect(p.detail).toBe("Invalid credentials for from see");
+    expect(p.detail).toBe("Invalid credentials");
     expect(p.detail).not.toMatch(/@|https?:|\d+\.\d+\.\d+\.\d+/);
+  });
+
+  it("takes bare user names out of realistic provider replies", () => {
+    const cases: [unknown, string][] = [
+      [{ responseText: "authentication failed for user jdoe", authenticationFailed: true }, "authentication failed for user"],
+      [{ responseText: "[AUTHENTICATIONFAILED] Authentication failed for user 'jdoe.smith' (Failure)" }, "Authentication failed for user"],
+      [{ responseText: "LOGIN failed. User=\"ada.lovelace\" not found" }, "LOGIN failed. User not found"],
+      [new SmtpError("auth", { code: 535, lines: ["5.7.3 Authentication unsuccessful for username: jdoe"] }, "535 5.7.3 Authentication unsuccessful"), "Authentication unsuccessful for username"],
+      [{ responseText: "Login failed: account kiran_rao is locked" }, "Login failed: account is locked"],
+      [{ responseText: "[AUTHENTICATIONFAILED] Invalid credentials for ada@gmail.com from 34.169.219.26 see https://x.example/a (Failure)" }, "Invalid credentials"],
+    ];
+    for (const [err, want] of cases) {
+      const d = classifyProblem(err, "imap", "custom", "mail.example.com").detail;
+      expect(d).toBe(want);
+      expect(d).not.toMatch(/jdoe|ada|kiran|lovelace|smith/i);
+    }
+  });
+
+  it("logs the step and code only, never the provider's words", async () => {
+    const ctx = await makeTestApp();
+    const imap = new FakeImapServer().addAccount(GMAIL, PW);
+    imap.loginError = "[AUTHENTICATIONFAILED] Authentication failed for user secretname (Failure)";
+    ctx.deps.imap = imap.connector;
+    ctx.deps.openSocket = new FakeSmtpServer().opener;
+    const lines: unknown[] = [];
+    ctx.deps.log = { ...(ctx.deps.log ?? {}), warn: (...a: unknown[]) => lines.push(a), info: () => {}, error: (...a: unknown[]) => lines.push(a) } as never;
+    const c = new Client(ctx.app);
+    const email = await c.signup(undefined, "Ada Lovelace", "Acme");
+    await ctx.db.update(users).set({ emailVerified: true }).where(eq(users.email, email));
+    const r = await c.post("/api/connections/test", { email: GMAIL, password: PW });
+    expect(r.status).toBe(422);
+    const logged = JSON.stringify(lines);
+    expect(logged).toContain("mail_connect.test_failed");
+    expect(logged).not.toMatch(/secretname|Authentication failed/i);
   });
 
   it("leaves out a detail with nothing useful in it", () => {
@@ -60,13 +95,19 @@ describe("G1: Gmail sign in problems say what Google said", () => {
 });
 
 describe("G1: a pasted app password is cleaned", () => {
-  it("turns non breaking spaces, zero width characters and a trailing line break into Google's own format", () => {
+  it("strips the spaces (Google ignores them), non breaking spaces, zero width characters and a trailing line break", () => {
     expect(cleanAppPassword("gmail", "abcd\u00a0efgh\u00a0ijkl\u00a0mnop")).toBe(PW);
     expect(cleanAppPassword("gmail", "\u200babcdefghijklmnop\n")).toBe(PW);
     expect(cleanAppPassword("google_workspace", " abcd efgh ijkl mnop ")).toBe(PW);
+    expect(cleanAppPassword("yahoo", "abcd efgh ijkl mnop")).toBe(PW);
+  });
+  it("never adds spaces: a bare 16 letter code stays exactly as typed", () => {
+    for (const preset of ["gmail", "google_workspace", "yahoo"] as const) expect(cleanAppPassword(preset, "abcdefghijklmnop")).toBe("abcdefghijklmnop");
   });
   it("leaves anything that is not a 16 letter code, and other providers, as typed", () => {
     expect(cleanAppPassword("gmail", "my normal password ")).toBe("my normal password ");
+    expect(cleanAppPassword("gmail", "abcde fghij klmno p")).toBe("abcde fghij klmno p");
+    expect(cleanAppPassword("yahoo", "Abcd1234efgh5678")).toBe("Abcd1234efgh5678");
     expect(cleanAppPassword("custom", "abcd\u00a0efgh\u00a0ijkl\u00a0mnop")).toBe("abcd\u00a0efgh\u00a0ijkl\u00a0mnop");
   });
 

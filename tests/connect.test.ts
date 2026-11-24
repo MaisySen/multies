@@ -113,7 +113,8 @@ describe("connect a mailbox: saving and the first sync", () => {
     expect(r.body.connection).toMatchObject({ email: GMAIL, provider: "gmail", status: "active", messagesSynced: 3, initialDone: true });
     const row = await conn(ctx);
     expect(row.secretEnc).not.toContain(PW.slice(0, 4));
-    expect(await decryptSecret(ctx.deps.config.appSecret, row.secretEnc)).toBe(PW);
+    // A Gmail app password is saved as its 16 letters, without the spaces Google shows (cleanAppPassword).
+    expect(await decryptSecret(ctx.deps.config.appSecret, row.secretEnc)).toBe(PW.replace(/ /g, ""));
     const mb = (await ctx.db.select().from(mailboxes).where(eq(mailboxes.id, row.mailboxId)).get())!;
     expect(mb.address).toBe(GMAIL);
     const got = await inbox(ctx, mb.id);

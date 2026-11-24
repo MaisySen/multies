@@ -102,9 +102,9 @@ export async function testSettings(deps: Deps, s: Pick<ResolvedSettings, "preset
   }
 }
 
-/** A failed test is logged (step, code, preset and the cleaned reason; never the password or address). */
+/** A failed test is logged with its step, code and preset only: never the provider's words, the password or the address. */
 function failedTest(deps: Deps, problem: ConnectProblem, preset: ConnectPresetId) {
-  deps.log?.warn("mail_connect.test_failed", { step: problem.step, code: problem.code, preset, detail: problem.detail ?? null });
+  deps.log?.warn("mail_connect.test_failed", { step: problem.step, code: problem.code, preset });
   return new ConnectFailed(problem);
 }
 

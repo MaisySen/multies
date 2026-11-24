@@ -227,7 +227,7 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
       // Network trouble: try again at the next interval. A refused password waits for the person.
       nextSyncAt: new Date(now.getTime() + cfg.intervalMinutes * 60_000),
     }).where(and(eq(mailConnections.id, c.id), notPaused)); // PRIV1b (P9): a pause made meanwhile (owner left) stays
-    deps.log?.warn("mail_sync.connect_failed", { connection: c.id, code: problem.code, detail: problem.detail ?? null });
+    deps.log?.warn("mail_sync.connect_failed", { connection: c.id, code: problem.code }); // the code only: provider text can name the account
     return { ...empty, skipped: authProblem ? "auth_failed" : undefined, error: problem.message };
   }
 

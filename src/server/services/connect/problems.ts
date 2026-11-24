@@ -1,8 +1,11 @@
 /**
  * Turns IMAP and SMTP failures into words a person can act on: wrong password, app password
  * needed, IMAP switched off, server not reachable. The provider's own text is matched, never shown
- * raw (it can carry account details), and never logged with the password. G1: a cleaned copy of the
- * provider's reason rides beside the message as `detail`, so the real reason is visible.
+ * raw (it can carry account details). G1: a scrubbed copy of the provider's reason rides beside the
+ * message as `detail` for the person who is connecting (the API answer and the connect form) only.
+ * It is never written to logs: callers log the step and code. The scrub takes out addresses, links,
+ * network addresses, request ids, quoted values and the name after "user", "username", "login" or
+ * "account", but a provider can still word a reply in a way it misses, which is why it stays out of logs.
  */
 import { CONNECT_PRESETS, type ConnectPresetId, type ConnectProblem } from "@/shared/mail-connect";
 import { SocketError } from "./socket";
@@ -26,6 +29,10 @@ export function providerDetail(err: unknown): string | undefined {
     .replace(/\bhttps?:\/\/\S+/gi, " ")
     .replace(/\[[A-Z0-9-]+\]/g, " ")
     .replace(/\S+@\S+/g, " ")
+    // Quoted values ('jdoe', "ada") and the name after user, username, login or account (User=jdoe, for user jdoe).
+    .replace(/"[^"]{0,120}"|'[^']{0,120}'/g, " ")
+    .replace(/\b(user(?:name)?|login(?: name)?|account)(\s*[:=]\s*|\s+)(?!(?:and|or|is|was|has|not|does|did|or|password|disabled|locked|blocked|suspended|failed|unknown|not)\b)[\w.+-]+/gi, "$1 ")
+    .replace(/\b(user(?:name)?|login|account)\s*[:=]\s*/gi, "$1 ")
     .replace(/\b\d{1,3}(\.\d{1,3}){3}\b/g, " ")
     .replace(/\b[0-9a-f]*:[0-9a-f:]{6,}\b/gi, " ")
     .replace(/\b\d\.\d{1,3}\.\d{1,3}\b/g, " ")
@@ -35,6 +42,9 @@ export function providerDetail(err: unknown): string | undefined {
     .replace(/\((Failure|Success)\)/gi, " ")
     .replace(/\s+/g, " ")
     .trim()
+    // Words left with nothing after them once a value was taken out ("for from see").
+    .replace(/(\s+\b(?:for|from|see|by|at|via)\b)+(?=\s*$)/gi, "")
+    .replace(/(\s+\b(?:for|from|see|by|at|via)\b)+(?=\s+(?:for|from|see|by|at|via)\b)/gi, "")
     .replace(/[\s:;,-]+$/, "");
   if (!cleaned || /^(command failed|error)$/i.test(cleaned) || !/[a-z]{3}/i.test(cleaned)) return undefined;
   return cleaned.length > 160 ? `${cleaned.slice(0, 157).trimEnd()}...` : cleaned;

@@ -12,6 +12,16 @@ import { SocketError } from "@/server/services/connect/socket";
 interface Stored { uid: number; flags: Set<string>; raw: string; internalDate: Date }
 interface Folder { uidValidity: string; uidNext: number; msgs: Stored[]; specialUse?: string }
 
+/**
+ * Like Google: a 16 letter app password is accepted with or without the spaces it is shown with (Multies sends it
+ * without them, see cleanAppPassword). Every other password must match exactly.
+ */
+export function samePassword(stored: string, given: string): boolean {
+  if (stored === given) return true;
+  const bare = (v: string) => v.replace(/ /g, "");
+  return /^[a-z]{16}$/i.test(bare(stored)) && bare(stored) === bare(given) && /^[a-z]{16}$/i.test(bare(given));
+}
+
 export class FakeImapServer {
   accounts = new Map<string, { password: string; folders: Map<string, Folder> }>();
   /** When set, sign in fails with this text (as a provider's NO answer). */
@@ -54,7 +64,7 @@ export class FakeImapServer {
   watcher: InboxWatcher = async (_server, auth, opts, onNew) => {
     const acct = this.accounts.get(auth.user);
     if (this.unreachable) throw new SocketError("unreachable", "connect ECONNREFUSED");
-    if (!acct || acct.password !== auth.secret) throw Object.assign(new Error("Command failed"), { authenticationFailed: true });
+    if (!acct || !samePassword(acct.password, auth.secret)) throw Object.assign(new Error("Command failed"), { authenticationFailed: true });
     const w = { user: auth.user, path: opts.path ?? "INBOX", onNew };
     this.watches.push(w);
     let end!: () => void;
@@ -82,7 +92,7 @@ export class FakeImapServer {
     if (this.unreachable) throw new SocketError("unreachable", "connect ECONNREFUSED");
     const acct = this.accounts.get(auth.user);
     if (this.loginError) throw Object.assign(new Error("Command failed"), { responseText: this.loginError, authenticationFailed: /AUTHENTICATIONFAILED|Invalid credentials/i.test(this.loginError) });
-    if (!acct || (acct.password !== auth.secret && !(auth.xoauth2 && auth.secret.startsWith("access-")))) {
+    if (!acct || (!samePassword(acct.password, auth.secret) && !(auth.xoauth2 && auth.secret.startsWith("access-")))) {
       throw Object.assign(new Error("Command failed"), { responseText: "[AUTHENTICATIONFAILED] Invalid credentials (Failure)", authenticationFailed: true, serverResponseCode: "AUTHENTICATIONFAILED" });
     }
     this.logins++;
@@ -244,7 +254,8 @@ class FakeSmtpSocket implements MailSocket {
   }
   private finishAuth(user: string, pass: string, token?: string) {
     if (this.s.authReply) { this.reply(this.s.authReply); return; }
-    const ok = token ? token.startsWith("access-") : this.s.accounts.get(user) === pass;
+    const stored = this.s.accounts.get(user);
+    const ok = token ? token.startsWith("access-") : stored !== undefined && samePassword(stored, pass);
     if (!ok) { this.reply("535 5.7.8 Username and Password not accepted"); return; }
     this.user = user; this.authed = true; this.reply("235 2.7.0 Accepted");
   }
