@@ -4,10 +4,9 @@
  * Migration 0174 does the same for existing team mailboxes, leaving out the mailboxes the platform relies on.
  */
 import { describe, it, expect } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { privacyWorld } from "./priv1a-world";
-import { agentMailboxAccess, authEmailHooks, domains, mailboxAccess, mailboxes } from "@/server/db/schema";
-import { applyLoginMailboxRule } from "@/server/services/addresses";
+import { agentMailboxAccess, auditLogs, authEmailHooks, domains, mailboxAccess, mailboxes } from "@/server/db/schema";
 import { Client } from "./helpers";
 import { MIGRATIONS } from "@/server/db/migrations.generated";
 
@@ -80,7 +79,7 @@ describe("PRIV1b P37: a mailbox at a member's sign in address is theirs", () => 
     expect(await box(w, w.boxes.personal)).toMatchObject({ personal: true, ownerUserId: w.pat.id });
   }, 120_000);
 
-  it("Wave 1 review V12: a member who joins at an unshared team mailbox's address gets it; a shared one stays and is listed", async () => {
+  it("Wave 2 review X3: joining or changing address converts nothing; the workspace owner converts a listed mailbox", async () => {
     const w = await privacyWorld();
     const mk = async (local: string) => {
       const id = `mbx_v12${local.replace(/[^a-z0-9]/g, "")}`;
@@ -99,19 +98,44 @@ describe("PRIV1b P37: a mailbox at a member's sign in address is theirs", () => 
       // The first request after sign up may already have joined through the pending invite (410 invite_used then).
       expect([200, 410]).toContain(acc.status);
       expect((await c.get("/api/account/me")).status).toBe(200);
+      return c;
     };
-    await join(`zoe${w.n}@acme.io`);
+    // An admin inviting an unshared team mailbox's address no longer hands it to whoever accepts.
+    const zoeClient = await join(`zoe${w.n}@acme.io`);
     await join(`yan${w.n}@acme.io`);
+    expect(await box(w, zoe)).toMatchObject({ personal: false, ownerUserId: null });
+    expect(await box(w, yan)).toMatchObject({ personal: false });
+    const notice = (await w.owner.get("/api/mailboxes/privacy/mine")).body.loginAddressTeam as { id: string; address: string }[];
+    expect(notice.map((x) => x.address)).toEqual(expect.arrayContaining([`zoe${w.n}@acme.io`, `yan${w.n}@acme.io`]));
+    expect(Object.keys(notice[0]).sort()).toEqual(["address", "id", "member"]);
+    // Only the workspace owner converts: an admin, the member herself and a member are refused.
+    expect((await w.admin.c.post(`/api/mailboxes/${zoe}/make-personal`, {})).status).toBe(403);
+    expect((await zoeClient.post(`/api/mailboxes/${zoe}/make-personal`, {})).status).toBe(403);
+    expect((await w.member.c.post(`/api/mailboxes/${zoe}/make-personal`, {})).status).toBe(403);
+    expect(await box(w, zoe)).toMatchObject({ personal: false });
+    // A mailbox not in the list (a plain team address) is not found.
+    expect((await w.owner.post(`/api/mailboxes/${w.boxes.team}/make-personal`, {})).status).toBe(404);
+    const made = await w.owner.post(`/api/mailboxes/${zoe}/make-personal`, {});
+    expect(made.status).toBe(200);
     expect(await box(w, zoe)).toMatchObject({ personal: true });
     expect((await box(w, zoe)).ownerUserId).toBeTruthy();
-    expect(await box(w, yan)).toMatchObject({ personal: false });
-    const notice = (await w.owner.get("/api/mailboxes/privacy/mine")).body.loginAddressTeam as { address: string }[];
-    expect(notice.map((x) => x.address)).toContain(`yan${w.n}@acme.io`);
-    expect(notice.map((x) => x.address)).not.toContain(`zoe${w.n}@acme.io`);
-    // A changed sign in address: Rae moves to an address with an unshared team mailbox, and it becomes hers.
+    const log = await w.ctx.db.select().from(auditLogs).where(and(eq(auditLogs.targetId, zoe), eq(auditLogs.action, "mailbox.made_personal_by_owner"))).all();
+    expect(log).toHaveLength(1);
+    expect((await w.owner.post(`/api/mailboxes/${zoe}/make-personal`, {})).status).toBe(404);
+    // A shared one: the owner's confirmation ends the other grants (the audit says how many).
+    const y = await w.owner.post(`/api/mailboxes/${yan}/make-personal`, {});
+    expect(y.status).toBe(200);
+    expect(y.body.mailbox.grantsEnded).toBe(1);
+    expect(await w.ctx.db.select().from(mailboxAccess).where(eq(mailboxAccess.mailboxId, yan)).all()).toEqual([]);
+    // A changed sign in address converts nothing either; the mailbox is listed for the owner.
     const rae = await mk(`rae.new${w.n}`);
     await w.ctx.db.run(sql`update users set email = ${`rae.new${w.n}@acme.io`} where id = ${w.dRead.id}`);
-    expect(await applyLoginMailboxRule(w.ctx.deps, w.orgId, w.dRead.id)).toBe(rae);
-    expect(await box(w, rae)).toMatchObject({ personal: true, ownerUserId: w.dRead.id });
+    expect(await box(w, rae)).toMatchObject({ personal: false });
+    expect(((await w.owner.get("/api/mailboxes/privacy/mine")).body.loginAddressTeam as { id: string }[]).map((x) => x.id)).toContain(rae);
+    // A catch-all or the sign-up emails mailbox stays a team mailbox, with the reason.
+    await w.ctx.db.update(domains).set({ catchAllMailboxId: rae }).where(eq(domains.id, w.domainId));
+    const ca = await w.owner.post(`/api/mailboxes/${rae}/make-personal`, {});
+    expect(ca.status).toBe(409);
+    expect(await box(w, rae)).toMatchObject({ personal: false });
   }, 120_000);
 });

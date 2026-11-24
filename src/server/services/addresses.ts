@@ -34,51 +34,52 @@ export async function memberSigningInAs(db: DB, orgId: string, address: string) 
 }
 
 /**
- * Wave 1 review V12 (P37): a team mailbox at a member's sign in address that nobody else uses becomes that member's
- * personal mailbox when they join the workspace or change their sign in address to it (the createMailbox rule). One
- * that is in team use (granted to someone else, or worked by an AI agent), a domain's catch-all, one that sends the
- * workspace's sign-up emails, and the operator's own addresses stay team mailboxes; admins see them listed in
- * Settings (loginAddressTeamMailboxes). A few reads; one update only when a mailbox converts.
+ * Wave 2 review X3 (P37): a team mailbox at a member's sign in address becomes that member's personal mailbox only when
+ * the workspace owner confirms it in Settings. Converting on join (or on an email change) let an admin capture an
+ * unshared team mailbox as a sockpuppet's personal mailbox by inviting its address. Only the workspace owner, signed in
+ * to the app, and only for a mailbox in the admins' list (loginAddressTeamMailboxes). A domain's catch-all and a mailbox
+ * that sends the workspace's sign-up emails can't be personal, so they are refused with the reason. Other people's
+ * grants and AI agents' access to it end with the conversion (they would no longer open it); the audit entry counts them
+ * and the member is told.
  */
-export async function applyLoginMailboxRule(deps: Deps, orgId: string, userId: string) {
-  const u = await deps.db.select({ email: users.email }).from(users)
-    .innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, orgId), eq(members.kind, "human"))).where(eq(users.id, userId)).get();
-  if (!u) return null;
-  const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, orgId), sql`lower(${mailboxes.address}) = ${u.email.toLowerCase()}`, eq(mailboxes.personal, false), eq(mailboxes.kind, "person"))).get();
-  if (!mb || orgId === "org_platform") return null;
-  const d = await deps.db.select({ name: domains.name, catchAll: domains.catchAllMailboxId }).from(domains).where(eq(domains.id, mb.domainId)).get();
-  if (!d || d.catchAll === mb.id) return null;
-  if (isOperatorDomainRow(deps.config, { orgId, name: d.name }) && deps.config.operatorInbox.addresses.includes(mb.address.toLowerCase())) return null;
-  const [grant, agent, hook] = await Promise.all([
-    deps.db.select({ u: mailboxAccess.userId }).from(mailboxAccess).where(and(eq(mailboxAccess.mailboxId, mb.id), ne(mailboxAccess.userId, userId))).get(),
-    deps.db.select({ a: agentMailboxAccess.agentId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.mailboxId, mb.id)).get(),
+export async function convertLoginMailbox(deps: Deps, who: CallerLike & { orgId: string; userId: string; email?: string | null; role?: string | null }, mailboxId: string, ip?: string | null) {
+  const { requirePerson } = await import("../lib/actor-kind");
+  requirePerson(who, "Making a team mailbox someone's personal mailbox");
+  if (who.role !== "owner") throw forbidden("Only the workspace owner can make a team mailbox a member's personal mailbox.");
+  const listed = (await loginAddressTeamMailboxes(deps, who.orgId, 500)).find((m) => m.id === mailboxId);
+  if (!listed) throw notFound("Team mailbox at a member's sign in address");
+  const mb = (await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, who.orgId))).get())!;
+  const [d, hook] = await Promise.all([
+    deps.db.select({ catchAll: domains.catchAllMailboxId }).from(domains).where(eq(domains.id, mb.domainId)).get(),
     deps.db.select({ id: authEmailHooks.id }).from(authEmailHooks).where(eq(authEmailHooks.mailboxId, mb.id)).get(),
   ]);
-  if (grant || agent || hook) return null;
-  const won = await deps.db.update(mailboxes).set({ personal: true, ownerUserId: userId }).where(and(eq(mailboxes.id, mb.id), eq(mailboxes.personal, false))).returning({ id: mailboxes.id });
-  if (!won.length) return null;
-  await audit(deps.db, { orgId, actorUserId: null, action: "mailbox.became_personal_at_login", targetType: "mailbox", targetId: mb.id, metadata: { address: mb.address, memberUserId: userId } }).catch(() => undefined);
-  return mb.id;
-}
-
-/** Wave 1 review V12: every workspace the person is in, after their sign in address changed. */
-export async function applyLoginMailboxRuleEverywhere(deps: Deps, userId: string) {
-  const orgs = await deps.db.select({ orgId: members.organizationId }).from(members).where(and(eq(members.userId, userId), eq(members.kind, "human")));
-  for (const o of orgs) await applyLoginMailboxRule(deps, o.orgId, userId).catch((err: unknown) => deps.reportError?.(err, { where: "p37.apply" }));
+  if (d?.catchAll === mb.id) throw conflict(`${mb.address} catches mail for unknown addresses on its domain, so it stays a team mailbox. Pick another catch-all first.`);
+  if (hook) throw conflict(`${mb.address} sends this workspace's sign-up emails, so it stays a team mailbox. Pick another mailbox for them first.`);
+  const won = await deps.db.update(mailboxes).set({ personal: true, ownerUserId: listed.userId })
+    .where(and(eq(mailboxes.id, mb.id), eq(mailboxes.personal, false))).returning({ id: mailboxes.id });
+  if (!won.length) throw conflict(`${mb.address} is already a personal mailbox.`);
+  const grants = await deps.db.delete(mailboxAccess).where(and(eq(mailboxAccess.mailboxId, mb.id), ne(mailboxAccess.userId, listed.userId))).returning({ u: mailboxAccess.userId });
+  const agentRows = await deps.db.delete(agentMailboxAccess).where(eq(agentMailboxAccess.mailboxId, mb.id)).returning({ a: agentMailboxAccess.agentId });
+  await audit(deps.db, { orgId: who.orgId, actorUserId: who.userId, actorEmail: who.email ?? null, action: "mailbox.made_personal_by_owner", targetType: "mailbox", targetId: mb.id, ip: ip ?? null,
+    metadata: { address: mb.address, memberUserId: listed.userId, grantsEnded: grants.length, agentsEnded: agentRows.length } });
+  const { notify } = await import("./suite/notify");
+  await notify(deps, who.orgId, listed.userId, { type: "security.mailbox_at_login", entityType: "mailbox", entityId: mb.id, title: `${mb.address}, at your sign in address, is now your personal mailbox: mail for it, including password resets, lands there and only you can open it.`, actorName: who.email ?? null }).catch(() => undefined);
+  return { id: mb.id, address: mb.address, personal: true as const, ownerUserId: listed.userId, grantsEnded: grants.length, agentsEnded: agentRows.length };
 }
 
 /**
  * Wave 1 review V12: for admins, the team mailboxes at a member's sign in address (left as team mailboxes because they
  * are in team use, or made before the rule): account mail for that member, password resets included, lands there.
+ * Wave 2 review X3: the workspace owner converts one with convertLoginMailbox; nothing converts on its own.
  */
-export async function loginAddressTeamMailboxes(deps: Deps, orgId: string) {
-  const rows = await deps.db.select({ id: mailboxes.id, address: mailboxes.address, domainName: domains.name, memberName: users.name, memberEmail: users.email }).from(mailboxes)
+export async function loginAddressTeamMailboxes(deps: Deps, orgId: string, limit = 50) {
+  const rows = await deps.db.select({ id: mailboxes.id, address: mailboxes.address, domainName: domains.name, memberName: users.name, memberEmail: users.email, userId: users.id }).from(mailboxes)
     .innerJoin(domains, eq(domains.id, mailboxes.domainId))
     .innerJoin(users, sql`lower(${users.email}) = lower(${mailboxes.address})`)
     .innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, mailboxes.orgId), eq(members.kind, "human")))
-    .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.personal, false), eq(mailboxes.kind, "person"))).limit(50);
+    .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.personal, false), eq(mailboxes.kind, "person"), sql`${mailboxes.orgId} <> 'org_platform'`)).limit(limit);
   return rows.filter((r) => !(isOperatorDomainRow(deps.config, { orgId, name: r.domainName }) && deps.config.operatorInbox.addresses.includes(r.address.toLowerCase())))
-    .map((r) => ({ id: r.id, address: r.address, member: r.memberName || r.memberEmail }));
+    .map((r) => ({ id: r.id, address: r.address, member: r.memberName || r.memberEmail, userId: r.userId }));
 }
 
 // ---------------------------------------------------------------- mailboxes

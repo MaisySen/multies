@@ -13,6 +13,7 @@ import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { t } from "@/web/i18n";
 import { noticeKey } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66)
 
@@ -61,7 +62,19 @@ export function PrivateInboxNotice() {
 export function MailboxPrivacyPanel() {
   const q = useMailboxPrivacy();
   const qc = useQueryClient();
-  const me = useMe().data?.user?.id;
+  const meData = useMe().data;
+  const me = meData?.user?.id;
+  const isOwner = meData?.organization?.role === "owner";
+  const { confirm, dialogs } = useDialogs();
+  // Wave 2 review X3 (P37): only the workspace owner turns a listed team mailbox into the member's personal mailbox.
+  const makePersonal = useMutation({
+    mutationFn: (id: string) => api.post(`/mailboxes/${id}/make-personal`, {}),
+    onSuccess: () => { toast.success(t("priv1a.login_team_done")); return Promise.all([["mailbox-privacy"], ["mail"], qk.mailboxes, ["team-inbox"]].map((queryKey) => qc.invalidateQueries({ queryKey }))); },
+    onError: showError,
+  });
+  const askMakePersonal = async (m: { id: string; address: string; member: string }) => {
+    if (await confirm({ title: t("priv1a.login_team_confirm_title", { address: m.address }), description: t("priv1a.login_team_confirm_body", { address: m.address, member: m.member }), confirmLabel: t("priv1a.login_team_make"), tone: "danger" })) makePersonal.mutate(m.id);
+  };
   const leave = useMutation({
     mutationFn: (id: string) => api.del(`/mailboxes/${id}/sharing/${me}`),
     // PRIV1b (P66): the left mailbox also leaves Mail and every mailbox list at once.
@@ -72,13 +85,19 @@ export function MailboxPrivacyPanel() {
   const { own, shared, loginAddressTeam } = q.data;
   return (
     <div className="space-y-4" data-testid="priv1a-panel">
+      {dialogs}
       <p className="text-sm text-muted">{t("priv1a.section_hint")}</p>
       {loginAddressTeam?.length ? (
         <div role="status" className="rounded-xl border border-warn/30 bg-warn-soft p-3" data-testid="priv1a-login-team">
           <h3 className="text-[13px] font-semibold">{t("priv1a.login_team_title")}</h3>
-          <p className="mt-1 text-[12.5px] text-muted">{t("priv1a.login_team_hint")}</p>
+          <p className="mt-1 text-[12.5px] text-muted">{t("priv1a.login_team_hint")}{isOwner ? ` ${t("priv1a.login_team_owner_hint")}` : ""}</p>
           <ul className="mt-2 space-y-1">
-            {loginAddressTeam.map((m) => <li key={m.id} className="text-[13px]">{t("priv1a.login_team_item", { address: m.address, member: m.member })}</li>)}
+            {loginAddressTeam.map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
+                <span className="min-w-0">{t("priv1a.login_team_item", { address: m.address, member: m.member })}</span>
+                {isOwner ? <Button size="sm" variant="secondary" disabled={makePersonal.isPending} onClick={() => void askMakePersonal(m)} data-testid={`priv1a-make-personal-${m.id}`}>{t("priv1a.login_team_make")}</Button> : null}
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}

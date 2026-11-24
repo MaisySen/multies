@@ -294,14 +294,6 @@ export function authOptions(deps: Deps) {
           // Social sign ups arrive verified, so they get the welcome straight away.
           after: async (user) => { if (user.emailVerified) await sendWelcome(deps, user); },
         },
-        update: {
-          // Wave 1 review V12 (P37): a new sign in address that already has an unshared team mailbox makes it theirs.
-          // Only when the update carries an email (a confirmed address change); other updates read nothing.
-          after: async (user, ctx) => {
-            if (!user?.id || !ctx?.path?.includes("email")) return;
-            await (await import("../services/addresses")).applyLoginMailboxRuleEverywhere(deps, user.id);
-          },
-        },
       },
       session: {
         create: {
@@ -373,8 +365,8 @@ export function authOptions(deps: Deps) {
             await refuseAgentAccount(deps, user.email, "member.join_refused", org.id);
           },
           afterAcceptInvitation: async ({ invitation, member }) => {
-            // Wave 1 review V12 (P37): an unshared team mailbox at the new member's sign in address becomes theirs.
-            await (await import("../services/addresses")).applyLoginMailboxRule(deps, invitation.organizationId, member.userId).catch((err: unknown) => deps.reportError?.(err, { where: "p37.join" }));
+            // Wave 2 review X3 (P37): a team mailbox at the new member's sign in address is not converted on join (an admin
+            // could invite its address to capture it); it is listed for admins and the workspace owner confirms it.
             const ids = JSON.parse((invitation.mailboxIds as string | undefined) ?? "[]") as string[];
             if (member.role !== "member" || !ids.length) return;
             // PRIV1b (ML1): a personal mailbox is opened by sharing, never by an invite's grant.

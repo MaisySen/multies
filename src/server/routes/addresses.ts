@@ -6,7 +6,7 @@ import { HttpError } from "../lib/errors";
 import { createAliasSchema, createMailboxSchema, updateAliasSchema, updateMailboxSchema } from "@/shared/schemas";
 import { audit } from "../services/audit";
 import {
-  assertMayDeleteMailbox, createAlias, createMailbox, deleteAlias, deleteMailbox, listAliases, listMailboxes, updateAlias, updateMailbox,
+  assertMayDeleteMailbox, convertLoginMailbox, createAlias, createMailbox, deleteAlias, deleteMailbox, listAliases, listMailboxes, updateAlias, updateMailbox,
 } from "../services/addresses";
 import { deprovisionMailbox, syncQuota } from "../services/mailserver";
 import { mailboxScope } from "../services/team";
@@ -29,6 +29,8 @@ export function mailboxRoutes() {
     })
     // PRIV1a (MB-366): personal mailboxes. My own and the ones shared with me; sharing (owner only) and the access log.
     .get("/privacy/mine", async (c) => c.json(await myMailboxPrivacy(c.var.deps, c.var.auth)))
+    // Wave 2 review X3 (P37): the workspace owner makes a listed team mailbox at a member's sign in address theirs.
+    .post("/:id/make-personal", async (c) => c.json({ mailbox: await convertLoginMailbox(c.var.deps, c.var.auth, c.req.param("id"), c.var.ip) }))
     .get("/:id/sharing", async (c) => c.json(await sharingView(c.var.deps, c.var.auth, c.req.param("id"))))
     .put("/:id/sharing/:userId", async (c) => {
       const { level } = await parseBody(c, z.object({ level: z.enum(["read", "reply", "send_as"]) }));

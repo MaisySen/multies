@@ -139,7 +139,7 @@ export async function myMailboxPrivacy(deps: Deps, who: Who) {
   if (who.role === "owner" || who.role === "admin") {
     const all = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId }).from(mailboxes).where(and(eq(mailboxes.orgId, who.orgId), eq(mailboxes.personal, true)));
     hiddenFromMe = all.filter((m) => m.owner && m.owner !== who.userId && !shared.some((s) => s.id === m.id)).length;
-    loginAddressTeam = await (await import("./addresses")).loginAddressTeamMailboxes(deps, who.orgId);
+    loginAddressTeam = (await (await import("./addresses")).loginAddressTeamMailboxes(deps, who.orgId)).map(({ id, address, member }) => ({ id, address, member }));
   }
   return { own, shared, hiddenFromMe, loginAddressTeam };
 }
