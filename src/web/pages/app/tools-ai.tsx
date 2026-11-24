@@ -9,7 +9,9 @@ import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { IconClose, IconDownload, IconFileUp, IconMail } from "@/web/components/ui/icon";
 import { useAttachToNewEmail } from "@/web/lib/compose-files"; // Tools P2: the one "Attach to a new email" path
-import { api, errorMessage } from "@/web/lib/api";
+import { api, ApiError, errorMessage } from "@/web/lib/api";
+import { AI_KEY_FIX_PATH, isAiKeyProblemCode } from "@/shared/ai-connect-ai2"; // Round 2 (PR 20)
+import { tr } from "@/web/i18n";
 import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Badge, Card, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -44,9 +46,8 @@ async function waitFor(token: string): Promise<Job> {
 
 async function uploadForm(path: string, fd: FormData): Promise<Job> {
   const res = await fetch(`/api${path}`, { method: "POST", body: fd, credentials: "include", headers: { "x-multies-upload": "1" } });
-  const body = await res.json().catch(() => ({})) as { error?: { message?: string } } & Job;
-  if (res.status !== 202) throw new Error(body.error?.message || "That didn't work. Try again.");
-  return body;
+  if (res.status !== 202) throw await apiErrorOf(res);
+  return await res.json().catch(() => ({})) as Job;
 }
 
 /** Starts reading one source (upload or mail attachment) and waits until the text is ready. */
@@ -67,7 +68,7 @@ async function readSource(feature: Feature, src: Source): Promise<Job> {
 /** A file made on the server (the XLSX or CSV sheet), as a File named the way the server named it. */
 async function postFile(path: string, body: unknown, fallbackName: string): Promise<File> {
   const res = await fetch(`/api${path}`, { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  if (!res.ok) { const b = await res.json().catch(() => ({})) as { error?: { message?: string } }; throw new Error(b.error?.message || "That didn't work. Try again."); }
+  if (!res.ok) throw await apiErrorOf(res);
   const name = res.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? fallbackName;
   const blob = await res.blob();
   return new File([blob], name, { type: blob.type || "application/octet-stream" });
@@ -104,15 +105,32 @@ function SourcePicker({ value, onChange, accept, disabled, hint }: { value: Sour
   );
 }
 
-function Problem({ text }: { text: string | null }) {
-  if (!text) return null;
-  return <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{text}</p>;
+/**
+ * A failure in plain words. Round 2 (PR 20 leftover): a problem with the workspace's own AI key (refused, no credit,
+ * model gone) also links to where it is fixed, as the translate tools do (lang-tools-r116.tsx).
+ */
+export function Problem({ error }: { error: unknown }) {
+  if (!error) return null;
+  const text = typeof error === "string" ? error : errorMessage(error);
+  const fix = error instanceof ApiError && isAiKeyProblemCode(error.code);
+  return (
+    <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+      {text}
+      {fix && <>{" "}<Link to={AI_KEY_FIX_PATH} className="font-medium text-brand-hover underline-offset-2 hover:underline" data-testid="tools-ai-fix-key">{tr("ai.fix_key")}</Link></>}
+    </p>
+  );
+}
+
+/** Round 2 (PR 20 leftover): a failed raw fetch as the ApiError api.ts would throw, so its code (ai_key_refused) travels. */
+async function apiErrorOf(res: Response): Promise<ApiError> {
+  const b = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string; fields?: Record<string, string>; details?: unknown } };
+  return new ApiError(res.status, b.error?.code ?? "error", b.error?.message || "That didn't work. Try again.", b.error?.fields, b.error?.details);
 }
 
 function AskPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => void }) {
   const [job, setJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<unknown>(null);
   // QUAL1 review: `fallback` is set when built-in AI answered because the workspace's own key was refused; it is shown.
   const [summary, setSummary] = useState<{ bullets: string[]; pages: number[]; partial: boolean; fallback?: { message: string } } | null>(null);
   const [q, setQ] = useState("");
@@ -122,14 +140,14 @@ function AskPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => void })
   const summarise = async () => {
     setErr(null);
     try { const j = await ensure(); setBusy("Writing a summary"); setSummary(await api.post("/tools/ai/ask", { token: j.token })); }
-    catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
+    catch (e) { setErr(e); } finally { setBusy(null); }
   };
   const ask = async () => {
     const question = q.trim();
     if (!question) return;
     setErr(null);
     try { const j = await ensure(); setBusy("Finding the answer"); const r = await api.post<{ answer: string; pages: number[]; fallback?: { message: string } }>("/tools/ai/ask", { token: j.token, question }); setAnswers((a) => [{ q: question, a: r.answer, pages: r.pages, note: r.fallback?.message }, ...a]); setQ(""); }
-    catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
+    catch (e) { setErr(e); } finally { setBusy(null); }
   };
   const has = !!(src.file || src.attachment);
   return (
@@ -149,7 +167,7 @@ function AskPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => void })
         <Button type="submit" disabled={!has || !q.trim() || !!busy} loading={busy === "Finding the answer"} className="sm:shrink-0">Ask</Button>
       </form>
       {busy && <p className="text-sm text-muted" aria-live="polite">{busy}...</p>}
-      <Problem text={err} />
+      <Problem error={err} />
       {answers.map((a, i) => (
         <Card key={i} className="space-y-1 p-4" data-testid="ai-answer">
           <p className="text-sm font-medium">{a.q}</p>
@@ -166,7 +184,7 @@ function TranslatePanel({ src, setSrc, languages, pageCap }: { src: Source; setS
   const [target, setTarget] = useState("en");
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<unknown>(null);
   const [result, setResult] = useState<Job | null>(null);
   /** QUAL1 review: built-in AI translated in place of the workspace's refused key: said under the result. */
   const [note, setNote] = useState<string | null>(null);
@@ -198,7 +216,7 @@ function TranslatePanel({ src, setSrc, languages, pageCap }: { src: Source; setS
         job = await uploadForm("/tools/ai/translate/apply", fd);
       }
       setResult(await waitFor(job.token).then((j) => ({ ...j, name: job.name })));
-    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
+    } catch (e) { setErr(e); } finally { setBusy(null); }
   };
   return (
     <div className="space-y-4">
@@ -210,7 +228,7 @@ function TranslatePanel({ src, setSrc, languages, pageCap }: { src: Source; setS
       )}</Field>
       <Button size="sm" disabled={!(src.file || src.attachment) || !!busy} loading={!!busy} onClick={run}>Translate</Button>
       {busy && <div aria-live="polite" className="space-y-1 text-sm text-muted"><p>{busy}...</p>{progress && busy === "Translating" && <Meter value={progress.done} max={progress.total} label={`${progress.done} of ${progress.total} parts`} />}</div>}
-      <Problem text={err} />
+      <Problem error={err} />
       {result?.downloadUrl && (
         <Card className="space-y-2 p-4" data-testid="ai-translate-done">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -261,11 +279,11 @@ function ReviewTable({ rows, setRows }: { rows: Row[]; setRows: (r: Row[]) => vo
 }
 
 function SheetButtons({ rows, feature, title }: { rows: Row[]; feature: "extract" | "expenses"; title?: string }) {
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<unknown>(null);
   const attach = useAttachToNewEmail();
-  const get = (format: "xlsx" | "csv") => downloadPost("/tools/ai/sheet", { feature, format, rows, title }, `sheet.${format}`).catch((e) => setErr(errorMessage(e)));
+  const get = (format: "xlsx" | "csv") => downloadPost("/tools/ai/sheet", { feature, format, rows, title }, `sheet.${format}`).catch((e) => setErr(e));
   // The sheet is made here in Multies (no engine job), so it rides to the new email as a file.
-  const email = () => postFile("/tools/ai/sheet", { feature, format: "xlsx", rows, title }, "sheet.xlsx").then((f) => attach({ files: [f] }, { subject: title ?? "" })).catch((e) => setErr(errorMessage(e)));
+  const email = () => postFile("/tools/ai/sheet", { feature, format: "xlsx", rows, title }, "sheet.xlsx").then((f) => attach({ files: [f] }, { subject: title ?? "" })).catch((e) => setErr(e));
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
@@ -273,7 +291,7 @@ function SheetButtons({ rows, feature, title }: { rows: Row[]; feature: "extract
         <Button size="sm" variant="secondary" onClick={() => get("csv")}><IconDownload className="h-4 w-4" />CSV</Button>
         {feature === "extract" && <Button size="sm" variant="secondary" onClick={email} data-testid="ai-sheet-attach"><IconMail className="h-4 w-4" />Attach to a new email</Button>}
       </div>
-      <Problem text={err} />
+      <Problem error={err} />
     </div>
   );
 }
@@ -282,7 +300,7 @@ function InvoicesPanel({ src, maxFiles }: { src: Source; maxFiles: number }) {
   const [files, setFiles] = useState<File[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<unknown>(null);
   const [note, setNote] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const run = async () => {
@@ -294,7 +312,7 @@ function InvoicesPanel({ src, maxFiles }: { src: Source; maxFiles: number }) {
       setBusy("Finding the details");
       const r = await api.post<{ rows: Row[]; note: string | null }>("/tools/ai/invoices", { feature: "extract", files: jobs.map((j) => ({ token: j.token, attachmentId: j.attachmentId })) });
       setRows(r.rows); setNote(r.note);
-    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
+    } catch (e) { setErr(e); } finally { setBusy(null); }
   };
   const count = files.length + (src.attachment ? 1 : 0);
   return (
@@ -307,7 +325,7 @@ function InvoicesPanel({ src, maxFiles }: { src: Source; maxFiles: number }) {
       </div>
       <Button size="sm" disabled={!count || !!busy} loading={!!busy} onClick={run}>Read details</Button>
       {busy && <p className="text-sm text-muted" aria-live="polite">{busy}...</p>}
-      <Problem text={err} />
+      <Problem error={err} />
       {note && <p className="text-sm text-muted">{note} The details below come from the document text only.</p>}
       {rows.length > 0 && (<><ReviewTable rows={rows} setRows={setRows} /><p className="text-xs text-muted">Boxes with a coloured border were filled by AI. {AI_NOTE}</p><SheetButtons rows={rows} feature="extract" /></>)}
     </div>
@@ -324,7 +342,7 @@ function ExpensesPanel() {
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<unknown>(null);
   const [pdf, setPdf] = useState<Job | null>(null);
   const [title, setTitle] = useState("Expense report");
   const list = useQuery({ queryKey: ["ai-receipts", from, to, q], queryFn: () => api.get<{ receipts: Receipt[] }>(`/tools/ai/receipts?from=${from}&to=${to}&q=${encodeURIComponent(q)}`) });
@@ -337,7 +355,7 @@ function ExpensesPanel() {
       setBusy("Finding the details");
       const x = await api.post<{ rows: Row[] }>("/tools/ai/invoices", { feature: "expenses", files: r.jobs.map((j) => ({ token: j.token, attachmentId: j.attachmentId })) });
       setRows(x.rows);
-    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
+    } catch (e) { setErr(e); } finally { setBusy(null); }
   };
   const makePdf = async () => {
     setErr(null);
@@ -348,7 +366,7 @@ function ExpensesPanel() {
       setBusy("Adding the receipts");
       const p = await api.post<Job>("/tools/ai/expenses/pack", { summaryToken: s.token, attachmentIds: rows.map((r) => r.attachmentId).filter(Boolean), title });
       setPdf({ ...(await waitFor(p.token)), name: p.name });
-    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
+    } catch (e) { setErr(e); } finally { setBusy(null); }
   };
   const attach = useAttachToNewEmail();
   // The PDF report is an engine result (goes by its token); the sheet is made here (goes as a file).
@@ -357,7 +375,7 @@ function ExpensesPanel() {
     try {
       const sheet = await postFile("/tools/ai/sheet", { feature: "expenses", format: "xlsx", rows, title }, "expenses.xlsx");
       attach({ jobs: [pdf], files: [sheet] }, { subject: title });
-    } catch (e) { setErr(errorMessage(e)); }
+    } catch (e) { setErr(e); }
   };
   const total = useMemo(() => rows.reduce((n, r) => n + (r.total ?? 0), 0), [rows]);
   const gst = useMemo(() => rows.reduce((n, r) => n + (r.gst ?? 0), 0), [rows]);
@@ -383,7 +401,7 @@ function ExpensesPanel() {
       </Card>
       <Button size="sm" disabled={chosen.size === 0 || !!busy} loading={!!busy && rows.length === 0} onClick={read}>Read {chosen.size || ""} receipts</Button>
       {busy && <p className="text-sm text-muted" aria-live="polite">{busy}...</p>}
-      <Problem text={err} />
+      <Problem error={err} />
       {rows.length > 0 && (
         <div className="space-y-3">
           <ReviewTable rows={rows} setRows={setRows} />
@@ -411,20 +429,20 @@ function ExpensesPanel() {
 
 function ContractPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<unknown>(null);
   const [data, setData] = useState<{ name: string; facts: Facts; reminders: Reminder[]; note: string | null } | null>(null);
   const [added, setAdded] = useState<number | null>(null);
   useEffect(() => { setData(null); setAdded(null); setErr(null); }, [src]);
   const run = async () => {
     setErr(null);
     try { setBusy("Reading the contract"); const j = await readSource("contracts", src); setBusy("Finding the key dates"); setData(await api.post("/tools/ai/contract", { token: j.token })); }
-    catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
+    catch (e) { setErr(e); } finally { setBusy(null); }
   };
   const add = async () => {
     if (!data) return;
     setErr(null);
     try { setBusy("Adding reminders"); const r = await api.post<{ created: unknown[] }>("/tools/ai/contract/reminders", { attachmentId: src.attachment?.id, name: data.name, reminders: data.reminders.map(({ title, due }) => ({ title, due })) }); setAdded(r.created.length); }
-    catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
+    catch (e) { setErr(e); } finally { setBusy(null); }
   };
   const f = data?.facts;
   const yesNo = (v: boolean | null) => (v === null ? "Not stated" : v ? "Yes" : "No");
@@ -434,7 +452,7 @@ function ContractPanel({ src, setSrc }: { src: Source; setSrc: (s: Source) => vo
       <SourcePicker value={src} onChange={setSrc} accept=".pdf,.docx" disabled={!!busy} hint="PDF or Word" />
       <Button size="sm" disabled={!(src.file || src.attachment) || !!busy} loading={!!busy && !data} onClick={run}>Find key facts</Button>
       {busy && <p className="text-sm text-muted" aria-live="polite">{busy}...</p>}
-      <Problem text={err} />
+      <Problem error={err} />
       {f && (
         <Card className="space-y-3 p-4" data-testid="ai-contract">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
