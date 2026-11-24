@@ -628,7 +628,8 @@ export function scheduledSteps(deps: Deps): CronStep[] {
 
 /** R43: what the passes report is sent before the run ends. */
 async function runScheduledSteps(deps: Deps) {
-  try { await runCronSteps(deps, scheduledSteps(deps)); } finally { await flushReporting(); }
+  // F3: each pass has its own time limit, so the final flush is always reached; a failed or timed out pass flushes at once.
+  try { await runCronSteps(deps, scheduledSteps(deps), { flush: () => flushReporting() }); } finally { await flushReporting(); }
 }
 
 const buildEnv = (typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) as Record<string, string | undefined>;

@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { eq, sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { messages, users } from "@/server/db/schema";
 import { CATEGORIES_DEFAULT_FROM, importantBaseCond } from "@/server/services/mail/splits";
-import { runCronSteps, type CronStep } from "@/server/services/cron-steps";
+import { CRON_STEP_MS, runCronSteps, type CronStep } from "@/server/services/cron-steps";
 import { FIRST_SENDER_KEY, fillFirstSender, firstSenderReady, forgetFirstSenderReady, refreshFirstSenderReady } from "@/server/services/mail/first-sender";
 
 /**
@@ -272,7 +272,41 @@ describe("cron passes run one after another (MPLAT-96)", () => {
     let now = 0;
     const steps: CronStep[] = ["a", "b", "c"].map((name) => ({ name, run: async () => { now += 6 * 60_000; } }));
     const out = await runCronSteps(ctx.deps, steps, { clock: () => now });
-    expect(out).toEqual({ ran: ["a", "b"], skipped: ["c"] });
+    expect(out).toEqual({ ran: ["a", "b"], skipped: ["c"], timedOut: [] });
+  });
+
+  it("a pass that never settles times out on its own, the rest still run, and reporting is flushed (F3)", async () => {
+    const order: string[] = [];
+    const errors: string[] = [];
+    let flushed = 0;
+    const deps = { ...ctx.deps, reportError: (_e: unknown, c: { where: string }) => { errors.push(c.where); } } as typeof ctx.deps;
+    const steps: CronStep[] = [
+      { name: "maintenance", run: () => { order.push("maintenance"); return new Promise(() => {}); } },
+      { name: "mail.retention_pass", run: async () => { order.push("mail.retention_pass"); } },
+      { name: "notify.digest_pass", run: async () => { order.push("notify.digest_pass"); } },
+    ];
+    const out = await runCronSteps(deps, steps, { stepMs: 30, flush: async () => { flushed++; } });
+    expect(order).toEqual(["maintenance", "mail.retention_pass", "notify.digest_pass"]);
+    expect(out).toMatchObject({ ran: ["maintenance", "mail.retention_pass", "notify.digest_pass"], skipped: [], timedOut: ["maintenance"] });
+    expect(errors).toEqual(["cron.maintenance"]);
+    expect(flushed).toBeGreaterThanOrEqual(1);
+  });
+
+  it("no pass may run past the total budget: its own limit is what is left of it (F3)", async () => {
+    let now = 0;
+    const seen: number[] = [];
+    const steps: CronStep[] = [
+      { name: "a", run: async () => { now += 9 * 60_000; } },
+      { name: "b", run: () => new Promise(() => {}) },
+    ];
+    const realSetTimeout = globalThis.setTimeout;
+    const spy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void, ms?: number) => { seen.push(ms ?? 0); return realSetTimeout(fn, 1); }) as typeof setTimeout);
+    try {
+      const out = await runCronSteps(ctx.deps, steps, { clock: () => now });
+      expect(out.timedOut).toEqual(["b"]);
+    } finally { spy.mockRestore(); }
+    expect(seen.at(-1)).toBe(60_000); // 10 minutes in all, 9 used
+    expect(seen[0]).toBe(CRON_STEP_MS);
   });
 
   it("the scheduled handler hands the passes over as one sequence", () => {
