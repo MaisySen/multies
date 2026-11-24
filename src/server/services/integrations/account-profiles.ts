@@ -138,6 +138,8 @@ export function pointerSteps(orgId: string, from: string, to: string): SQL[] {
     sql`update or ignore social_post_targets set account_id = ${to} where account_id = ${from} and post_id in ${posts}`,
     sql`delete from social_post_targets where account_id = ${from} and post_id in ${posts}`,
     sql`update social_slots set account_id = ${to} where org_id = ${orgId} and account_id = ${from}`,
+    // R2: a chosen Page (SOC1) is asked through a connection; it moves too, or its scheduled posts fail as account_gone.
+    sql`update social_pages set via_account_id = ${to} where org_id = ${orgId} and via_account_id = ${from}`,
     sql`update or ignore social_inbox_items set account_id = ${to} where org_id = ${orgId} and account_id = ${from}`,
     sql`delete from social_inbox_items where org_id = ${orgId} and account_id = ${from}`,
     sql`update or ignore social_post_stats set account_id = ${to} where org_id = ${orgId} and account_id = ${from}`,

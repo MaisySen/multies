@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { Client, makeTestApp } from "./helpers";
-import { auditLogs, members, socialAccountProfiles, socialPostTargets, users } from "../src/server/db/schema";
+import { auditLogs, members, socialAccountProfiles, socialPages, socialPostTargets, users } from "../src/server/db/schema";
 import { mockComposioFetch, newMockState, type MockComposioState } from "../src/server/services/integrations/mock";
 import { identityFromAccount } from "../src/server/services/integrations/account-profiles";
 
@@ -38,6 +38,16 @@ async function connectAs(c: Client, app: string, who: Record<string, unknown> = 
   const conf = await c.post(`/api/apps/accounts/${id}/confirm`);
   expect(conf.status).toBe(200);
   return { id, account: conf.body.account };
+}
+
+/** R2: a company Page chosen through a connection (SOC1). */
+async function addPage(via: string) {
+  const orgId = await orgIdOf("owner-merge@acme.io");
+  await ctx.db.insert(socialPages).values({ orgId, app: "linkedin", pageId: "777", key: "page_li_777", viaAccountId: via, name: "Acme", addedAt: new Date() });
+}
+async function pageVia() {
+  const orgId = await orgIdOf("owner-merge@acme.io");
+  return (await ctx.db.select().from(socialPages).where(eq(socialPages.orgId, orgId)).all()).map((p) => p.viaAccountId);
 }
 
 async function profileRows() {
@@ -72,8 +82,8 @@ describe("confirming a connection", () => {
 });
 
 describe("folding a second connection to the same account, with a failure at each step", () => {
-  // pointers (8 statements), the older profile row, then the kept profile row: one unit.
-  const STEPS = 10;
+  // pointers (9 statements, with the chosen Pages since R2), the older profile row, then the kept profile row: one unit.
+  const STEPS = 11;
 
   for (let step = 0; step < STEPS; step++) {
     it(`a failure at write ${step + 1} of ${STEPS} changes nothing, keeps both connections, and still reports the new one connected`, async () => {
@@ -82,6 +92,7 @@ describe("folding a second connection to the same account, with a failure at eac
       const post = await owner.post("/api/social/posts", { text: "Planned", runAt: later, targets: [{ accountId: first.id }] });
       expect(post.status).toBe(201);
       const before = await profileRows();
+      await addPage(first.id);
       const id = await start(owner, "linkedin");
 
       const realRun = ctx.db.run.bind(ctx.db);
@@ -105,12 +116,23 @@ describe("folding a second connection to the same account, with a failure at eac
       expect(await profileRows()).toEqual(before);
       const targets = await ctx.db.select().from(socialPostTargets).where(eq(socialPostTargets.postId, post.body.post.id)).all();
       expect(targets.map((t) => t.accountId)).toEqual([first.id]);
+      expect(await pageVia()).toEqual([first.id]);
       // The connection is live, so it is audited as connected.
       const orgId = await orgIdOf("owner-merge@acme.io");
       const connected = await ctx.db.select().from(auditLogs).where(and(eq(auditLogs.orgId, orgId), eq(auditLogs.action, "integration.connected"), eq(auditLogs.targetId, id))).all();
       expect(connected).toHaveLength(1);
     });
   }
+
+  it("a chosen Page asked through the older connection moves to the kept one (R2)", async () => {
+    const first = await connectAs(owner, "linkedin");
+    await addPage(first.id);
+    const id = await start(owner, "linkedin");
+    const conf = await owner.post(`/api/apps/accounts/${id}/confirm`);
+    expect(conf.body.account).toMatchObject({ refreshed: true });
+    expect(mock.accounts.has(first.id)).toBe(false);
+    expect(await pageVia()).toEqual([id]);
+  });
 
   it("the older connection is removed on the platform only after the database holds the new identity", async () => {
     const first = await connectAs(owner, "linkedin");
