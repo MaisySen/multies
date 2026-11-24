@@ -68,7 +68,9 @@ export async function feedStatus(deps: Deps, actor: SuiteActor) {
  * shown only in this answer; afterwards only its hint is.
  */
 export async function resetFeed(deps: Deps, actor: SuiteActor, opts: { includeTasks?: boolean } = {}) {
-  userOnly(actor);
+  // PRIV1b (P63, round 2): the secret address hands out the person's whole calendar, so only the person makes it (a
+  // session, or their own OAuth sign in), never a workspace key or an agent member's key.
+  personOnly(actor);
   assertWritable(actor);
   const token = randomToken(30).replace(/[^A-Za-z0-9]/g, "").slice(0, 32);
   const hash = await sha256Hex(token);

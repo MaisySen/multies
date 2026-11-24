@@ -29,6 +29,6 @@ export function registerCalendarRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, await listCalendarEvents(c.var.deps, actor(c), { from: c.req.query("from"), to: c.req.query("to"), external: false })));
   api.openapi(route("get", "/calendar/feed", "Calendar feed status", "Whether the key's user has a calendar feed (an .ics address for Google Calendar, Apple Calendar or Outlook): { enabled, hint (last 4 characters), includeTasks, createdAt, resetAt }. The address itself is never returned here. A key acts for the person who made it."),
     async (c) => send(c, { feed: await feedStatus(c.var.deps, actor(c)) }));
-  api.openapi(route("post", "/calendar/feed/reset", "Turn on or reset the calendar feed", "Makes a new secret feed address and returns it once as url and webcalUrl. Any earlier address stops working at once. Needs a full key."),
+  api.openapi(route("post", "/calendar/feed/reset", "Turn on or reset the calendar feed", "Makes a new secret feed address and returns it once as url and webcalUrl. Any earlier address stops working at once. Only the person signed in (the app, or their own OAuth sign in): an API key gets 403 person_only."),
     async (c) => send(c, { feed: await resetFeed(c.var.deps, actor(c)) }));
 }

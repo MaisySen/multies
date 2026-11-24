@@ -851,8 +851,8 @@ Gmail and Outlook calendars need their own sign in (coming later); add their ICS
   `{ kind: "caldav", connectionId, url? }`, `PATCH|DELETE /api/calendar/sources/:id` `{ enabled?, name?, color? }`.
 - Public API: `GET /api/v1/calendar/events?from&to` (keys see the workspace's meetings and due dates,
   no other calendars), `GET /api/v1/calendar/feed` (status of the key's person's feed: `enabled`,
-  `hint`, `includeTasks`; never the address), `POST /api/v1/calendar/feed/reset` (full keys; answers the
-  new address once).
+  `hint`, `includeTasks`; never the address), `POST /api/v1/calendar/feed/reset` (answers the new address
+  once; since round 2 only for the person themselves, so an API key gets 403 `person_only`: turn the feed on in the app).
 - MCP: `list_calendar_events`.
 
 D1 writes: turning the feed on is 2 rows (the row and its unique token index), a reset 3 at most, off 2;

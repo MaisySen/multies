@@ -493,15 +493,20 @@ describe("REST and MCP", () => {
     expect(titles).toEqual(expect.arrayContaining(["Pricing review", "Maya alone"]));
     expect(titles.some((t: string) => t.startsWith("Due: Send the quote"))).toBe(true);
     expect(r.body.events.some((e: { kind: string }) => e.kind === "external")).toBe(false);
-    // A workspace key acts for the person who made it: their feed status, never the address.
+    // A workspace key reads its maker's feed status, never the address.
     expect((await api(key, "GET", "/calendar/feed")).body.feed).toMatchObject({ enabled: false, hint: null });
+    // PRIV1b (P63, round 2 owner decision): making or resetting the secret address is the person's own (a session or
+    // their own OAuth sign in). A key would hand the person's whole calendar to whatever holds the key.
     const reset = await api(key, "POST", "/calendar/feed/reset");
-    expect(reset.status).toBe(200);
-    expect(reset.body.feed.url).toMatch(/\/cal\/[A-Za-z0-9]{32}\.ics$/);
+    expect(reset.status).toBe(403);
+    expect(reset.body.error.code).toBe("person_only");
+    expect(JSON.stringify(reset.body)).not.toMatch(/\/cal\//);
+    expect((await owner.get("/api/calendar/feed")).body.feed.enabled).toBe(false);
+    const own = await owner.post("/api/calendar/feed", {});
+    expect(own.status).toBe(200);
     const st = await api(key, "GET", "/calendar/feed");
-    expect(st.body.feed).toMatchObject({ enabled: true, hint: reset.body.feed.url.slice(-8, -4) });
-    expect(JSON.stringify(st.body)).not.toContain(reset.body.feed.url.split("/cal/")[1].slice(0, 32));
-    expect((await owner.get("/api/calendar/feed")).body.feed.enabled).toBe(true);
+    expect(st.body.feed).toMatchObject({ enabled: true, hint: own.body.feed.url.slice(-8, -4) });
+    expect(JSON.stringify(st.body)).not.toContain(own.body.feed.url.split("/cal/")[1].slice(0, 32));
     const ro = (await owner.post("/api/developer/keys", { name: "Reader", scope: "read" })).body.secret;
     expect((await api(ro, "GET", "/calendar/events")).status).toBe(200);
     expect((await api(ro, "POST", "/calendar/feed/reset")).status).toBe(403);
