@@ -10,11 +10,12 @@
  * - D1 writes: registration 1 row; sign in 1 (grant row); code exchange 2 plus any older grants replaced;
  *   refresh 2; revoke 2; last used at most once an hour per grant (2). API keys keep working unchanged.
  */
-import { and, desc, eq, inArray, isNull, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, notInArray } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { members, oauthClients, oauthGrants, organizations, users } from "../../db/schema";
 import { hmacSha256Hex, newId, randomToken, safeEqual, sha256Hex, tryFromB64 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
+import { inIds } from "../../lib/sql-chunks";
 import type { ApiKeyAuth, ApiKeyScope } from "./api-keys";
 import { deferrableWrite } from "../write-priority";
 import { ssoBlocks } from "../../auth/session";
@@ -381,7 +382,7 @@ async function revokeSameApp(deps: Deps, g: typeof oauthGrants.$inferSelect) {
     .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
     .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), isNull(oauthGrants.revokedAt), ne(oauthGrants.id, g.id))).all();
   const ids = rows.filter((r) => r.name === client.name && redirectHostOf(r.redirectUri) === host).map((r) => r.id);
-  if (ids.length) await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(inArray(oauthGrants.id, ids));
+  if (ids.length) await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(inIds(oauthGrants.id, ids));
 }
 
 /** A new sign-in replaces older live grants for the same client, or the same app name and redirect host. */
@@ -391,7 +392,7 @@ async function replaceOlderGrants(deps: Deps, g: { id: string; userId: string; o
     .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
     .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), isNull(oauthGrants.revokedAt), ne(oauthGrants.id, g.id))).all();
   const ids = rows.filter((r) => r.clientId === g.clientId || (r.name === g.clientName && redirectHostOf(r.redirectUri) === host)).map((r) => r.id);
-  if (ids.length) await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(inArray(oauthGrants.id, ids));
+  if (ids.length) await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(inIds(oauthGrants.id, ids));
 }
 
 /** RFC 9728 and RFC 8414 metadata. */
