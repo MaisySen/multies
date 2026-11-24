@@ -42,7 +42,8 @@ export default function CalendarScreen() {
   const today = dayKey(new Date());
 
   // PRIV1b (P67): Agenda is "Next 30 days", so it starts from today, not from a month stepped to before.
-  const setView = (v: CalendarView) => { tick(); if (v === "agenda") setAnchor(startOfDay(new Date())); setViewState(v); writePref(PREF_VIEW, v); };
+  // Wave 3: Week opens on the picked day's week, so the pick made in Month stays in view (it showed today's week).
+  const setView = (v: CalendarView) => { tick(); if (v === "agenda") setAnchor(startOfDay(new Date())); else if (v === "week") setAnchor(parseDay(picked)); setViewState(v); writePref(PREF_VIEW, v); };
   const setHidden = (next: string[]) => { setHiddenState(next); writePref(PREF, JSON.stringify(next)); };
   const toggle = (layer: string) => { tick(); setHidden(hidden.includes(layer) ? hidden.filter((x) => x !== layer) : [...hidden, layer]); };
   const step = (n: number) => {
