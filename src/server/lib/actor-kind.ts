@@ -9,7 +9,9 @@
  *
  * How each caller looks when it reaches a service:
  * - person: a Better Auth session from the web app or the phone app. A random session id, no apiKeyId, no agentId.
- * - workspace_key: resolveApiKey. apiKeyId is the key id, role "admin", session id "apikey:<id>".
+ * - workspace_key: resolveApiKey. apiKeyId is the key id, session id "apikey:<id>", keyKind "workspace". Round 2: the
+ *   role is its maker's current one, at most "admin" (a demoted maker's key reads "member"), so keyKind tells it
+ *   apart from an agent member's key.
  * - agent_key: resolveApiKey for an agent inbox key. As above, with agentId set.
  * - agent_member_key: resolveApiKey for an AI agent member's key. apiKeyId set, role "member".
  * - oauth: resolveOAuthToken (MCP only). The person's own userId, email and role, apiKeyId "oauth:<grantId>".
@@ -32,6 +34,8 @@ export interface CallerLike {
   system?: boolean;
   sessionId?: string | null;
   role?: string | null;
+  /** Set by resolveApiKey: which kind of key this is. Trusted over the role when present. */
+  keyKind?: "workspace" | "agent" | "agent_member" | null;
 }
 
 export function callerKind(a: CallerLike): CallerKind {
@@ -39,6 +43,8 @@ export function callerKind(a: CallerLike): CallerKind {
   const key = a.apiKeyId ?? "";
   if (a.agentId) return key ? "agent_key" : "agent";
   if (key.startsWith("oauth:")) return "oauth";
+  if (key && a.keyKind === "workspace") return "workspace_key";
+  if (key && a.keyKind === "agent_member") return "agent_member_key";
   if (key) return a.role === "member" ? "agent_member_key" : "workspace_key";
   // No key fields: fall back to the session id. The MCP route prefixes it with "mcp:".
   const session = (a.sessionId ?? "").replace(/^mcp:/, "");
@@ -48,6 +54,15 @@ export function callerKind(a: CallerLike): CallerKind {
   if (!a.userId) return "system";
   return "person";
 }
+
+/**
+ * Round 2: a workspace key or an agent member's key acts for the workspace, not for the person who made it, so it has
+ * no personal mailbox access of its own (its maker's personal mailboxes and the shares she holds stay closed to it).
+ */
+export const isKeyWithoutPerson = (a: CallerLike): boolean => {
+  const k = callerKind(a);
+  return k === "workspace_key" || k === "agent_member_key";
+};
 
 /** True only for a person signed in to the web app or the phone app. A key or a connected AI app is never a person. */
 export const isPersonSession = (a: CallerLike): boolean => callerKind(a) === "person";

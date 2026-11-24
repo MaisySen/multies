@@ -118,8 +118,10 @@ describe("PRIV1b P3/P4: personal mailboxes go on an agent only by their owner", 
     expect(adaAgentEvents).not.toContain("CODE-OLDLEAK");
     // The owner's agent key and the owner herself see her own mail's event.
     expect(JSON.stringify((await v1(w, pa.secret, "GET", "/events")).body)).toContain("CODE-PERSONALIN");
+    // Round 2 (owner decision): a workspace key is the workspace's, not its maker's, so even Pat's own workspace key
+    // doesn't see her personal mailbox's events. Her agent key and her connected AI app (OAuth) still do.
     const patKey = await wsKey(w.pat.c);
-    expect(JSON.stringify((await v1(w, patKey, "GET", "/events?limit=500")).body)).toContain("CODE-PERSONALIN");
+    expect(JSON.stringify((await v1(w, patKey, "GET", "/events?limit=500")).body)).not.toContain("CODE-PERSONALIN");
     // Service level, a person with no share: none of Pat's.
     const owner = { userId: (await w.owner.get("/api/account/me")).body.user.id, orgId: w.orgId, role: "owner" as const, email: "o", name: "o", sessionId: "s" };
     expect(JSON.stringify(await eventsSince(w.ctx.deps, owner, { limit: 500 }))).not.toContain("CODE-PERSONALIN");
@@ -426,5 +428,78 @@ describe("PRIV1b S4: test gaps", () => {
     const adaKey = await wsKey(w.admin.c);
     const ok = await v1(w, adaKey, "POST", "/data-moves/imports/run", { kind: "contacts", content: "BEGIN:VCARD\nFN:A\nEND:VCARD" });
     expect(ok.status).toBeLessThan(300);
+  }, 120_000);
+});
+
+// Round 2 (owner decision): a workspace key and an agent member's key have no personal mailbox access of their own.
+// Before, a key carried its maker's userId, so the maker's personal mailboxes (and the shares she holds) opened to
+// anything holding the key: read, send and changing the mailbox's Reply-To. A connected AI app (OAuth) acts for the
+// person and keeps her access. A key also acts with its maker's current role, never more than admin.
+describe("Round 2: workspace keys and personal mailboxes", () => {
+  const REDIRECT = "https://claude.ai/api/mcp/auth_callback";
+  const verifier = "v".repeat(20) + "-verifier-for-pkce-tests-0123456789";
+  async function oauthToken(w: W, c: W["pat"]["c"]) {
+    const { pkceChallenge } = await import("@/server/services/developer/oauth");
+    const reg = await w.ctx.app.request("/api/oauth/register", { method: "POST", headers: { "content-type": "application/json", host: "localhost", origin: "https://claude.ai" }, body: JSON.stringify({ client_name: "Claude", redirect_uris: [REDIRECT] }) });
+    const clientId = ((await reg.json()) as { client_id: string }).client_id;
+    const request = { client_id: clientId, redirect_uri: REDIRECT, response_type: "code", code_challenge: await pkceChallenge(verifier), code_challenge_method: "S256", state: "st-1", scope: "mcp:read mcp:write" };
+    const r = await c.post("/api/oauth/authorize", { decision: "allow", scope: "full", request });
+    const code = new URL(r.body.redirectTo).searchParams.get("code")!;
+    const res = await w.ctx.app.request("/api/oauth/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", host: "localhost" }, body: new URLSearchParams({ grant_type: "authorization_code", code, client_id: clientId, redirect_uri: REDIRECT, code_verifier: verifier }).toString() });
+    return ((await res.json()) as { access_token: string }).access_token;
+  }
+
+  it("the maker's own workspace key can't read, send from or change her personal mailbox; her OAuth app can", async () => {
+    const w = await privacyWorld();
+    expect((await w.owner.patch(`/api/team/members/${w.pat.id}`, { role: "admin" })).status).toBe(200);
+    const patKey = await wsKey(w.pat.c);
+    const list = await v1(w, patKey, "GET", "/messages?limit=100");
+    expect(list.status).toBe(200);
+    expect(JSON.stringify(list.body)).not.toContain(`SUBJECT-PERS-${w.n}`);
+    expect(JSON.stringify(list.body)).toContain(`SUBJECT-TEAM-${w.n}`);
+    expect((await v1(w, patKey, "GET", `/messages/${w.msgs.personal}`)).status).toBe(404);
+    const send = await v1(w, patKey, "POST", "/messages", { mailboxId: w.boxes.personal, to: [`max${w.n}@acme.io`], subject: "Key as Pat", text: "x" });
+    expect(send.status).toBe(404);
+    const patch = await v1(w, patKey, "PATCH", `/mailboxes/${w.boxes.personal}`, { replyTo: "elsewhere@example.com" });
+    expect(patch.status).toBe(404);
+    const viaMcp = await mcpFor(w, patKey);
+    try {
+      expect((await viaMcp.call("set_mailbox_reply_to", { mailboxId: w.boxes.personal, replyTo: "elsewhere@example.com" })).isError).toBe(true);
+      expect((await viaMcp.call("read_thread", { threadId: w.thread })).text).not.toContain(`SUBJECT-PERS-${w.n}`);
+    } finally { await viaMcp.close(); }
+    const sent = await w.ctx.db.select({ id: messages.id }).from(messages).where(and(eq(messages.mailboxId, w.boxes.personal), eq(messages.folder, "sent")));
+    expect(sent).toEqual([]);
+    // Pat herself, through a connected AI app, still reads her own mailbox.
+    const app = await mcpFor(w, await oauthToken(w, w.pat.c));
+    try {
+      const r = await app.call("read_thread", { threadId: w.thread });
+      expect(r.isError).toBe(false);
+      expect(r.text).toContain(`SUBJECT-PERS-${w.n}`);
+    } finally { await app.close(); }
+  }, 120_000);
+
+  it("a share the key's maker holds doesn't open to her key", async () => {
+    const w = await privacyWorld();
+    await w.pat.c.put(`/api/mailboxes/${w.boxes.personal}/sharing/${w.admin.id}`, { level: "send_as" });
+    const adaKey = await wsKey(w.admin.c);
+    expect(JSON.stringify((await v1(w, adaKey, "GET", "/messages?limit=100")).body)).not.toContain(`SUBJECT-PERS-${w.n}`);
+    expect((await v1(w, adaKey, "POST", "/messages", { mailboxId: w.boxes.personal, to: [`max${w.n}@acme.io`], subject: "Key as Pat", text: "x" })).status).toBe(404);
+  }, 120_000);
+
+  it("a key acts with its maker's current role: demoted to member, the key is no longer an admin", async () => {
+    const w = await privacyWorld();
+    const adaKey = await wsKey(w.admin.c);
+    const { resolveApiKey } = await import("@/server/services/developer/api-keys");
+    expect((await resolveApiKey(w.ctx.deps, `Bearer ${adaKey}`))!.role).toBe("admin");
+    expect((await v1(w, adaKey, "POST", "/mailboxes", { domainId: w.domainId, localPart: `adakey${w.n}`, displayName: "Ada key" })).status).toBe(201);
+    expect((await w.owner.patch(`/api/team/members/${w.admin.id}`, { role: "member" })).status).toBe(200);
+    const demoted = (await resolveApiKey(w.ctx.deps, `Bearer ${adaKey}`))!;
+    expect(demoted.role).toBe("member");
+    const { callerKind } = await import("@/server/lib/actor-kind");
+    expect(callerKind(demoted)).toBe("workspace_key");
+    expect((await v1(w, adaKey, "POST", "/mailboxes", { domainId: w.domainId, localPart: `adakey2${w.n}`, displayName: "Ada key 2" })).status).toBe(403);
+    // The workspace owner's key acts as an admin, not as the owner (a key never opens what only the owner may).
+    const oliveKey = await wsKey(w.owner);
+    expect((await resolveApiKey(w.ctx.deps, `Bearer ${oliveKey}`))!.role).toBe("admin");
   }, 120_000);
 });

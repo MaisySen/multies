@@ -25,6 +25,13 @@ A workspace key has **Full access**, **Read only**, or scopes per area that you 
 
 A write scope includes its read scope. Every `/api/v1` route and every MCP tool needs one scope (GET needs the read scope, other methods the write scope); the MCP tools page at https://multies.si/developers/mcp shows each tool's. A call without it answers 403 `{"error":{"code":"insufficient_scope","message":"...","required":"tasks:write"}}` (on MCP, a tool error starting `insufficient_scope:`). Full access and Read only keys behave exactly as before. Session endpoints: `GET /api/developer/scopes` (areas and presets), `POST /api/developer/keys` with `scope` as `"full"`, `"read"` or a list, `PATCH /api/developer/keys/{id}` with `{ scope }`.
 
+A workspace key acts for the workspace, not for the person who made it. It acts with its maker's current role, at
+most admin: a key made by the owner is an admin key, and once its maker is changed to a member it is a member's key
+(403 `agent_member_key_scope` on mail, agents and integrations). A key whose maker left keeps working as a plain
+workspace key. It opens team mailboxes only: never its maker's personal mailboxes (a connected Gmail or IMAP inbox,
+a claimed free address) or the ones shared with her, to read, send or change. A connected AI app signed in by that
+person (OAuth, MCP) acts for her and keeps her access.
+
 
 The v1 OpenAPI 3.1 document is generated from the request schemas at `/api/v1/openapi.json`, with an
 interactive reference at `/api/v1/reference`. That document is the source of truth for request and

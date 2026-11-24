@@ -26,7 +26,7 @@ import { sendMessage, type SendResult } from "../mail/send";
 import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
 import { memberSigningInAs } from "../addresses";
-import { assertOpen, keepOpenableBy } from "../mail-access-priv1a";
+import { assertOpen, keepOpenableBy, personOf } from "../mail-access-priv1a";
 import { assertMailboxNotHeld } from "../mail/archive-r111"; // PRIV1b (P44)
 import { logMailboxOpen } from "../mailbox-sharing-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
@@ -94,7 +94,8 @@ export async function agentMailboxIds(deps: Deps, a: Agent): Promise<string[]> {
 export async function agentMailboxIdsFor(deps: Deps, actor: Actor, agent: Agent | string): Promise<string[]> {
   const a = typeof agent === "string" ? (await row(deps, actor.orgId, agent)).a : agent;
   const ids = await agentMailboxIds(deps, a);
-  return actor.agentId === a.id ? ids : keepOpenableBy(deps.db, a.orgId, actor.userId, ids);
+  // Round 2: a workspace key acting for the agent counts as nobody's (personOf), even when its maker owns the mailbox.
+  return actor.agentId === a.id ? ids : keepOpenableBy(deps.db, a.orgId, personOf(actor), ids);
 }
 
 const startOfUtcDay = (now: Date) => new Date(Math.floor(now.getTime() / DAY) * DAY);

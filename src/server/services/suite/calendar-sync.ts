@@ -19,7 +19,7 @@ import { decryptSecret, encryptSecret, randomToken, safeEqual, sha256Hex } from 
 import { forbidden, HttpError, notFound } from "../../lib/errors";
 import { containsLower } from "../../lib/sql-chunks";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
-import { isPersonalOwner } from "../mail-access-priv1a";
+import { callerWho, isPersonalOwner } from "../mail-access-priv1a";
 import { buildFeed, type FeedDue, type FeedMeeting } from "./ics-write";
 import { eventsIn, type ExternalEvent } from "./ics-parse";
 import { CALDAV_BASES, CALDAV_NEEDS_OAUTH, checkUrl, davRequest, davUnreachable, discoverCalendars, reportEvents, type DavOptions, type RemoteCalendar } from "./caldav";
@@ -272,7 +272,7 @@ export async function listSources(deps: Deps, actor: SuiteActor) {
  * whoever connected it, so its stored password reads only the owner's calendar. Team mailboxes: the connector, as before.
  */
 async function connectionIsMine(deps: Deps, actor: SuiteActor, c: { mailboxId: string; createdByUserId: string | null }) {
-  const own = await isPersonalOwner(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role }, c.mailboxId);
+  const own = await isPersonalOwner(deps.db, callerWho(actor), c.mailboxId);
   return own === undefined ? c.createdByUserId === actor.userId : own;
 }
 

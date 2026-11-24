@@ -733,7 +733,7 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   if (!actor.system && !actor.agentId) {
     const rule = await import("../mail-access-priv1a");
     const p = await rule.personalInfo(deps.db, actor.orgId, m.mailboxId);
-    if (p && p.owner !== actor.userId) await rule.assertOpen(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, m.mailboxId, "reply");
+    if (p && p.owner !== actor.userId) await rule.assertOpen(deps.db, rule.callerWho(actor), m.mailboxId, "reply");
   }
   const fromLine = m.fromName || m.fromAddress;
   const title = input.title?.trim() || cleanSubject(m.subject) || `Follow up with ${fromLine}`;

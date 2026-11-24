@@ -212,9 +212,12 @@ const workspaceKeyOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
-/** An AI agent member's key acts with the member role: it can't run the workspace's mail, agents or integrations. */
+/**
+ * An AI agent member's key acts with the member role: it can't run the workspace's mail, agents or integrations.
+ * Round 2: so does a workspace key whose maker is now a member (resolveApiKey uses the maker's current role).
+ */
 const memberKeyCheck = (c: Context<AppEnv>) => {
-  if (c.var.auth.role === "member") throw new HttpError(403, "agent_member_key_scope", "An agent member's key works with tasks, projects, docs, chat, meetings, goals and people. Use a workspace key for this.");
+  if (c.var.auth.role === "member") throw new HttpError(403, "agent_member_key_scope", "A key with the member role (an agent member's key, or one whose maker is now a member) works with tasks, projects, docs, chat, meetings, goals and people. Use a key an owner or admin made for this.");
 };
 const memberKeyReadOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (c.req.method !== "GET") memberKeyCheck(c);
@@ -473,7 +476,7 @@ export function v1Routes() {
     // AIS1 (row 32): a key's text search never matches the platform's own mail (a search is an oracle on the text).
     const systemFrom = c.var.deps.config.systemFrom.address;
     const extra = q.search?.trim() ? and(split_, sql`not ${withheldSql(systemFrom)}`) : split_;
-    // PRIV1a (MB-366): the same mailbox rule as the app (a workspace key opens team mailboxes and its maker's own).
+    // PRIV1a (MB-366): the same mailbox rule as the app. Round 2: a workspace key opens team mailboxes only, never its maker's personal ones.
     const scope = await scopeOf(c.var.deps, c.var.auth as unknown as SuiteActor);
     const r = await listMessages(c.var.deps.db, c.var.auth.orgId, { ...q, extra, scope });
     // AIS1: a preview stored before the fix may still hold part of a link; the platform's mail shows the notice instead.

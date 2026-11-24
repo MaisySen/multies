@@ -15,6 +15,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, scopeOf, sortableId, type SuiteActor } from "../suite/common";
 import { notify } from "../suite/notify";
 import { usersWhoCanOpen } from "../team";
+import { callerWho } from "../mail-access-priv1a";
 import { inIds } from "../../lib/sql-chunks";
 
 export const COMMENT_MAX = 4000;
@@ -45,7 +46,7 @@ async function noteMailbox(deps: Deps, a: SuiteActor, t: Awaited<ReturnType<type
   if (wanted && !t.mailboxIds.includes(wanted)) throw notFound("Thread");
   if (a.agentId || a.system) return wanted ?? t.mailboxId;
   const { mailboxScope } = await import("../team");
-  const can = await mailboxScope(deps.db, { userId: a.userId, orgId: a.orgId, role: a.role ?? "member" }, "reply");
+  const can = await mailboxScope(deps.db, callerWho(a), "reply");
   const mb = wanted ? (!can || can.includes(wanted) ? wanted : undefined) : can ? t.mailboxIds.find((m) => can.includes(m)) : t.mailboxId;
   if (!mb) throw new HttpError(403, "share_level", "This mailbox was shared with you to read only. Ask its owner.");
   return mb;

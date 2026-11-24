@@ -56,11 +56,15 @@ export async function deleteApiKey(deps: Deps, orgId: string, id: string) {
 }
 
 /**
- * Resolves `Authorization: Bearer mm_live_...` to a workspace context. A workspace key
- * acts as a workspace admin; `read` keys are limited to GET by the API layer. An agent
- * key (agentId set) acts only as that agent, enforced by the agent routes.
+ * Resolves `Authorization: Bearer mm_live_...` to a workspace context. Round 2: a workspace key acts with its maker's
+ * current role, at most admin (an owner's key is an admin, a maker demoted to member makes it a member's key); a key
+ * whose maker left stays a plain workspace key as before. `read` keys are limited to GET by the API layer. An agent
+ * key (agentId set) acts only as that agent, enforced by the agent routes. `keyKind` says which kind it is
+ * (lib/actor-kind.ts), since the role alone no longer tells a workspace key from an agent member's key.
  */
 export type ApiKeyAuth = AuthContext & { apiKeyId: string; scope: ApiKeyScope; orgSuspended: boolean; agentId: string | null; title?: string | null; toolList?: "scoped";
+  /** Unset on a connected AI app's token (developer/oauth.ts), which acts as the person. */
+  keyKind?: "workspace" | "agent" | "agent_member";
   /** AIS1: the key's name and prefix, so the audit log and task history can say which key acted (lib/request-caller.ts). */
   keyName?: string; keyPrefix?: string };
 
@@ -68,7 +72,7 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   const token = header?.match(/^Bearer\s+(mm_live_[A-Za-z0-9_-]{20,})$/)?.[1];
   if (!token) return null;
   // One round trip: the key, whether its creator is still a member, and the workspace's state.
-  const row = await deps.db.select({ k: apiKeys, memberId: members.id, memberKind: members.kind, memberTitle: members.title, memberDisabledAt: members.disabledAt, creatorName: users.name, creatorBanned: users.banned, creatorBanExpires: users.banExpires, suspendedAt: organizations.suspendedAt, orgName: organizations.name, agentName: agents.name })
+  const row = await deps.db.select({ k: apiKeys, memberId: members.id, memberKind: members.kind, memberRole: members.role, memberTitle: members.title, memberDisabledAt: members.disabledAt, creatorName: users.name, creatorBanned: users.banned, creatorBanExpires: users.banExpires, suspendedAt: organizations.suspendedAt, orgName: organizations.name, agentName: agents.name })
     .from(apiKeys)
     .innerJoin(organizations, eq(organizations.id, apiKeys.orgId))
     .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
@@ -94,9 +98,12 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   // Who a post or a change reads as: the agent member by name, an agent inbox by its name,
   // otherwise the workspace itself (a script acting for the whole workspace).
   const name = agentMember ? row.creatorName ?? k.name : row.agentName ?? row.orgName;
+  const keyKind = agentMember ? "agent_member" : k.agentId ? "agent" : "workspace";
+  // Round 2: a workspace key acts with its maker's current role, never more than admin. An agent key acts as its agent.
+  const role = agentMember ? "member" : keyKind === "workspace" && userId && row.memberRole === "member" ? "member" : "admin";
   return {
-    userId, email: `api-key:${k.prefix}`, name, title: agentMember ? row.memberTitle ?? null : null, orgId: k.orgId, role: agentMember ? "member" : "admin",
-    sessionId: `apikey:${k.id}`, apiKeyId: k.id, ...keyScope(k.scope), orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null, keyName: k.name, keyPrefix: k.prefix,
+    userId, email: `api-key:${k.prefix}`, name, title: agentMember ? row.memberTitle ?? null : null, orgId: k.orgId, role,
+    sessionId: `apikey:${k.id}`, apiKeyId: k.id, ...keyScope(k.scope), orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null, keyName: k.name, keyPrefix: k.prefix, keyKind,
   };
 }
 

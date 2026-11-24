@@ -45,7 +45,9 @@ export async function scopeOf(deps: Deps, a: SuiteActor): Promise<string[] | nul
     return scopeFor(deps, { ...a, role: "admin", sessionId: "", agentId: a.agentId });
   }
   const { mailboxScope } = await import("../team");
-  return mailboxScope(deps.db, { userId: a.userId, orgId: a.orgId, role: a.role ?? "member" });
+  // Round 2: the whole actor, so a workspace key (apiKeyId) doesn't read as its maker in her personal mailboxes.
+  const { callerWho } = await import("../mail-access-priv1a");
+  return mailboxScope(deps.db, callerWho(a));
 }
 
 export function assertWritable(a: SuiteActor) {

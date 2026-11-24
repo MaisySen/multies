@@ -11,7 +11,7 @@
  * A big import stops near 15 seconds, at the day's cap or at the write budget's warn level, and the same call with the
  * run id carries on from where it stopped.
  */
-import { assertOpen, personalInfo } from "../mail-access-priv1a"; // PRIV1b (P12)
+import { assertOpen, callerWho, personalInfo } from "../mail-access-priv1a"; // PRIV1b (P12)
 import { assertRowsNotHeld, heldScope } from "../mail/archive-r111"; // PRIV1b (P44)
 import { and, desc, eq, inArray, isNull, like, lt, ne, or, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
@@ -528,7 +528,7 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   // PRIV1b (P12): Undo deletes mail out of the target mailbox. A personal one: its owner (or a Send as share), or the
   // person who ran the import.
   if (c.mailboxId && !actor.system && m.createdByUserId !== actor.userId && await personalInfo(deps.db, actor.orgId, c.mailboxId)) {
-    await assertOpen(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, c.mailboxId, "send");
+    await assertOpen(deps.db, callerWho(actor), c.mailboxId, "send");
   }
   // PRIV1b (P44): Undo never deletes mail under a legal hold; checked before anything is removed.
   // The scope is read once, then each chunk is tested in memory.

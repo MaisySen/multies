@@ -18,7 +18,7 @@ import { refreshFirstSenderReady } from "./mail/first-sender";
 import { unreadQuery } from "./suite/chat";
 import { scopeOf, type SuiteActor } from "./suite/common";
 import { inIds } from "../lib/sql-chunks";
-import { scopeCond } from "./mail-access-priv1a";
+import { callerWho, scopeCond } from "./mail-access-priv1a";
 import { DEFAULT_SNOOZE_ZONE, inboxWhere } from "./suite/notify-triage";
 import { triageCountQuery } from "./suite/triage";
 import type { MailSplit } from "@/shared/mail-splits";
@@ -120,7 +120,7 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   // People: one SQL condition inside the same statement (R41: counts stays one statement). Agents and system: their list.
   // PRIV1b (P34): agents returned above (person is false for them), so only a system actor reaches the list form.
   const sc = a.system ? await scopeOf(deps, a) : null;
-  const scope = a.system ? (sc ? inIds(messages.mailboxId, sc) : undefined) : scopeCond({ userId: a.userId, orgId: a.orgId, role: a.role ?? "member" }, messages.mailboxId);
+  const scope = a.system ? (sc ? inIds(messages.mailboxId, sc) : undefined) : scopeCond(callerWho(a), messages.mailboxId);
   const unread = unreadQuery(deps, a.orgId, a.userId).as("u");
   const chatTotal = deps.db.select({ n: sql<number>`coalesce(sum(${unread.unread}), 0)` }).from(unread);
   const chatMentions = deps.db.select({ n: sql<number>`coalesce(sum(${unread.mentions}), 0)` }).from(unread);

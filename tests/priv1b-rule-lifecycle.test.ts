@@ -187,17 +187,19 @@ describe("PRIV1b (P17) the access log", () => {
     expect((await w.ctx.db.select().from(mailboxAccessLog).where(eq(mailboxAccessLog.mailboxId, w.boxes.team))).length).toBe(0);
   }, 120_000);
 
-  it("review S2: the v1 attachment download logs a delegate's key; a refused one logs nothing", async () => {
+  it("review S2: the v1 attachment download refuses a delegate's key and the owner's key, and logs nothing", async () => {
     const w = await privacyWorld();
     const v1 = (key: string, path: string) => w.ctx.app.request(`/api/v1${path}`, { headers: { authorization: `Bearer ${key}`, "cf-connecting-ip": "10.77.0.2" } });
     const mk = async (c: C) => { const r = await c.post("/api/developer/keys", { name: "reader" }); expect(r.status, JSON.stringify(r.body)).toBe(201); return r.body.secret as string; };
-    // Members can't make keys: Pat shares her mailbox with the admin, who reads through a key.
+    // Pat shares her mailbox with the admin. Round 2 (owner decision): a workspace key acts for the workspace, not
+    // for the person who made it, so the admin's share doesn't reach her key (before, it downloaded and was logged).
     expect((await w.pat.c.put(`/api/mailboxes/${w.boxes.personal}/sharing/${w.admin.id}`, { level: "read" })).status).toBe(200);
-    const ok = await v1(await mk(w.admin.c), `/attachments/${w.attId}`);
-    expect(ok.status).toBe(200);
-    expect(await ok.text()).toBe("abc");
+    expect((await v1(await mk(w.admin.c), `/attachments/${w.attId}`)).status).toBe(404);
+    expect(await rows(w, w.admin.id)).toEqual([]);
+    // In the app the share still opens it, and that is logged.
+    expect((await w.admin.c.get(`/api/mail/messages/${w.msgs.personal}`)).status).toBe(200);
     const log = await w.ctx.db.select().from(mailboxAccessLog).where(and(eq(mailboxAccessLog.mailboxId, w.boxes.personal), eq(mailboxAccessLog.actorUserId, w.admin.id))).all();
-    expect(log.filter((r) => r.action.startsWith("opened")).map((r) => [r.action, r.targetId, r.device])).toEqual([["opened_thread", `thr_pers${w.n}aaaaaaaaaa`, "api"]]);
+    expect(log.filter((r) => r.action.startsWith("opened")).length).toBeGreaterThan(0);
     // The workspace owner's key can't open it: 404 and no row.
     const ownerId = (await w.owner.get("/api/account/me")).body.user.id as string;
     expect((await v1(await mk(w.owner), `/attachments/${w.attId}`)).status).toBe(404);

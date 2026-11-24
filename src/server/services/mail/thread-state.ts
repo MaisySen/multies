@@ -8,7 +8,7 @@
 import { and, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { mailThreadState, members, messages, users } from "../../db/schema";
-import { whoCanOpenAny } from "../mail-access-priv1a";
+import { callerWho, whoCanOpenAny } from "../mail-access-priv1a";
 import { badRequest, HttpError, notFound } from "../../lib/errors";
 import { assertWritable, scopeOf, type SuiteActor } from "../suite/common";
 import { notify } from "../suite/notify";
@@ -52,7 +52,7 @@ async function openThread(deps: Deps, actor: SuiteActor, threadId: string, need:
   // PRIV1b (P11): assigning or setting a status needs Read and reply in one of the thread's mailboxes, not a read share.
   if (need === "reply" && !actor.agentId && !actor.system) {
     const { mailboxScope } = await import("../team");
-    const can = await mailboxScope(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, "reply");
+    const can = await mailboxScope(deps.db, callerWho(actor), "reply");
     if (can && !mailboxIds.some((m) => can.includes(m))) throw new HttpError(403, "share_level", "This mailbox was shared with you to read only. Ask its owner.");
   }
   return { mailboxIds, newestMailboxId: mine[0].mailboxId, subject: mine[mine.length - 1].subject };

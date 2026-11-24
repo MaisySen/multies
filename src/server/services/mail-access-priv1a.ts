@@ -8,17 +8,29 @@
  *   the owner shared it with (read, reply, send as). Owners and admins of the workspace can't open it. If its owner
  *   is unknown or has left, only the workspace's owners see it, to read only, until it is given to someone.
  * - PRIV1b (P9): a share counts only while the mailbox's owner is still a member; leaving ends the shares (team.ts).
+ * - Round 2: a workspace key or an agent member's key carries its maker's userId but acts for the workspace, so here it
+ *   counts as nobody: no personal mailbox of its own, no shares. A connected AI app (OAuth) acts for the person and
+ *   keeps her access. Callers pass the whole actor (or callerWho) so apiKeyId, sessionId and agentId reach this file.
  */
 import { and, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { DB } from "../db";
 import { mailboxAccess, mailboxDelegations, mailboxes, members } from "../db/schema";
 import { notFound, HttpError } from "../lib/errors";
 import { inIds } from "../lib/sql-chunks";
+import { isKeyWithoutPerson, type CallerLike } from "../lib/actor-kind";
 
 export type Role = "owner" | "admin" | "member";
 export type Need = "read" | "reply" | "send";
 export type ShareLevel = "read" | "reply" | "send_as";
-type Who = { userId: string; orgId: string; role?: Role | null };
+type Who = { userId: string; orgId: string; role?: Role | null } & Omit<CallerLike, "userId" | "role">;
+
+/** The actor's fields this module reads, copied so a caller that narrows an actor doesn't drop the key fields. */
+export function callerWho(a: CallerLike & { userId: string; orgId: string; role?: Role | null }): Who & { role: Role } {
+  return { userId: a.userId, orgId: a.orgId, role: a.role ?? "member", apiKeyId: a.apiKeyId, sessionId: a.sessionId, agentId: a.agentId, system: a.system, keyKind: a.keyKind };
+}
+
+/** The person whose own personal mailboxes and shares count: "" for a workspace key or an agent member's key. */
+export const personOf = (who: CallerLike & { userId?: string | null }): string => (isKeyWithoutPerson(who) ? "" : who.userId ?? "");
 
 const RANK: Record<ShareLevel | "own", number> = { read: 1, reply: 2, send_as: 3, own: 9 };
 const NEED_RANK: Record<Need, number> = { read: 1, reply: 2, send: 3 };
@@ -38,9 +50,9 @@ async function loadPicture(db: DB, who: Who): Promise<Picture> {
     db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
       .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
       .where(and(eq(mailboxes.orgId, who.orgId), eq(mailboxes.personal, true))),
-    who.userId
+    personOf(who)
       ? db.select({ id: mailboxDelegations.mailboxId, level: mailboxDelegations.level }).from(mailboxDelegations)
-        .where(and(eq(mailboxDelegations.orgId, who.orgId), eq(mailboxDelegations.userId, who.userId)))
+        .where(and(eq(mailboxDelegations.orgId, who.orgId), eq(mailboxDelegations.userId, personOf(who))))
       : Promise.resolve([] as { id: string; level: ShareLevel }[]),
   ]);
   return {
@@ -51,7 +63,8 @@ async function loadPicture(db: DB, who: Who): Promise<Picture> {
 
 /** How far this person may go in one personal mailbox: "own", a share level, or null. */
 function personalLevel(p: Personal, mailboxId: string, who: Who, pic: Picture): ShareLevel | "own" | null {
-  if (who.userId && p.owner === who.userId && p.ownerIsMember) return "own";
+  const me = personOf(who);
+  if (me && p.owner === me && p.ownerIsMember) return "own";
   // Unresolved (no owner, or the owner left): the workspace's owners keep it so nobody is locked out of mail.
   // PRIV1b (P9): to read only. Removing someone must not hand their mail and their address to the workspace owner.
   if (!p.owner || !p.ownerIsMember) return who.role === "owner" ? "read" : null;
@@ -89,7 +102,7 @@ export async function scopeFor(db: DB, who: Who, need: Need = "read"): Promise<s
  * statement routes such as the badge counts. People only; agents and system actors use scopeFor.
  */
 export function scopeCond(who: Who, col: SQLWrapper): SQL {
-  const me = who.userId || "-";
+  const me = personOf(who) || "-";
   const member = sql`exists (select 1 from members x where x.user_id = m.owner_user_id and x.organization_id = m.org_id)`;
   const owned = sql`(m.owner_user_id = ${me} and ${member})`;
   const orphan = sql`(m.owner_user_id is null or not ${member})`;
@@ -99,7 +112,7 @@ export function scopeCond(who: Who, col: SQLWrapper): SQL {
   if (who.role === "owner" || who.role === "admin") {
     return sql`${col} not in (select m.id from mailboxes m where m.org_id = ${who.orgId} and m.personal = 1 and not ${open})`;
   }
-  return sql`(${col} in (select a.mailbox_id from mailbox_access a join mailboxes m on m.id = a.mailbox_id where a.org_id = ${who.orgId} and a.user_id = ${me} and m.personal = 0) or ${col} in (select m.id from mailboxes m where m.org_id = ${who.orgId} and m.personal = 1 and ${open}))`;
+  return sql`(${col} in (select a.mailbox_id from mailbox_access a join mailboxes m on m.id = a.mailbox_id where a.org_id = ${who.orgId} and a.user_id = ${who.userId || "-"} and m.personal = 0) or ${col} in (select m.id from mailboxes m where m.org_id = ${who.orgId} and m.personal = 1 and ${open}))`;
 }
 
 /** True when this person may open the mailbox (at `need`). False for another workspace's mailbox. */
@@ -204,5 +217,5 @@ export async function personalOwnerState(db: DB, who: Who, mailboxId: string): P
     .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
     .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, who.orgId))).get();
   if (!r?.personal) return undefined;
-  return personalOwnership(r, who.userId);
+  return personalOwnership(r, personOf(who));
 }

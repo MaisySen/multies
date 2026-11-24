@@ -17,6 +17,7 @@ import { newId } from "../../lib/crypto";
 import { audit } from "../audit";
 import { storageRoom, storeImportedRaw } from "../import";
 import { assertMailboxAccess } from "../team";
+import { callerWho } from "../mail-access-priv1a";
 import { assertWritable, type SuiteActor } from "../suite/common";
 import { tryFromB64 } from "../../lib/crypto";
 import { notifyMoveEnded, presentMove, starterEmail } from "./service";
@@ -48,7 +49,7 @@ export async function importMboxBatch(deps: Deps, actor: SuiteActor, input: Mbox
   if (input.messages.length > MBOX_BATCH) throw new HttpError(422, "validation_failed", `Send at most ${MBOX_BATCH} messages at a time.`);
   const mb = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, actor.orgId))).get();
   if (!mb) throw notFound("Mailbox");
-  await assertMailboxAccess(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, input.mailboxId, "send"); // PRIV1b (P12): a write, not a read
+  await assertMailboxAccess(deps.db, callerWho(actor), input.mailboxId, "send"); // PRIV1b (P12): a write, not a read
   // R49 (MYMAIL-API-15): a message that is not base64 is a clear 422 before any write, never a 500.
   const decoded = input.messages.map((m) => tryFromB64(m));
   if (decoded.some((r) => r === null)) throw new HttpError(422, "unreadable_file", MBOX_UNREADABLE);

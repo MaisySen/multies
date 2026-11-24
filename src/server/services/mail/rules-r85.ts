@@ -20,7 +20,7 @@ import {
   type MailRule, type MailRuleActionT, type MailRuleConditionT, type MailRuleInputT, type MailRuleRun, type RuleActionKind, type RuleMessage,
 } from "@/shared/mail-rules-r85";
 import { isRobotSender } from "@/shared/mail-splits";
-import { assertOpen, canOpen, personalInfo, personalOwnerState, personalOwnership, whoCanOpen, type Need } from "../mail-access-priv1a";
+import { assertOpen, callerWho, canOpen, personalInfo, personalOwnerState, personalOwnership, whoCanOpen, type Need } from "../mail-access-priv1a";
 import { NOT_FORWARDED_TO_AGENT, withheldRow } from "../agents/platform-mail";
 
 export interface RuleActor { orgId: string; userId: string; role?: AuthContext["role"]; agentId?: string | null; scope?: string; email?: string; name?: string }
@@ -82,7 +82,7 @@ async function own(deps: Deps, a: RuleActor, id: string, ownerToo = false, tidy 
   if (!r) throw notFound("Rule");
   if (r.userId === userId) return r;
   if (ownerToo) {
-    const o = await personalOwnerState(deps.db, { userId, orgId: a.orgId, role: a.role }, r.mailboxId);
+    const o = await personalOwnerState(deps.db, { ...callerWho(a), userId }, r.mailboxId);
     if (o === "owner" || (tidy && o === "orphan" && a.role === "owner")) return r;
   }
   throw notFound("Rule");
@@ -96,7 +96,7 @@ async function check(deps: Deps, a: RuleActor, scope: string[] | null, input: { 
   if (!mb || (scope && !scope.includes(mb.id))) throw notFound("Mailbox");
   // PRIV1b (P43): a rule's actions need the level they act at (label: reply, forward: send as); 403 share_level.
   const need = ruleNeed(input.actions);
-  if (need !== "read") await assertOpen(deps.db, { userId: a.userId, orgId: a.orgId, role: a.role }, mb.id, need);
+  if (need !== "read") await assertOpen(deps.db, callerWho(a), mb.id, need);
   const kinds = input.actions.map((x) => x.kind);
   if (new Set(kinds.filter((k) => k !== "label" && k !== "forward")).size !== kinds.filter((k) => k !== "label" && k !== "forward").length) {
     throw badRequest("Each action can be used once in a rule (labels and forwards can repeat).");
@@ -139,7 +139,7 @@ export async function updateRule(deps: Deps, a: RuleActor, scope: string[] | nul
   const row = await own(deps, a, id, true, true);
   // PRIV1b (integration M2): the mailbox's owner may turn someone else's rule on or off (an orphan's: off only), not rewrite it.
   if (row.userId !== person(a)) {
-    const mine = (await personalOwnerState(deps.db, { userId: a.userId, orgId: a.orgId, role: a.role }, row.mailboxId)) === "owner";
+    const mine = (await personalOwnerState(deps.db, callerWho(a), row.mailboxId)) === "owner";
     if (Object.keys(patch).some((k) => k !== "enabled" && (patch as Record<string, unknown>)[k] !== undefined) || (!mine && patch.enabled !== false)) {
       throw new HttpError(403, "not_your_rule", mine ? "You can only turn this rule on or off. Its maker can change it." : "You can only turn this rule off.");
     }
