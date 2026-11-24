@@ -254,6 +254,29 @@ describe("AIS1 row 32 (review): a forward never hands the platform's own mail to
     expect((await owner.post("/api/mail/send", { mailboxId: hello, to: ["agent@acme.io"], subject: "Fwd: Lunch", text: "Friday?", forwardOfId: lunch.id })).status).toBe(201);
   });
 
+  it("Round 2 (PR 23): search everything and contact_timeline never match or show its preview for a key", async () => {
+    const hello = (await owner.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox.id as string;
+    await resetMail("hello@acme.io");
+    const row = (await ctx.db.select().from(messages).where(eq(messages.mailboxId, hello)).all()).find((m) => /password/i.test(m.subject))!;
+    // A preview stored before the AIS1 fix still holds the link.
+    await ctx.db.update(messages).set({ snippet: `Someone asked to reset it: http://localhost/reset-password/${SECRET}` }).where(eq(messages.id, row.id));
+    const viaKey = await api(wsKey, "GET", `/search/everything?q=${encodeURIComponent("asked to reset")}&types=mail`);
+    expect(viaKey.status).toBe(200);
+    expect(JSON.stringify(viaKey.body)).not.toContain(row.id);
+    const bySubject = await api(wsKey, "GET", `/search/everything?q=${encodeURIComponent("Reset your Multies")}&types=mail`);
+    expect(JSON.stringify(bySubject.body)).toContain(row.id);
+    expect(JSON.stringify(bySubject.body)).not.toContain(SECRET);
+    // A person still finds it by its text.
+    expect(JSON.stringify((await owner.get(`/api/search?q=${encodeURIComponent("asked to reset")}&types=mail`)).body)).toContain(row.id);
+    // contact_timeline over MCP: the thread is there, its preview has no link.
+    expect((await api(wsKey, "POST", "/contacts", { email: "hello@acme.io", name: "Hello" })).status).toBeLessThan(300);
+    const mcp = await mcpFor(wsKey);
+    const tl = JSON.stringify(data(await mcp.callTool({ name: "contact_timeline", arguments: { id: "hello@acme.io" } })));
+    await mcp.close();
+    expect(tl).toContain(row.threadId);
+    expect(tl).not.toContain(SECRET);
+  });
+
   it("an alias never forwards it out to another workspace's agent; a plain outside address still gets it", async () => {
     const other = new Client(ctx.app);
     await other.signup("boss@beta.test", "Beta Boss");

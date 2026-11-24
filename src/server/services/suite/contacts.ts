@@ -10,6 +10,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, scopeOf, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 import { addressNeedle, containsLower, inIds } from "../../lib/sql-chunks";
 import { containsAny } from "../../lib/like-search";
+import { withheldRow, withoutSecrets } from "../agents/platform-mail"; // Round 2 (PR 23)
 
 const FREE_MAIL = new Set([
   "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.com.au", "live.com", "live.com.au", "msn.com", "yahoo.com", "yahoo.com.au", "ymail.com",
@@ -214,7 +215,7 @@ async function contactRow(deps: Deps, orgId: string, idOrEmail: string) {
 /** Threads with this person, newest first, within the mailboxes the viewer can open. */
 async function threadsWith(deps: Deps, orgId: string, email: string, scope: string[] | null, limit = 50) {
   const needle = addressNeedle(email);
-  const rows = await deps.db.select({ threadId: messages.threadId, subject: messages.subject, date: messages.date, folder: messages.folder, mailboxId: messages.mailboxId, snippet: messages.snippet, id: messages.id })
+  const rows = await deps.db.select({ threadId: messages.threadId, subject: messages.subject, date: messages.date, folder: messages.folder, mailboxId: messages.mailboxId, snippet: messages.snippet, id: messages.id, authResults: messages.authResults, fromAddress: messages.fromAddress })
     .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.folder} not in ('drafts','trash')`,
       or(eq(sql`lower(${messages.fromAddress})`, email), containsLower(messages.to, needle), containsLower(messages.cc, needle)),
       scope ? inIds(messages.mailboxId, scope) : undefined))
@@ -223,7 +224,10 @@ async function threadsWith(deps: Deps, orgId: string, email: string, scope: stri
   for (const r of rows) {
     const t = byThread.get(r.threadId);
     if (t) { t.count++; if (r.date < t.firstAt) t.firstAt = r.date; continue; }
-    byThread.set(r.threadId, { threadId: r.threadId, subject: r.subject, lastAt: r.date, firstAt: r.date, count: 1, lastDirection: r.folder === "sent" ? "outbound" : "inbound", snippet: r.snippet, messageId: r.id, mailboxId: r.mailboxId });
+    // Round 2 (PR 23): Multies' own mail (an invite, a reset) shows its preview without links or codes, here and in MCP
+    // contact_timeline, as every other read path does.
+    const snippet = withheldRow(r, deps.config.systemFrom.address) ? withoutSecrets(r.snippet).trim() : r.snippet;
+    byThread.set(r.threadId, { threadId: r.threadId, subject: r.subject, lastAt: r.date, firstAt: r.date, count: 1, lastDirection: r.folder === "sent" ? "outbound" : "inbound", snippet, messageId: r.id, mailboxId: r.mailboxId });
   }
   return [...byThread.values()].slice(0, limit).map((t) => ({ ...t, lastAt: t.lastAt.toISOString(), firstAt: t.firstAt.toISOString() }));
 }

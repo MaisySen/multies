@@ -31,7 +31,8 @@ import { inIds } from "../lib/sql-chunks";
 import { containsAny } from "../lib/like-search";
 import { notBlockedBy } from "./suite/reports-r35"; // R35
 import { searchAttachmentText } from "./tools/attachment-index"; // Tools P2 (17)
-import { safeSnippet } from "./agents/platform-mail"; // AIS1 (row 32): pre-fix previews of the platform's own mail
+import { safeSnippet, withheldRow, withheldSql } from "./agents/platform-mail"; // AIS1 (row 32): pre-fix previews of the platform's own mail
+import { isPersonSession, type CallerLike } from "../lib/actor-kind";
 
 // Tools P2 (17): "attachments" (text inside mail attachments) is listed only while the deployment has the index feature on.
 export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals", "attachments"] as const;
@@ -100,12 +101,17 @@ async function searchMail(deps: Deps, actor: SuiteActor, term: string, limit: nu
   const scope = await scopeOf(deps, actor);
   if (scope && !scope.length) return [];
   const pattern = contains(term);
+  // Round 2 (PR 23): for a key, an agent or a connected app, Multies' own mail is searched by its subject and sender only,
+  // never its preview (a match on the preview is an oracle on a reset link or code), and its preview is not shown.
+  const hide = !isPersonSession(actor as CallerLike);
+  const systemFrom = deps.config.systemFrom.address;
+  const snippetCol = hide ? sql`case when ${withheldSql(systemFrom)} then '' else ${messages.snippet} end` : sql`${messages.snippet}`;
   const rows = await deps.db.select({
     id: messages.id, threadId: messages.threadId, mailboxId: messages.mailboxId, folder: messages.folder, subject: messages.subject,
-    fromName: messages.fromName, fromAddress: messages.fromAddress, snippet: messages.snippet, date: messages.date,
+    fromName: messages.fromName, fromAddress: messages.fromAddress, snippet: messages.snippet, date: messages.date, authResults: messages.authResults,
   }).from(messages)
     .where(and(eq(messages.orgId, actor.orgId), scope ? inIds(messages.mailboxId, scope) : undefined, ne(messages.folder, "trash"),
-      likeAny([sql`${messages.subject}`, sql`${messages.fromName}`, sql`${messages.fromAddress}`, sql`${messages.snippet}`], pattern)))
+      likeAny([sql`${messages.subject}`, sql`${messages.fromName}`, sql`${messages.fromAddress}`, snippetCol], pattern)))
     .orderBy(desc(messages.date)).limit(limit * 3);
   // One result per thread: the newest message that matched.
   const seen = new Set<string>();
@@ -115,7 +121,7 @@ async function searchMail(deps: Deps, actor: SuiteActor, term: string, limit: nu
     seen.add(m.threadId);
     out.push({
       type: "mail", id: m.id, title: m.subject || "(no subject)", subtitle: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress,
-      snippet: safeSnippet(m.snippet, m.fromAddress, deps.config.systemFrom.address).slice(0, 160), url: `/app/mail?mailbox=${encodeURIComponent(m.mailboxId)}&folder=${encodeURIComponent(m.folder)}&m=${encodeURIComponent(m.id)}`, at: iso(m.date),
+      snippet: hide && withheldRow(m, systemFrom) ? "" : safeSnippet(m.snippet, m.fromAddress, systemFrom).slice(0, 160), url: `/app/mail?mailbox=${encodeURIComponent(m.mailboxId)}&folder=${encodeURIComponent(m.folder)}&m=${encodeURIComponent(m.id)}`, at: iso(m.date),
     });
     if (out.length >= limit) break;
   }
