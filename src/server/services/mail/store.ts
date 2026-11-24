@@ -40,6 +40,8 @@ export interface StoreInput {
   isBulk?: boolean;
   /** AIS1 (row 32): the list preview, when it must not be cut from the text (the platform's own mail, links taken out). */
   snippet?: string;
+  /** Wave 2 review X11: a draft's lineage (the id of its first copy). */
+  draftOf?: string | null;
 }
 
 /** An attachment's bytes, from the database or the body store; null when it wasn't kept. */
@@ -126,6 +128,7 @@ export async function storeMessage(db: DB, i: StoreInput): Promise<string> {
     authResults: i.authResults ? JSON.stringify(i.authResults) : null,
     sentByAgentId: i.sentByAgentId ?? null,
     sentByUserId: i.sentByUserId ?? null,
+    ...(i.draftOf ? { draftOf: i.draftOf } : {}),
     isBulk: i.isBulk ?? null,
     date: i.date,
   });

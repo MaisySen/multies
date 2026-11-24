@@ -143,6 +143,24 @@ describe("B9: saving over a draft never loses it", () => {
     expect(used).toBe(sum);
   }, 60_000);
 
+  it("Wave 2 review X11b: another reply draft in the same thread is not taken for a rival save of this one", async () => {
+    const { ctx, c, mailboxId, drafts } = await setup();
+    fault.mode = "off";
+    const orgId = (await c.get("/api/account/me")).body.organization.id as string;
+    await ctx.db.insert(messages).values({ id: "msg_x11binbox0000001", orgId, mailboxId, folder: "inbox", threadId: "thr_x11b00000000001", messageIdHeader: "<x11b@example.com>", fromAddress: "a@b.io", fromName: "A",
+      to: "[]", subject: "Question", text: "x", snippet: "x", date: new Date(Date.now() - 60_000), isRead: true });
+    const a = (await c.post("/api/mail/drafts", { mailboxId, inReplyToId: "msg_x11binbox0000001", to: ["a@b.io"], subject: "reply A", text: "a" })).body.id as string;
+    const b = (await c.post("/api/mail/drafts", { mailboxId, inReplyToId: "msg_x11binbox0000001", to: ["a@b.io"], subject: "reply B", text: "b" })).body.id as string;
+    const thread = async (id: string) => (await ctx.db.select({ t: messages.threadId }).from(messages).where(eq(messages.id, id)).get())!.t;
+    expect(await thread(a)).toBe(await thread(b));
+    // Saving A: its old copy's delete commits but the answer is lost. Only a save of A itself is a rival; B is not.
+    fault.mode = "committed";
+    const r = await c.post("/api/mail/drafts", { id: a, mailboxId, inReplyToId: "msg_x11binbox0000001", to: ["a@b.io"], subject: "reply A v2", text: "a2" });
+    fault.mode = "off";
+    expect(r.status).toBe(201);
+    expect((await drafts()).map((d) => d.subject).sort()).toEqual(["reply A v2", "reply B"]);
+  }, 60_000);
+
   it("a save that loses the race answers 409 and leaves no extra copy", async () => {
     const { c, mailboxId, drafts } = await setup();
     fault.mode = "off";

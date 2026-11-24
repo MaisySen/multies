@@ -303,6 +303,12 @@ export const messages = sqliteTable("messages", {
   /** Who wrote an outgoing message: an AI agent (agents.id) or a person (users.id). */
   sentByAgentId: text("sent_by_agent_id"),
   sentByUserId: text("sent_by_user_id"),
+  /**
+   * Wave 2 review X11: on a draft, the id of the first copy of this draft. Each save stores a new copy and deletes the
+   * old one; this ties the copies together, so a save that lost a race finds the copy that won it, not another draft
+   * the same person keeps in the thread. Null on mail and on a draft's first copy.
+   */
+  draftOf: text("draft_of"),
   /** For a connected mailbox (mail_connections): which remote folder (a folder key: "inbox", "sent", "archive", "drafts", "spam", "trash" or "f:<path>") and IMAP UID the copy came from. A null UID means the copy is not tied to a provider folder right now (moved, or sent from Multies). */
   remoteBox: text("remote_box"),
   remoteUid: integer("remote_uid"),

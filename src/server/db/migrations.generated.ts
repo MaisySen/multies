@@ -1943,5 +1943,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- Wave 2 review X5: whether the wait for a connect code (P60) is what suspended the connection's mailbox, so entering\n-- the code turns the mailbox back on only then, never undoing a suspend someone made while the code was pending.\n-- Connections already waiting get 1 (their wait suspended the mailbox, as before this column); every other row 0.\n-- Old code never reads it.\nALTER TABLE `mail_connections` ADD `verify_suspended_mailbox` integer DEFAULT 0 NOT NULL;",
       "UPDATE `mail_connections` SET `verify_suspended_mailbox` = 1 WHERE `status` = 'verifying';"
     ]
+  },
+  {
+    "name": "0181_message_draft_of",
+    "statements": [
+      "-- Wave 2 review X11: on a draft, the id of the first copy of this draft (each save stores a new copy and deletes the\n-- old one), so a save that lost a race finds the copy that won it, not another draft in the same thread. Null on every\n-- existing row; old code never reads or writes it. Adding a nullable column is a metadata change in SQLite.\nALTER TABLE `messages` ADD `draft_of` text;"
+    ]
   }
 ];
