@@ -17,10 +17,10 @@ import { writeBudget } from "../services/write-budget";
 import { HttpError } from "../lib/errors";
 import { ssoBlocks } from "../auth/session";
 
-/** The raw link, read the same way on GET and POST (parseAuthorizeQuery refuses repeated keys and joins `scope`). */
 /** R7: the longest sign in link (its query) both the consent screen and Allow take. */
 const AUTHORIZE_QUERY_MAX = 8000;
 
+/** The raw link, read the same way on GET and POST (parseAuthorizeQuery refuses repeated keys and joins `scope`). */
 function authorizeQuery(c: Context<AppEnv>): AuthorizeRequest {
   return parseAuthorizeQuery(new URL(c.req.url).searchParams);
 }
