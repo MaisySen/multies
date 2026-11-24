@@ -346,7 +346,7 @@ item and can send the sender a short polite reply (opt in, never to no-reply add
 item's notes as a comment on another task, moves its mail thread there when the target has none, and
 deletes the item.
 
-- Page: `/app/triage` (Triage in the nav, with a count). Keys: j and k move, a accepts, d declines, m merges.
+- Page: `/app/triage` (Triage in the nav, with a count). Keys: j and k move, a accepts, d declines, m merges. Admins also see the projects with Triage off there, each with Turn on (`PATCH /api/projects/:id { triage: true }`); nothing is switched by itself.
 - App API: `GET /api/triage` (`projectId`, `limit`), `GET /api/triage/count`, `POST /api/triage`, `GET /api/triage/:id`, `POST /api/triage/:id/accept` `{ projectId?, assignee?, statusId?, status?, priority?, due? }`, `POST /api/triage/:id/decline` `{ reason?, reply?, message? }`, `POST /api/triage/:id/merge` `{ targetId }`, `POST /api/triage/bulk` `{ ids (up to 100), action: accept | decline, accept?, decline? }`
 - Public API: the same under `/api/v1/triage` (`GET /triage`, `GET /triage/count`, `POST /triage`, `GET /triage/{id}`, `POST /triage/{id}/accept`, `POST /triage/{id}/decline`, `POST /triage/{id}/merge`, `POST /triage/bulk`). Read only keys can list but not change anything.
 - MCP: `list_triage`, `triage_accept`, `triage_decline`, `triage_merge`, `create_triage_item`.

@@ -20,6 +20,7 @@ import { showError } from "@/web/lib/show-error";
 import { useAssignees, useProjects, type Task } from "./data";
 import { TriageCommentBar, type CommentMode } from "./triage-comment-r33";
 import { LoadError } from "@/web/components/load-error-t1g";
+import { TriageOffHint } from "./triage-off-hint-w2"; // Round 2 (PR 24)
 
 type TriageSource = "mail" | "form" | "api" | "chat" | "agent";
 type TriageItem = Task & { triage: { state: "pending"; source: TriageSource | null; from: string | null; snoozedUntil?: string | null } | null };
@@ -168,6 +169,7 @@ export function TriagePage() {
           {(projects.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
       </div>
+      {view === "pending" && <TriageOffHint />}
       {q.isPending ? <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"><Skeleton className="h-72" /><Skeleton className="h-72" /></div> : q.isError ? (
         <LoadError onRetry={() => q.refetch()} />
       ) : !items.length ? (
