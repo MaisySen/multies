@@ -112,6 +112,21 @@ git pull && docker compose -f docker-compose.selfhost.yml up -d --build   # upda
 Docker Desktop starts the containers again after a restart of the computer, as long as Docker
 Desktop itself starts with the computer (Settings, General).
 
+### Built-in AI (optional)
+
+Without your own AI key, a workspace's AI features need built-in AI. The hosted Multies uses
+Cloudflare Workers AI for it; on your own computer it is off until you turn it on in `.env`:
+
+```sh
+BUILTIN_AI=workers-ai
+WORKERS_AI_ACCOUNT_ID=<your Cloudflare account id>
+WORKERS_AI_API_TOKEN=<a token with the "Workers AI" permission only>
+```
+
+Workspace text you ask AI about then goes to Cloudflare Workers AI. The `CLOUDFLARE_API_TOKEN`
+used for moving data across (below) never turns this on; keep the two tokens separate. Workspaces
+with their own AI key keep using their provider.
+
 ## 4. Moving your data across from the hosted Multies
 
 This copies the hosted database (Cloudflare D1) into this computer. The hosted copy is only read,
