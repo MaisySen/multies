@@ -19,6 +19,7 @@ import { inIds } from "../../lib/sql-chunks";
 import type { ApiKeyAuth, ApiKeyScope } from "./api-keys";
 import { deferrableWrite } from "../write-priority";
 import { ssoBlocks } from "../../auth/session";
+import { audit } from "../audit";
 
 export const ACCESS_TOKEN_TTL_S = 3600;
 export const REFRESH_TOKEN_TTL_MS = 90 * 24 * 3600_000;
@@ -254,12 +255,11 @@ export async function token(deps: Deps, r: TokenRequest) {
       await deps.db.update(oauthGrants).set({ revokedAt: now, refreshHash: null }).where(eq(oauthGrants.id, grant.id));
       throw new OAuthError(400, "invalid_grant", "That code was already used.");
     }
-    // Only once the new grant is usable: a retry, or a new client id for the same app, replaces older live grants.
-    const client = await getClient(deps, grant.clientId);
-    await replaceOlderGrants(deps, {
-      id: grant.id, userId: grant.userId, orgId: grant.orgId, clientId: grant.clientId,
-      clientName: client?.name ?? "", redirectUri: grant.redirectUri,
-    });
+    // Only once the new grant is usable: a new sign in of the same client replaces its older grants. Best effort: the
+    // tokens are already issued, and a 500 here would make the client retry with a code that is now used, which ends
+    // the new grant too.
+    try { await replaceOlderGrants(deps, grant); }
+    catch (err) { deps.log?.warn("oauth.replace_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
     return tokenBody(t, grant.scope);
   }
   if (r.grant_type === "refresh_token") {
@@ -369,12 +369,13 @@ export async function listGrants(deps: Deps, auth: Pick<AuthContext, "orgId" | "
     .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId)).innerJoin(users, eq(users.id, oauthGrants.userId))
     .where(and(eq(oauthGrants.orgId, auth.orgId), admin ? undefined : eq(oauthGrants.userId, auth.userId), isNull(oauthGrants.revokedAt)))
     .orderBy(desc(oauthGrants.createdAt)).limit(200).all();
-  // A code nobody exchanged is not a connection. One row per person and app (name plus redirect host).
+  // A code nobody exchanged is not a connection. One row per person and app (name plus redirect host), for display
+  // only: Disconnect on the row ends every grant in it (revokeSameApp), and nothing else groups grants by name.
   const seen = new Set<string>();
   const out: { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: Date; lastUsedAt: Date | null; mine: boolean }[] = [];
   for (const r of rows) {
     if (!r.g.codeUsedAt) continue;
-    const key = `${r.g.userId}\n${r.clientName}\n${redirectHostOf(r.g.redirectUri)}`;
+    const key = displayGroup(r.g.userId, r.clientName, r.g.redirectUri);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({
@@ -391,30 +392,47 @@ export async function revokeGrant(deps: Deps, auth: Pick<AuthContext, "orgId" | 
   const admin = auth.role === "owner" || auth.role === "admin";
   if (!admin && g.userId !== auth.userId) throw new HttpError(403, "forbidden", "Only an admin can disconnect someone else's app.");
   await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(eq(oauthGrants.id, g.id));
-  await revokeSameApp(deps, g);
-  return g;
+  const alsoRevoked = await revokeSameApp(deps, g);
+  return { ...g, alsoRevoked };
 }
 
-/** Ends every other live grant for this person, workspace and app, so Disconnect removes the one row Settings shows. */
-async function revokeSameApp(deps: Deps, g: typeof oauthGrants.$inferSelect) {
+/** The Settings row a grant shows in: one per person, app name and redirect host. Display only. */
+const displayGroup = (userId: string, clientName: string, redirectUri: string) => `${userId}\n${clientName}\n${redirectHostOf(redirectUri)}`;
+
+/**
+ * Disconnect on a Settings row: ends every other live grant of this person in this workspace that shows in the same
+ * row, so the row goes away. It is the person's (or an admin's) own choice on what the row showed; the sign in itself
+ * never groups by name (replaceOlderGrants matches the client id only). Returns the ids it ended.
+ */
+async function revokeSameApp(deps: Deps, g: typeof oauthGrants.$inferSelect): Promise<string[]> {
   const client = await getClient(deps, g.clientId);
-  if (!client) return;
-  const host = redirectHostOf(g.redirectUri);
+  if (!client) return [];
+  const group = displayGroup(g.userId, client.name, g.redirectUri);
   const rows = await deps.db.select({ id: oauthGrants.id, redirectUri: oauthGrants.redirectUri, name: oauthClients.name })
     .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
     .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), isNull(oauthGrants.revokedAt), ne(oauthGrants.id, g.id))).all();
-  const ids = rows.filter((r) => r.name === client.name && redirectHostOf(r.redirectUri) === host).map((r) => r.id);
+  const ids = rows.filter((r) => displayGroup(g.userId, r.name, r.redirectUri) === group).map((r) => r.id);
   if (ids.length) await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(inIds(oauthGrants.id, ids));
+  return ids;
 }
 
-/** A new sign-in replaces older live grants for the same client, or the same app name and redirect host. */
-async function replaceOlderGrants(deps: Deps, g: { id: string; userId: string; orgId: string; clientId: string; clientName: string; redirectUri: string }) {
-  const host = redirectHostOf(g.redirectUri);
-  const rows = await deps.db.select({ id: oauthGrants.id, clientId: oauthGrants.clientId, redirectUri: oauthGrants.redirectUri, name: oauthClients.name })
-    .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
-    .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), isNull(oauthGrants.revokedAt), ne(oauthGrants.id, g.id))).all();
-  const ids = rows.filter((r) => r.clientId === g.clientId || (r.name === g.clientName && redirectHostOf(r.redirectUri) === host)).map((r) => r.id);
-  if (ids.length) await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(inIds(oauthGrants.id, ids));
+/**
+ * After a code exchange: a new sign in replaces this person's older grants for the same client id in this workspace.
+ * Only the client id counts: client names are self registered, so a look alike client must never end another app's
+ * grant. Only grants made before this one are ended (ties broken by id), so two exchanges racing for the same client
+ * never end each other: the newer one stays. Each ended grant is audited, as a Disconnect is.
+ */
+export async function replaceOlderGrants(deps: Deps, g: Pick<typeof oauthGrants.$inferSelect, "id" | "userId" | "orgId" | "clientId" | "createdAt">) {
+  const rows = await deps.db.select({ id: oauthGrants.id, createdAt: oauthGrants.createdAt }).from(oauthGrants)
+    .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), eq(oauthGrants.clientId, g.clientId), isNull(oauthGrants.revokedAt), ne(oauthGrants.id, g.id))).all();
+  const at = g.createdAt.getTime();
+  const ids = rows.filter((r) => r.createdAt.getTime() < at || (r.createdAt.getTime() === at && r.id < g.id)).map((r) => r.id);
+  if (!ids.length) return [];
+  await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(and(inIds(oauthGrants.id, ids), isNull(oauthGrants.revokedAt)));
+  for (const id of ids) {
+    await audit(deps.db, { orgId: g.orgId, actorUserId: g.userId, action: "oauth.disconnected", targetType: "oauth_grant", targetId: id, metadata: { reason: "replaced", by: g.id } });
+  }
+  return ids;
 }
 
 /** RFC 9728 and RFC 8414 metadata. */

@@ -138,7 +138,10 @@ export function oauthRoutes() {
   r.delete("/grants/:id", requireAuth, async (c) => {
     const { deps, auth } = c.var;
     const g = await revokeGrant(deps, auth, c.req.param("id"));
-    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "oauth.disconnected", targetType: "oauth_grant", targetId: g.id, ip: c.var.ip });
+    // The Settings row can hold more than one grant of the same app (display grouping); each one ended is audited.
+    for (const id of [g.id, ...g.alsoRevoked]) {
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "oauth.disconnected", targetType: "oauth_grant", targetId: id, ...(id === g.id ? {} : { metadata: { row: g.id } }), ip: c.var.ip });
+    }
     return c.json({ ok: true });
   });
   return r;

@@ -19,8 +19,8 @@ async function register(body: unknown = { client_name: "Claude", redirect_uris: 
 async function authorizeParams(clientId: string, extra: Record<string, string> = {}) {
   return { client_id: clientId, redirect_uri: REDIRECT, response_type: "code", code_challenge: await pkceChallenge(verifier), code_challenge_method: "S256", state: "st-1", scope: "mcp:read mcp:write", ...extra };
 }
-async function signIn(scope: "read" | "full" = "full", extra: Record<string, string> = {}, who = c) {
-  const clientId = (await register()).body.client_id as string;
+async function signIn(scope: "read" | "full" = "full", extra: Record<string, string> = {}, who = c, existingClientId?: string) {
+  const clientId = existingClientId ?? (await register()).body.client_id as string;
   const request = await authorizeParams(clientId, extra);
   const r = await who.post("/api/oauth/authorize", { decision: "allow", scope, request });
   expect(r.status).toBe(200);
@@ -196,7 +196,8 @@ describe("MCP OAuth: Settings and revoke", () => {
   it("a second connect of the same app replaces the first, and only a human membership keeps the token", async () => {
     const first = await signIn();
     const t1 = await exchange(first.clientId, first.code);
-    const second = await signIn();
+    // The same client id signs in again (a look alike client with another id never replaces it: oauth-grants-replace.test.ts).
+    const second = await signIn("full", {}, c, first.clientId);
     const t2 = await exchange(second.clientId, second.code);
     const list = await c.get("/api/oauth/grants");
     expect(list.body.grants).toHaveLength(1);
@@ -221,14 +222,14 @@ describe("MCP OAuth: Settings and revoke", () => {
     expect((await mcpOk(t1.body.access_token)).status).toBe(200);
 
     // Consent again but never exchange: closed browser / abandoned reconnect.
-    const abandoned = await signIn();
+    const abandoned = await signIn("full", {}, c, first.clientId);
     expect((await mcpOk(t1.body.access_token)).status).toBe(200);
     expect((await c.get("/api/oauth/grants")).body.grants).toHaveLength(1);
 
     // Bad PKCE and an expired code also leave the live grant alone.
     expect((await exchange(abandoned.clientId, abandoned.code, "w".repeat(50))).body.error).toBe("invalid_grant");
     expect((await mcpOk(t1.body.access_token)).status).toBe(200);
-    const expired = await signIn();
+    const expired = await signIn("full", {}, c, first.clientId);
     const real = ctx.deps.now;
     ctx.deps.now = () => new Date(real().getTime() + 120_000);
     try { expect((await exchange(expired.clientId, expired.code)).body.error).toBe("invalid_grant"); }
@@ -236,7 +237,7 @@ describe("MCP OAuth: Settings and revoke", () => {
     expect((await mcpOk(t1.body.access_token)).status).toBe(200);
 
     // Only a successful exchange replaces the older grant.
-    const next = await signIn();
+    const next = await signIn("full", {}, c, first.clientId);
     const t2 = await exchange(next.clientId, next.code);
     expect(t2.status).toBe(200);
     expect((await mcpOk(t1.body.access_token)).status).toBe(401);
