@@ -40,7 +40,26 @@ describe("MB-367: the recent activity a member sees carries no mailbox address",
 
   it("drops an address nested in an object or list under any key, keeping the rest of that object (F7)", () => {
     const row = { ip: null, actorEmail: null, metadata: { before: { name: "Pat", forward: "pat@gmail.com" }, people: [{ who: "x@y.co" }], plan: { from: "free", to: "pro" } } };
-    expect(memberSafeAudit(row).metadata).toEqual({ before: { name: "Pat" }, plan: { from: "free", to: "pro" } });
+    // W5 (round 2): "Pat" sits beside an address in the same object, so it is that address's display name and goes too;
+    // the object left with nothing in it goes. Changed deliberately (it was kept before).
+    expect(memberSafeAudit(row).metadata).toEqual({ plan: { from: "free", to: "pro" } });
+  });
+
+  it("W5: percent encoded, quoted and fullwidth addresses go; a version string like pkg@1.2.3 stays", () => {
+    const row = { ip: null, actorEmail: null, metadata: {
+      link: "https://x.example/u?e=pat%40gmail.com", quoted: "\"pat smith\"@example.com", wide: "pat＠gmail.com", pkg: "left-pad@1.2.3", plain: "hello",
+    } };
+    expect(memberSafeAudit(row).metadata).toEqual({ pkg: "left-pad@1.2.3", plain: "hello" });
+  });
+
+  it("W5: under a secret key (token, ip, invitation) every value goes, numbers too; an address key keeps a count", () => {
+    const row = { ip: "1.2.3.4", actorEmail: null, metadata: { token: 123456, ip: 3232235777, invitationId: 42, userAgent: true, recipients: 3, emailCount: 2, ok: true } };
+    expect(memberSafeAudit(row).metadata).toEqual({ recipients: 3, emailCount: 2, ok: true });
+  });
+
+  it("W5: a recipient's display name beside its address goes; the object's other fields stay", () => {
+    const row = { ip: null, actorEmail: null, metadata: { to: [{ name: "Grace Hopper", address: "grace@navy.mil", kind: "to" }], sender: { displayName: "Pat", email: "pat@acme.io", role: "member" }, team: { name: "Ops", size: 4 } } };
+    expect(memberSafeAudit(row).metadata).toEqual({ to: [{ kind: "to" }], sender: { role: "member" }, team: { name: "Ops", size: 4 } });
   });
 
   it("keeps numbers and booleans under any key: a send's recipient count stays, its recipients go (F7)", () => {

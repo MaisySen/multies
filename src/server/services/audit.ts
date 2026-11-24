@@ -74,27 +74,47 @@ export function redactAuditRow<T extends { targetType?: string | null; targetId?
 }
 
 // MB-367: "address", "destinations", "recipients" and "replyTo" carried mailbox addresses (a personal Gmail someone
-// connected, a personal mailbox's Reply-To) into a member's recent activity; those keys are private too.
-const PRIVATE_KEYS = /email|address|destination|recipient|replyTo|reply_to|^ip$|ipAddress|userAgent|invit|token|^subject$/i;
-const ADDRESS = /[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+/;
+// connected, a personal mailbox's Reply-To) into a member's recent activity; those keys are private too. Under them
+// text, lists and objects go, while a number or a yes/no stays (a send's `recipients: 3` count).
+const ADDRESS_KEYS = /email|address|destination|recipient|replyTo|reply_to|^subject$/i;
+// W5 (round 2): under a secret key every value goes, numbers included (an IP stored as a number, a numeric token).
+const SECRET_KEYS = /^ip$|ipAddress|userAgent|invit|token/i;
+// W5: a display name beside an address in the same object is that address's person.
+const NAME_KEYS = /^(name|displayName|display_name|fromName|toName|senderName)$/i;
+// W5: the domain ends in an alphabetic label, so a version like pkg@1.2.3 is not an address; quoted local parts count.
+const ADDRESS = /(?:"[^"]*"|[^\s@<>"]+)@(?:[^\s@<>"]+\.)+[A-Za-z]{2,}/;
 const DROP = Symbol("drop");
+
+/** W5: an address in any spelling: fullwidth ＠ (NFKC), percent encoded (%40), quoted local part. Prefers hiding. */
+function holdsAddress(s: string): boolean {
+  const n = s.normalize("NFKC");
+  if (ADDRESS.test(n)) return true;
+  let decoded: string;
+  try { decoded = decodeURIComponent(n); } catch { decoded = n.replace(/%40/gi, "@"); }
+  return decoded !== n && ADDRESS.test(decoded.normalize("NFKC"));
+}
+
 /**
  * AIS1 review and MB-367: what a member may see of one metadata value. A string that holds a mail address goes, under
- * any key and at any depth; so does any text, list or object under a private key. F7: numbers and booleans always stay
- * (they cannot hold an address: a send's `recipients: 3` count is kept), and in a nested object or list only the parts
- * that hold an address go, not the whole value; a list or object left with nothing in it goes.
+ * any key and at any depth; so does any text, list or object under an address key. F7: numbers and booleans under an
+ * address key stay (they cannot hold an address), and in a nested object or list only the parts that hold an address
+ * go, not the whole value; a list or object left with nothing in it goes. W5: under a secret key everything goes, and
+ * in an object that holds an address, a name beside it goes too.
  */
-function memberValue(v: unknown, privateKey: boolean): unknown {
+function memberValue(v: unknown, key: "plain" | "address" | "secret"): unknown {
+  if (key === "secret") return v === null || v === undefined ? v : DROP;
   if (typeof v === "number" || typeof v === "boolean" || v === null || v === undefined) return v;
-  if (privateKey) return DROP;
-  if (typeof v === "string") return ADDRESS.test(v) ? DROP : v;
+  if (key === "address") return DROP;
+  if (typeof v === "string") return holdsAddress(v) ? DROP : v;
   if (Array.isArray(v)) {
-    const kept = v.map((x) => memberValue(x, false)).filter((x) => x !== DROP);
+    const kept = v.map((x) => memberValue(x, "plain")).filter((x) => x !== DROP);
     return v.length && !kept.length ? DROP : kept;
   }
   if (typeof v === "object") {
     const entries = Object.entries(v as Record<string, unknown>);
-    const kept = entries.map(([k, x]) => [k, memberValue(x, PRIVATE_KEYS.test(k))] as const).filter(([, x]) => x !== DROP);
+    const kindOf = (k: string) => (SECRET_KEYS.test(k) ? "secret" : ADDRESS_KEYS.test(k) ? "address" : "plain") as "plain" | "address" | "secret";
+    const hasAddress = entries.some(([k, x]) => (kindOf(k) === "address" && typeof x === "string") || (typeof x === "string" && holdsAddress(x)));
+    const kept = entries.map(([k, x]) => [k, hasAddress && NAME_KEYS.test(k) ? DROP : memberValue(x, kindOf(k))] as const).filter(([, x]) => x !== DROP);
     return entries.length && !kept.length ? DROP : Object.fromEntries(kept);
   }
   return DROP;
@@ -107,7 +127,7 @@ function memberValue(v: unknown, privateKey: boolean): unknown {
  */
 export function memberSafeAudit<T extends { ip?: string | null; actorEmail?: string | null; metadata?: Record<string, unknown> | null }>(row: T): T {
   if (!row.metadata) return { ...row, ip: null };
-  const kept = memberValue(row.metadata, false);
+  const kept = memberValue(row.metadata, "plain");
   return { ...row, ip: null, metadata: kept === DROP ? {} : kept as Record<string, unknown> };
 }
 
