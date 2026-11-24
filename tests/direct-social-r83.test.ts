@@ -127,7 +127,8 @@ describe("R83 TikTok", () => {
     ["sandbox", { TIKTOK_SANDBOX_CLIENT_KEY: undefined, TIKTOK_SANDBOX_CLIENT_SECRET: undefined }],
     ["sandbox", { TIKTOK_SANDBOX_CLIENT_KEY: "   " }],
   ])("TIKTOK_MODE=%s is unavailable without its complete pair (%j)", async (mode, omit) => {
-    const app = await makeTestApp({ ...ENV, ...omit, TIKTOK_MODE: mode }, { fetch: async () => { throw new Error("network disabled in tests"); } });
+    const env = Object.fromEntries(Object.entries({ ...ENV, ...omit, TIKTOK_MODE: mode }).filter(([, v]) => v !== undefined)) as Record<string, string>; // an undefined key is left unset
+    const app = await makeTestApp(env, { fetch: async () => { throw new Error("network disabled in tests"); } });
     const c = new Client(app.app);
     await c.signup("mode-off-r83@acme.io");
     const status = await c.get("/api/direct/status");
