@@ -31,8 +31,8 @@ export function publicMeetingLobbyRoutes() {
   return new Hono<AppEnv>()
     .get("/:token/here", async (c) => c.json(await whoIsHere(c.var.deps, c.req.param("token"))))
     .post("/:token", async (c) => {
-      const b = (await c.req.json().catch(() => ({}))) as { name?: unknown };
-      return c.json(await askToJoin(c.var.deps, c.req.param("token"), b?.name, c.var.ip ?? ""));
+      const b = (await c.req.json().catch(() => ({}))) as { name?: unknown; lobbyId?: unknown };
+      return c.json(await askToJoin(c.var.deps, c.req.param("token"), b?.name, c.var.ip ?? "", b?.lobbyId));
     })
     .get("/:token/:lobbyId", async (c) => {
       c.header("cache-control", "no-store");

@@ -18,7 +18,8 @@ import "@/web/i18n/w2/en-meetings"; // R104B
 
 export type { JoinPrefs } from "@/web/lib/prejoin-prefs";
 
-type Who = { mode: "member"; name: string } | { mode: "guest" };
+/** MEET fixes: a member also sees which workspace they join from, so a call never starts as the wrong account unnoticed. */
+type Who = { mode: "member"; name: string; workspace?: string } | { mode: "guest" };
 type Blocked = null | "denied" | "missing" | "busy";
 
 const BLOCKED_COPY: Record<Exclude<Blocked, null>, string> = {
@@ -238,7 +239,7 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
           ) : (
             callName === null ? (
               <p className="flex items-center gap-2 text-[12.5px] text-muted" data-testid="prejoin-joining-as">
-                <span>{tr("meetings.joining_as")} <span className="font-medium text-fg">{who.name}</span></span>
+                <span>{tr("meetings.joining_as")} <span className="font-medium text-fg">{who.name}</span>{who.workspace ? <> {tr("meetings.joining_as_in_workspace", { workspace: who.workspace })}</> : null}</span>
                 <button type="button" onClick={() => setCallName(who.name)} className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center max-sm:px-1" data-testid="prejoin-change-name">{tr("meetings.change")}</button>
               </p>
             ) : (

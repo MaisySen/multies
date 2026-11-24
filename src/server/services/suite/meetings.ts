@@ -7,7 +7,7 @@
  */
 import { and, desc, eq, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
-import { bookings, contacts, entityLinks, mailboxes, meetingActionItems, meetingRecordings, meetings, messages, organizations, tasks } from "../../db/schema";
+import { bookings, contacts, entityLinks, mailboxes, meetingActionItems, meetingRecordings, meetings, members, messages, organizations, tasks } from "../../db/schema";
 import { runBatch } from "../../db";
 import { randomToken, toB64 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
@@ -15,6 +15,7 @@ import { assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortab
 import { link, resolveTaskId } from "./tasks";
 import { admittedGuest, cleanGuestName } from "./meeting-lobby-r32";
 import { vtimezone } from "./vtimezone";
+import { closedReason, shownStatus } from "./meeting-open-meet";
 import { assertZone, describeRecurrence, expandWeekly, normaliseRecurrence, parseRrule, toRrule, weekdayIn, type Recurrence, type RecurrenceInput } from "./meeting-recurrence";
 
 type MeetingRow = typeof meetings.$inferSelect;
@@ -62,7 +63,7 @@ async function meetingRow(deps: Deps, orgId: string, id: string) {
   return m;
 }
 
-const out = (deps: Deps, m: MeetingRow) => present(m, deps.config.appUrl, meetingsEnabled(deps));
+const out = (deps: Deps, m: MeetingRow) => present({ ...m, status: shownStatus(m, deps.now()) }, deps.config.appUrl, meetingsEnabled(deps));
 
 /** How far ahead an upcoming list expands a weekly series, and how many of each it shows. */
 export const SERIES_WINDOW_DAYS = 60;
@@ -115,7 +116,27 @@ async function recurrenceColumns(deps: Deps, orgId: string, input: MeetingRecurr
 }
 
 export async function getMeeting(deps: Deps, actor: SuiteActor, id: string) {
-  return out(deps, await meetingRow(deps, actor.orgId, id));
+  return out(deps, await meetingHere(deps, actor, id));
+}
+
+/**
+ * MEET fixes (12 Nov 2026): a meeting link opened while this browser is in another of the person's workspaces.
+ * Before, it said "not found" and the link looked broken; now the answer names the meeting's workspace
+ * (404 meeting_in_other_workspace with details.workspace) so the page can offer to switch. Only a person who is
+ * a member of that workspace is told; anyone else still gets a plain not found.
+ */
+async function meetingHere(deps: Deps, actor: SuiteActor, id: string) {
+  try {
+    return await meetingRow(deps, actor.orgId, id);
+  } catch (err) {
+    if (!actor.userId || actor.agentId || actor.apiKeyId) throw err;
+    const other = await deps.db.select({ orgId: meetings.orgId, name: organizations.name }).from(meetings)
+      .innerJoin(organizations, eq(organizations.id, meetings.orgId))
+      .innerJoin(members, and(eq(members.organizationId, meetings.orgId), eq(members.userId, actor.userId)))
+      .where(and(eq(meetings.id, id), isNull(meetings.deletedAt))).get();
+    if (!other || other.orgId === actor.orgId) throw err;
+    throw new HttpError(404, "meeting_in_other_workspace", `This meeting is in your other workspace, ${other.name}. Switch to it to open the meeting.`, { workspace: { id: other.orgId, name: other.name } });
+  }
 }
 
 /** Title, guests and the sending mailbox suggested by what the meeting was started from. */
@@ -357,8 +378,10 @@ export async function livekitToken(deps: Deps, room: string, who: { identity: st
 
 /** A workspace member (or agent key) joining: their own name, host rights. */
 export async function joinMeeting(deps: Deps, actor: SuiteActor, id: string, opts: { name?: string } = {}) {
-  const m = await meetingRow(deps, actor.orgId, id);
+  const m = await meetingHere(deps, actor, id);
   if (m.status === "cancelled") throw new HttpError(409, "meeting_cancelled", "This meeting was cancelled.");
+  // MEET fixes (12 Nov 2026): an ended meeting stays ended for members too, as it already did for guests (Bidur, 10 Nov).
+  if (closedReason(m, deps.now())) throw new HttpError(409, "meeting_ended", "This meeting has ended.");
   await minutesLeftForRoom(deps, m);
   const identity = actor.agentId ? `agent-${actor.agentId}` : `member-${actor.userId}`;
   // R114: in a webinar only hosts and panelists speak; other members watch.
@@ -377,12 +400,13 @@ async function guestRow(deps: Deps, token: string) {
 export async function guestInfo(deps: Deps, token: string) {
   const m = await guestRow(deps, token);
   const org = await deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, m.orgId)).get();
-  return { title: m.title, startsAt: m.startsAt.toISOString(), durationMin: m.durationMin, status: m.status, host: org?.name ?? "", videoEnabled: meetingsEnabled(deps), guestsWait: m.guestLobby };
+  return { title: m.title, startsAt: m.startsAt.toISOString(), durationMin: m.durationMin, status: shownStatus(m, deps.now()), host: org?.name ?? "", videoEnabled: meetingsEnabled(deps), guestsWait: m.guestLobby };
 }
 
 export async function guestJoin(deps: Deps, token: string, name: string, lobbyId?: string) {
   const m = await guestRow(deps, token);
-  if (m.status !== "scheduled") throw new HttpError(409, m.status === "cancelled" ? "meeting_cancelled" : "meeting_ended", m.status === "cancelled" ? "This meeting was cancelled." : "This meeting has ended.");
+  const closed = closedReason(m, deps.now());
+  if (closed) throw new HttpError(409, closed === "cancelled" ? "meeting_cancelled" : "meeting_ended", closed === "cancelled" ? "This meeting was cancelled." : "This meeting has ended.");
   // Round 32: with the waiting room on, only an admitted request gets a token, under the name it asked with.
   const admitted = deps.config.meetings ? await admittedGuest(deps, m, lobbyId) : null;
   const clean = admitted ?? name.trim().slice(0, 60);

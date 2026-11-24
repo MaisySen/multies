@@ -3,13 +3,14 @@
  * notifications. No D1 write per poll: participant lists are cached in memory per isolate for
  * CALL_CACHE_MS, and the only write is marking a call ended, at most once per call.
  */
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { chatMembers, meetings } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { guestChannel, visibleChannel, type GuestViewer } from "./chat";
 import { notify } from "./notify";
+import { closedReason } from "./meeting-open-meet";
 import { liveMinutes, meetingMinutes, minutesState, participantMinutes, recordMeetingMinutes, type MinutesState, type SeenPerson } from "./meeting-minutes-r34";
 
 export interface CallParticipant { identity: string; name: string; joinedAt: number | null }
@@ -22,6 +23,15 @@ export const CALL_CACHE_MS = 10_000;
 export const CALL_WINDOW_MS = 6 * 3600_000;
 /** Channels with up to this many members notify each of them when a call starts. Bigger ones get only the card. */
 export const CALL_NOTIFY_MAX_MEMBERS = 8;
+/**
+ * MEET fixes (12 Nov 2026): a room seen empty ends the call only after it stayed empty this long. A page
+ * reload, a phone switching networks or a short drop leaves the room for a few seconds; before this, one
+ * empty read in that gap ended the meeting for good and its link stopped working. The last person
+ * pressing Leave still ends it at once (leftCall), and an ended meeting stays ended (no rejoin, 10 Nov).
+ */
+export const CALL_EMPTY_GRACE_MS = 45_000;
+/** A series' call is marked ended at most once in this window (two isolates reading the same empty room). */
+const SERIES_END_DEDUPE_MS = 10 * 60_000;
 
 const isKey = (a: SuiteActor) => !!(a.agentId || a.apiKeyId);
 
@@ -68,9 +78,11 @@ export function roomsFor(deps: Deps): CallRooms | null {
 // Per isolate: one in flight or recent read per room, and rooms seen with people (to tell "ended" from "not joined yet").
 const cache = new Map<string, { at: number; value: Promise<CallParticipant[]> }>();
 const seen = new Set<string>();
+// Rooms read empty after people were in them, with the first empty read (the grace above starts there).
+const emptySince = new Map<string, number>();
 // R34 (MB-171): per room, each person's first and last sighting, so the call's participant-minutes are known at its end.
 const usageSeen = new Map<string, Map<string, SeenPerson>>();
-export function clearCallCache() { cache.clear(); seen.clear(); usageSeen.clear(); }
+export function clearCallCache() { cache.clear(); seen.clear(); usageSeen.clear(); emptySince.clear(); }
 
 function noteUsage(room: string, ps: CallParticipant[], now: number) {
   let people = usageSeen.get(room);
@@ -138,9 +150,13 @@ export function endedCallMinutes(m: { startsAt: Date }, people: Map<string, Seen
 /** One write, only while the meeting is still scheduled: a second isolate or a repeat read writes nothing. */
 async function markEnded(deps: Deps, m: MeetingRow) {
   const now = deps.now();
-  const done = await deps.db.update(meetings).set({ status: "ended", endedAt: now })
-    .where(and(eq(meetings.id, m.id), eq(meetings.status, "scheduled"))).returning({ id: meetings.id });
-  if (done.length) { m.status = "ended"; m.endedAt = now; }
+  // MEET fixes: a weekly series stays scheduled; endedAt closes its link until the next meeting (meeting-open-meet.ts).
+  // Still one write per call: a racing isolate finds endedAt already set for this meeting in the series.
+  const series = !!m.recurrence;
+  const done = await deps.db.update(meetings).set(series ? { endedAt: now } : { status: "ended", endedAt: now })
+    .where(and(eq(meetings.id, m.id), eq(meetings.status, "scheduled"), ...(series ? [or(isNull(meetings.endedAt), lt(meetings.endedAt, new Date(now.getTime() - SERIES_END_DEDUPE_MS)))] : [])))
+    .returning({ id: meetings.id });
+  if (done.length) { if (!series) m.status = "ended"; m.endedAt = now; }
   // R24 polish: recipes listening for meeting_ended hear a call that emptied too. A failed rule never breaks the call status.
   if (done.length) await (await import("./automations-r24-events")).runCallEnded(deps, m).catch(() => 0);
   // R34 (MB-171): one counter upsert per call end. A failed count never breaks the call status.
@@ -151,23 +167,35 @@ async function markEnded(deps: Deps, m: MeetingRow) {
   return done.length > 0;
 }
 
+/** True once a room has read empty for CALL_EMPTY_GRACE_MS; the first empty read starts the wait. */
+export function emptyLongEnough(room: string, now: number) {
+  const since = emptySince.get(room);
+  if (since === undefined) {
+    emptySince.set(room, now);
+    if (emptySince.size > 2000) emptySince.delete(emptySince.keys().next().value!);
+    return CALL_EMPTY_GRACE_MS <= 0;
+  }
+  return now - since >= CALL_EMPTY_GRACE_MS;
+}
+
 async function statusOf(deps: Deps, rooms: CallRooms | null, m: MeetingRow, fresh = false): Promise<CallStatus> {
   const base = { meetingId: m.id, title: m.title, channelId: m.channelId ?? null, docId: m.docId ?? null, startedAt: m.startsAt.toISOString() };
   const ended = (): CallStatus => {
     const end = m.endedAt ?? deps.now();
     return { ...base, state: "ended", participants: [], count: 0, endedAt: m.endedAt?.toISOString() ?? null, durationMin: Math.max(1, Math.round((end.getTime() - m.startsAt.getTime()) / 60_000)) };
   };
-  if (m.status !== "scheduled" || !rooms) return m.status !== "scheduled" ? ended() : { ...base, state: "waiting", participants: [], count: 0, endedAt: null, durationMin: null };
+  if (closedReason(m, deps.now()) || !rooms) return closedReason(m, deps.now()) ? ended() : { ...base, state: "waiting", participants: [], count: 0, endedAt: null, durationMin: null };
   const ps = await participants(deps, rooms, m.room, fresh);
   if (ps.length) {
+    emptySince.delete(m.room);
     const live: CallStatus = { ...base, state: "live", participants: ps.map((p) => ({ name: p.name })), count: ps.length, endedAt: null, durationMin: null };
     // R34 (MB-171): reads only (cached 30 s); the call shows a warning at 80% and when 5 minutes remain.
     const mm = await meetingMinutes(deps, m.orgId).catch(() => null);
     if (mm && mm.cap !== null) live.minutes = minutesState(mm.used + liveMinutes(ps.map((p) => p.joinedAt), deps.now().getTime()), mm.cap, deps.now());
     return live;
   }
-  // Empty after this isolate saw people in it: the call is over. Write once.
-  if (seen.has(m.room) && (await markEnded(deps, m))) { seen.delete(m.room); return ended(); }
+  // Empty after this isolate saw people in it, and still empty after the grace: the call is over. Write once.
+  if (seen.has(m.room) && emptyLongEnough(m.room, deps.now().getTime()) && (await markEnded(deps, m))) { seen.delete(m.room); emptySince.delete(m.room); return ended(); }
   return { ...base, state: "waiting", participants: [], count: 0, endedAt: null, durationMin: null };
 }
 
@@ -220,9 +248,9 @@ export async function leftCall(deps: Deps, a: SuiteActor, meetingId: string) {
   if (isKey(a) || !a.userId) throw new HttpError(403, "forbidden", "Only people join calls.");
   const m = await visibleMeeting(deps, a, meetingId);
   const rooms = roomsFor(deps);
-  if (!rooms || !m.channelId || m.status !== "scheduled") return { enabled: !!rooms, ...(await statusOf(deps, rooms, m)) };
+  if (!rooms || !m.channelId || closedReason(m, deps.now())) return { enabled: !!rooms, ...(await statusOf(deps, rooms, m)) };
   const ps = await participants(deps, rooms, m.room, true);
-  if (!ps.length) await markEnded(deps, m);
+  if (!ps.length && (await markEnded(deps, m))) { seen.delete(m.room); emptySince.delete(m.room); }
   return { enabled: true, ...(await statusOf(deps, rooms, m)) };
 }
 
