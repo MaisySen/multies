@@ -14,7 +14,7 @@
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { assertMailboxNotHeld } from "../mail/archive-r111"; // R111
 import type { AuthContext, Deps } from "../../context";
-import { mailboxes, mailConnections, messages, mailSyncOutbox } from "../../db/schema";
+import { apiRateLimits, mailboxes, mailConnections, messages, mailSyncOutbox } from "../../db/schema";
 import { decryptSecret, encryptSecret, hmacSha256Hex, newId, safeEqual } from "../../lib/crypto";
 import { badRequest, conflict, forbidden, HttpError, notFound } from "../../lib/errors";
 import { isPublicHost } from "../../lib/ssrf";
@@ -168,6 +168,34 @@ export const PENDING_CONNECTION_MS = 24 * 3_600_000;
 const CODE_TTL_MS = 60 * 60_000;
 const CODE_MIN_GAP_MS = 60_000;
 const CODE_MAX_TRIES = 5;
+/** Wave 1 review V5: codes one connection may ask for, and codes one address may receive from any workspace, a day. */
+export const CODES_PER_CONNECTION = 5;
+export const CODES_PER_ADDRESS_DAY = 5;
+const DAY_MS = 24 * 3_600_000;
+
+/**
+ * Wave 1 review V5: counts one emailed code against the connection and the address, in D1 (api_rate_limits, a fixed
+ * 24 hour window swept by maintenance), so restarts and other instances share it. One atomic upsert each; refuses with
+ * 429 past either cap, before the code is made or anything else is written.
+ */
+async function claimCodeSend(deps: Deps, email: string, connectionId: string | null) {
+  const now = deps.now().getTime();
+  const { sha256Hex } = await import("../../lib/crypto");
+  const take = async (key: string, cap: number) => {
+    const row = await deps.db.insert(apiRateLimits).values({ key, hits: 1, resetAt: now + DAY_MS })
+      .onConflictDoUpdate({ target: apiRateLimits.key, set: {
+        hits: sql`case when ${apiRateLimits.resetAt} <= ${now} then 1 else ${apiRateLimits.hits} + 1 end`,
+        resetAt: sql`case when ${apiRateLimits.resetAt} <= ${now} then ${now + DAY_MS} else ${apiRateLimits.resetAt} end`,
+      } }).returning({ hits: apiRateLimits.hits }).get();
+    return (row?.hits ?? cap + 1) <= cap;
+  };
+  if (!await take(`connect-code-addr:${await sha256Hex(email.trim().toLowerCase())}`, CODES_PER_ADDRESS_DAY)) {
+    throw new HttpError(429, "rate_limited", `We have sent ${email} as many codes as we will today. Try again tomorrow.`);
+  }
+  if (connectionId && !await take(`connect-code-conn:${connectionId}`, CODES_PER_CONNECTION)) {
+    throw new HttpError(429, "rate_limited", "This connection has had as many codes as it can. Remove it and connect the mailbox again.");
+  }
+}
 
 /**
  * PRIV1b (P60): whether signing in proves the address. Only a known provider at its own servers does: Gmail, Outlook and
@@ -187,7 +215,8 @@ async function sendConnectCode(deps: Deps, c: Pick<Connection, "id" | "orgId" | 
   const { newCode } = await import("../tools/esign-v2"); // the 6 digit code the e-signature check uses
   const code = newCode();
   const now = deps.now();
-  await deps.db.update(mailConnections).set({ verifyCodeHash: await connectCodeHash(deps, c.id, code), verifyExpiresAt: new Date(now.getTime() + CODE_TTL_MS), verifyTries: 0, verifySentAt: now })
+  // Wave 1 review V5: a new code never resets the wrong tries; five wrong codes end the connection's chances.
+  await deps.db.update(mailConnections).set({ verifyCodeHash: await connectCodeHash(deps, c.id, code), verifyExpiresAt: new Date(now.getTime() + CODE_TTL_MS), verifySentAt: now })
     .where(eq(mailConnections.id, c.id));
   const { sendSystemEmail } = await import("../system-mail");
   // accountSecurity: inside the platform only to a mailbox at exactly this address, never through an alias or catch all.
@@ -207,13 +236,17 @@ export async function verifyConnection(deps: Deps, auth: AuthContext, id: string
   const entered = typeof code === "string" ? code.replace(/\s+/g, "") : "";
   if (!/^\d{6}$/.test(entered)) throw badRequest("Enter the 6 digit code from the email.");
   if (!c.verifyCodeHash || !c.verifyExpiresAt || c.verifyExpiresAt.getTime() <= now.getTime()) throw conflict("This code has expired. Ask for a new one.");
-  if (c.verifyTries >= CODE_MAX_TRIES) throw new HttpError(429, "too_many_tries", "Too many wrong codes. Ask for a new one.");
+  const tooMany = () => new HttpError(429, "too_many_tries", "Too many wrong codes. Remove this connection and connect the mailbox again.");
+  if (c.verifyTries >= CODE_MAX_TRIES) throw tooMany();
+  // Wave 1 review V5: every guess takes a try in one atomic statement before it is compared, so parallel guesses can't
+  // get past the limit (a read then a compare let all of them through).
+  const claimed = await deps.db.update(mailConnections).set({ verifyTries: sql`${mailConnections.verifyTries} + 1` })
+    .where(and(eq(mailConnections.id, c.id), eq(mailConnections.status, "verifying"), lt(mailConnections.verifyTries, CODE_MAX_TRIES))).returning({ tries: mailConnections.verifyTries }).get();
+  if (!claimed) throw tooMany();
   const h = await connectCodeHash(deps, c.id, entered);
   if (!safeEqual(h, c.verifyCodeHash)) {
-    // Counted in the statement itself, so parallel guesses can't go past the limit.
-    await deps.db.update(mailConnections).set({ verifyTries: sql`${mailConnections.verifyTries} + 1` }).where(and(eq(mailConnections.id, c.id), lt(mailConnections.verifyTries, CODE_MAX_TRIES)));
-    const left = CODE_MAX_TRIES - c.verifyTries - 1;
-    throw badRequest(left > 0 ? `That code is not right. ${left} ${left === 1 ? "try" : "tries"} left.` : "Too many wrong codes. Ask for a new one.");
+    const left = CODE_MAX_TRIES - claimed.tries;
+    throw badRequest(left > 0 ? `That code is not right. ${left} ${left === 1 ? "try" : "tries"} left.` : "Too many wrong codes. Remove this connection and connect the mailbox again.");
   }
   // Single use: the hash is cleared in the statement that turns it on.
   const won = await deps.db.update(mailConnections).set({ status: "active", verifyCodeHash: null, verifyExpiresAt: null, verifyTries: 0, nextSyncAt: now })
@@ -235,6 +268,7 @@ export async function resendConnectionCode(deps: Deps, auth: AuthContext, id: st
     const wait = Math.ceil((CODE_MIN_GAP_MS - (now - c.verifySentAt.getTime())) / 1000);
     throw new HttpError(429, "rate_limited", `A code was just sent. You can ask for another in ${wait} seconds.`, { retryAfterSeconds: wait });
   }
+  await claimCodeSend(deps, c.email, c.id);
   await sendConnectCode(deps, c);
   return { sent: true as const };
 }
@@ -284,11 +318,12 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
   if (authKind === "password") await testSettings(deps, s, { secret });
   // PRIV1b (P60): an unrecognised server proves nothing about the address: the connection waits for an emailed code.
   const needsCode = authKind === "password" && !serversProveAddress(s);
+  const id = newId("mcn");
+  if (needsCode) await claimCodeSend(deps, s.email, id); // Wave 1 review V5: before anything is written
   if (replacing) await dropPending(deps, pending!);
   const plan = await getPlan(deps.db, auth.orgId);
   const domain = await ensurePlatformDomain(deps, CONNECTED_DOMAIN);
   const mailboxId = kept ?? newId("mbx");
-  const id = newId("mcn");
   const [local] = s.email.split("@");
   // PRIV1a: a connected inbox is personal, private to the person who connected it (a workspace key with no person: a team mailbox).
   if (kept) await deps.db.update(mailboxes).set({ status: needsCode ? "suspended" : "active", displayName: s.displayName }).where(eq(mailboxes.id, kept));
@@ -357,6 +392,7 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
   const hostChanged = s.imap.host !== c.imapHost.toLowerCase() || s.smtp.host !== c.smtpHost.toLowerCase();
   const reverify = c.status !== "verifying" && hostChanged && !serversProveAddress(s);
   const waits = c.status === "verifying" || reverify;
+  if (reverify) await claimCodeSend(deps, c.email, c.id); // Wave 1 review V5: before anything is written
   await deps.db.update(mailConnections).set({
     username: s.username, imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
     smtpHost: s.smtp.host, smtpPort: s.smtp.port, smtpSecurity: s.smtp.security, authKind: "password",
