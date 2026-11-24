@@ -60,6 +60,8 @@ export async function convertLoginMailbox(deps: Deps, who: CallerLike & { orgId:
   if (!won.length) throw conflict(`${mb.address} is already a personal mailbox.`);
   const grants = await deps.db.delete(mailboxAccess).where(and(eq(mailboxAccess.mailboxId, mb.id), ne(mailboxAccess.userId, listed.userId))).returning({ u: mailboxAccess.userId });
   const agentRows = await deps.db.delete(agentMailboxAccess).where(eq(agentMailboxAccess.mailboxId, mb.id)).returning({ a: agentMailboxAccess.agentId });
+  // Wave 3 review Y8 (a): app passwords someone else made while it was a team mailbox go too, as when a share ends.
+  await (await import("./mailserver")).destroyForeignAppPasswords(deps, who.orgId, mb.id).catch((err: unknown) => deps.reportError?.(err, { where: "make_personal.app_passwords" }));
   await audit(deps.db, { orgId: who.orgId, actorUserId: who.userId, actorEmail: who.email ?? null, action: "mailbox.made_personal_by_owner", targetType: "mailbox", targetId: mb.id, ip: ip ?? null,
     metadata: { address: mb.address, memberUserId: listed.userId, grantsEnded: grants.length, agentsEnded: agentRows.length } });
   const { notify } = await import("./suite/notify");
