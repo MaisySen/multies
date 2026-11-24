@@ -18,6 +18,8 @@ export function registerMcpRoute(api: OpenAPIHono<AppEnv>) {
     if (c.req.method === "POST") {
       const raw = await c.req.raw.clone().text();
       if (!isJson(raw)) return c.json({ jsonrpc: "2.0", error: { code: -32700, message: "Parse error: the request body is not valid JSON." }, id: null }, 400);
+      // B10: an empty batch is an Invalid Request in JSON-RPC 2.0, not a 202 with nothing done.
+      if (/^\[\s*\]$/.test(raw.trim())) return c.json({ jsonrpc: "2.0", error: { code: -32600, message: "Invalid Request: the batch is empty." }, id: null }, 400);
     }
     const { handleMcp } = await import("./mcp-server");
     // R37: per connection choice (?tools=scoped or ?tools=all, or the X-Multies-Tools header) beats the key's own setting.

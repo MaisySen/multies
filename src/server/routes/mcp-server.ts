@@ -514,8 +514,17 @@ export async function handleMcp(c: Context<AppEnv>, actor: Scoped) {
   const server = buildMcpServer(c.var.deps, actor, new URL(c.req.url).origin, await mcpCallContext(c.req.raw));
   const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined, enableJsonResponse: mode === "json" });
   await server.connect(transport);
-  const res = await transport.handleRequest(c);
-  return res ?? c.body(null, 202);
+  try {
+    const res = await transport.handleRequest(c);
+    return res ?? c.body(null, 202);
+  } catch (err) {
+    // B10: the transport refuses a body that is not a JSON-RPC message ({} or null), a wrong Accept or content type
+    // with an HTTP exception that carries its JSON-RPC answer. That answer is the reply (400 and so on), not a 500.
+    if (err instanceof Error && typeof (err as { getResponse?: unknown }).getResponse === "function" && typeof (err as { status?: unknown }).status === "number" && (err as { status: number }).status < 500) {
+      return (err as unknown as { getResponse: () => Response }).getResponse();
+    }
+    throw err;
+  }
 }
 
 
