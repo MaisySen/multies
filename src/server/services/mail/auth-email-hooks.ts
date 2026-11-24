@@ -62,6 +62,9 @@ export async function senderMailbox(deps: Deps, orgId: string, address: string) 
   return row?.mb;
 }
 
+/** The words for a hook (or its test send) still pointed at an agent's inbox from before the team-mailbox rule. */
+export const AGENT_INBOX_HOOK = "This hook's mailbox is an AI agent's inbox, which can't send sign-up emails. Pick a team mailbox in Multies settings.";
+
 const notASender = (from: string) => bad(`${from} can't send sign-up emails. Use a team mailbox on one of this workspace's verified domains (no-reply@ works well), not an agent's inbox or a connected or personal address.`);
 
 export async function createAuthHook(deps: Deps, a: AuthContext & { agentId?: string | null }, input: AuthHookInput, opts: { id?: string; retry?: boolean } = {}) {
@@ -220,6 +223,9 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
   if (h.h.enabled === false) return fail(503, "Auth emails are turned off for this workspace in Multies settings.");
   // PRIV1b (W1): a hook saved before the team-mailbox rule may still point at a personal mailbox; it never sends as one.
   if (h.mb.personal) return fail(503, "This hook's mailbox is a personal mailbox. Pick a team mailbox in Multies settings.");
+  // AIS1 (round 2, owner decision): nor as an AI agent. A hook saved on an agent's inbox before senderMailboxCond sent as
+  // the system, past the agent's approval rule, send cap and allowed recipients. It stays saved; an admin moves it.
+  if (h.mb.kind === "agent") return fail(503, AGENT_INBOX_HOOK);
   let payload: SupabasePayload;
   try {
     const secret = await decryptSecret(deps.config.appSecret, h.h.secretEnc);

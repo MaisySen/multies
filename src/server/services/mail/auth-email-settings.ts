@@ -16,7 +16,7 @@ import { authEmailHooks, domains, mailboxes, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { isPersonSession, requirePerson } from "../../lib/actor-kind";
-import { AGENT_INBOX_HOOK_EDIT } from "./auth-email-hooks";
+import { AGENT_INBOX_HOOK, AGENT_INBOX_HOOK_EDIT } from "./auth-email-hooks";
 import { audit } from "../audit";
 import { sendMessage } from "./send";
 import { AUTH_EMAIL_TYPES, mergeBranding, parseBranding, renderAuthEmail, type AuthEmailBranding } from "./auth-email-branding";
@@ -246,7 +246,10 @@ export async function sendAuthEmailTest(deps: Deps, a: Actor, body: { type?: str
   const h = await currentHook(deps, a.orgId);
   if (!h) throw notFound("Sign-up email settings");
   // PRIV1b (W1): an older hook on a personal mailbox never sends a test as its owner. One read by primary key.
-  if ((await deps.db.select({ personal: mailboxes.personal }).from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get())?.personal) throw bad("Sign-up emails can't come from a personal mailbox. Pick a team mailbox.", "from");
+  const mb = await deps.db.select({ personal: mailboxes.personal, kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get();
+  if (mb?.personal) throw bad("Sign-up emails can't come from a personal mailbox. Pick a team mailbox.", "from");
+  // AIS1 (round 2): nor an agent's inbox, as the hook itself refuses (handleSupabaseHook).
+  if (mb?.kind === "agent") throw new HttpError(503, "sender_not_allowed", AGENT_INBOX_HOOK);
   const now = deps.now().getTime();
   const recent = recentTests(h, now);
   if (recent.length >= TEST_SENDS_PER_HOUR) {

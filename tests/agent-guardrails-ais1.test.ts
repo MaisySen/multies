@@ -346,8 +346,10 @@ describe("AIS1 gap: sign-up email hooks can't send from an agent's inbox", () =>
     await mcp.close();
     expect(viaApp.isError).toBe(true);
     expect(text(viaApp)).toContain("person_only");
-    // Decision: a working sign-up flow isn't cut off, so the saved secret (which only Supabase holds) still sends.
-    expect(await hookCall("/api/auth-hooks/supabase/ahk_legacy", SECRET, signup("new.user@example.com"))).toBe(200);
+    // Owner decision (round 2): an older hook on an agent's inbox no longer sends at all. It sent as the system, past the
+    // agent's approval rule, cap and allowed recipients; Supabase gets a 503 that names the fix (pick a team mailbox).
+    expect(await hookCall("/api/auth-hooks/supabase/ahk_legacy", SECRET, signup("new.user@example.com"))).toBe(503);
+    expect(sentFrom(agent.address)).toEqual([]);
     // A person may still make a new secret for it; that is their own setup, as Compose is.
     const byPerson = await c.post("/api/auth-email-settings/secret", {});
     expect(byPerson.status).toBe(200);
@@ -405,10 +407,16 @@ describe("AIS1 gap: sign-up email hooks can't send from an agent's inbox", () =>
     });
 
     it("a key may switch it off, send back what it has, or move it to a team mailbox; a person may change anything", async () => {
-      // A person switches it on and words it (their own setup, as Compose is): it sends from the agent's address.
+      // A person switches it on and words it (their own setup, as Compose is). Owner decision (round 2): it still never
+      // sends as the agent. The hook and the test send answer 503 with words that say to pick a team mailbox.
       expect((await c.put("/api/auth-email-settings", { enabled: true, branding: { templates: { signup: { subject: "Confirm your Acme account" } } } })).status).toBe(200);
-      expect(await hookCall(LEGACY, SECRET, signup("new.user@example.com"))).toBe(200);
-      expect(sentFrom(agent.address).map((m) => m.subject)).toEqual(["Confirm your Acme account"]);
+      const res = await ctx.app.request(LEGACY, { method: "POST", headers: { "content-type": "application/json", "webhook-id": "wh_g2", "webhook-timestamp": String(Math.floor(Date.now() / 1000)), "webhook-signature": new Webhook(SECRET.replace(/^v1,/, "")).sign("wh_g2", new Date(), signup("new.user@example.com")) }, body: signup("new.user@example.com") });
+      expect(res.status).toBe(503);
+      expect((await res.json() as { error: { message: string } }).error.message).toMatch(/agent's inbox.*team mailbox/i);
+      const test = await c.post("/api/auth-email-settings/test", { type: "signup" });
+      expect(test.status).toBe(503);
+      expect(test.body.error.message).toMatch(/team mailbox/i);
+      expect(sentFrom(agent.address)).toEqual([]);
       // A key may switch it off again, and a value sent back unchanged is not a change.
       expect((await api(wsKey, "PUT", "/auth-email-settings", { enabled: false })).status).toBe(200);
       expect((await api(wsKey, "PUT", "/auth-email-settings", { enabled: false, appName: "Acme" })).status).toBe(200);
@@ -420,7 +428,7 @@ describe("AIS1 gap: sign-up email hooks can't send from an agent's inbox", () =>
       expect(moved.body.settings).toMatchObject({ from: "no-reply@acme.io", enabled: true });
       expect(await hookCall(LEGACY, SECRET, signup("second.user@example.com"))).toBe(200);
       expect(sentFrom("no-reply@acme.io").map((m) => m.subject)).toEqual(["Welcome to Acme"]);
-      expect(sentFrom(agent.address)).toHaveLength(1);
+      expect(sentFrom(agent.address)).toEqual([]);
     });
   });
 });
