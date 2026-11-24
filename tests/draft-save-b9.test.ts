@@ -8,16 +8,27 @@ import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { mailboxes, messages } from "@/server/db/schema";
 
-const fault = vi.hoisted(() => ({ mode: "off" as "off" | "fail" | "race" | "delete" | "committed", raceId: "" }));
+const fault = vi.hoisted(() => ({ mode: "off" as "off" | "fail" | "race" | "delete" | "committed" | "rivalwon", raceId: "" }));
 vi.mock("@/server/services/mail/store", async (orig) => {
   const real = await orig<typeof import("@/server/services/mail/store")>();
   return { ...real, storeMessage: async (...a: Parameters<typeof real.storeMessage>) => {
     if (fault.mode === "fail") throw new Error("body store unavailable");
     // Another window saved the same draft while this save was storing: the old copy is gone.
     if (fault.mode === "race") await a[0].delete(messages).where(eq(messages.id, fault.raceId));
+    // Wave 1 review V11: another window's save of the same draft wins while this one stores: it stores its own copy,
+    // deletes the old one and gives its bytes back. Then this save's delete of the old copy fails.
+    if (fault.mode === "rivalwon") {
+      await real.storeMessage(a[0], { ...a[1], subject: "rival" });
+      const gone = await a[0].delete(messages).where(eq(messages.id, fault.raceId)).returning({ sizeBytes: messages.sizeBytes });
+      await real.releaseBytes(a[0], a[1].mailboxId, gone);
+    }
     const id = await real.storeMessage(...a);
     // F5: the database fails on the very next delete (the old draft's), once.
     if (fault.mode === "delete") {
+      const db = a[0];
+      const spy = vi.spyOn(db, "delete").mockImplementationOnce(() => { spy.mockRestore(); throw new Error("injected delete failure"); });
+    }
+    if (fault.mode === "rivalwon") {
       const db = a[0];
       const spy = vi.spyOn(db, "delete").mockImplementationOnce(() => { spy.mockRestore(); throw new Error("injected delete failure"); });
     }
@@ -116,6 +127,20 @@ describe("B9: saving over a draft never loses it", () => {
     expect((await c.post("/api/mail/send", { mailboxId, draftId: id, to: ["a@b.io"], subject: "final", text: "final words" })).status).toBeLessThan(300);
     s = await stored();
     expect(s.used).toBe(s.sum);
+  }, 60_000);
+
+  it("Wave 1 review V11: when another save replaced the draft and this save's delete then fails, this save answers 409, leaves one copy and gives no bytes back twice", async () => {
+    const { ctx, c, mailboxId, drafts } = await setup();
+    fault.mode = "off";
+    const first = (await c.post("/api/mail/drafts", { mailboxId, to: ["a@b.io"], subject: "v1", text: "first ".repeat(200) })).body.id as string;
+    fault.mode = "rivalwon"; fault.raceId = first;
+    const r = await c.post("/api/mail/drafts", { id: first, mailboxId, to: ["a@b.io"], subject: "mine", text: "mine" });
+    fault.mode = "off";
+    expect(r.status).toBe(409);
+    expect((await drafts()).map((d) => d.subject)).toEqual(["rival"]);
+    const used = (await ctx.db.select({ u: mailboxes.usedBytes }).from(mailboxes).where(eq(mailboxes.id, mailboxId)).get())!.u;
+    const sum = (await ctx.db.select({ s: messages.sizeBytes }).from(messages).where(eq(messages.mailboxId, mailboxId)).all()).reduce((n, x) => n + x.s, 0);
+    expect(used).toBe(sum);
   }, 60_000);
 
   it("a save that loses the race answers 409 and leaves no extra copy", async () => {

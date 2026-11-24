@@ -135,7 +135,7 @@ export async function takeOverDraft(deps: Deps, actor: Who & { name?: string }, 
  * is gone (saved again, sent or taken over in another window), instead of silently overwriting.
  */
 export async function checkDraftSave(deps: Deps, actor: Who, draftId: string, mailboxId: string) {
-  const d = await deps.db.select({ id: messages.id, sentByUserId: messages.sentByUserId, threadId: messages.threadId, inReplyTo: messages.inReplyTo, sizeBytes: messages.sizeBytes }).from(messages)
+  const d = await deps.db.select({ id: messages.id, sentByUserId: messages.sentByUserId, threadId: messages.threadId, inReplyTo: messages.inReplyTo, sizeBytes: messages.sizeBytes, date: messages.date }).from(messages)
     .where(and(eq(messages.id, draftId), eq(messages.orgId, actor.orgId), eq(messages.mailboxId, mailboxId), eq(messages.folder, "drafts"))).get();
   if (!d) throw new HttpError(409, "draft_changed", "This draft was saved, sent or taken over in another window. Copy your text and start a new reply.");
   if (d.sentByUserId && d.sentByUserId !== actor.userId) {

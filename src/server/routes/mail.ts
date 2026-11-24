@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, ne } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { saveDraftSchema, sendMessageSchema, updateMessageSchema } from "@/shared/schemas";
@@ -291,7 +291,7 @@ export function mailRoutes() {
       // the first of two saves of the same draft finds it.
       // B9: the new copy is stored first and the old one deleted after, so a failed store leaves the old draft as it
       // was (it used to be deleted first and lost). A save that loses the race takes its own new copy back out.
-      let before: { threadId: string; inReplyTo: string | null; sizeBytes: number } | undefined;
+      let before: { threadId: string; inReplyTo: string | null; sizeBytes: number; date: Date } | undefined;
       if (input.id) before = await checkDraftSave(deps, auth, input.id, mb.id);
       // A reply draft stays in its thread, also when it is reopened from Drafts and saved again.
       const target = (await replyTarget(deps, auth, input.inReplyToId)) ?? (before ? { threadId: before.threadId, messageIdHeader: before.inReplyTo } : null);
@@ -316,6 +316,16 @@ export function mailRoutes() {
           const oldId = input.id;
           const still = await Promise.resolve().then(() => deps.db.select({ id: messages.id }).from(messages).where(eq(messages.id, oldId)).get()).catch(() => ({ id: oldId }));
           if (!still) {
+            // Wave 1 review V11: unless another save of this draft replaced it at the same time: its own new copy is in
+            // the thread, and it already gave the old copy's bytes back. Then this save lost: its copy goes (with its
+            // bytes), nothing is given back twice, and it answers 409 as a lost race does (the text is still on screen).
+            const rival = before ? await Promise.resolve().then(() => deps.db.select({ id: messages.id }).from(messages).where(and(
+              eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), eq(messages.threadId, before!.threadId), ne(messages.id, id),
+              auth.userId ? eq(messages.sentByUserId, auth.userId) : undefined, gte(messages.date, before!.date))).get()).catch(() => undefined) : undefined;
+            if (rival) {
+              await dropNew().catch((e: unknown) => (c.var.log ?? deps.log)?.warn("draft_save.rollback_failed", { error: e instanceof Error ? e.message.slice(0, 200) : String(e) }));
+              await checkDraftSave(deps, auth, oldId, mb.id);
+            }
             await releaseBytes(deps.db, mb.id, [{ sizeBytes: before?.sizeBytes ?? 0 }]).catch(() => undefined);
             return c.json({ id }, 201);
           }
