@@ -145,12 +145,14 @@ describe("DF-7: the public API covers an org setup", () => {
     // Starter has 3 seats: owner, CTO and one pending invitation.
     const full = await api(key, "POST", "/invites", { email: "fourth@haajir.test" });
     expect(full.body.error.code).toBe("plan_limit");
-    // A key outlives its creator only as a plain workspace key: it can no longer invite.
+    // A key outlives its creator, but (Wave 1 review V6, owner decision) with a member's role: it still works for what
+    // a member may do, and can no longer invite.
     const ctoId = (await cto.get("/api/account/me")).body.user.id;
     expect((await owner.del(`/api/team/members/${ctoId}`)).status).toBe(200);
     const left = await api(ctoKey, "POST", "/invites", { email: "late@haajir.test" });
     expect(left.status).toBe(403);
-    expect(left.body.error.message).toContain("no longer in the workspace");
+    expect(left.body.error.message).toContain("left the workspace");
+    expect((await api(ctoKey, "GET", "/tasks")).status).toBe(200);
   });
 
   it("read only keys and agent member keys can't invite", async () => {

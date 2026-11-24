@@ -12,7 +12,7 @@ import { shortDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Section } from "./settings";
 
-interface ApiKey { id: string; name: string; prefix: string; scope: string; showOnlyUsableTools?: boolean; scopeChips?: string[]; agentId?: string | null; lastUsedAt: string | null; expiresAt?: string | null; createdAt: string }
+interface ApiKey { id: string; name: string; prefix: string; scope: string; showOnlyUsableTools?: boolean; scopeChips?: string[]; agentId?: string | null; lastUsedAt: string | null; expiresAt?: string | null; createdAt: string; /** Wave 1 review V6: its maker left; it acts as a member. */ makerLeft?: boolean }
 
 /** Round 2: the end dates a new key can have. "" keeps the old behaviour: the key never ends. */
 const EXPIRY_CHOICES = [["", "Never"], ["30", "In 30 days"], ["90", "In 90 days"], ["365", "In 1 year"]] as const;
@@ -177,6 +177,7 @@ function ApiKeys() {
                       <code className="rounded-md bg-fill px-1.5 py-0.5 font-mono text-[11.5px] text-muted" aria-label={`Key starts ${k.prefix}`}>{k.prefix}{"\u2022".repeat(6)}</code>
                       <ScopeChips chips={k.scopeChips ?? (k.scope === "read" ? ["Read only"] : ["Full access"])} />
                       {k.showOnlyUsableTools ? <span data-testid="tool-list-chip" className="rounded-full bg-hover px-2 py-0.5 text-[11px] text-muted">Shows only its tools</span> : null}
+                      {k.makerLeft ? <span data-testid="key-maker-left-chip" title="The person who made this key left the workspace, so it now acts with a member's access. Revoke it, or have someone on the team make a new key for this app." className="rounded-full bg-warn-soft px-2 py-0.5 text-[11px] text-warn">Maker left: revoke or replace</span> : null}
                       {k.expiresAt ? <span data-testid="key-expiry-chip" className={cn("rounded-full px-2 py-0.5 text-[11px]", Date.parse(k.expiresAt) <= Date.now() ? "bg-bad-soft text-bad" : "bg-hover text-muted")}>{Date.parse(k.expiresAt) <= Date.now() ? `Expired ${shortDate(k.expiresAt)}` : `Expires ${shortDate(k.expiresAt)}`}</span> : null}
                     </div>
                   </div>

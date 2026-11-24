@@ -19,8 +19,11 @@ export function presentApiKey(k: typeof apiKeys.$inferSelect) {
 }
 
 export async function listApiKeys(deps: Deps, orgId: string, agentId?: string) {
-  const rows = await deps.db.select().from(apiKeys).where(and(eq(apiKeys.orgId, orgId), agentId ? eq(apiKeys.agentId, agentId) : undefined)).orderBy(desc(apiKeys.createdAt));
-  return rows.map(presentApiKey);
+  const rows = await deps.db.select({ k: apiKeys, memberId: members.id }).from(apiKeys)
+    .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
+    .where(and(eq(apiKeys.orgId, orgId), agentId ? eq(apiKeys.agentId, agentId) : undefined)).orderBy(desc(apiKeys.createdAt));
+  // Wave 1 review V6: a workspace key whose maker is no longer a member acts as a member; the list says so.
+  return rows.map((r) => ({ ...presentApiKey(r.k), makerLeft: !r.k.agentId && !r.memberId }));
 }
 
 /** Creates a key. The full key is returned once; only its hash is kept. */
@@ -108,7 +111,9 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   const name = agentMember ? row.creatorName ?? k.name : row.agentName ?? row.orgName;
   const keyKind = agentMember ? "agent_member" : k.agentId ? "agent" : "workspace";
   // Round 2: a workspace key acts with its maker's current role, never more than admin. An agent key acts as its agent.
-  const role = agentMember ? "member" : keyKind === "workspace" && userId && row.memberRole === "member" ? "member" : "admin";
+  // Wave 1 review V6: a key whose maker left, was removed or deleted their account has no person behind it, so it keeps
+  // working with the least role ("member"), never as a full admin; Settings, Developers flags it (makerLeft).
+  const role = agentMember ? "member" : keyKind === "workspace" ? (userId && row.memberRole !== "member" ? "admin" : "member") : "admin";
   return {
     userId, email: `api-key:${k.prefix}`, name, title: agentMember ? row.memberTitle ?? null : null, orgId: k.orgId, role,
     sessionId: `apikey:${k.id}`, apiKeyId: k.id, ...keyScope(k.scope), orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null, keyName: k.name, keyPrefix: k.prefix, keyKind,

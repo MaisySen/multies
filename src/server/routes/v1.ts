@@ -214,10 +214,11 @@ const workspaceKeyOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
 
 /**
  * An AI agent member's key acts with the member role: it can't run the workspace's mail, agents or integrations.
- * Round 2: so does a workspace key whose maker is now a member (resolveApiKey uses the maker's current role).
+ * Round 2: so does a workspace key whose maker is now a member (resolveApiKey uses the maker's current role), and
+ * (Wave 1 review V6) one whose maker left the workspace.
  */
 const memberKeyCheck = (c: Context<AppEnv>) => {
-  if (c.var.auth.role === "member") throw new HttpError(403, "agent_member_key_scope", "A key with the member role (an agent member's key, or one whose maker is now a member) works with tasks, projects, docs, chat, meetings, goals and people. Use a key an owner or admin made for this.");
+  if (c.var.auth.role === "member") throw new HttpError(403, "agent_member_key_scope", "A key with the member role (an agent member's key, or one whose maker is now a member or has left the workspace) works with tasks, projects, docs, chat, meetings, goals and people. Use a key an owner or admin made for this.");
 };
 const memberKeyReadOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (c.req.method !== "GET") memberKeyCheck(c);

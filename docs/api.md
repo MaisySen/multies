@@ -33,8 +33,9 @@ sent. Make a new key and delete the old one.
 
 A workspace key acts for the workspace, not for the person who made it. It acts with its maker's current role, at
 most admin: a key made by the owner is an admin key, and once its maker is changed to a member it is a member's key
-(403 `agent_member_key_scope` on mail, agents and integrations). A key whose maker left keeps working as a plain
-workspace key. It opens team mailboxes only: never its maker's personal mailboxes (a connected Gmail or IMAP inbox,
+(403 `agent_member_key_scope` on mail, agents and integrations). A key whose maker left the workspace (removed, or
+the account deleted) keeps working, as a member's key, and Settings, Developers marks it "Maker left" (`makerLeft: true`
+in `GET /api/developer/keys`) so an admin revokes or replaces it. It opens team mailboxes only: never its maker's personal mailboxes (a connected Gmail or IMAP inbox,
 a claimed free address) or the ones shared with her, to read, send or change. A connected AI app signed in by that
 person (OAuth, MCP) acts for her and keeps her access.
 
