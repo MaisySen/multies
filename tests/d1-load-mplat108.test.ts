@@ -247,7 +247,7 @@ describe("the fill pages through big mailboxes and survives a failing one (F4)",
 
   it("W2: mailboxes that keep failing don't keep new ones waiting, are reported once when parked, and the fill is never done", async () => {
     const reported: unknown[] = [];
-    ctx.deps.reportError = (err, c) => { reported.push(c); };
+    ctx.deps.reportError = (_err, c) => { reported.push(c); };
     for (let i = 0; i < 4; i++) put({ from: `k${i}@d.io`, date: min(100 - i), mailbox: mailbox2 });
     reset();
     const real = ctx.deps.now;

@@ -313,7 +313,8 @@ export function mailRoutes() {
           // deleted, the new one is taken back out (best effort), so the save fails cleanly and a retry leaves one draft.
           // W4: unless the delete went through and only its answer failed: with the old copy gone, dropping the new one
           // would lose both, so the save stands.
-          const still = await Promise.resolve().then(() => deps.db.select({ id: messages.id }).from(messages).where(eq(messages.id, input.id)).get()).catch(() => ({ id: input.id }));
+          const oldId = input.id;
+          const still = await Promise.resolve().then(() => deps.db.select({ id: messages.id }).from(messages).where(eq(messages.id, oldId)).get()).catch(() => ({ id: oldId }));
           if (!still) {
             await releaseBytes(deps.db, mb.id, [{ sizeBytes: before?.sizeBytes ?? 0 }]).catch(() => undefined);
             return c.json({ id }, 201);
