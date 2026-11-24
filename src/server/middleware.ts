@@ -2,6 +2,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { z, type ZodType } from "zod";
 import { getConnInfo } from "@hono/node-server/conninfo";
 export { CLIENT_IP_HEADER } from "./lib/client-ip-header";
+import { CLIENT_IP_HEADER as CLIENT_IP_HEADER_NAME } from "./lib/client-ip-header";
 import type { AppEnv, Deps } from "./context";
 import { HttpError, zodToHttp } from "./lib/errors";
 
@@ -81,6 +82,20 @@ export const pageQuery = z.object({
  * the audit log. "unknown" when there is none (app.request in tests has no socket). Requests reuse the value the app
  * worked out first (c.var.ip), so every route agrees.
  */
+/**
+ * Wave 1 review V10: drops any client-sent x-multies-client-ip before anything else runs. Only the /api/auth handler
+ * sets it (to clientIp), but in-process Better Auth calls (getSession in guards, sign out and delete in account.ts,
+ * team.ts) pass the request's own headers, and Better Auth reads the client address from that header.
+ */
+export const stripClientIpHeader: MiddlewareHandler = async (c, next) => {
+  if (c.req.raw.headers.has(CLIENT_IP_HEADER_NAME)) {
+    const headers = new Headers(c.req.raw.headers);
+    headers.delete(CLIENT_IP_HEADER_NAME);
+    c.req.raw = new Request(c.req.raw, { headers });
+  }
+  await next();
+};
+
 export function clientIp(c: Context): string {
   const v = c.var as { ip?: string; deps?: Pick<Deps, "runtime" | "config"> };
   if (v.ip && !v.ip.startsWith("unknown")) return v.ip;

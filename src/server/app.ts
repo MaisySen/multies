@@ -14,7 +14,7 @@ import { installCspReport } from "./routes/csp-report-r30";
 import { installMonitoringTunnel } from "./routes/monitoring-tunnel-pol3";
 import type { AppEnv, Deps } from "./context";
 import { HttpError, isNoValuesToSet, nothingToChange } from "./lib/errors";
-import { CLIENT_IP_HEADER, clientIp, csrfGuard, requireAuth } from "./middleware";
+import { CLIENT_IP_HEADER, clientIp, csrfGuard, requireAuth, stripClientIpHeader } from "./middleware";
 import { jsonLogger, requestIdFrom } from "./lib/logger";
 import { runWithRequestCaller } from "./lib/request-caller";
 import { rateLimit } from "./lib/rate-limit";
@@ -215,6 +215,8 @@ export function createApp(deps: Deps) {
     return c.json({ error: { code: "internal", message: "Something went wrong on our side.", ...(eventId ? { details: { eventId } } : {}) } }, 500);
   };
 
+  // Wave 1 review V10: first of all, a client can't hand Better Auth its own address (x-multies-client-ip).
+  app.use("*", stripClientIpHeader);
   // TD8 Team AI: a request that queued an assistant run (a chat question, a new task, a form response) runs it after
   // the response, so answers land in seconds; the cron pass picks up anything left. Nothing happens with the flag off.
   app.use("/api/*", async (c, next) => {
