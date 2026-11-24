@@ -28,7 +28,7 @@ import { audit } from "../services/audit";
 import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Deps } from "../context";
 import * as schema from "../db/schema";
-import { hashPassword, newId, randomToken, verifyPassword } from "../lib/crypto";
+import { hashIterations, hashPassword, newId, PBKDF2_ITERATIONS, passwordIterations, randomToken, verifyPassword } from "../lib/crypto";
 import { createElement } from "react";
 import { emailBrand, sendSystemEmail } from "../services/system-mail";
 // R53 (cold start): mail templates load on the first mail sent, not at isolate startup (see services/system-mail.ts).
@@ -136,7 +136,8 @@ export function authOptions(deps: Deps) {
       onPasswordReset: async ({ user }) => { await endAppGrants(deps, user.id); }, // PRIV1b (P48)
       resetPasswordTokenExpiresIn: 60 * 60,
       password: {
-        hash: (password: string) => hashPassword(password),
+        // Round 2: 600,000 iterations on a Node server, 100,000 (the platform's cap) on Workers.
+        hash: (password: string) => hashPassword(password, passwordIterations(deps.runtime)),
         verify: ({ hash, password }: { hash: string; password: string }) => verifyPassword(password, hash),
       },
       sendResetPassword: async ({ user, url }) => {
@@ -249,6 +250,10 @@ export function authOptions(deps: Deps) {
           }
         } else if (!(returned instanceof Error)) {
           await clearFailures(db, email);
+          // Round 2: Better Auth's verify can only answer yes or no, so an older, weaker hash is upgraded here, after a
+          // sign in that succeeded, while the password is in hand. Only where the target is higher (a Node server).
+          const password = typeof ctx.body?.password === "string" ? ctx.body.password : "";
+          if (password) await upgradePasswordHash(deps, email, password).catch((err) => deps.log?.warn("auth.rehash_failed", { error: err instanceof Error ? err.message.slice(0, 120) : "?" }));
         }
       }),
     },
@@ -384,6 +389,21 @@ export function authOptions(deps: Deps) {
       ...(config.auth.breachCheck && localPassword ? [haveIBeenPwned({ customPasswordCompromisedMessage: "This password has appeared in a data breach. Please choose a different one." })] : []),
     ],
   } satisfies BetterAuthOptions;
+}
+
+/**
+ * Round 2: rewrites the person's password hash at this runtime's iteration count when the stored one is lower. Checks
+ * the password against the stored hash first, so only the right password ever replaces it. One read; one write, once.
+ */
+async function upgradePasswordHash(deps: Deps, email: string, password: string) {
+  const target = passwordIterations(deps.runtime);
+  if (target <= PBKDF2_ITERATIONS) return;
+  const row = await deps.db.select({ id: schema.accounts.id, password: schema.accounts.password }).from(schema.accounts)
+    .innerJoin(schema.users, eq(schema.users.id, schema.accounts.userId))
+    .where(and(eq(schema.users.email, email.toLowerCase()), eq(schema.accounts.providerId, "credential"))).get();
+  if (!row?.password || hashIterations(row.password) >= target || !(await verifyPassword(password, row.password))) return;
+  await deps.db.update(schema.accounts).set({ password: await hashPassword(password, target), updatedAt: deps.now() })
+    .where(and(eq(schema.accounts.id, row.id), eq(schema.accounts.password, row.password)));
 }
 
 export function createAuth(deps: Deps) {

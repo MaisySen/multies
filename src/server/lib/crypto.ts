@@ -90,8 +90,22 @@ export function safeEqual(a: string, b: string): boolean {
 // ---------------------------------------------------------------------------
 // Passwords: PBKDF2-SHA256. 100k iterations is the ceiling Cloudflare Workers
 // allows for PBKDF2; the format records the parameters so they can be raised.
+// Round 2: a Node server (self host) has no such cap and uses OWASP's 600k for
+// new hashes, upgrading an older hash when its owner signs in (auth/options.ts).
 // ---------------------------------------------------------------------------
-const PBKDF2_ITERATIONS = 100_000;
+export const PBKDF2_ITERATIONS = 100_000;
+export const PBKDF2_ITERATIONS_NODE = 600_000;
+
+/** Iterations for a new hash on this runtime (Deps.runtime; unset, as in tests, counts as Workers: the cheap one). */
+export function passwordIterations(runtime: "workers" | "node" | undefined): number {
+  return runtime === "node" ? PBKDF2_ITERATIONS_NODE : PBKDF2_ITERATIONS;
+}
+
+/** The iteration count a stored hash was made with (0 for a value in another format). */
+export function hashIterations(stored: string): number {
+  const [algo, iter] = stored.split("$");
+  return algo === "pbkdf2_sha256" && /^\d{1,9}$/.test(iter ?? "") ? Number(iter) : 0;
+}
 
 async function pbkdf2(password: string, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<Uint8Array<ArrayBuffer>> {
   const key = await subtle.importKey("raw", enc.encode(password.normalize("NFKC")), "PBKDF2", false, ["deriveBits"]);
@@ -99,10 +113,10 @@ async function pbkdf2(password: string, salt: Uint8Array<ArrayBuffer>, iteration
   return new Uint8Array(bits);
 }
 
-export async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
   const salt = randomBytes(16);
-  const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
-  return `pbkdf2_sha256$${PBKDF2_ITERATIONS}$${toB64(salt)}$${toB64(hash)}`;
+  const hash = await pbkdf2(password, salt, iterations);
+  return `pbkdf2_sha256$${iterations}$${toB64(salt)}$${toB64(hash)}`;
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
