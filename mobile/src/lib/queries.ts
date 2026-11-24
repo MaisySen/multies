@@ -14,6 +14,7 @@ import { countsClient, COUNTS_POLL_MS, type Counts } from "./counts";
 import { blockedIds, isMissingEndpoint, isUnblockDone, reportBody, withBlock, withoutBlock, type BlockedPerson, type ReportInput } from "./moderation";
 import { success, warning } from "./haptics";
 import { animateList } from "./motion";
+import { normalizeThreadView } from "./thread-view";
 
 /** R33: what a mutation answers when its call went into the offline command queue. */
 export const QUEUED = "queued" as const;
@@ -109,8 +110,10 @@ export function useThread(id: string, enabled = true) {
     // PRIV1b (MP2): a saved thread is shown offline only while its mailbox is in the current overview (else the saved one),
     // like lists and search, so a share that ended does not open from a deep link or a notification.
     const boxes = qc.getQueryData<{ mailboxes: { id: string }[] }>(keys.overview)?.mailboxes.map((m) => m.id);
-    return cached(kv(), `thread:${mode}:${id}`, () => api.message(id), async (v) => {
-      if (!(await allowedMailboxes(kv(), boxes)).has(v.message.mailboxId)) throw NETWORK_ERROR();
+    return cached(kv(), `thread:${mode}:${id}`, () => api.message(id), async (saved) => {
+      // Wave 3: the saved copy comes back as saved, so it is fixed up first; one with no message id is not served.
+      const v = normalizeThreadView(saved);
+      if (!v || !(await allowedMailboxes(kv(), boxes)).has(v.message.mailboxId)) throw NETWORK_ERROR();
       return v;
     });
   }, enabled: enabled && !!id });

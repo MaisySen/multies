@@ -9,6 +9,8 @@ import { useOffline } from "@/lib/offline";
 import { displayName, longDate, shortDate } from "@/lib/format";
 import { previewLine, splitQuoted } from "@/lib/quote";
 import { bodyText } from "@/lib/mail-body";
+import { normalizeThreadView } from "@/lib/thread-view";
+import { ApiError } from "@/api/errors";
 import { LinkedText } from "@/components/linked-text";
 import { firstLink, openQuickActions } from "@/lib/quick-actions";
 import { animateList } from "@/lib/motion";
@@ -34,8 +36,11 @@ export default function Thread() {
   const tasks = useTaskMutations();
   const offline = useOffline();
   const insets = useSafeAreaInsets();
-  const msg = q.data?.message;
-  const thread = q.data?.thread ?? [];
+  // Wave 3: saved copies, prefetches and older servers can hand over partial data; it is fixed up here, and a
+  // view with no message id shows the error state instead of throwing.
+  const view = q.error ? null : normalizeThreadView(q.data);
+  const msg = view?.message;
+  const thread = view?.thread ?? [];
   const last = thread[thread.length - 1] ?? msg;
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -81,8 +86,19 @@ export default function Thread() {
         ) : null,
       }} />
       {offline ? <Banner text={tr("m.thread.offline_this_is_the_copy_saved_on_your_phone")} /> : null}
-      {q.isPending ? <Loading variant="chat" label={tr("m.thread.loading_conversation")} rows={4} /> : q.error ? (
-        <EmptyState icon="alert-circle" title={tr("m.thread.couldn_t_open_this_message")} body={q.error.message} action={<Button label={tr("m.thread.try_again")} variant="secondary" onPress={() => q.refetch()} />} />
+      {q.isPending ? <Loading variant="chat" label={tr("m.thread.loading_conversation")} rows={4} /> : !view ? (
+        // The server's own wording (or a TypeError) is not shown; a dropped connection says so in the app's words.
+        <EmptyState icon="alert-circle" title={tr("m.thread.couldn_t_open_this_message")}
+          body={q.error instanceof ApiError && q.error.isNetwork ? tr("m.common.check_your_connection_and_try_again") : undefined}
+          action={(
+            <View style={{ gap: space.sm }}>
+              <Button label={tr("m.thread.try_again")} variant="secondary" onPress={() => q.refetch()} />
+              <Button label={tr(router.canGoBack() ? "m.common.back" : "m.inbox.back_to_inbox")} variant="secondary" onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace("/inbox");
+              }} />
+            </View>
+          )} />
       ) : (
         <ScrollView contentContainerStyle={{ paddingTop: space.md, paddingBottom: 64 + insets.bottom + space.xxl }}>
           <View style={{ paddingHorizontal: space.lg, gap: 6, marginBottom: space.md }}>
@@ -99,14 +115,14 @@ export default function Thread() {
                 : <CollapsedRow key={m.id} m={m} agentName={agentName(m)} onPress={() => toggle(m.id)} />;
             })}
           </View>
-          {msg ? <ThreadTeam threadId={msg.threadId} /> : null}
+          {msg?.threadId ? <ThreadTeam threadId={msg.threadId} /> : null}
           <InsetGroup header={tr("m.thread.from_this_email")}>
             {FEATURES.tasks ? <GroupRow icon="check-square" tile="blue" label={tr("m.thread.make_a_task_from_this_email")} onPress={makeTask} testID="make-task" value={tasks.fromEmail.isPending ? tr("m.thread.making") : undefined} /> : null}
-            {msg ? <View style={{ padding: space.md }}><StartMeetingButton source={{ type: "thread", id: msg.threadId }} title={msg.subject || undefined} /></View> : null}
+            {msg?.threadId ? <View style={{ padding: space.md }}><StartMeetingButton source={{ type: "thread", id: msg.threadId }} title={msg.subject || undefined} /></View> : null}
           </InsetGroup>
         </ScrollView>
       )}
-      {last ? (
+      {view && last ? (
         <View style={[t.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
           <BarButton icon="corner-up-left" label={tr("m.thread.reply")} testID="reply" primary onPress={() => router.push({ pathname: "/compose", params: { replyTo: last.id } })} />
           {last.to.length + last.cc.length > 1 ? (
@@ -119,6 +135,9 @@ export default function Thread() {
     </View>
   );
 }
+
+/** A message with no readable date (a partial saved copy) shows none rather than throwing in the date formatter. */
+const when = (iso: string) => (iso ? shortDate(iso) : "");
 
 /** A 44 pt target with a 36 pt round fill and a 20 pt icon, label under it (measured composer toolbar). */
 function BarButton({ icon, label, onPress, testID, primary }: { icon: "corner-up-left" | "corner-up-right" | "users" | "mail"; label: string; onPress: () => void; testID?: string; primary?: boolean }) {
@@ -134,14 +153,14 @@ function BarButton({ icon, label, onPress, testID, primary }: { icon: "corner-up
 function CollapsedRow({ m, agentName, onPress }: { m: Message; agentName?: string; onPress: () => void }) {
   const name = agentName ?? displayName(m.from);
   return (
-    <Pressable onPress={onPress} testID={`collapsed-${m.id}`} accessibilityRole="button" accessibilityLabel={`${name}, ${shortDate(m.date)}. ${previewLine(bodyText(m))}`} accessibilityHint={tr("m.thread.opens_this_message")}
+    <Pressable onPress={onPress} testID={`collapsed-${m.id}`} accessibilityRole="button" accessibilityLabel={`${name}, ${when(m.date)}. ${previewLine(bodyText(m))}`} accessibilityHint={tr("m.thread.opens_this_message")}
       style={({ pressed }) => [t.card, t.collapsed, pressed && { backgroundColor: colors.hover }]}>
       <Avatar name={name} agent={!!agentName} size={32} />
       <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
           <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 15, flex: 1 }} numberOfLines={1}>{name}</Text>
           {m.attachments.length ? <Icon name="paperclip" size={13} color={colors.subtle} /> : null}
-          <Text style={t.time}>{shortDate(m.date)}</Text>
+          <Text style={t.time}>{when(m.date)}</Text>
         </View>
         <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>{previewLine(bodyText(m)) || tr("m.thread.no_text")}</Text>
       </View>
@@ -161,7 +180,7 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
         <View style={{ flex: 1, gap: 2 }}>
           <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm }}>
             <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 17, flex: 1, letterSpacing: -0.41 }} numberOfLines={1}>{name}</Text>
-            <Text style={t.time}>{shortDate(m.date)}</Text>
+            <Text style={t.time}>{when(m.date)}</Text>
           </View>
           <Text style={{ color: colors.subtle, fontSize: 13 }} numberOfLines={1}>
             {tr("m.thread.to_names", { names: m.to.map(displayName).join(", ") || tr("m.thread.me") })}{m.cc.length ? tr("m.thread.cc_names", { names: m.cc.map(displayName).join(", ") }) : ""}
@@ -169,7 +188,7 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
         </View>
       </Pressable>
       {agentName ? <View style={{ paddingHorizontal: space.lg }}><Badge label={tr("m.thread.written_by_agent_agentname", { agentName: agentName })} tone="brand" icon="cpu" /></View> : null}
-      <Text style={[font.body, { paddingHorizontal: space.lg, paddingTop: space.sm }]} selectable accessibilityHint={longDate(m.date)}>
+      <Text style={[font.body, { paddingHorizontal: space.lg, paddingTop: space.sm }]} selectable accessibilityHint={m.date ? longDate(m.date) : undefined}>
         {body ? <LinkedText text={body} testID={`body-${m.id}`} /> : tr("m.thread.this_message_is_empty")}
       </Text>
       {quoted ? (
