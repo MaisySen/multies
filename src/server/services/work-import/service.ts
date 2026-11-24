@@ -306,6 +306,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
   const by = byActor.id ? `${byActor.type}:${byActor.id}` : byActor.type;
   let stopped: StopReason | null = null;
   const createdTaskIds: string[] = [];
+  const waiting: { id: string; title: string }[] = []; // Round 2 (PR 24): for the triage.created events
   const author = `${label} import`;
 
   // R55: on D1 a batch is one transaction, so comments and checklist items can go in before their task with the
@@ -376,6 +377,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
       .onConflictDoUpdate({ target: [usageCounters.orgId, usageCounters.period, usageCounters.metric], set: { count: sql`${usageCounters.count} + ${part.length}` } }));
     await runBatch(deps.db, stmts);
     createdTaskIds.push(...part.map(({ r }) => idOf.get(r.externalId)!));
+    if (wait) waiting.push(...part.map(({ r }) => ({ id: idOf.get(r.externalId)!, title: r.title })));
     created += part.length;
     room -= part.length;
   }
@@ -389,6 +391,15 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
       // R33: one change row carries the timeline entry (was an activity row plus a change row).
       deps.db.insert(changes).values(changeRow(actor.orgId, who, now, { entityType: "project", entityId: projectId, op: "update", version: project.version, verb: "tasks.imported", data })),
     ]);
+  }
+  // Round 2 (PR 24): one triage.created per task that waits, all in one write (none when nobody listens), at most
+  // EMIT_MANY_MAX a step, marked import: true so a receiver can tell them from tasks made one by one.
+  if (wait && waiting.length) {
+    const wh = await import("../developer/webhooks");
+    const who = actorOf(actor);
+    await wh.emitEventMany(deps, actor.orgId, "triage.created", waiting.slice(0, wh.EMIT_MANY_MAX).map((t) => ({
+      task: { id: t.id, title: t.title, projectId }, source: wait.source, actor: { type: who.type, id: who.id, name: who.name }, import: true,
+    })));
   }
   return {
     projectId, projectName: project.name, continued, source: table.source, sourceLabel: label,
