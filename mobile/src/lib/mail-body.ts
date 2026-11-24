@@ -4,12 +4,19 @@
  */
 export type Segment = { kind: "text"; text: string } | { kind: "link"; text: string; url: string };
 
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'" };
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+/** HTML numeric references outside the Unicode scalar range render as a replacement character. */
+export function mailCodePoint(value: number): string {
+  if (!Number.isInteger(value) || value < 1 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff)) return "\ufffd";
+  return String.fromCodePoint(value);
+}
+
 function decode(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+\d*);/gi, (m, e: string) => {
     const k = e.toLowerCase();
-    if (k.startsWith("#x")) return String.fromCodePoint(parseInt(k.slice(2), 16) || 32);
-    if (k.startsWith("#")) return ENTITIES[k] ?? String.fromCodePoint(parseInt(k.slice(1), 10) || 32);
+    if (k.startsWith("#x")) return mailCodePoint(parseInt(k.slice(2), 16));
+    if (k.startsWith("#")) return mailCodePoint(parseInt(k.slice(1), 10));
     return ENTITIES[k] ?? m;
   });
 }
