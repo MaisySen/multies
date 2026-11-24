@@ -53,13 +53,14 @@ async function setup(env: Record<string, string> = {}) {
 describe("mail Translate on a refused workspace key (QUAL1 review)", () => {
   beforeEach(() => clearTranslateCache());
 
-  it("default: the workspace agent translates, the answer says the key was skipped, and the key stays marked", async () => {
+  it("default: 409 ai_key_refused in plain words with the fix link, and the mail goes to no other processor", async () => {
     const t = await setup();
     t.setAnswer(refused);
     const r = await t.c.post("/api/translate", { texts: [TEXT], target: "ne" });
-    expect(r.status).toBe(200);
-    expect(t.builtinCalls.length).toBeGreaterThan(0);
-    expect(r.body.fallback).toMatchObject({ reason: "key_refused" });
+    expect({ status: r.status, error: r.body.error }).toMatchObject({
+      status: 409, error: { code: "ai_key_refused", message: aiKeyProblemText("key_refused", "Anthropic"), details: { fix: "/app/settings#ai" } },
+    });
+    expect(t.builtinCalls).toHaveLength(0);
     expect((await t.deps.db.select().from(aiKeys).get())?.problem).toBe("key_refused");
   });
 
