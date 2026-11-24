@@ -13,7 +13,7 @@ import { API_CSP, CAMPAIGN_PUBLIC_CSP, EMBED_FORM_PATH, PRIVATE_PAGE_PATH, appCs
 import { installCspReport } from "./routes/csp-report-r30";
 import { installMonitoringTunnel } from "./routes/monitoring-tunnel-pol3";
 import type { AppEnv, Deps } from "./context";
-import { HttpError } from "./lib/errors";
+import { HttpError, isNoValuesToSet, nothingToChange } from "./lib/errors";
 import { clientIp, csrfGuard, requireAuth } from "./middleware";
 import { jsonLogger, requestIdFrom } from "./lib/logger";
 import { runWithRequestCaller } from "./lib/request-caller";
@@ -197,6 +197,13 @@ export function createApp(deps: Deps) {
         return c.redirect("/login?error=read_only", 302);
       }
       return c.json(READ_ONLY_BODY, 503, { "retry-after": "600" });
+    }
+    if (isNoValuesToSet(err)) {
+      // MB-368 (Sentry MYMAIL-API-1Y): an update with nothing in it is the caller's mistake, never a 500. The known
+      // routes refuse it first; this catches any other route that still reaches the database with an empty update.
+      (c.var.log ?? deps.log)?.warn("empty_update", { method: c.req.method, path: c.req.path });
+      const e = nothingToChange();
+      return c.json({ error: { code: e.code, message: e.message } }, 422);
     }
     const busy = d1BusyKind(err); // R28: an export, an overload or a lost connection is a wait, not a bug
     if (busy) {

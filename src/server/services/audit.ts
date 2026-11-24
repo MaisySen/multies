@@ -73,10 +73,13 @@ export function redactAuditRow<T extends { targetType?: string | null; targetId?
   return out;
 }
 
-const PRIVATE_KEYS = /email|^ip$|ipAddress|userAgent|invit|token|^subject$/i;
+// MB-367: "address", "destinations", "recipients" and "replyTo" carried mailbox addresses (a personal Gmail someone
+// connected, a personal mailbox's Reply-To) into a member's recent activity; those keys are private too.
+const PRIVATE_KEYS = /email|address|destination|recipient|replyTo|reply_to|^ip$|ipAddress|userAgent|invit|token|^subject$/i;
 const ADDRESS = /[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+/;
 /** AIS1 review: a value that is, or lists, a mail address (an agent send's to, cc, bcc or from). */
-const holdsAddress = (v: unknown): boolean => (typeof v === "string" ? ADDRESS.test(v) : Array.isArray(v) && v.some((x) => typeof x === "string" && ADDRESS.test(x)));
+/** MB-367: an address anywhere inside a value counts too (a nested object or list), whatever its key. */
+const holdsAddress = (v: unknown): boolean => (typeof v === "string" ? ADDRESS.test(v) : v !== null && typeof v === "object" && ADDRESS.test(JSON.stringify(v) ?? ""));
 /**
  * What a plain member may see of an audit row: no IP, no addresses or invite details in its metadata. AIS1: and no mail
  * subject (an agent's read or send names its thread, which may be in a mailbox the member can't open), and no field
