@@ -311,7 +311,11 @@ export const messages = sqliteTable("messages", {
   /**
    * MPLAT-108 (0171): 1 on the earliest message (by date, then id) of its mailbox and lower(from_address), among
    * messages not in Sent or Drafts; the "first time sender" part of the Important rule. Kept by triggers (0171), never
-   * written by the app.
+   * written by the app (rows stored before 0171 are filled by services/mail/first-sender.ts).
+   * F6: never write messages with INSERT OR REPLACE: the rows it replaces are deleted without firing delete triggers
+   * (SQLite runs them only with recursive_triggers on), so a group could be left with no first message. Use an upsert
+   * (ON CONFLICT DO UPDATE) or delete and insert. A migration that rebuilds the messages table must create the seven
+   * messages_first_sender_* triggers again; tests/first-sender-triggers.test.ts fails if they are missing.
    */
   firstOfSender: integer("first_of_sender", { mode: "boolean" }).notNull().default(false),
 }, (t) => [
