@@ -18,6 +18,7 @@ import { sendMessage } from "./send";
 import { AUTH_EMAIL_TYPES, BrandingInputSchema, mergeBranding, parseBranding, renderAuthEmail, type BrandingInput } from "./auth-email-branding";
 import { deferrableWrite } from "../write-priority";
 import { requirePerson } from "../../lib/actor-kind";
+import { firstReceipt, releaseReceipt } from "../../lib/webhook-receipts";
 
 type HookRow = typeof authEmailHooks.$inferSelect;
 
@@ -235,6 +236,10 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
   } catch {
     return fail(401, "The hook signature did not verify.");
   }
+  // Round 2: a signed call replayed inside its window is answered as handled and sends nothing again. A failed send
+  // below forgets the receipt, so Supabase's retry (same webhook-id) goes through.
+  const receipt = `${h.h.id}:${headers.get("webhook-id") ?? ""}`;
+  if (!(await firstReceipt(deps.db, "supabase_hook", receipt, deps.now()))) return { status: 200, body: {} };
   const d = payload.email_data ?? {};
   const type = d.email_action_type ?? "";
   const linkFor = (hash: string | undefined) => (hash && type !== "reauthentication" && type !== "email"
@@ -251,7 +256,7 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
   } else if (payload.user?.email) {
     sends.push({ to: payload.user.email, link: linkFor(d.token_hash), token: d.token });
   }
-  if (!sends.length) return fail(500, "The hook carried no recipient.");
+  if (!sends.length) { await releaseReceipt(deps.db, "supabase_hook", receipt); return fail(500, "The hook carried no recipient."); }
   const actor: AuthContext = { userId: "", email: `auth-hook:${h.h.id}`, name: h.h.appName, orgId: h.h.orgId, role: "admin", sessionId: `authhook:${h.h.id}` };
   try {
     for (const s of sends) {
@@ -259,6 +264,7 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
       await sendMessage(deps, actor, { mailboxId: h.mb.id, to: [s.to.toLowerCase()], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.replyTo ? { replyTo: mail.replyTo } : {}) }, h.h.senderName ? { fromName: h.h.senderName } : {});
     }
   } catch (err) {
+    await releaseReceipt(deps.db, "supabase_hook", receipt);
     // B8: the caller (Supabase, and through it the person signing up) gets fixed words; the cause stays in our log.
     // An HttpError is one of our own refusals (its words can name the recipient), so only its code is logged.
     deps.log?.error("auth_hook.send_failed", { hookId: h.h.id, error: err instanceof HttpError ? `${err.status} ${err.code}` : (err instanceof Error ? err.message : String(err)).slice(0, 500) });

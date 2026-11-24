@@ -53,6 +53,7 @@ What changed:
 - `DEMO_DAILY_LIMIT` 10 on production (at most about 20,000 rows a day) and 2 on staging.
 - Staging cron runs hourly.
 - Last used times for API keys, inbound keys and auth email hooks are written at most every 15 minutes (an agent polling once a minute was up to 1,440 writes a day per key).
+- Round 2: each signed webhook (Supabase auth hook, Resend event, Cloudflare inbound delivery, TikTok event) writes one `webhook_receipts` row (WITHOUT ROWID, no index) so a replay is not run twice; the hourly prune deletes rows older than 10 minutes.
 - Migration 0025 drops `companies_org_idx`; `companies_org_domain_uq` starts with `org_id` and serves the same lookups.
 - The web app shows a read only banner when any request gets `read_only`, the sign in form shows the read only message, and a sign in callback that hits the limit lands on `/login?error=read_only` instead of raw JSON.
 - Playwright refuses a remote `E2E_BASE_URL` unless `E2E_ALLOW_REMOTE=1` and `--grep` are set.

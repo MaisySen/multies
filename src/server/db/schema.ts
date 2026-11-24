@@ -619,6 +619,17 @@ export const loginThrottle = sqliteTable("login_throttle", {
 });
 
 /**
+ * Round 2: signed webhook deliveries already handled, so a replay inside the signature window is answered without
+ * running again (lib/webhook-receipts.ts). `source` names the provider, `receipt_id` its delivery id. WITHOUT ROWID
+ * (migration 0173): one row written per receipt, no separate key index. Swept after about 10 minutes.
+ */
+export const webhookReceipts = sqliteTable("webhook_receipts", {
+  source: text("source").notNull(),
+  receiptId: text("receipt_id").notNull(),
+  at: ts("at").notNull(),
+}, (t) => [primaryKey({ columns: [t.source, t.receiptId] })]);
+
+/**
  * Idempotency keys for mutating API calls (Stripe semantics): the first response is
  * stored for 24 hours and replayed for retries with the same key and body.
  */

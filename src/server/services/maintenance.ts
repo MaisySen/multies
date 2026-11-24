@@ -17,6 +17,7 @@ import { fillFirstSender, firstSenderReady } from "./mail/first-sender"; // MPLA
 import { randomToken } from "../lib/crypto";
 import { pruneRateLimits } from "../lib/rate-limit";
 import { pruneIdempotencyKeys } from "../lib/idempotency";
+import { pruneWebhookReceipts } from "../lib/webhook-receipts";
 import { pruneLockouts } from "./lockout";
 import { inIds } from "../lib/sql-chunks";
 import { pruneJobs, runDueJobs } from "./jobs";
@@ -115,6 +116,7 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
       import("./suite/flows").then((m) => m.pruneFlowRuns(deps)),
       import("./mailserver").then((m) => m.sweepForeignAppPasswords(deps)), // PRIV1b (P42): app passwords on personal mailboxes their owner didn't make
       pruneMailboxOpens(deps),
+      pruneWebhookReceipts(deps.db, deps.now()), // Round 2: replay receipts older than about 10 minutes
     ]);
   });
   // Tools P1: keep the document engine's free host awake (no D1), and prune old usage rows once an hour.

@@ -47,7 +47,16 @@ export function resendWebhookRoutes() {
     if (!secret) throw new HttpError(404, "not_found", "No such endpoint.");
     const body = await c.req.text();
     const event = verifyResendWebhook(secret, body, c.req.raw.headers);
-    const result = await handleResendEvent(c.var.deps, event);
-    return c.json({ ok: true, ...result });
+    // Round 2: the same delivery (svix-id) twice is handled once; a failure forgets it so Resend's retry runs.
+    const id = c.req.header("webhook-id") ?? c.req.header("svix-id") ?? "";
+    const { firstReceipt, releaseReceipt } = await import("../lib/webhook-receipts");
+    if (id && !(await firstReceipt(c.var.deps.db, "resend", id, c.var.deps.now()))) return c.json({ ok: true, replay: true });
+    try {
+      const result = await handleResendEvent(c.var.deps, event);
+      return c.json({ ok: true, ...result });
+    } catch (err) {
+      if (id) await releaseReceipt(c.var.deps.db, "resend", id);
+      throw err;
+    }
   });
 }

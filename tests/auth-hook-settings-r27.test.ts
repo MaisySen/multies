@@ -77,7 +77,8 @@ describe("Sign-up emails settings", () => {
     const payload = JSON.stringify({ user: { email: "parent@example.com" }, email_data: { token: "111222", token_hash: "h1", email_action_type: "signup", redirect_to: "" } });
     const call = (s: string) => {
       const now = new Date();
-      return ctx.app.request(new URL(made.body.settings.endpointUrl).pathname, { method: "POST", headers: { "content-type": "application/json", "webhook-id": "wh_1", "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": new Webhook(s.replace(/^v1,/, "")).sign("wh_1", now, payload) }, body: payload });
+      const whId = `wh_${Math.random().toString(36).slice(2)}`; // Round 2: Supabase names each delivery; the same id twice is a replay
+      return ctx.app.request(new URL(made.body.settings.endpointUrl).pathname, { method: "POST", headers: { "content-type": "application/json", "webhook-id": whId, "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": new Webhook(s.replace(/^v1,/, "")).sign(whId, now, payload) }, body: payload });
     };
     expect((await call(secret)).status).toBe(200);
     const sent = await ctx.db.select().from(messages).where(and(eq(messages.orgId, orgId), eq(messages.folder, "sent"))).all();

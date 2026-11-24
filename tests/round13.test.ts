@@ -202,8 +202,9 @@ describe("transactional email without SMTP (round 13)", () => {
     const call = async (payload: unknown, key = secret) => {
       const body = JSON.stringify(payload);
       const now = new Date();
-      const sig = new Webhook(key.replace(/^v1,/, "")).sign("wh_1", now, body);
-      const res = await ctx.app.request(path, { method: "POST", headers: { "content-type": "application/json", "webhook-id": "wh_1", "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": sig }, body });
+      const whId = `wh_${Math.random().toString(36).slice(2)}`; // Round 2: Supabase names each delivery; the same id twice is a replay
+      const sig = new Webhook(key.replace(/^v1,/, "")).sign(whId, now, body);
+      const res = await ctx.app.request(path, { method: "POST", headers: { "content-type": "application/json", "webhook-id": whId, "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": sig }, body });
       return { status: res.status, body: await res.json() };
     };
     const ok = await call({ user: { email: "Teacher@Example.com" }, email_data: { token: "305805", token_hash: "abc123", redirect_to: "https://haajir.test/welcome", email_action_type: "signup", site_url: "https://haajir.test" } });

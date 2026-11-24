@@ -1888,5 +1888,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- Round 2: an API key may end on a date picked when it is made (Settings, Developers). Null, the default and every\n-- existing key, means it never ends, so older code that doesn't read the column behaves exactly as before.\nALTER TABLE `api_keys` ADD `expires_at` integer;"
     ]
+  },
+  {
+    "name": "0173_webhook_receipts",
+    "statements": [
+      "-- Round 2: signed webhooks (the Supabase auth hook, Resend events, the Cloudflare Email Worker, TikTok) note each\n-- delivery id here before running it, so a captured request replayed inside the 5 minute signature window is answered\n-- \"already handled\" and not run again. WITHOUT ROWID keeps a receipt at one row written (the primary key is the table).\n-- The maintenance pass deletes receipts older than about 10 minutes, so the table stays small. Older code never reads it.\nCREATE TABLE IF NOT EXISTS `webhook_receipts` (\n\t`source` text NOT NULL,\n\t`receipt_id` text NOT NULL,\n\t`at` integer NOT NULL,\n\tPRIMARY KEY(`source`, `receipt_id`)\n) WITHOUT ROWID;"
+    ]
   }
 ];

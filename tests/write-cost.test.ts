@@ -1297,3 +1297,15 @@ it("AIS1: an agent key's thread read is one audit row an hour per key; reading a
   expect((await get(keyB, `/threads/${threadId}`)).status).toBe(200);
   expect(take()).toBe(3);
 });
+
+it("Round 2: a webhook receipt (replay guard) is one row written; a replay writes nothing", async () => {
+  const ctx = await makeTestApp();
+  const take = meter(ctx.db);
+  const { firstReceipt } = await import("@/server/lib/webhook-receipts");
+  // Every signed Supabase hook call, Resend event, Cloudflare inbound delivery and TikTok event notes one receipt.
+  // WITHOUT ROWID: the primary key is the table, so no index row on top.
+  expect(await firstReceipt(ctx.db, "cloudflare_inbound", "r1", ctx.deps.now())).toBe(true);
+  expect(take()).toBe(1);
+  expect(await firstReceipt(ctx.db, "cloudflare_inbound", "r1", ctx.deps.now())).toBe(false);
+  expect(take()).toBe(0);
+});

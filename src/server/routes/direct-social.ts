@@ -145,6 +145,10 @@ export function directWebhookRoutes() {
       if (!(await s.verifyTikTokSignature(c.req.header("tiktok-signature"), raw, t.secrets, deps.now().getTime()))) return c.json({ ok: false }, 401);
       let ev: Record<string, unknown>;
       try { ev = JSON.parse(raw) as Record<string, unknown>; } catch { return c.json({ ok: true }); }
+      // Round 2: the same signed event (its signature header names it) inside the window is applied once.
+      const { firstReceipt } = await import("../lib/webhook-receipts");
+      const { sha256Hex } = await import("../lib/crypto");
+      if (!(await firstReceipt(deps.db, "tiktok", await sha256Hex(c.req.header("tiktok-signature") ?? ""), deps.now()))) return c.json({ ok: true, replay: true });
       const work = s.handleTikTokEvent(deps, ev).catch((err) => { deps.log?.warn("tiktok.webhook_failed", { error: err instanceof Error ? err.message.slice(0, 120) : "?" }); });
       try { c.executionCtx.waitUntil(work); } catch { await work; }
       return c.json({ ok: true });

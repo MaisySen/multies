@@ -296,8 +296,9 @@ describe("AIS1 gap: sign-up email hooks can't send from an agent's inbox", () =>
   const signup = (to: string) => JSON.stringify({ user: { email: to }, email_data: { token: "1", token_hash: "h", redirect_to: "https://attacker.example/pay", email_action_type: "signup", site_url: "https://attacker.example" } });
   async function hookCall(path: string, secret: string, body: string) {
     const now = new Date();
-    const sig = new Webhook(secret.replace(/^v1,/, "")).sign("wh_g1", now, body);
-    return (await ctx.app.request(path, { method: "POST", headers: { "content-type": "application/json", "webhook-id": "wh_g1", "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": sig }, body })).status;
+    const id = `wh_${Math.random().toString(36).slice(2)}`; // Round 2: a fresh delivery id per call (the same id twice is a replay)
+    const sig = new Webhook(secret.replace(/^v1,/, "")).sign(id, now, body);
+    return (await ctx.app.request(path, { method: "POST", headers: { "content-type": "application/json", "webhook-id": id, "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": sig }, body })).status;
   }
   const sentFrom = (address: string) => ctx.outbound.sent.filter((m) => m.from.address === address);
 

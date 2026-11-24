@@ -35,8 +35,9 @@ async function workspace(c: Client, domain: string) {
 async function hookCall(path: string, payload: unknown) {
   const body = JSON.stringify(payload);
   const now = new Date();
-  const sig = new Webhook(SECRET.replace(/^v1,/, "")).sign("wh_1", now, body);
-  const res = await ctx.app.request(path, { method: "POST", headers: { "content-type": "application/json", "webhook-id": "wh_1", "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": sig }, body });
+  const whId = `wh_${Math.random().toString(36).slice(2)}`; // Round 2: Supabase names each delivery; the same id twice is a replay
+  const sig = new Webhook(SECRET.replace(/^v1,/, "")).sign(whId, now, body);
+  const res = await ctx.app.request(path, { method: "POST", headers: { "content-type": "application/json", "webhook-id": whId, "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": sig }, body });
   return res.status;
 }
 
