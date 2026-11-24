@@ -1936,5 +1936,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- Agents an API key made before Wave 1 review V2 kept the key's maker as their maker, so they reach her personal\n-- mailboxes. Their agent_mailbox_access rows to personal mailboxes go, and they have no maker any more (as an agent a\n-- key makes today). Idempotent.\nDELETE FROM `agent_mailbox_access` WHERE `agent_id` IN (\n  SELECT `agent_id` FROM `audit_logs` WHERE `action` = 'agent.created' AND `actor_email` LIKE 'api-key:%' AND `agent_id` IS NOT NULL\n) AND `mailbox_id` IN (SELECT `id` FROM `mailboxes` WHERE `personal` = 1);",
       "UPDATE `agents` SET `created_by_user_id` = NULL WHERE `created_by_user_id` IS NOT NULL AND `id` IN (\n  SELECT `agent_id` FROM `audit_logs` WHERE `action` = 'agent.created' AND `actor_email` LIKE 'api-key:%' AND `agent_id` IS NOT NULL\n);"
     ]
+  },
+  {
+    "name": "0180_connection_verify_suspended",
+    "statements": [
+      "-- Wave 2 review X5: whether the wait for a connect code (P60) is what suspended the connection's mailbox, so entering\n-- the code turns the mailbox back on only then, never undoing a suspend someone made while the code was pending.\n-- Connections already waiting get 1 (their wait suspended the mailbox, as before this column); every other row 0.\n-- Old code never reads it.\nALTER TABLE `mail_connections` ADD `verify_suspended_mailbox` integer DEFAULT 0 NOT NULL;",
+      "UPDATE `mail_connections` SET `verify_suspended_mailbox` = 1 WHERE `status` = 'verifying';"
+    ]
   }
 ];

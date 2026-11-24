@@ -128,8 +128,9 @@ type Box = BoxKey;
 
 /** Largest message copied whole; bigger ones keep their headers and a note. */
 const MAX_SYNC_BYTES = 10 * 1024 * 1024;
-// PRIV1b (P9): end of pass writes leave a paused connection paused.
-const notPaused = ne(mailConnections.status, "paused");
+// PRIV1b (P9): end of pass writes leave a paused connection paused. Wave 2 review X5: and a connection sent back to
+// "verifying" (a Reconnect to servers that don't prove the address) while the pass ran stays waiting for its code.
+const notPaused = and(ne(mailConnections.status, "paused"), ne(mailConnections.status, "verifying"));
 const FLAG_WINDOW = 200;
 
 /**
@@ -340,7 +341,7 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
         nextSyncAt: new Date(now.getTime() + (result.more ? 30_000 : cfg.intervalMinutes * 60_000)),
         messagesSynced: sql`${mailConnections.messagesSynced} + ${stored.stored}`,
         messagesToday: doneToday + stored.stored, day,
-      }).where(eq(mailConnections.id, c.id)),
+      }).where(and(eq(mailConnections.id, c.id), ne(mailConnections.status, "verifying"))), // Wave 2 review X5
     ]);
   } catch (err) {
     const problem = classifyProblem(err, "imap", c.provider as ConnectPresetId, c.imapHost);

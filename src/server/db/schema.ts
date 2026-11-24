@@ -881,6 +881,11 @@ export const mailConnections = sqliteTable("mail_connections", {
   verifyExpiresAt: ts("verify_expires_at"),
   verifyTries: integer("verify_tries").notNull().default(0),
   verifySentAt: ts("verify_sent_at"),
+  /**
+   * Wave 2 review X5: the wait for the code suspended the mailbox (it was on before), so entering the code turns it back
+   * on. Cleared when someone suspends the mailbox while the code is pending, so the code never undoes their suspend.
+   */
+  verifySuspendedMailbox: integer("verify_suspended_mailbox", { mode: "boolean" }).notNull().default(false),
   /** Wave 1 review V4 (0177): this connection made its mailbox; false when it took over a kept (legal hold) copy. */
   madeMailbox: integer("made_mailbox", { mode: "boolean" }).notNull().default(false),
   nextSyncAt: ts("next_sync_at"),

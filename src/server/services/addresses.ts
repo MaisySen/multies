@@ -169,6 +169,8 @@ export async function updateMailbox(db: DB, orgId: string, id: string, patch: { 
     if (patch.quotaMb * 1024 * 1024 < m.usedBytes) throw badRequest("The quota can't be lower than what the mailbox already stores.");
   }
   await db.update(mailboxes).set(patch).where(eq(mailboxes.id, m.id));
+  // Wave 2 review X5: a suspend made while a connection waits for its code is not undone when the code is entered.
+  if (patch.status === "suspended") await db.update(mailConnections).set({ verifySuspendedMailbox: false }).where(and(eq(mailConnections.mailboxId, m.id), eq(mailConnections.verifySuspendedMailbox, true)));
   return getMailbox(db, orgId, id);
 }
 

@@ -420,7 +420,8 @@ export async function endPersonalMail(deps: Deps, orgId: string, userId: string,
   for (const part of chunkIds(gone, 10)) { // 9 columns a row: under D1's 100 bound variables
     await db.insert(mailboxAccessLog).values(part.map((g) => ({ id: newId("mal"), orgId, mailboxId: g.mailboxId, actorUserId: actor.userId, actorEmail: actor.email, action: "share_revoked", targetId: g.userId, device: null })));
   }
-  if (own.length) await db.update(mailConnections).set({ status: "paused" }).where(and(eq(mailConnections.orgId, orgId), inIds(mailConnections.mailboxId, own)));
+  // Wave 2 review X5: a connection still waiting for its code stays waiting (a later resume must not turn it on).
+  if (own.length) await db.update(mailConnections).set({ status: "paused" }).where(and(eq(mailConnections.orgId, orgId), inIds(mailConnections.mailboxId, own), ne(mailConnections.status, "verifying")));
   const { destroyForeignAppPasswords } = await import("./mailserver");
   for (const mb of new Set([...own, ...gone.map((g) => g.mailboxId)])) {
     await destroyForeignAppPasswords(deps, orgId, mb).catch((err: unknown) => deps.reportError?.(err, { where: "member_left.app_passwords" }));

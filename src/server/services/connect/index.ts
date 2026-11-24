@@ -288,10 +288,11 @@ export async function verifyConnection(deps: Deps, auth: AuthContext, id: string
     throw badRequest(left > 0 ? `That code is not right. ${left} ${left === 1 ? "try" : "tries"} left.` : "Too many wrong codes. Remove this connection and connect the mailbox again.");
   }
   // Single use: the hash is cleared in the statement that turns it on.
-  const won = await deps.db.update(mailConnections).set({ status: "active", verifyCodeHash: null, verifyExpiresAt: null, verifyTries: 0, nextSyncAt: now })
+  const won = await deps.db.update(mailConnections).set({ status: "active", verifyCodeHash: null, verifyExpiresAt: null, verifyTries: 0, nextSyncAt: now, verifySuspendedMailbox: false })
     .where(and(eq(mailConnections.id, c.id), eq(mailConnections.verifyCodeHash, h), eq(mailConnections.status, "verifying"))).returning({ id: mailConnections.id });
   if (!won.length) throw conflict("This code was already used.");
-  await deps.db.update(mailboxes).set({ status: "active" }).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
+  // Wave 2 review X5: only the suspension the wait itself set is cleared; a suspend someone made meanwhile stays.
+  if (c.verifySuspendedMailbox) await deps.db.update(mailboxes).set({ status: "active" }).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.connect_verified", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email } });
   const mb = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, c.mailboxId)).get())!;
   return present((await deps.db.select().from(mailConnections).where(eq(mailConnections.id, c.id)).get())!, mb);
@@ -372,7 +373,7 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
     imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
     smtpHost: s.smtp.host, smtpPort: s.smtp.port, smtpSecurity: s.smtp.security,
     authKind, secretEnc: await encryptSecret(deps.config.appSecret, secret), savesSent: s.savesSent,
-    status: needsCode ? "verifying" : "active", nextSyncAt: needsCode ? null : deps.now(), createdByUserId: auth.userId || null, madeMailbox: !kept,
+    status: needsCode ? "verifying" : "active", nextSyncAt: needsCode ? null : deps.now(), createdByUserId: auth.userId || null, madeMailbox: !kept, verifySuspendedMailbox: needsCode,
   });
   if (needsCode) await sendConnectCode(deps, { id, orgId: auth.orgId, email: s.email });
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.connected", targetType: "mailbox", targetId: mailboxId, metadata: { address: s.email, provider: s.preset, authKind, ...(needsCode ? { waitingForCode: true } : {}) } });
@@ -434,10 +435,13 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
   const reverify = c.status !== "verifying" && (hostChanged || userChanged) && !serversProveAddress(s);
   const waits = c.status === "verifying" || reverify;
   if (reverify) await claimCodeSend(deps, { email: c.email, orgId: c.orgId, userId: auth.userId || null, connectionId: c.id }); // Wave 1 review V5: before anything is written
+  // Wave 2 review X5: the code turns the mailbox back on only when this wait is what suspends it.
+  const wasOn = reverify && (await deps.db.select({ status: mailboxes.status }).from(mailboxes).where(eq(mailboxes.id, c.mailboxId)).get())?.status === "active";
   await deps.db.update(mailConnections).set({
     username: s.username, imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
     smtpHost: s.smtp.host, smtpPort: s.smtp.port, smtpSecurity: s.smtp.security, authKind: "password",
     secretEnc: await encryptSecret(deps.config.appSecret, s.password), status: waits ? "verifying" : "active", lastError: null, nextSyncAt: waits ? null : deps.now(),
+    ...(reverify ? { verifySuspendedMailbox: wasOn } : {}),
   }).where(eq(mailConnections.id, c.id));
   if (reverify) {
     await deps.db.update(mailboxes).set({ status: "suspended" }).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
