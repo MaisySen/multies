@@ -17,6 +17,7 @@ import { parseMime } from "./mail/mime";
 import { storeMessage } from "./mail/store";
 import { mirrorInbound } from "./mailserver";
 import { assertMailboxAccess } from "./team";
+import { assertNotWaitingForCode } from "./connect/waiting";
 import type { Folder } from "@/shared/mail";
 
 export const IMPORT_PROVIDERS = {
@@ -43,6 +44,7 @@ export async function createImport(deps: Deps, auth: AuthContext, input: { mailb
   if (!mb) throw notFound("Mailbox");
   // PRIV1b (P12): an import writes mail into the mailbox, so a personal one needs Send as (its owner); 404 when closed.
   await assertMailboxAccess(deps.db, auth, mb.id, "send");
+  await assertNotWaitingForCode(deps.db, mb.id, mb.address); // Wave 2 review X6
   const p = IMPORT_PROVIDERS[input.provider];
   const host = (input.provider === "imap" ? input.sourceHost : p.host)?.trim().toLowerCase();
   if (!host || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host)) throw new HttpError(422, "validation_failed", "Enter the IMAP server name, for example imap.example.com.");
@@ -89,6 +91,9 @@ export async function claimNext(deps: Deps) {
     .where(and(eq(importJobs.id, j.id), eq(importJobs.status, j.status))).returning({ id: importJobs.id });
   if (!claimed.length) return null;
   const mb = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, j.mailboxId)).get())!;
+  // Wave 2 review X6: a mailbox that started waiting for its connect code after the import was made gets nothing.
+  const waits = await assertNotWaitingForCode(deps.db, mb.id, mb.address).then(() => null, (e: unknown) => e as Error);
+  if (waits) { await finish(deps, j.id, { error: waits.message }); return null; }
   return {
     id: j.id, mailbox: mb.address, provider: j.provider,
     source: { host: j.sourceHost, port: j.sourcePort, user: j.sourceUser, password: await decryptSecret(deps.config.appSecret, j.secretEnc) },

@@ -286,6 +286,7 @@ export function mailRoutes() {
       // PRIV1b (integration S3): assertSendLevel already checks the level on a personal mailbox; team mail is checked here once.
       if (!mb.personal) await assertMailboxAccess(deps.db, auth, mb.id, input.inReplyToId ? "reply" : "send");
       await assertSendLevel(deps.db, auth, mb, input);
+      await (await import("../services/connect/waiting")).assertNotWaitingForCode(deps.db, mb.id, mb.address); // Wave 2 review X6
       // Round 22: a shared draft reply. Saving over a draft somebody else took over, or one that changed
       // in another window, answers 409 instead of overwriting. The delete is the optimistic check: only
       // the first of two saves of the same draft finds it.

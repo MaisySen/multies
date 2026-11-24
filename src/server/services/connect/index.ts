@@ -325,13 +325,23 @@ export async function pruneUnverifiedConnections(deps: Deps, limit = 50): Promis
 /**
  * Removes a connection that never got its code, and the mailbox it made (nothing was synced into it). Wave 1 review
  * V4: a kept copy it took over (a legal hold kept it after its connection was removed) is never deleted with it: it
- * stays, suspended, as it was before.
+ * stays, suspended, as it was before. Wave 2 review X6: nor is a mailbox it made that holds any message or a legal
+ * hold (mail got in some other way): it stays too, suspended. Two reads, only for a mailbox the connection made.
  */
 async function dropPending(deps: Deps, r: { id: string; mailboxId: string; madeMailbox: boolean }) {
-  const gone = await deps.db.delete(mailConnections).where(and(eq(mailConnections.id, r.id), eq(mailConnections.status, "verifying"))).returning({ id: mailConnections.id });
+  const gone = await deps.db.delete(mailConnections).where(and(eq(mailConnections.id, r.id), eq(mailConnections.status, "verifying"))).returning({ id: mailConnections.id, orgId: mailConnections.orgId });
   if (!gone.length) return;
-  if (r.madeMailbox) await deps.db.delete(mailboxes).where(eq(mailboxes.id, r.mailboxId));
+  if (r.madeMailbox && !(await mailboxKeeps(deps, gone[0].orgId, r.mailboxId))) await deps.db.delete(mailboxes).where(eq(mailboxes.id, r.mailboxId));
   else await deps.db.update(mailboxes).set({ status: "suspended" }).where(eq(mailboxes.id, r.mailboxId));
+}
+
+/** Wave 2 review X6: a mailbox that holds any message or a legal hold is never deleted with a waiting connection. */
+async function mailboxKeeps(deps: Deps, orgId: string, mailboxId: string): Promise<boolean> {
+  if (await deps.db.select({ id: messages.id }).from(messages).where(eq(messages.mailboxId, mailboxId)).limit(1).get()) return true;
+  return assertMailboxNotHeld(deps, orgId, mailboxId).then(() => false, (err: unknown) => {
+    if (err instanceof HttpError && err.code === "legal_hold") return true;
+    throw err;
+  });
 }
 
 /** Tests, then saves the connection and its mailbox. The first sync runs right after. */
@@ -351,8 +361,11 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
   // or, from another workspace, only when it made its own (empty) mailbox. A kept copy it took over is never deleted:
   // its owner takes it over again, anyone else is refused.
   const replacing = !!pending && !!taken && taken.id === pending.mailboxId && (pending.orgId === auth.orgId || pending.madeMailbox) && (pending.madeMailbox || mine);
-  const kept = mine && (replacing ? !pending!.madeMailbox : !(await connectionForMailbox(deps, taken!.id))) ? taken!.id : null;
-  if (taken && !kept && !replacing) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
+  // Wave 2 review X6: a waiting connection's own mailbox that holds mail or a hold stays when it is replaced: its owner
+  // takes it over like a kept copy; anyone else is refused, as for an address in use.
+  const pendingKeeps = replacing && pending!.madeMailbox && await mailboxKeeps(deps, pending!.orgId, pending!.mailboxId);
+  const kept = mine && (replacing ? !pending!.madeMailbox || pendingKeeps : !(await connectionForMailbox(deps, taken!.id))) ? taken!.id : null;
+  if (taken && !kept && (!replacing || pendingKeeps)) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
   const secret = extra.secret ?? s.password;
   const authKind = extra.authKind ?? "password";
   if (authKind === "password") await testSettings(deps, s, { secret });

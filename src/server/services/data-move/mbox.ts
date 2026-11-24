@@ -50,6 +50,7 @@ export async function importMboxBatch(deps: Deps, actor: SuiteActor, input: Mbox
   const mb = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, actor.orgId))).get();
   if (!mb) throw notFound("Mailbox");
   await assertMailboxAccess(deps.db, callerWho(actor), input.mailboxId, "send"); // PRIV1b (P12): a write, not a read
+  await (await import("../connect/waiting")).assertNotWaitingForCode(deps.db, input.mailboxId); // Wave 2 review X6
   // R49 (MYMAIL-API-15): a message that is not base64 is a clear 422 before any write, never a 500.
   const decoded = input.messages.map((m) => tryFromB64(m));
   if (decoded.some((r) => r === null)) throw new HttpError(422, "unreadable_file", MBOX_UNREADABLE);
