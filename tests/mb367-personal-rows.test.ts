@@ -38,8 +38,13 @@ describe("MB-367: the recent activity a member sees carries no mailbox address",
     expect(memberSafeAudit(row)).toEqual({ ip: null, actorEmail: "pat@acme.io", metadata: { provider: "gmail", count: 3 } });
   });
 
-  it("drops a nested object or list of objects that holds an address under any key", () => {
+  it("drops an address nested in an object or list under any key, keeping the rest of that object (F7)", () => {
     const row = { ip: null, actorEmail: null, metadata: { before: { name: "Pat", forward: "pat@gmail.com" }, people: [{ who: "x@y.co" }], plan: { from: "free", to: "pro" } } };
-    expect(memberSafeAudit(row).metadata).toEqual({ plan: { from: "free", to: "pro" } });
+    expect(memberSafeAudit(row).metadata).toEqual({ before: { name: "Pat" }, plan: { from: "free", to: "pro" } });
+  });
+
+  it("keeps numbers and booleans under any key: a send's recipient count stays, its recipients go (F7)", () => {
+    const row = { ip: "1.2.3.4", actorEmail: null, metadata: { recipients: 3, to: ["a@b.co"], replyTo: "r@acme.io", ok: true, nested: { recipient: "x@y.co", count: 2 }, subject: "Private" } };
+    expect(memberSafeAudit(row).metadata).toEqual({ recipients: 3, ok: true, nested: { count: 2 } });
   });
 });

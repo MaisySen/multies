@@ -77,9 +77,28 @@ export function redactAuditRow<T extends { targetType?: string | null; targetId?
 // connected, a personal mailbox's Reply-To) into a member's recent activity; those keys are private too.
 const PRIVATE_KEYS = /email|address|destination|recipient|replyTo|reply_to|^ip$|ipAddress|userAgent|invit|token|^subject$/i;
 const ADDRESS = /[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+/;
-/** AIS1 review: a value that is, or lists, a mail address (an agent send's to, cc, bcc or from). */
-/** MB-367: an address anywhere inside a value counts too (a nested object or list), whatever its key. */
-const holdsAddress = (v: unknown): boolean => (typeof v === "string" ? ADDRESS.test(v) : v !== null && typeof v === "object" && ADDRESS.test(JSON.stringify(v) ?? ""));
+const DROP = Symbol("drop");
+/**
+ * AIS1 review and MB-367: what a member may see of one metadata value. A string that holds a mail address goes, under
+ * any key and at any depth; so does any text, list or object under a private key. F7: numbers and booleans always stay
+ * (they cannot hold an address: a send's `recipients: 3` count is kept), and in a nested object or list only the parts
+ * that hold an address go, not the whole value; a list or object left with nothing in it goes.
+ */
+function memberValue(v: unknown, privateKey: boolean): unknown {
+  if (typeof v === "number" || typeof v === "boolean" || v === null || v === undefined) return v;
+  if (privateKey) return DROP;
+  if (typeof v === "string") return ADDRESS.test(v) ? DROP : v;
+  if (Array.isArray(v)) {
+    const kept = v.map((x) => memberValue(x, false)).filter((x) => x !== DROP);
+    return v.length && !kept.length ? DROP : kept;
+  }
+  if (typeof v === "object") {
+    const entries = Object.entries(v as Record<string, unknown>);
+    const kept = entries.map(([k, x]) => [k, memberValue(x, PRIVATE_KEYS.test(k))] as const).filter(([, x]) => x !== DROP);
+    return entries.length && !kept.length ? DROP : Object.fromEntries(kept);
+  }
+  return DROP;
+}
 /**
  * What a plain member may see of an audit row: no IP, no addresses or invite details in its metadata. AIS1: and no mail
  * subject (an agent's read or send names its thread, which may be in a mailbox the member can't open), and no field
@@ -87,8 +106,9 @@ const holdsAddress = (v: unknown): boolean => (typeof v === "string" ? ADDRESS.t
  * from and to stay readable. Used by the dashboard and, since AIS1, by an agent's audit log (app and v1).
  */
 export function memberSafeAudit<T extends { ip?: string | null; actorEmail?: string | null; metadata?: Record<string, unknown> | null }>(row: T): T {
-  const metadata = row.metadata ? Object.fromEntries(Object.entries(row.metadata).filter(([k, v]) => !PRIVATE_KEYS.test(k) && !holdsAddress(v))) : row.metadata;
-  return { ...row, ip: null, metadata };
+  if (!row.metadata) return { ...row, ip: null };
+  const kept = memberValue(row.metadata, false);
+  return { ...row, ip: null, metadata: kept === DROP ? {} : kept as Record<string, unknown> };
 }
 
 /** R111: Audit log filters (Activity > Audit log, flag MAIL_ARCHIVE_R111): action prefixes, who did it, a date range. */
