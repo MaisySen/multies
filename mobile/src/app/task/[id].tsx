@@ -14,6 +14,7 @@ import { ChecklistSection } from "@/components/checklist";
 import { TaskRuns } from "@/components/runs";
 import { LinkedText } from "@/components/linked-text";
 import { useAssignees, useTask, useTaskMutations } from "@/lib/queries";
+import { assigneeLabel, isAgentLike, pickable } from "@/lib/assignees"; // Round 2 (PR 23)
 import { useOffline } from "@/lib/offline";
 import { PRIORITIES, STATUSES, dayFrom, dayLabel, dueLabel, nextMonday, senderName } from "@/lib/tasks";
 import { displayName, longDate, shortDate } from "@/lib/format";
@@ -72,12 +73,13 @@ export default function TaskDetail() {
 
   const people_ = people.data ?? [];
   const who = t.assigneeId ? people_.find((p) => p.id === t.assigneeId) : null;
-  const whoLabel = who ? (who.type === "agent" ? `${who.name} (agent)` : who.name) : "Nobody";
+  // Round 2 (PR 23): an AI agent member is marked as an AI too, and paused AIs leave the picker (isAgentLike, pickable).
+  const whoLabel = who ? assigneeLabel(who) : "Nobody";
   const prio = PRIORITIES.find((p) => p.id === t.priority);
   const pickers: Record<"priority" | "due" | "assignee", { title: string; options: SheetOption[]; pick: (id: string) => void }> = {
     priority: { title: "Priority", options: PRIORITIES.map((p) => ({ id: p.id, label: p.label, icon: "flag", selected: t.priority === p.id })), pick: (v) => v !== t.priority && save({ priority: v as Task["priority"] }) },
     due: { title: "Due date", options: dueChoices.map((c) => ({ id: c.value ?? "none", label: c.label, icon: "calendar", selected: (t.due?.slice(0, 10) ?? null) === c.value })), pick: (v) => save({ due: v === "none" ? null : v }) },
-    assignee: { title: "Assigned to", options: [{ id: "nobody", label: "Nobody", icon: "user", selected: !t.assigneeId }, ...people_.map((p) => ({ id: p.id, label: p.type === "agent" ? `${p.name} (agent)` : p.name, icon: (p.type === "agent" ? "bot" : "user") as SheetOption["icon"], selected: t.assigneeId === p.id }))],
+    assignee: { title: "Assigned to", options: [{ id: "nobody", label: "Nobody", icon: "user", selected: !t.assigneeId }, ...pickable(people_, t.assigneeId).map((p) => ({ id: p.id, label: assigneeLabel(p), icon: (isAgentLike(p) ? "bot" : "user") as SheetOption["icon"], selected: t.assigneeId === p.id }))],
       pick: (v) => { const next = v === "nobody" ? null : (v as AssigneeId); if (next !== t.assigneeId) save({ assigneeId: next }); } },
   };
   const sheet = picking ? pickers[picking] : null;
@@ -106,7 +108,7 @@ export default function TaskDetail() {
       <InsetGroup header="Details">
         <GroupRow icon="flag" tile="orange" label="Priority" value={prio?.label ?? "None"} onPress={() => setPicking("priority")} testID="pick-priority" />
         <GroupRow icon="calendar" tile="red" label="Due" value={t.due ? dayLabel(t.due) : "No date"} onPress={() => setPicking("due")} testID="pick-due" />
-        <GroupRow icon={who?.type === "agent" ? "bot" : "user"} tile="purple" label="Assigned to" value={whoLabel} onPress={() => setPicking("assignee")} testID="pick-assignee" />
+        <GroupRow icon={who && isAgentLike(who) ? "bot" : "user"} tile="purple" label="Assigned to" value={whoLabel} onPress={() => setPicking("assignee")} testID="pick-assignee" />
       </InsetGroup>
 
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md }}>

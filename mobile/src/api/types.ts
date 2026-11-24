@@ -77,7 +77,11 @@ export type TaskStatus = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
 export type AssigneeId = `member:${string}` | `agent:${string}`;
 
-export interface Assignee { id: AssigneeId; type: "member" | "agent"; name: string; email: string | null }
+export interface Assignee { id: AssigneeId; type: "member" | "agent"; name: string; email: string | null;
+  /** Round 2 (PR 23): an AI (an agent member, or a member whose address is an agent's inbox; agents say it too). */
+  isAgent?: boolean;
+  /** Round 2 (PR 23): a paused agent or agent member; pickers leave it out. */
+  paused?: boolean }
 
 /** A task as GET /api/tasks returns it. */
 export interface Task {

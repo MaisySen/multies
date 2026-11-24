@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { Badge, Button, Field } from "@/components/ui";
 import { useAssignees, useProjects, useTaskMutations } from "@/lib/queries";
 import { parseQuickAdd, quickAddToTask } from "@/lib/quick-add";
+import { isAgentLike, pickable } from "@/lib/assignees"; // Round 2 (PR 23)
 import { colors, font, space } from "@/theme";
 
 export default function NewTask() {
@@ -17,7 +18,10 @@ export default function NewTask() {
   // R34: quick add. "Call Ana tomorrow 3pm @ana #ops !high" sets the due date, person, project and
   // priority; the chips under the title show what was understood before you save.
   const parsed = useMemo(() => parseQuickAdd(title), [title]);
-  const resolved = useMemo(() => quickAddToTask(parsed, projects.data ?? [], assignees.data ?? []), [parsed, projects.data, assignees.data]);
+  // Round 2 (PR 23): a paused AI can't be picked with @, and a matched AI shows with the agent mark.
+  const people = useMemo(() => pickable(assignees.data ?? []), [assignees.data]);
+  const resolved = useMemo(() => quickAddToTask(parsed, projects.data ?? [], people), [parsed, projects.data, people]);
+  const who = resolved.assigneeId ? people.find((p) => p.id === resolved.assigneeId) : undefined;
   // R33: the task shows in the list at once (with a Saving tint) and this sheet closes; if the save
   // fails the row goes away again and an alert says why.
   const save = () => {
@@ -36,8 +40,8 @@ export default function NewTask() {
       {parsed.chips.length ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: -space.sm }} testID="quick-add-chips" accessibilityLabel={`Understood: ${parsed.chips.map((c) => c.text).join(", ")}`}>
           {parsed.chips.map((c) => (
-            <Badge key={`${c.kind}-${c.text}`} label={c.text} tone={resolved.unmatched.includes(c.text) ? "warn" : "brand"}
-              icon={c.kind === "date" ? "calendar" : c.kind === "time" ? "clock" : c.kind === "person" ? "user" : c.kind === "project" ? "project" : "flag"} />
+            <Badge key={`${c.kind}-${c.text}`} label={c.kind === "person" && who && isAgentLike(who) ? `${c.text} (agent)` : c.text} tone={resolved.unmatched.includes(c.text) ? "warn" : "brand"}
+              icon={c.kind === "date" ? "calendar" : c.kind === "time" ? "clock" : c.kind === "person" ? (who && isAgentLike(who) ? "bot" : "user") : c.kind === "project" ? "project" : "flag"} />
           ))}
         </View>
       ) : (
