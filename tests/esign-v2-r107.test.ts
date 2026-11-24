@@ -89,7 +89,9 @@ async function mailbox(t: Awaited<ReturnType<typeof setup>>) {
     else t.dns.records.txt = { ...t.dns.records.txt, [r.fqdn]: [r.value] };
   }
   await t.c.post(`/api/domains/${domainId}/verify`);
-  return (await t.c.post("/api/mailboxes", { domainId, localPart: "ada", displayName: "Ada" })).body.mailbox.id as string;
+  // A team mailbox the members are granted. PRIV1b P37 (round 2): ada@ is Ada's sign in address, so a mailbox there is
+  // her personal mailbox and a grant no longer opens it to a member.
+  return (await t.c.post("/api/mailboxes", { domainId, localPart: "contracts", displayName: "Contracts" })).body.mailbox.id as string;
 }
 
 async function draft(t: Awaited<ReturnType<typeof setup>>) {
