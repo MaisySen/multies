@@ -15,6 +15,7 @@ import { audit } from "../audit";
 import { roomParticipants } from "./calls";
 import { assertWritable, type SuiteActor } from "./common";
 import { hereText } from "@/shared/meeting-lobby";
+import { closedReason, shownStatus, type OpenCheck } from "./meeting-open-meet";
 
 /** A request older than this drops off the host's list and the guest asks again. */
 export const LOBBY_TTL_MS = 15 * 60_000;
@@ -55,16 +56,20 @@ export function cleanGuestName(raw: unknown): string | null {
 export { hereText };
 
 const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? "";
+/** Two requests under one name in one meeting are one guest asking twice (case and spacing aside). */
+export const sameGuestName = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
 
 async function byToken(deps: Deps, token: string) {
-  const m = await deps.db.select({ id: meetings.id, orgId: meetings.orgId, room: meetings.room, status: meetings.status, guestLobby: meetings.guestLobby, deletedAt: meetings.deletedAt })
+  const m = await deps.db.select({ id: meetings.id, orgId: meetings.orgId, room: meetings.room, status: meetings.status, guestLobby: meetings.guestLobby, deletedAt: meetings.deletedAt,
+    endedAt: meetings.endedAt, startsAt: meetings.startsAt, recurrence: meetings.recurrence, recurrenceTz: meetings.recurrenceTz })
     .from(meetings).where(eq(meetings.guestToken, token)).get();
   if (!m || m.deletedAt) throw notFound("Meeting");
   return m;
 }
 
-function assertOpen(status: string) {
-  if (status !== "scheduled") throw new HttpError(409, status === "cancelled" ? "meeting_cancelled" : "meeting_ended", status === "cancelled" ? "This meeting was cancelled." : "This meeting has ended.");
+function assertOpen(m: OpenCheck, now: Date) {
+  const closed = closedReason(m, now);
+  if (closed) throw new HttpError(409, closed === "cancelled" ? "meeting_cancelled" : "meeting_ended", closed === "cancelled" ? "This meeting was cancelled." : "This meeting has ended.");
 }
 
 async function memberMeeting(deps: Deps, actor: SuiteActor, id: string) {
@@ -78,20 +83,41 @@ const who = (a: SuiteActor) => (a.agentId ? `agent:${a.agentId}` : `member:${a.u
 
 // ---------------------------------------------------------------- guest side (no account)
 
-/** The guest asks to join. With the waiting room off the answer is admitted with no lobby id. */
-export async function askToJoin(deps: Deps, token: string, rawName: unknown, ip: string) {
+/**
+ * The guest asks to join. With the waiting room off the answer is admitted with no lobby id.
+ *
+ * MEET fixes (12 Nov 2026): one request per guest. Before this a guest who asked again (a reload, a second
+ * tap, the quiet retry after 15 minutes) made a second request, the host saw two Admit buttons for one
+ * person, and admitting the older one left the guest waiting on the newer one. The guest now sends the id
+ * of the request it already has (previousLobbyId, the secret only that browser holds): a request still
+ * waiting under the same name is answered again with no new row, an admitted one stays admitted, and a
+ * stale or renamed one is closed when the new one is made, so the host only ever sees one.
+ */
+export async function askToJoin(deps: Deps, token: string, rawName: unknown, ip: string, previousLobbyId?: unknown) {
   const m = await byToken(deps, token);
-  assertOpen(m.status);
+  assertOpen(m, deps.now());
   const name = cleanGuestName(rawName);
   if (!name) throw new HttpError(422, "validation_failed", "Tell the others your name (up to 60 characters).");
   if (!m.guestLobby) return { lobbyId: null, status: "admitted" as LobbyStatus, waitingRoom: false };
   const now = deps.now();
+  const prev = typeof previousLobbyId === "string" && /^lby_[A-Za-z0-9]{1,40}$/.test(previousLobbyId)
+    ? await deps.db.select().from(meetingLobby).where(and(eq(meetingLobby.id, previousLobbyId), eq(meetingLobby.meetingId, m.id))).get()
+    : undefined;
+  if (prev) {
+    const fresh = now.getTime() - prev.createdAt.getTime() <= LOBBY_TTL_MS;
+    if (prev.status === "admitted") return { lobbyId: prev.id, status: "admitted" as LobbyStatus, waitingRoom: true };
+    if (prev.status === "pending" && fresh && sameGuestName(prev.guestName, name)) return { lobbyId: prev.id, status: "pending" as LobbyStatus, waitingRoom: true };
+  }
   if (!lobbyAllowed(ip || "unknown", now.getTime())) throw new HttpError(429, "rate_limited", "Too many requests to join from here. Wait a few minutes and try again.");
   const pending = await deps.db.select({ id: meetingLobby.id }).from(meetingLobby)
     .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, new Date(now.getTime() - LOBBY_TTL_MS)))).limit(LOBBY_MAX_PENDING).all();
   if (pending.length >= LOBBY_MAX_PENDING) throw new HttpError(429, "lobby_full", "The waiting room is full. Try again in a few minutes.");
   const id = `lby_${randomToken(18).replace(/[^A-Za-z0-9]/g, "").slice(0, 24)}`;
   await deps.db.insert(meetingLobby).values({ id, meetingId: m.id, orgId: m.orgId, guestName: name, status: "pending", createdAt: now });
+  // The guest's earlier request, still open: closed now so the host doesn't see the same person twice.
+  if (prev?.status === "pending") {
+    await deps.db.update(meetingLobby).set({ status: "denied", decidedBy: "guest:asked_again", decidedAt: now }).where(and(eq(meetingLobby.id, prev.id), eq(meetingLobby.status, "pending")));
+  }
   return { lobbyId: id, status: "pending" as LobbyStatus, waitingRoom: true };
 }
 
@@ -101,7 +127,7 @@ export async function lobbyStatus(deps: Deps, token: string, lobbyId: string) {
   const r = await deps.db.select().from(meetingLobby).where(and(eq(meetingLobby.id, lobbyId), eq(meetingLobby.meetingId, m.id))).get();
   if (!r) throw notFound("Request");
   const expired = r.status === "pending" && deps.now().getTime() - r.createdAt.getTime() > LOBBY_TTL_MS;
-  return { status: (expired ? "expired" : r.status) as LobbyStatus | "expired", name: r.guestName, meetingStatus: m.status };
+  return { status: (expired ? "expired" : r.status) as LobbyStatus | "expired", name: r.guestName, meetingStatus: shownStatus(m, deps.now()) };
 }
 
 /**
@@ -121,13 +147,28 @@ export async function admittedGuest(deps: Deps, m: { id: string; guestLobby: boo
 /** Who is in the call, for the guest's pre-join line: first names only, and the count. */
 export async function whoIsHere(deps: Deps, token: string) {
   const m = await byToken(deps, token);
-  if (m.status !== "scheduled") return { names: [] as string[], count: 0, text: hereText([], 0) };
+  if (closedReason(m, deps.now())) return { names: [] as string[], count: 0, text: hereText([], 0) };
   const ps = await roomParticipants(deps, m.room).catch(() => []);
   const names = ps.map((p) => firstName(p.name)).filter(Boolean).slice(0, 3);
   return { names, count: ps.length, text: hereText(names, ps.length) };
 }
 
 // ---------------------------------------------------------------- members (session, API key, MCP)
+
+/**
+ * MEET fixes: one row per waiting guest. Requests under the same name are the same person asking twice (an
+ * older page, a slow network): the host sees one row, where the person first asked, with the newest request's
+ * id, and one Admit lets them in (decideLobby decides the twin requests with it).
+ */
+export function oneRowPerGuest<R extends { id: string; guestName: string; createdAt: Date }>(rows: R[]): R[] {
+  const out: R[] = [];
+  for (const r of rows) {
+    const i = out.findIndex((x) => sameGuestName(x.guestName, r.guestName));
+    if (i < 0) out.push(r);
+    else if (r.createdAt.getTime() >= out[i].createdAt.getTime()) out[i] = { ...r, createdAt: out[i].createdAt };
+  }
+  return out;
+}
 
 /** The waiting guests (oldest first) and the setting. Expired requests are left out. */
 export async function listLobby(deps: Deps, actor: SuiteActor, meetingId: string) {
@@ -136,7 +177,7 @@ export async function listLobby(deps: Deps, actor: SuiteActor, meetingId: string
   const rows = await deps.db.select().from(meetingLobby)
     .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, since)))
     .orderBy(asc(meetingLobby.createdAt)).limit(LOBBY_MAX_PENDING).all();
-  return { meetingId: m.id, guestsWait: m.guestLobby, waiting: rows.map((r) => ({ id: r.id, name: r.guestName, status: r.status, askedAt: r.createdAt.toISOString() })) };
+  return { meetingId: m.id, guestsWait: m.guestLobby, waiting: oneRowPerGuest(rows).map((r) => ({ id: r.id, name: r.guestName, status: r.status, askedAt: r.createdAt.toISOString() })) };
 }
 
 /** Admit or deny one waiting guest, or every waiting guest with all. One write, one audit line. */
@@ -152,10 +193,14 @@ export async function decideLobby(deps: Deps, actor: SuiteActor, meetingId: stri
       .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, since))).limit(LOBBY_MAX_PENDING).all()).map((r) => r.id);
   } else {
     if (!input.lobbyId) throw new HttpError(422, "validation_failed", "Say which guest, or all.");
-    const r = await deps.db.select({ id: meetingLobby.id, status: meetingLobby.status }).from(meetingLobby).where(and(eq(meetingLobby.id, input.lobbyId), eq(meetingLobby.meetingId, m.id))).get();
+    const r = await deps.db.select({ id: meetingLobby.id, status: meetingLobby.status, guestName: meetingLobby.guestName }).from(meetingLobby).where(and(eq(meetingLobby.id, input.lobbyId), eq(meetingLobby.meetingId, m.id))).get();
     if (!r) throw notFound("Request");
     if (r.status !== "pending") return { decided: 0, status: r.status, ids: [] as string[] };
-    ids = [r.id];
+    // MEET fixes: the same guest's twin requests are decided with it, so one Admit is enough.
+    const twins = (await deps.db.select({ id: meetingLobby.id, guestName: meetingLobby.guestName }).from(meetingLobby)
+      .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, since))).limit(LOBBY_MAX_PENDING).all())
+      .filter((x) => x.id !== r.id && sameGuestName(x.guestName, r.guestName)).map((x) => x.id);
+    ids = [r.id, ...twins];
   }
   // Up to 50 ids: well under the 100 variable limit in one statement.
   if (ids.length) {

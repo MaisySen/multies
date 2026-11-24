@@ -12,6 +12,7 @@ import { mailDate } from "@/web/lib/format";
 import { useConfig } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { lazyPage } from "@/web/components/lazy-page";
+import { sessionFor, useCallSession } from "@/web/lib/call-session-meet";
 import { tr } from "@/web/i18n"; // R104B
 import "@/web/i18n/w2/en-meetings"; // R104B
 
@@ -107,16 +108,19 @@ const CallDock = lazyPage(() => import("./call-dock-r23"), "CallDock", { quiet: 
 /** In the app shell: the docked call window, loaded only while a call is open. */
 export function CallDockHost() {
   const call = useCallDock();
-  if (!call) return null;
+  // MEET fixes: also while the tab's call is shown in the floating window (the person left the meeting page).
+  const session = useCallSession();
+  if (!call && session?.view !== "dock") return null;
   return <Suspense fallback={null}><CallDock /></Suspense>;
 }
 
 /** The meeting page joins on its own when opened from the docked window's Expand (?join=1), once. */
-export function useJoinFromDock(ready: boolean, enter: () => void) {
+export function useJoinFromDock(ready: boolean, enter: () => void, meetingId?: string) {
   const done = useRef(false);
   useEffect(() => {
-    if (done.current || !ready || new URLSearchParams(window.location.search).get("join") !== "1") return;
+    // MEET fixes: a call this tab is already in is shown, not joined a second time.
+    if (done.current || !ready || sessionFor(meetingId) || new URLSearchParams(window.location.search).get("join") !== "1") return;
     done.current = true;
     enter();
-  }, [ready, enter]);
+  }, [ready, enter, meetingId]);
 }

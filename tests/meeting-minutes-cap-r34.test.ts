@@ -41,7 +41,9 @@ describe("meeting minutes cap (R34, MB-171)", () => {
     at(1); expect((await c.get(`/api/chat/calls/${call.meeting.id}`)).body).toMatchObject({ state: "live", minutes: { cap: 1000, warn: null } });
     at(30); await c.get(`/api/chat/calls/${call.meeting.id}`);
     rooms.set(room, []);
-    at(31); expect((await c.get(`/api/chat/calls/${call.meeting.id}`)).body.state).toBe("ended");
+    // MEET fixes: an empty room ends the call once it stayed empty for the grace (CALL_EMPTY_GRACE_MS, under a minute).
+    at(31); expect((await c.get(`/api/chat/calls/${call.meeting.id}`)).body.state).toBe("waiting");
+    at(32); expect((await c.get(`/api/chat/calls/${call.meeting.id}`)).body.state).toBe("ended");
     const rows = await counted();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ period: "2026-10", count: 60 });

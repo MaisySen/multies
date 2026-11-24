@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { quickRetry } from "@/web/lib/quick-retry-pol1"; // POL1
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +24,9 @@ import { PhoneSaves } from "./video-phone-vid3"; // VID3
 import { isPhoneDevice } from "@/web/lib/video-phone-vid3"; // VID3
 import { useJoinFromDock } from "./call-r23";
 import { CallRoomExtras } from "./call-dock-r23";
+import { beginCall, CallStage, leaveCall } from "./call-session-room"; // MEET fixes
+import { meetingPageClosed, meetingPageOpened, useCallSession, type CallSession } from "@/web/lib/call-session-meet"; // MEET fixes
+import { OtherWorkspace, useAccountKept } from "./meeting-account-meet"; // MEET fixes
 import { PreJoin, type JoinPrefs } from "./prejoin-r31";
 import { askToJoin, GuestLobby, GuestsWaitSetting, LobbyRequests } from "./lobby-r32";
 import { CallSidePanel, CallToolbar, useCallNotesDoc, useCallPanel } from "./call-panel-r31";
@@ -108,8 +111,10 @@ const when = zonedDateTime;
  * The call, with the Round 31 side panel (Notes, So far). A connect that never succeeded shows a
  * message instead of silently leaving; once connected, a disconnect leaves.
  */
-function Room({ join, onLeave, prefs, member, guestToken, title }: { join: Join; onLeave: () => void; prefs?: JoinPrefs; member: boolean; guestToken?: string; title?: string }) {
-  const meetingId = join.meeting?.id;
+function Room({ join, onLeave, prefs, member, guestToken, title, session }: { join: Join; onLeave: () => void; prefs?: JoinPrefs; member: boolean; guestToken?: string; title?: string;
+  /** MEET fixes: a member's call is the tab's call session, so leaving this page keeps it (in the floating window). */
+  session?: CallSession }) {
+  const meetingId = session?.meetingId ?? join.meeting?.id;
   useCallNotesDoc(meetingId, member);
   const panel = useCallPanel(meetingId, member);
   const connected = useRef(false);
@@ -125,7 +130,20 @@ function Room({ join, onLeave, prefs, member, guestToken, title }: { join: Join;
       </div>
       <div className={cn("flex flex-col gap-3 md:flex-row", member && "max-md:relative max-md:min-h-0 max-md:flex-1 max-md:gap-0")}>
         <div data-lk-theme="default" className={cn("relative h-[calc(100dvh-220px)] min-h-[420px] min-w-0 flex-1 overflow-hidden rounded-xl border border-line", member && "max-md:h-auto max-md:min-h-0 max-md:rounded-none max-md:border-x-0 max-md:border-b-0")} data-testid="meeting-room">
-          {failed ? (
+          {session ? (
+            session.state === "failed" ? (
+              <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 bg-[#1c1c1e] p-6 text-center text-[13px] text-white/85" data-testid="meeting-connect-failed">
+                <p>{tr("meetings.couldn_t_connect_to_the_call_check_your_connecti")}</p>
+                <Button variant="secondary" onClick={onLeave}>{tr("common.back")}</Button>
+              </div>
+            ) : (
+              <CallStage session={session}>
+                <RecordingLayer join={join} title={title} />
+                <VideoConference />
+                <CallRoomExtras meetingId={meetingId} reportOnUnmount={false} />
+              </CallStage>
+            )
+          ) : failed ? (
             <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 bg-[#1c1c1e] p-6 text-center text-[13px] text-white/85" data-testid="meeting-connect-failed">
               <p>{tr("meetings.couldn_t_connect_to_the_call_check_your_connecti")}</p>
               <Button variant="secondary" onClick={onLeave}>{tr("common.back")}</Button>
@@ -248,7 +266,11 @@ export function MeetingPage() {
   const { id } = useParams();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["meeting", id], queryFn: async () => (await api.get<{ meeting: Meeting }>(`/meetings/${id}`)).meeting });
-  const [join, setJoin] = useState<Join | null>(null);
+  // MEET fixes: the call is the tab's call session. Leaving this page keeps it in the floating window, coming back shows it here.
+  const session = useCallSession();
+  const call = session && session.meetingId === id ? session : null;
+  useEffect(() => { meetingPageOpened(id); return () => meetingPageClosed(id); }, [id]);
+  const accountKept = useAccountKept();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const cfg = useConfig().data;
@@ -268,19 +290,24 @@ export function MeetingPage() {
   });
   const enter = async (p?: JoinPrefs) => {
     setBusy(true);
-    try { setJoin(await api.post<Join>(`/meetings/${id}/join`, p?.name ? { name: p.name } : {})); setPrefs(p); setPrejoin(false); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    try {
+      const j = await api.post<Join>(`/meetings/${id}/join`, p?.name ? { name: p.name } : {});
+      beginCall({ meetingId: id!, title: m?.title ?? "", path: `/app/meetings/${id}`, join: j, prefs: p, view: "full" });
+      setPrefs(p); setPrejoin(false);
+    } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
-  useJoinFromDock(!!m?.videoEnabled && m.status === "scheduled" && !join, () => void enter()); // Round 23 (the dock already passed pre-join)
+  useJoinFromDock(!!m?.videoEnabled && m.status === "scheduled" && !call, () => void enter(), id); // Round 23 (the dock already passed pre-join)
   const invite = async () => {
     try { const r = await api.post<{ status: string }>(`/meetings/${id}/invite`, {}); toast.success(r.status === "sent" ? tr("meetings.invites_sent") : tr("meetings.invites_are_waiting_for_approval")); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); }
   };
   const setStatus = async (status: "ended" | "cancelled") => { try { await api.patch(`/meetings/${id}`, { status }); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); } };
-  if (!m) return q.error ? <Card data-testid="meeting-error"><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card> : <Skeleton className="h-40" />; // POL1
-  if (join) return <div><PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => setJoin(null)}>{tr("meetings.leave")}</Button>} /><Room join={join} prefs={prefs} member title={m.title} onLeave={() => setJoin(null)} /></div>;
-  if (prejoin) return <div className="py-2"><PreJoin title={m.title} who={{ mode: "member", name: me.data?.user?.name || me.data?.user?.email || "you" }} inCall={inCall.data?.participants.map((p) => p.name)} busy={busy} footnote={PREJOIN_NOTE} onJoin={(p) => void enter(p)} onCancel={() => setPrejoin(false)} /></div>;
+  if (!m) return q.error ? <Card data-testid="meeting-error"><OtherWorkspace error={q.error} /><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card> : <Skeleton className="h-40" />; // POL1
+  if (call && call.view === "full") return <div>{accountKept}<PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => leaveCall(call.meetingId)} data-testid="meeting-leave">{tr("meetings.leave")}</Button>} /><Room join={call.join} session={call} prefs={call.prefs ?? prefs} member title={m.title} onLeave={() => leaveCall(call.meetingId)} /></div>;
+  if (prejoin) return <div className="py-2">{accountKept}<PreJoin title={m.title} who={{ mode: "member", name: me.data?.user?.name || me.data?.user?.email || "you", workspace: me.data?.organization?.name }} inCall={inCall.data?.participants.map((p) => p.name)} busy={busy} footnote={PREJOIN_NOTE} onJoin={(p) => void enter(p)} onCancel={() => setPrejoin(false)} /></div>;
   const source = m.source ? (m.source.type === "task" ? { to: `/app/tasks?task=${m.source.id}`, label: tr("meetings.the_task") } : m.source.type === "contact" ? { to: `/app/contacts/${m.source.id}`, label: tr("meetings.the_contact") } : { to: `/app/mail`, label: tr("meetings.the_thread") }) : null;
   return (
     <div data-testid="meeting-page">
+      {accountKept}
       <PageHeader title={m.title} description={<>{when(m.startsAt)} · {m.durationMin} {tr("meetings.minutes_2")}{source && <> {tr("meetings.started_from")} <Link className="text-brand-hover hover:underline" to={source.to}>{source.label}</Link></>}</>}
         actions={askOn ? <div className="flex flex-wrap items-center gap-2"><AskAboutButton kind="meetings" id={m.id} title={m.title} />{m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />{tr("meetings.join_now")}</Button> : <Badge>{m.status === "ended" ? tr("meetings.ended") : tr("meetings.cancelled")}</Badge>}</div> : m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />{tr("meetings.join_now")}</Button> : <Badge>{m.status === "ended" ? tr("meetings.ended") : tr("meetings.cancelled")}</Badge>} />
       {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{videoOff()}</Card>}
@@ -373,15 +400,23 @@ export function GuestMeetingPage() {
     setBusy(true);
     try { setJoin(await api.post<Join>(`/public/meetings/${token}/join`, { name: p?.name ?? name, ...(lobbyId ? { lobbyId } : {}) })); setPrefs(p); setLeft(false); setLobby(null); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
-  /** With the waiting room on, ask first and wait; otherwise join straight away. */
+  /**
+   * With the waiting room on, ask first and wait; otherwise join straight away. MEET fixes: one ask at a time (a
+   * double tap or Enter plus a click used to send two, and the host saw the guest twice), and an earlier request
+   * from this tab is reused (askToJoin). A request the host already admitted goes straight in.
+   */
+  const asking = useRef(false);
   const ask = async (p: JoinPrefs) => {
     if (!q.data?.guestsWait) return go(p);
+    if (asking.current) return;
+    asking.current = true;
     setBusy(true);
     try {
       const r = await askToJoin(token!, p.name ?? name);
       setPrefs(p);
+      if (r.lobbyId && r.status === "admitted") { setBusy(false); return go(p, r.lobbyId); }
       if (r.lobbyId) setLobby({ id: r.lobbyId, name: p.name ?? name }); else { setBusy(false); return go(p); }
-    } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    } catch (e) { showError(e as Error); } finally { setBusy(false); asking.current = false; }
   };
   const m = q.data;
   return (

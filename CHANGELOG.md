@@ -6,6 +6,13 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## MEET fixes (POL6): one Admit, the call stays while you move around, the account you join as, links that keep working (2026-11-12)
+
+- One Admit per waiting guest: the "wants to join" toast no longer has its own Admit (it stayed up after the row's Admit and read as a second button). A guest asking again (a reload, a second tap, the quiet retry) sends the request it already holds (`lobbyId` on `POST /api/public/meeting-lobby/<token>`), so it is the same request; an earlier request under another name is closed. Two requests under one name show as one row, and one Admit lets the guest in on either. No migration.
+- The call stays while you move around the app: the meeting page and the floating call window are two views of one connection per tab, so opening chat, tasks or any page moves the call into the floating window (no hang up, no second join) and Expand brings it back. The window fits a 375 px phone screen, and has a Pop out button for the browser's own picture in picture where the browser offers it.
+- The account you join as: pre-join says "Joining as <name> in <workspace>". A meeting link from another of your workspaces names that workspace with a Switch and open button (404 `meeting_in_other_workspace` with `details.workspace`, only to members of that workspace). The phone app's handoff to a browser signed in as someone else keeps the browser's account as before, but now opens the meeting (with `?account=kept`) and says which account it joins as, with Sign out here; before, it went to /app with no word.
+- Links that keep working: a room read empty ends the meeting only after it stayed empty for 45 seconds (`CALL_EMPTY_GRACE_MS`), so a reload or a network switch no longer ends the meeting for good. The last person pressing Leave still ends it at once, and an ended meeting stays ended for members too (`POST /api/meetings/<id>/join` answers 409 `meeting_ended`; the 10 Nov rule). A weekly series is no longer ended for good by its first call: its link closes after each call and opens again 15 minutes before the next meeting in the series.
+
 ## VID2 Call videos: pause, speaker or gallery view, crash safe, chat and transcript files (2026-11-03)
 
 - Pause and resume while recording (flag VIDEO_REC_VID2, needs VIDEO_REC_VID1; no migration, no new binding, nothing uploaded): MediaRecorder pause keeps paused time out of the file, the banner, a dot on every tile and a pill in the call header switch to Paused for everyone, and the transcript mix goes silent while paused.
