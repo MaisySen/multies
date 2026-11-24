@@ -329,7 +329,14 @@ export async function acceptInvite(deps: Deps, auth: AuthContext, headers: Heade
   const { db } = deps;
   const inv = await db.select().from(invitations).where(eq(invitations.id, id)).get();
   if (!inv || inv.status === "canceled" || inv.status === "rejected") throw notFound("Invitation");
-  if (inv.status === "accepted") throw new HttpError(410, "invite_used", "This invitation has already been used.");
+  if (inv.status === "accepted") {
+    // W4: the link opened again by someone it (or anything else) already made a member: open the workspace.
+    const mine = await db.select({ role: members.role, disabledAt: members.disabledAt }).from(members).where(and(eq(members.organizationId, inv.organizationId), eq(members.userId, auth.userId))).get();
+    if (!mine || mine.disabledAt) throw new HttpError(410, "invite_used", "This invitation has already been used.");
+    await db.update(sessions).set({ activeOrganizationId: inv.organizationId, updatedAt: new Date() }).where(eq(sessions.id, auth.sessionId));
+    const org = (await db.select().from(organizations).where(eq(organizations.id, inv.organizationId)).get())!;
+    return { orgId: org.id, orgName: org.name, role: mine.role };
+  }
   if (inv.status === INVITE_AWAITING) throw new HttpError(403, "invite_awaiting_approval", "This invitation is waiting for an owner or admin of the workspace to confirm it. Try the link again once they have.");
   if (inv.expiresAt <= deps.now()) throw new HttpError(410, "invite_expired", "This invitation has expired. Ask for a new one.");
   // AIS1 (row 1): an invite made before the fix, to an address that reaches an AI agent, never makes it a member.
