@@ -89,6 +89,24 @@ export function endCallSession(meetingId?: string): CallSession | null {
 }
 
 /**
+ * Wave 3 review Y5: signing out, or switching to or making another workspace, ends this tab's call. Before this the
+ * call lived on in the module (the sign out only navigated inside the app), so the camera and microphone kept
+ * publishing into the meeting. Hangs up (LiveKit stops the tracks) and tells the server the person left while the
+ * session still exists, waiting at most a moment for that.
+ */
+export async function endCallForAccountChange(reportLeft: (meetingId: string) => Promise<unknown>, waitMs = 1500): Promise<CallSession | null> {
+  const ended = endCallSession();
+  if (!ended) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.resolve().then(() => reportLeft(ended.meetingId)).catch(() => undefined),
+    new Promise((r) => { timer = setTimeout(r, waitMs); }),
+  ]);
+  if (timer) clearTimeout(timer);
+  return ended;
+}
+
+/**
  * The meeting page is going away (the person opened another page in the app). A live or connecting call moves
  * to the floating window instead of hanging up; a call that failed to connect is dropped.
  */

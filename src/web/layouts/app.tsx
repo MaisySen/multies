@@ -43,6 +43,10 @@ import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"
 import { PrivateInboxNotice } from "@/web/components/mailbox-privacy-priv1a"; // PRIV1a (MB-366)
 import { JoinInvitePrompt } from "@/web/components/join-invite-prompt-r41"; // R41 (MB-221)
 import { api } from "@/web/lib/api";
+import { endCallForAccountChange } from "@/web/lib/call-session-meet";
+
+/** Wave 3 review Y5: the tab's call ends (and the server hears the person left) before the account or workspace changes. */
+const leaveCallForAccountChange = () => endCallForAccountChange((id) => api.post(`/chat/calls/${id}/left`, {}));
 import { ONE_INBOX_PATH, useOneInboxCount } from "@/web/lib/one-inbox-td6"; // TD6
 import { clearMeCache, isSignedOut } from "@/web/lib/me-cache"; // R40 (MB-200)
 import { ReconnectingPill, ReconnectScreen } from "@/web/components/reconnecting-r40"; // R40 (MB-200)
@@ -216,7 +220,7 @@ export function AppLayout() {
           <h1 className="text-lg font-semibold">{organization?.name} requires single sign on</h1>
           <p className="mt-2 text-sm text-muted">{tr("shell.you_signed_in_with_a_password_sign_out_then_choo")}</p>
           <button className="mt-5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-fg hover:bg-brand-press"
-            onClick={async () => { await clearOfflineData(); try { await (await authClientModule()).authClient.signOut(); } catch { /* already signed out */ } await clearOfflineData(); qc.clear(); navigate("/login?sso=required"); }}>
+            onClick={async () => { await leaveCallForAccountChange(); await clearOfflineData(); try { await (await authClientModule()).authClient.signOut(); } catch { /* already signed out */ } await clearOfflineData(); qc.clear(); navigate("/login?sso=required"); }}>
             {tr("shell.sign_out_and_use_sso")}
           </button>
         </div>
@@ -230,6 +234,7 @@ export function AppLayout() {
   const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
 
   const signOut = async () => {
+    await leaveCallForAccountChange(); // Y5: before the session goes, so the left report still counts
     clearMeCache(); // R40: the saved account copy goes with the session
     const providers = qc.getQueryData<AuthProviders>(["auth-providers"]) ?? await api.get<AuthProviders>("/account/providers").catch(() => null);
     qc.clear();
@@ -445,6 +450,7 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
     if (id === current?.id || switching) return;
     setSwitching(id); setSwitchError(null);
     try {
+      await leaveCallForAccountChange(); // Y5
       await api.post(`/account/workspaces/${id}/switch`);
       workspaceTabs()?.switchedHere(); // R58 (MB-245): up to date again; other tabs hear the workspace opened
       qc.clear();
@@ -456,7 +462,7 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
   };
   const create = async () => {
     setBusy(true); setError(null);
-    try { await api.post("/account/workspaces", { name }); workspaceTabs()?.switchedHere(); qc.clear(); setCreating(false); setName(""); navigate("/app"); }
+    try { await leaveCallForAccountChange(); await api.post("/account/workspaces", { name }); workspaceTabs()?.switchedHere(); qc.clear(); setCreating(false); setName(""); navigate("/app"); }
     catch (e) { setError(e instanceof Error ? e.message : "Couldn't create it."); }
     finally { setBusy(false); }
   };
