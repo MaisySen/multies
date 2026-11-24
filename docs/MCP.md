@@ -367,7 +367,7 @@ Registered in src/server/routes/mcp-r23-notes.ts. Read only keys and tokens can 
 | --- | --- |
 | `get_meeting_notes` | A meeting's title, time and attendees with its notes doc as plain structure: agenda lines, notes lines, and action items (title, assignee, due date, and the task once made). `doc` is null before anyone took notes; `summary` is null unless a recording summary exists |
 | `meeting_lobby_list` | The meeting's waiting room: guests from the guest link waiting to be let in (`id`, `name`, `askedAt`), oldest first, and `guestsWait` (R32) |
-| `meeting_lobby_decide` | Admit or deny one waiting guest (`lobbyId`) or everyone waiting (`all: true`); `decision` is `admit` or `deny`. Audited (R32) |
+| `meeting_lobby_decide` | Admit or deny one waiting guest (`lobbyId`) or everyone waiting (`all: true`); `decision` is `admit` or `deny`, or `remove` (with `lobbyId`) to take back an admission. Audited (R32) |
 | `meeting_summary_so_far` | For a live call or meeting: who is in it and since when, minutes elapsed, the notes doc's headings and to-dos, and decisions said in the call's chat. A deterministic digest labelled "So far" (no model call); `transcript` is always null (R31) |
 | `create_action_items` | With no `items`: every unchecked action item in the notes that is not a task yet becomes a task. With `items` ({ title, assignee?, due? }): each is added to the notes, then made a task. Items already made are skipped, so a second call creates nothing |
 ### Call recordings and transcripts (round 23)

@@ -14,7 +14,7 @@ import type { SuiteActor } from "../services/suite/common";
 import { askToJoin, decideLobby, listLobby, lobbyStatus, setGuestsWait, whoIsHere } from "../services/suite/meeting-lobby-r32";
 import type { Scoped } from "./mcp-server";
 
-const Decide = z.object({ lobbyId: z.string().min(1).max(64).optional(), all: z.boolean().optional(), decision: z.enum(["admit", "deny"]) });
+const Decide = z.object({ lobbyId: z.string().min(1).max(64).optional(), all: z.boolean().optional(), decision: z.enum(["admit", "deny", "remove"]) });
 
 export function meetingLobbyRoutes() {
   return new Hono<AppEnv>()
@@ -59,7 +59,7 @@ export function registerMeetingLobbyV1Routes(api: OpenAPIHono<AppEnv>) {
   }), async (c) => send(c, await listLobby(c.var.deps, actor(c), c.req.param("id") ?? "")));
   api.openapi(createRoute({
     method: "post", path: "/meetings/{id}/lobby/decide", tags: ["Meetings"], summary: "Admit or deny waiting guests",
-    description: "Admit or deny one waiting guest (lobbyId) or everyone waiting (all: true). An admitted guest gets into the call on their next check (within a few seconds); a denied guest sees a polite message. Recorded in the audit log. Returns { decided, status, ids }.",
+    description: "Admit or deny one waiting guest (lobbyId) or everyone waiting (all: true). An admitted guest gets into the call on their next check (within a few seconds); a denied guest sees a polite message. remove (with lobbyId) takes back an admission already given. An admission is for the current meeting only (a later meeting in a series asks again). Recorded in the audit log. Returns { decided, status, ids }.",
     security: [{ bearerAuth: [] }], request: { params: Id, body: { content: { "application/json": { schema: Decide } }, required: true } },
     responses: { 200: json("OK."), 401: err("Missing or invalid API key."), 403: err("Read only key."), 404: err("Not found."), 422: err("Invalid body.") },
   }), async (c) => send(c, await decideLobby(c.var.deps, actor(c), c.req.param("id") ?? "", c.req.valid("json"), c.var.ip)));
@@ -76,7 +76,7 @@ export function registerMeetingLobbyTools(server: McpServer, deps: Deps, a: Scop
   }, tool(async (x: { meetingId: string }) => listLobby(deps, actorOf, x.meetingId)) as never);
   server.registerTool("meeting_lobby_decide", {
     title: "Admit or deny waiting guests", annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    description: "Admit or deny one waiting guest (lobbyId from meeting_lobby_list) or everyone waiting (all: true). decision is admit or deny. Recorded in the audit log.",
-    inputSchema: { meetingId: zz.string().min(1), lobbyId: zz.string().min(1).max(64).optional(), all: zz.boolean().optional(), decision: zz.enum(["admit", "deny"]) },
+    description: "Admit or deny one waiting guest (lobbyId from meeting_lobby_list) or everyone waiting (all: true). decision is admit or deny, or remove (with lobbyId) to take back an admission already given. Recorded in the audit log.",
+    inputSchema: { meetingId: zz.string().min(1), lobbyId: zz.string().min(1).max(64).optional(), all: zz.boolean().optional(), decision: zz.enum(["admit", "deny", "remove"]) },
   }, tool(async (x: { meetingId: string; lobbyId?: string; all?: boolean; decision: "admit" | "deny" }) => { writable(); return decideLobby(deps, actorOf, x.meetingId, x); }) as never);
 }

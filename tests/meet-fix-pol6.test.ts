@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { meetingLobby, meetings } from "@/server/db/schema";
 import { CALL_EMPTY_GRACE_MS, clearCallCache, type CallParticipant } from "@/server/services/suite/calls";
-import { clearLobbyLimits, oneRowPerGuest, sameGuestName } from "@/server/services/suite/meeting-lobby-r32";
+import { ADMISSION_MAX_MS, clearLobbyLimits, sameGuestName } from "@/server/services/suite/meeting-lobby-r32";
 import { closedReason, JOIN_EARLY_MS } from "@/server/services/suite/meeting-open-meet";
 import { accountKept } from "@/server/auth/mobile-web-link";
 import {
@@ -59,22 +59,24 @@ describe("a) one Admit for one waiting guest", () => {
     expect(list.waiting).toHaveLength(1);
   });
 
-  it("an old page that asks twice still shows one row, and one Admit lets the guest in on either request", async () => {
+  // Wave 3 review Y2 (deliberate change): two requests under one name with no request id between them are two rows,
+  // and Admit lets in exactly the one decided. Merging by name let a stranger ride a real guest's Admit.
+  it("a stranger asking under a waiting guest's name is a separate row, and one Admit admits only the decided request", async () => {
     const m = await meeting();
-    const g = guest();
-    const a = (await g.post(`/api/public/meeting-lobby/${m.token}`, { name: "Grace Hopper" })).body;
-    const b = (await g.post(`/api/public/meeting-lobby/${m.token}`, { name: "grace  hopper" })).body;
+    const real = guest();
+    const stranger = guest();
+    const a = (await real.post(`/api/public/meeting-lobby/${m.token}`, { name: "Jane Doe" })).body;
+    const b = (await stranger.post(`/api/public/meeting-lobby/${m.token}`, { name: "jane  doe" })).body;
     expect(b.lobbyId).not.toBe(a.lobbyId);
     const list = (await c.get(`/api/meeting-lobby/${m.id}`)).body;
-    expect(list.waiting).toHaveLength(1);
-    expect(list.waiting[0].id).toBe(b.lobbyId); // the newest request, the one the guest's page waits on
+    expect(list.waiting.map((w: { id: string }) => w.id)).toEqual([a.lobbyId, b.lobbyId]);
     const d = (await c.post(`/api/meeting-lobby/${m.id}/decide`, { lobbyId: a.lobbyId, decision: "admit" })).body;
-    expect(d.ids.sort()).toEqual([a.lobbyId, b.lobbyId].sort());
-    for (const id of [a.lobbyId, b.lobbyId]) expect((await g.get(`/api/public/meeting-lobby/${m.token}/${id}`)).body.status).toBe("admitted");
-    expect((await c.get(`/api/meeting-lobby/${m.id}`)).body.waiting).toHaveLength(0);
-    // Joining with the admitted request works without another Admit.
-    const j = await g.post(`/api/public/meetings/${m.token}/join`, { name: "Grace Hopper", lobbyId: b.lobbyId });
-    expect(j.status).toBe(200);
+    expect(d.ids).toEqual([a.lobbyId]);
+    expect((await real.get(`/api/public/meeting-lobby/${m.token}/${a.lobbyId}`)).body.status).toBe("admitted");
+    expect((await stranger.get(`/api/public/meeting-lobby/${m.token}/${b.lobbyId}`)).body.status).toBe("pending");
+    expect((await stranger.post(`/api/public/meetings/${m.token}/join`, { name: "Jane Doe", lobbyId: b.lobbyId })).status).toBe(403);
+    expect((await real.post(`/api/public/meetings/${m.token}/join`, { name: "Jane Doe", lobbyId: a.lobbyId })).status).toBe(200);
+    expect((await c.get(`/api/meeting-lobby/${m.id}`)).body.waiting.map((w: { id: string }) => w.id)).toEqual([b.lobbyId]);
   });
 
   it("an expired or renamed earlier request is closed when the new one is made; an admitted one stays admitted", async () => {
@@ -101,11 +103,7 @@ describe("a) one Admit for one waiting guest", () => {
     expect((await c.get(`/api/meeting-lobby/${m1.id}`)).body.waiting).toHaveLength(2);
   });
 
-  it("collapses twin rows by name", () => {
-    const at = (s: number) => new Date(1_000 * s);
-    const out = oneRowPerGuest([{ id: "1", guestName: "Sam", createdAt: at(1) }, { id: "2", guestName: "Ann", createdAt: at(2) }, { id: "3", guestName: " sam ", createdAt: at(3) }]);
-    expect(out.map((r) => r.id)).toEqual(["3", "2"]);
-    expect(out[0].createdAt).toEqual(at(1));
+  it("compares names for one browser asking again, case and spacing aside", () => {
     expect(sameGuestName("Grace  Hopper", "grace hopper")).toBe(true);
     expect(sameGuestName("Grace", "Grace H")).toBe(false);
   });
@@ -186,6 +184,57 @@ describe("d) meeting links that keep working", () => {
     expect((await g.get(`/api/public/meetings/${m.token}`)).body.meeting.status).toBe("scheduled");
     expect((await g.post(`/api/public/meetings/${m.token}/join`, { name: "Grace" })).status).toBe(200);
     expect((await c.post(`/api/meetings/${m.id}/join`)).status).toBe(200);
+  });
+
+  // Wave 3 review Y3: an admission is for the meeting it was given in, not every later week of a series.
+  it("a guest admitted in week 1 of a series waits in the lobby again in week 2", async () => {
+    const startsAt = new Date(clock + 3600_000).toISOString();
+    const m = await meeting({ title: "Weekly sync", startsAt, durationMin: 30, recurrence: { days: ["th"], timezone: "UTC" } });
+    const room = await roomOf(m.id);
+    clock = Date.parse(startsAt) - 60_000;
+    const g = guest();
+    const a = (await g.post(`/api/public/meeting-lobby/${m.token}`, { name: "Grace" })).body;
+    await c.post(`/api/meeting-lobby/${m.id}/decide`, { lobbyId: a.lobbyId, decision: "admit" });
+    expect((await g.post(`/api/public/meetings/${m.token}/join`, { name: "Grace", lobbyId: a.lobbyId })).status).toBe(200);
+    // Week 1's call ends.
+    rooms.set(room, [person("Olive Owner")]);
+    tick = 11_000;
+    await c.get(`/api/chat/calls/${m.id}`);
+    rooms.set(room, []);
+    await c.get(`/api/chat/calls/${m.id}`);
+    tick = CALL_EMPTY_GRACE_MS;
+    expect((await c.get(`/api/chat/calls/${m.id}`)).body.state).toBe("ended");
+    // Week 2: the same request id no longer lets them in, and asking with it makes a new request to admit.
+    tick = 1000;
+    clock = Date.parse(startsAt) + 7 * 86_400_000 - 5 * 60_000;
+    const j = await g.post(`/api/public/meetings/${m.token}/join`, { name: "Grace", lobbyId: a.lobbyId });
+    expect(j.status).toBe(403);
+    expect(j.body.error.code).toBe("lobby_required");
+    expect((await g.get(`/api/public/meeting-lobby/${m.token}/${a.lobbyId}`)).body.status).toBe("expired");
+    const again = (await g.post(`/api/public/meeting-lobby/${m.token}`, { name: "Grace", lobbyId: a.lobbyId })).body;
+    expect(again).toMatchObject({ status: "pending" });
+    expect(again.lobbyId).not.toBe(a.lobbyId);
+    expect((await c.get(`/api/meeting-lobby/${m.id}`)).body.waiting.map((w: { id: string }) => w.id)).toEqual([again.lobbyId]);
+  });
+
+  it("an admission is taken back with remove (not a late Deny), and lapses after its window", async () => {
+    const m = await meeting();
+    const g = guest();
+    const a = (await g.post(`/api/public/meeting-lobby/${m.token}`, { name: "Grace" })).body;
+    await c.post(`/api/meeting-lobby/${m.id}/decide`, { lobbyId: a.lobbyId, decision: "admit" });
+    expect((await g.post(`/api/public/meetings/${m.token}/join`, { name: "Grace", lobbyId: a.lobbyId })).status).toBe(200);
+    expect((await c.post(`/api/meeting-lobby/${m.id}/decide`, { lobbyId: a.lobbyId, decision: "deny" })).body).toMatchObject({ decided: 0, status: "admitted" });
+    const off = (await c.post(`/api/meeting-lobby/${m.id}/decide`, { lobbyId: a.lobbyId, decision: "remove" })).body;
+    expect(off).toMatchObject({ decided: 1, status: "denied", ids: [a.lobbyId] });
+    const j = await g.post(`/api/public/meetings/${m.token}/join`, { name: "Grace", lobbyId: a.lobbyId });
+    expect(j.status).toBe(403);
+    expect(j.body.error.code).toBe("lobby_denied");
+    expect((await g.post(`/api/public/meeting-lobby/${m.token}`, { name: "Grace", lobbyId: a.lobbyId })).body.status).toBe("pending");
+
+    const b = (await guest().post(`/api/public/meeting-lobby/${m.token}`, { name: "Ada" })).body;
+    await c.post(`/api/meeting-lobby/${m.id}/decide`, { lobbyId: b.lobbyId, decision: "admit" });
+    clock += ADMISSION_MAX_MS + 60_000;
+    expect((await guest().post(`/api/public/meetings/${m.token}/join`, { name: "Ada", lobbyId: b.lobbyId })).status).toBe(403);
   });
 
   it("closedReason: one off, cancelled, and a series between meetings", () => {

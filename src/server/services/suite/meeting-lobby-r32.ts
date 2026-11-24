@@ -19,6 +19,18 @@ import { closedReason, shownStatus, type OpenCheck } from "./meeting-open-meet";
 
 /** A request older than this drops off the host's list and the guest asks again. */
 export const LOBBY_TTL_MS = 15 * 60_000;
+/**
+ * Wave 3 review Y3: an admission lets the guest in to the call it was given for, not every later meeting in a series.
+ * It counts only when decided after the meeting's last call ended (endedAt) and within this long of the decision.
+ */
+export const ADMISSION_MAX_MS = 12 * 60 * 60_000;
+
+/** Wave 3 review Y3: whether an admitted request still lets its guest in (this occurrence, not revoked). */
+export function admissionCurrent(r: { status: string; decidedAt: Date | null }, m: { endedAt: Date | null }, now: Date): boolean {
+  if (r.status !== "admitted" || !r.decidedAt) return false;
+  if (m.endedAt && r.decidedAt.getTime() <= m.endedAt.getTime()) return false;
+  return now.getTime() - r.decidedAt.getTime() <= ADMISSION_MAX_MS;
+}
 /** Pending requests one meeting holds at once. */
 export const LOBBY_MAX_PENDING = 50;
 /** Lobby requests one network address may make in the window (kept in memory, no limiter write). */
@@ -26,7 +38,8 @@ export const LOBBY_IP_LIMIT = 10;
 export const LOBBY_IP_WINDOW_MS = 10 * 60_000;
 
 export type LobbyStatus = "pending" | "admitted" | "denied";
-export type LobbyDecision = "admit" | "deny";
+/** Y3: "remove" takes back an admission already given (a guest the host put out); deny on an admitted guest changes nothing. */
+export type LobbyDecision = "admit" | "deny" | "remove";
 
 const hits = new Map<string, { n: number; resetAt: number }>();
 export function clearLobbyLimits() { hits.clear(); }
@@ -105,7 +118,7 @@ export async function askToJoin(deps: Deps, token: string, rawName: unknown, ip:
     : undefined;
   if (prev) {
     const fresh = now.getTime() - prev.createdAt.getTime() <= LOBBY_TTL_MS;
-    if (prev.status === "admitted") return { lobbyId: prev.id, status: "admitted" as LobbyStatus, waitingRoom: true };
+    if (admissionCurrent(prev, m, now)) return { lobbyId: prev.id, status: "admitted" as LobbyStatus, waitingRoom: true };
     if (prev.status === "pending" && fresh && sameGuestName(prev.guestName, name)) return { lobbyId: prev.id, status: "pending" as LobbyStatus, waitingRoom: true };
   }
   if (!lobbyAllowed(ip || "unknown", now.getTime())) throw new HttpError(429, "rate_limited", "Too many requests to join from here. Wait a few minutes and try again.");
@@ -126,7 +139,8 @@ export async function lobbyStatus(deps: Deps, token: string, lobbyId: string) {
   const m = await byToken(deps, token);
   const r = await deps.db.select().from(meetingLobby).where(and(eq(meetingLobby.id, lobbyId), eq(meetingLobby.meetingId, m.id))).get();
   if (!r) throw notFound("Request");
-  const expired = r.status === "pending" && deps.now().getTime() - r.createdAt.getTime() > LOBBY_TTL_MS;
+  // Y3: an admission from an earlier meeting in a series (or a long gone one) is over too: the guest asks again.
+  const expired = (r.status === "pending" && deps.now().getTime() - r.createdAt.getTime() > LOBBY_TTL_MS) || (r.status === "admitted" && !admissionCurrent(r, m, deps.now()));
   return { status: (expired ? "expired" : r.status) as LobbyStatus | "expired", name: r.guestName, meetingStatus: shownStatus(m, deps.now()) };
 }
 
@@ -134,13 +148,15 @@ export async function lobbyStatus(deps: Deps, token: string, lobbyId: string) {
  * For guestJoin: the name to use, or a refusal when the waiting room is on and this request was not
  * admitted. With the room off it returns null and the guest's own name stands.
  */
-export async function admittedGuest(deps: Deps, m: { id: string; guestLobby: boolean }, lobbyId: string | undefined): Promise<string | null> {
+export async function admittedGuest(deps: Deps, m: { id: string; guestLobby: boolean; endedAt: Date | null }, lobbyId: string | undefined): Promise<string | null> {
   if (!m.guestLobby) return null;
   if (!lobbyId) throw new HttpError(403, "lobby_required", "Ask to join first. Someone in the meeting lets you in.");
-  const r = await deps.db.select({ status: meetingLobby.status, name: meetingLobby.guestName }).from(meetingLobby).where(and(eq(meetingLobby.id, lobbyId), eq(meetingLobby.meetingId, m.id))).get();
+  const r = await deps.db.select({ status: meetingLobby.status, name: meetingLobby.guestName, decidedAt: meetingLobby.decidedAt }).from(meetingLobby).where(and(eq(meetingLobby.id, lobbyId), eq(meetingLobby.meetingId, m.id))).get();
   if (!r) throw new HttpError(403, "lobby_required", "Ask to join first. Someone in the meeting lets you in.");
   if (r.status === "denied") throw new HttpError(403, "lobby_denied", "The host didn't let you in to this meeting.");
   if (r.status !== "admitted") throw new HttpError(403, "lobby_waiting", "Waiting for the host to let you in.");
+  // Y3: admitted for an earlier meeting in the series (or too long ago): ask again.
+  if (!admissionCurrent(r, m, deps.now())) throw new HttpError(403, "lobby_required", "Ask to join again. Someone in the meeting lets you in.");
   return r.name;
 }
 
@@ -155,21 +171,6 @@ export async function whoIsHere(deps: Deps, token: string) {
 
 // ---------------------------------------------------------------- members (session, API key, MCP)
 
-/**
- * MEET fixes: one row per waiting guest. Requests under the same name are the same person asking twice (an
- * older page, a slow network): the host sees one row, where the person first asked, with the newest request's
- * id, and one Admit lets them in (decideLobby decides the twin requests with it).
- */
-export function oneRowPerGuest<R extends { id: string; guestName: string; createdAt: Date }>(rows: R[]): R[] {
-  const out: R[] = [];
-  for (const r of rows) {
-    const i = out.findIndex((x) => sameGuestName(x.guestName, r.guestName));
-    if (i < 0) out.push(r);
-    else if (r.createdAt.getTime() >= out[i].createdAt.getTime()) out[i] = { ...r, createdAt: out[i].createdAt };
-  }
-  return out;
-}
-
 /** The waiting guests (oldest first) and the setting. Expired requests are left out. */
 export async function listLobby(deps: Deps, actor: SuiteActor, meetingId: string) {
   const m = await memberMeeting(deps, actor, meetingId);
@@ -177,14 +178,20 @@ export async function listLobby(deps: Deps, actor: SuiteActor, meetingId: string
   const rows = await deps.db.select().from(meetingLobby)
     .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, since)))
     .orderBy(asc(meetingLobby.createdAt)).limit(LOBBY_MAX_PENDING).all();
-  return { meetingId: m.id, guestsWait: m.guestLobby, waiting: oneRowPerGuest(rows).map((r) => ({ id: r.id, name: r.guestName, status: r.status, askedAt: r.createdAt.toISOString() })) };
+  // Wave 3 review Y2: no merging by name (a stranger could ask under a waiting guest's name and ride their Admit). One
+  // browser asking again sends its earlier request's id (askToJoin), which closes it, so a guest still shows once.
+  return { meetingId: m.id, guestsWait: m.guestLobby, waiting: rows.map((r) => ({ id: r.id, name: r.guestName, status: r.status, askedAt: r.createdAt.toISOString() })) };
 }
 
-/** Admit or deny one waiting guest, or every waiting guest with all. One write, one audit line. */
+/**
+ * Admit or deny one waiting guest, or every waiting guest with all. One write, one audit line. Y2: one request is
+ * exactly that request. Y3: "remove" on an admitted request takes the admission back (the guest can't join with it again).
+ */
 export async function decideLobby(deps: Deps, actor: SuiteActor, meetingId: string, input: { lobbyId?: string; all?: boolean; decision: LobbyDecision }, ip?: string | null) {
   assertWritable(actor);
   const m = await memberMeeting(deps, actor, meetingId);
   const status: LobbyStatus = input.decision === "admit" ? "admitted" : "denied";
+  if (input.decision === "remove" && (input.all || !input.lobbyId)) throw new HttpError(422, "validation_failed", "Say which guest to remove.");
   const now = deps.now();
   const since = new Date(now.getTime() - LOBBY_TTL_MS);
   let ids: string[];
@@ -193,14 +200,19 @@ export async function decideLobby(deps: Deps, actor: SuiteActor, meetingId: stri
       .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, since))).limit(LOBBY_MAX_PENDING).all()).map((r) => r.id);
   } else {
     if (!input.lobbyId) throw new HttpError(422, "validation_failed", "Say which guest, or all.");
-    const r = await deps.db.select({ id: meetingLobby.id, status: meetingLobby.status, guestName: meetingLobby.guestName }).from(meetingLobby).where(and(eq(meetingLobby.id, input.lobbyId), eq(meetingLobby.meetingId, m.id))).get();
+    const r = await deps.db.select({ id: meetingLobby.id, status: meetingLobby.status }).from(meetingLobby).where(and(eq(meetingLobby.id, input.lobbyId), eq(meetingLobby.meetingId, m.id))).get();
     if (!r) throw notFound("Request");
+    if (input.decision === "remove") {
+      if (r.status !== "admitted") return { decided: 0, status: r.status, ids: [] as string[] };
+      await deps.db.update(meetingLobby).set({ status, decidedBy: who(actor), decidedAt: now }).where(and(eq(meetingLobby.id, r.id), eq(meetingLobby.status, "admitted")));
+      await audit(deps.db, {
+        orgId: actor.orgId, actorUserId: actor.agentId ? null : actor.userId, actorEmail: actor.email ?? null, agentId: actor.agentId ?? null,
+        action: "meeting.lobby_revoked", targetType: "meeting", targetId: m.id, metadata: { lobbyId: r.id }, ip: ip ?? null,
+      });
+      return { decided: 1, status, ids: [r.id] };
+    }
     if (r.status !== "pending") return { decided: 0, status: r.status, ids: [] as string[] };
-    // MEET fixes: the same guest's twin requests are decided with it, so one Admit is enough.
-    const twins = (await deps.db.select({ id: meetingLobby.id, guestName: meetingLobby.guestName }).from(meetingLobby)
-      .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, since))).limit(LOBBY_MAX_PENDING).all())
-      .filter((x) => x.id !== r.id && sameGuestName(x.guestName, r.guestName)).map((x) => x.id);
-    ids = [r.id, ...twins];
+    ids = [r.id];
   }
   // Up to 50 ids: well under the 100 variable limit in one statement.
   if (ids.length) {
