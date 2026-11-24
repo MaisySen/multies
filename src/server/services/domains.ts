@@ -3,7 +3,7 @@ import { audit } from "./audit";
 import { and, asc, count, eq, like, lt, ne, or, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
-import { aliases, domains, mailboxes, mailConnections, messages, organizations } from "../db/schema";
+import { agentMailboxAccess, aliases, authEmailHooks, domains, mailboxAccess, mailboxDelegations, mailboxes, mailConnections, mailRules, messages, organizations } from "../db/schema";
 import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { conflict, HttpError, notFound } from "../lib/errors";
 import { assertDomainAllowed, isOperatorDomainRow } from "./suite/operator-inbox";
@@ -94,7 +94,7 @@ export async function createDomain(deps: Deps, orgId: string, name: string, opts
   if (existing) {
     throw conflict(existing.orgId === orgId
       ? `${name} is already in this workspace.`
-      : `${name} is connected to another workspace. If it isn't verified there and holds no mail, it is released ${DOMAIN_CLAIM_DAYS} days after it was added, once nobody there has checked it for ${DOMAIN_CLAIM_QUIET_DAYS} days; if you own it, you can also contact support to claim it.`);
+      : `${name} is connected to another workspace. If it isn't verified there and holds no mail, it is released ${DOMAIN_CLAIM_DAYS} days after it was added once nobody there has checked it for ${DOMAIN_CLAIM_QUIET_DAYS} days, and ${DOMAIN_CLAIM_HARD_DAYS} days after it was added in any case; if you own it, you can also contact support to claim it.`);
   }
   const { publicKeyB64, privateKeyPem } = opts.dkimKey ?? await generateDkimKeyPair();
   const row: typeof domains.$inferInsert = {
@@ -236,6 +236,26 @@ export async function markVerifyAttempt(deps: Deps, id: string) {
 export const DOMAIN_CLAIM_QUIET_DAYS = 7;
 
 /**
+ * Wave 2 review X7: a claim never verified is released this many days after it was added however often someone pressed
+ * Verify (each press restarted the quiet period, so a squatter held the name for ever).
+ */
+export const DOMAIN_CLAIM_HARD_DAYS = 45;
+
+/**
+ * Wave 2 review X7: what keeps a claim (a mailbox on it that is in use), and so is never deleted with it: an AI agent's
+ * inbox, received or imported mail (not a draft or anything the workspace wrote itself, which a squatter makes at will),
+ * a connected mailbox, a grant or share, a mail rule, a sign-up email hook, or an AI agent's access.
+ */
+const claimKept = (domainId: unknown) => sql`exists (select 1 from ${mailboxes} m where m.domain_id = ${domainId} and (m.kind = 'agent'
+  or exists (select 1 from ${messages} x where x.mailbox_id = m.id and x.folder <> 'drafts' and x.sent_by_user_id is null)
+  or exists (select 1 from ${mailConnections} c where c.mailbox_id = m.id)
+  or exists (select 1 from ${mailboxAccess} g where g.mailbox_id = m.id)
+  or exists (select 1 from ${mailboxDelegations} s where s.mailbox_id = m.id)
+  or exists (select 1 from ${mailRules} r where r.mailbox_id = m.id)
+  or exists (select 1 from ${authEmailHooks} h where h.mailbox_id = m.id)
+  or exists (select 1 from ${agentMailboxAccess} a where a.mailbox_id = m.id)))`;
+
+/**
  * PRIV1b (pending claims): a domain name is unique across every workspace, so the first workspace to add a name holds
  * it, and a domain it never verifies holds the name from its real owner. Releases, a few a pass, claims that were never
  * verified (verified_at is null), are older than DOMAIN_CLAIM_DAYS, had no check asked for by a person in the last
@@ -249,30 +269,34 @@ export async function releaseStaleDomainClaims(deps: Deps, limit = 25): Promise<
   const now = deps.now().getTime();
   const cutoff = new Date(now - DOMAIN_CLAIM_DAYS * 86_400_000);
   const quiet = new Date(now - DOMAIN_CLAIM_QUIET_DAYS * 86_400_000);
-  // A mailbox that keeps the claim: one with mail, an agent's inbox, or a connected one.
-  const keeps = (domainId: unknown) => sql`exists (select 1 from ${mailboxes} m where m.domain_id = ${domainId} and (m.kind = 'agent'
-    or exists (select 1 from ${messages} x where x.mailbox_id = m.id) or exists (select 1 from ${mailConnections} c where c.mailbox_id = m.id)))`;
+  const hard = new Date(now - DOMAIN_CLAIM_HARD_DAYS * 86_400_000);
+  // Not checked by a person lately, or (X7) added more than DOMAIN_CLAIM_HARD_DAYS ago whatever the checks.
+  const quietOrOld = or(isNull(domains.verifyAttemptedAt), lt(domains.verifyAttemptedAt, quiet), lt(domains.createdAt, hard));
+  const releasable = (id?: string) => and(
+    id ? eq(domains.id, id) : undefined,
+    isNull(domains.verifiedAt), ne(domains.status, "verified"), lt(domains.createdAt, cutoff), quietOrOld,
+    sql`not ${claimKept(domains.id)}`,
+  );
   const rows = await deps.db.select({ d: domains }).from(domains)
     .innerJoin(organizations, eq(organizations.id, domains.orgId))
     .where(and(
-      isNull(domains.verifiedAt), ne(domains.status, "verified"), lt(domains.createdAt, cutoff),
-      or(isNull(domains.verifyAttemptedAt), lt(domains.verifyAttemptedAt, quiet)),
+      releasable(),
       eq(organizations.isDemo, false), ne(domains.orgId, "org_platform"),
       deps.config.operatorInbox.domain ? ne(domains.name, deps.config.operatorInbox.domain) : undefined,
-      sql`not ${keeps(domains.id)}`,
     ))
     .orderBy(asc(domains.createdAt)).limit(limit).all();
   const released: string[] = [];
   for (const { d } of rows) {
+    // Wave 2 review X7: checked again right before the mail server accounts go (mail, a check or a grant that came in
+    // since the read keeps the claim and its accounts), and once more in the delete.
+    if (!(await deps.db.select({ id: domains.id }).from(domains).where(releasable(d.id)).get())) continue;
     const empty = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.domainId, d.id)).all();
     // Their mail server accounts go first (the account row cascades with the mailbox, so after the delete it is lost).
     if (empty.length) {
       const { deprovisionMailbox } = await import("./mailserver");
       for (const m of empty) await deprovisionMailbox(deps, d.orgId, m.id).catch((err: unknown) => deps.reportError?.(err, { where: "domains.releaseClaim.mailbox" }));
     }
-    // Checked again in the delete, so mail or a check that came in since the read keeps the claim.
-    const gone = await deps.db.delete(domains).where(and(eq(domains.id, d.id), isNull(domains.verifiedAt),
-      or(isNull(domains.verifyAttemptedAt), lt(domains.verifyAttemptedAt, quiet)), sql`not ${keeps(d.id)}`)).returning({ id: domains.id });
+    const gone = await deps.db.delete(domains).where(releasable(d.id)).returning({ id: domains.id });
     if (!gone.length) continue;
     released.push(d.name);
     if (d.providerDomainId) await removeProviderDomain(deps, d.providerDomainId).catch((err) => deps.reportError?.(err, { where: "domains.releaseClaim" }));
