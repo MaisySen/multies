@@ -120,7 +120,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
 | `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins). AIS1: Multies' own mail (invites, confirmations, resets) is in it with its subject and sender only |
 | `list_data_moves` | The last 50 imports and exports with status, progress and whether each can be undone (R38, `admin:read`) |
-| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped. Tasks it brings into a project with Triage on wait there for a person (R38, `admin:write`) |
+| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped. Tasks it brings into a project with Triage on wait there for a person, and `move.triage` is `true` (R38, `admin:write`) |
 | `undo_import` | Removes exactly what one import made (R38, `admin:write`) |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |

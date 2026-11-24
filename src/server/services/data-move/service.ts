@@ -45,7 +45,9 @@ const STEP_MS = 15_000;
 export type MoveKind = "tasks" | "calendar" | "contacts" | "docs" | "workspace";
 type Created = { tasks?: string[]; statuses?: string[]; projects?: string[]; projectCreated?: boolean; meetings?: string[]; contacts?: string[]; docs?: string[]; messages?: string[]; mailboxId?: string;
   /** AIS1 (row 32): an export a person started in the app; any other (a key, a connected app) withholds Multies' own mail. */
-  byPerson?: boolean };
+  byPerson?: boolean;
+  /** Round 2 (PR 24): some of the tasks it brought in wait in Triage for a person (a key's or an AI app's import). */
+  triage?: boolean };
 
 const parseJson = <T>(s: string | null | undefined, fallback: T): T => { try { return s ? JSON.parse(s) as T : fallback; } catch { return fallback; } };
 
@@ -93,6 +95,8 @@ export function presentMove(m: typeof dataMoves.$inferSelect) {
   return {
     id: m.id, kind: m.kind, source: m.source, fileName: m.fileName, status: m.status, projectId: m.projectId,
     total: m.total, done: m.done, counts, created: made,
+    /** Round 2 (PR 24): true when tasks it brought in wait in Triage for a person. */
+    triage: !!created.triage,
     canUndo: m.kind === "import" && m.status !== "undone" && made > 0,
     expiresAt: m.expiresAt?.toISOString() ?? null, error: m.error, by: isAddress(m.createdByEmail) ? m.createdByEmail : null, // R44: never a key label
     createdAt: m.createdAt.toISOString(), finishedAt: m.finishedAt?.toISOString() ?? null, undoneAt: m.undoneAt?.toISOString() ?? null,
@@ -403,6 +407,7 @@ async function runTaskStep(deps: Deps, actor: SuiteActor, input: ImportInput, pr
   created.tasks = [...(created.tasks ?? []), ...r.createdTaskIds];
   created.statuses = [...(created.statuses ?? []), ...r.createdStatusIds];
   if (r.projectCreated && r.projectId) { created.projectCreated = true; created.projects = [...new Set([...(created.projects ?? []), r.projectId])]; }
+  if (r.triage && r.createdTaskIds.length) created.triage = true;
   const status = r.stopped && r.left ? "stopped" : "done";
   const move = await saveProgress(deps, m, { created, done: r.total - r.left - r.skipped, total: r.total, status, projectId: r.projectId,
     counts: { comments: (parseJson<Record<string, number>>(m.counts, {}).comments ?? 0) + r.comments, skipped: r.skipped, alreadyThere: r.alreadyThere, unknownAssignees: r.unknownAssignees } });
@@ -494,6 +499,7 @@ async function runWorkspaceStep(deps: Deps, actor: SuiteActor, input: ImportInpu
       created.statuses = [...(created.statuses ?? []), ...r.createdStatusIds];
       if (r.projectId && !existingId) created.projects = [...(created.projects ?? []), r.projectId];
       if (r.projectCreated) created.projectCreated = true;
+      if (r.triage && r.createdTaskIds.length) created.triage = true;
       if (r.stopped && r.left) { stopped = r.stopped; break; }
       p++; offset = 0; continue;
     }

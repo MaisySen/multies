@@ -320,7 +320,7 @@ New work can wait in Triage before it becomes a task. A project's `triage` setti
 rules (workspace automations and a person's own rules), public forms, incoming hooks, API keys and AI apps
 (MCP, agents) there, subtasks, copies and imports included (`POST /work-imports/run`,
 `POST /data-moves/imports/run` and MCP `import_file` from a key, also into a new project the import makes; the
-work import answers `triage: true` then); tasks a person makes or imports in the app go straight to the board.
+work import answers `triage: true` then, and the data move's `move.triage` is `true`, also in the import history); tasks a person makes or imports in the app go straight to the board.
 A decision on a task takes its subtasks with it: accept brings in the ones that wait (into the accept's
 `projectId` too), decline and merge remove the ones that came through Triage, and undo puts them back. A subtask
 that never came through Triage only leaves the declined item. A key or an AI app can't put a task that isn't
@@ -563,7 +563,7 @@ calls are in the public API (`data-moves`, admin area; a read only key may start
 | GET | `/api/v1/data-moves` | The last 50 imports and exports: `kind`, `source`, `status` (running, stopped, done, undone, ready, expired), `done` of `total`, `created` (items made), `canUndo` |
 | POST | `/api/v1/data-moves/exports` | Answers `downloadUrl`, a ZIP that works for 24 hours without a key. Owners and admins only, one every 10 minutes (429), written to the audit log. AIS1: in an export a key or a connected app starts, Multies' own mail (invites, confirmations, resets) has its subject and sender only (`withheld: "platform_mail"`); an export a person starts in the app has it whole |
 | POST | `/api/v1/data-moves/imports/preview` | `{ kind, content, fileName?, mapping? }`. Writes nothing; answers the count and the first 20 rows |
-| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId`. Tasks a key brings into a project with Triage on wait there for a person |
+| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId`. Tasks a key brings into a project with Triage on wait there for a person, and `move.triage` is `true` |
 | POST | `/api/v1/data-moves/{id}/undo` | Removes exactly what that import made |
 | POST | `/api/v1/data-moves/mbox/batch` | R40 mail archive upload. `{ mailboxId, total, messages, moveId?, fileName?, folder?, last? }`: at most 10 raw messages (base64), about 512 KB a call, with an `Idempotency-Key`. Messages already in the mailbox (same Message-ID) are counted as duplicates. Answers `move` and `counts` (`stored`, `duplicates`, `unreadable`). Owners and admins only |
 | POST | `/api/v1/data-moves/mbox/{id}/stop` | Stops a mail archive upload part way; what came in stays |
