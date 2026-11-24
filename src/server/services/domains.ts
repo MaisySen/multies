@@ -1,5 +1,6 @@
 import { emitEvent } from "./developer/webhooks";
-import { and, asc, count, eq, like, lt, ne, or, isNull } from "drizzle-orm";
+import { audit } from "./audit";
+import { and, asc, count, eq, like, lt, ne, or, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
 import { aliases, domains, mailboxes, organizations } from "../db/schema";
@@ -93,7 +94,7 @@ export async function createDomain(deps: Deps, orgId: string, name: string, opts
   if (existing) {
     throw conflict(existing.orgId === orgId
       ? `${name} is already in this workspace.`
-      : `${name} is connected to another workspace. If you own it, contact support to claim it.`);
+      : `${name} is connected to another workspace. If it isn't verified there, it is released ${DOMAIN_CLAIM_DAYS} days after it was added; if you own it, you can also contact support to claim it.`);
   }
   const { publicKeyB64, privateKeyPem } = opts.dkimKey ?? await generateDkimKeyPair();
   const row: typeof domains.$inferInsert = {
@@ -218,6 +219,45 @@ export async function deleteDomain(db: DB, orgId: string, id: string, deps?: Dep
     await retryQueuedProviderDomains(deps).catch((err) => deps.reportError?.(err, { where: "domains.retryQueued" }));
   }
   return d;
+}
+
+/** Round 2: a claim never verified is released after this many days when nothing was put on it. */
+export const DOMAIN_CLAIM_DAYS = 14;
+
+/**
+ * Round 2 (PRIV1b domain claims): a domain name is unique across the service (domains_name_uq), so a workspace that adds
+ * a domain it never verifies holds the name from its real owner. Releases, a few a pass, claims that were never verified
+ * (verified_at is null), are older than DOMAIN_CLAIM_DAYS and have no mailbox and no alias (so no mail either). The
+ * platform's shared domain, the operator's company domain and demo workspaces are left alone. Each release is audited
+ * in the workspace that held it. Returns the names released.
+ */
+export async function releaseStaleDomainClaims(deps: Deps, limit = 25): Promise<string[]> {
+  const cutoff = new Date(deps.now().getTime() - DOMAIN_CLAIM_DAYS * 86_400_000);
+  const rows = await deps.db.select({ d: domains }).from(domains)
+    .innerJoin(organizations, eq(organizations.id, domains.orgId))
+    .where(and(
+      isNull(domains.verifiedAt), ne(domains.status, "verified"), lt(domains.createdAt, cutoff),
+      eq(organizations.isDemo, false), ne(domains.orgId, "org_platform"),
+      deps.config.operatorInbox.domain ? ne(domains.name, deps.config.operatorInbox.domain) : undefined,
+      sql`not exists (select 1 from ${mailboxes} m where m.domain_id = ${domains.id})`,
+      sql`not exists (select 1 from ${aliases} a where a.domain_id = ${domains.id})`,
+    ))
+    .orderBy(asc(domains.createdAt)).limit(limit).all();
+  const released: string[] = [];
+  for (const { d } of rows) {
+    // Checked again in the delete, so a mailbox added since the read keeps the claim.
+    const gone = await deps.db.delete(domains).where(and(eq(domains.id, d.id), isNull(domains.verifiedAt),
+      sql`not exists (select 1 from ${mailboxes} m where m.domain_id = ${d.id})`, sql`not exists (select 1 from ${aliases} a where a.domain_id = ${d.id})`)).returning({ id: domains.id });
+    if (!gone.length) continue;
+    released.push(d.name);
+    if (d.providerDomainId) await removeProviderDomain(deps, d.providerDomainId).catch((err) => deps.reportError?.(err, { where: "domains.releaseClaim" }));
+    await audit(deps.db, { orgId: d.orgId, actorUserId: null, action: "domain.claim_released", targetType: "domain", targetId: d.id, metadata: { name: d.name, days: DOMAIN_CLAIM_DAYS } }).catch(() => undefined);
+  }
+  if (released.length) {
+    deps.log?.info("domains.claims_released", { count: released.length });
+    if (rows.some((r) => r.d.providerDomainId)) await retryQueuedProviderDomains(deps).catch((err) => deps.reportError?.(err, { where: "domains.retryQueued" }));
+  }
+  return released;
 }
 
 export async function setCatchAll(db: DB, orgId: string, id: string, mailboxId: string | null) {

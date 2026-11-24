@@ -11,7 +11,7 @@ import { migrationDriver, pendingMigrations } from "../db";
 import { lt } from "drizzle-orm";
 import { agentTriggers, automations, dataMoves, flowDigestItems, flowRuns, flowWatches, jobs, mailboxAccessLog, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
-import { recheckStaleDomains } from "./domains";
+import { recheckStaleDomains, releaseStaleDomainClaims } from "./domains";
 import { checkWriteBudget } from "./write-budget";
 import { fillFirstSender, firstSenderReady } from "./mail/first-sender"; // MPLAT-108
 import { randomToken } from "../lib/crypto";
@@ -249,7 +249,8 @@ export async function runMaintenanceIfMigrated(deps: Deps, opts: { rotate?: bool
 async function legacyMaintenance(deps: Deps, housekeeping = true, webhooks = true) {
   const skip = Promise.resolve(undefined);
   const [rechecked, , , purged, webhooksRetried] = await Promise.all([
-    housekeeping ? recheckStaleDomains(deps) : Promise.resolve([]),
+    // Round 2: claims never verified, 14 days old, with nothing on them, are released (one bounded read when none).
+    housekeeping ? recheckStaleDomains(deps).then(async (r) => { await releaseStaleDomainClaims(deps).catch((err) => deps.reportError?.(err, { maintenance: "domain_claims" })); return r; }) : Promise.resolve([]),
     housekeeping ? deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now())) : skip,
     housekeeping ? deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now())) : skip,
     housekeeping && deps.config.demoEnabled ? purgeDemoWorkspaces(deps) : Promise.resolve(0),
