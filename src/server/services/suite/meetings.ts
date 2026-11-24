@@ -389,6 +389,9 @@ export async function livekitToken(deps: Deps, room: string, who: { identity: st
 /** A workspace member (or agent key) joining: their own name, host rights. */
 export async function joinMeeting(deps: Deps, actor: SuiteActor, id: string, opts: { name?: string } = {}) {
   const m = await meetingHere(deps, actor, id);
+  // Wave 3 review Y8 (f): a call from a DM or private channel is joined only by people who can open that chat (as
+  // visibleMeeting checks for every other read); anyone else, an agent key included, gets a plain not found.
+  if (m.channelId) await (await import("./chat")).visibleChannel(deps, actor, m.channelId).catch(() => { throw notFound("Meeting"); });
   if (m.status === "cancelled") throw new HttpError(409, "meeting_cancelled", "This meeting was cancelled.");
   // MEET fixes (12 Nov 2026): an ended meeting stays ended for members too, as it already did for guests (Bidur, 10 Nov).
   if (closedReason(m, deps.now())) throw new HttpError(409, "meeting_ended", "This meeting has ended.");
