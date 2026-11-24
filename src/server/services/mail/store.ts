@@ -88,6 +88,15 @@ export function estimateSize(i: Pick<StoreInput, "text" | "html" | "subject" | "
   return (i.text?.length ?? 0) + (i.html?.length ?? 0) + i.subject.length + (i.attachments ?? []).reduce((n, a) => n + a.content.byteLength, 0) + 512;
 }
 
+/**
+ * W4: gives a mailbox back the storage of messages deleted outside deleteMessagesPermanently (a draft replaced by its
+ * newer copy, a draft that was sent or scheduled, a copy taken back out). Never below 0. One row update, none for 0.
+ */
+export async function releaseBytes(db: DB, mailboxId: string, rows: { sizeBytes: number | null }[]) {
+  const bytes = rows.reduce((n, r) => n + Math.max(0, r.sizeBytes ?? 0), 0);
+  if (bytes > 0) await db.update(mailboxes).set({ usedBytes: sql`max(0, ${mailboxes.usedBytes} - ${bytes})` }).where(eq(mailboxes.id, mailboxId));
+}
+
 export async function storeMessage(db: DB, i: StoreInput): Promise<string> {
   const id = newId("msg");
   const threadId = i.threadId ?? (await resolveThreadId(db, i.mailboxId, i.inReplyTo, i.references, i.orgId)) ?? newId("thr");

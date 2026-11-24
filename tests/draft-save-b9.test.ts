@@ -6,9 +6,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { messages } from "@/server/db/schema";
+import { mailboxes, messages } from "@/server/db/schema";
 
-const fault = vi.hoisted(() => ({ mode: "off" as "off" | "fail" | "race" | "delete", raceId: "" }));
+const fault = vi.hoisted(() => ({ mode: "off" as "off" | "fail" | "race" | "delete" | "committed", raceId: "" }));
 vi.mock("@/server/services/mail/store", async (orig) => {
   const real = await orig<typeof import("@/server/services/mail/store")>();
   return { ...real, storeMessage: async (...a: Parameters<typeof real.storeMessage>) => {
@@ -20,6 +20,17 @@ vi.mock("@/server/services/mail/store", async (orig) => {
     if (fault.mode === "delete") {
       const db = a[0];
       const spy = vi.spyOn(db, "delete").mockImplementationOnce(() => { spy.mockRestore(); throw new Error("injected delete failure"); });
+    }
+    // W4: the old draft's delete goes through, but the call still fails (a lost answer, a timeout after the commit).
+    if (fault.mode === "committed") {
+      const db = a[0];
+      const real = db.delete.bind(db);
+      const spy = vi.spyOn(db, "delete").mockImplementationOnce(((t: never) => {
+        spy.mockRestore();
+        const q = real(t);
+        const where = q.where.bind(q);
+        return Object.assign(q, { where: (w: never) => { const run = where(w); return { returning: async () => { await run.returning(); throw new Error("connection lost after commit"); } }; } });
+      }) as never);
     }
     return id;
   } };
@@ -70,6 +81,41 @@ describe("B9: saving over a draft never loses it", () => {
     const again = await c.post("/api/mail/drafts", { id: first, mailboxId, to: ["a@b.io"], subject: "v2", text: "second" });
     expect(again.status).toBe(201);
     expect(await drafts()).toEqual([{ id: again.body.id, subject: "v2" }]);
+  }, 60_000);
+
+  it("when the old copy's delete went through but answered an error, the new copy is kept (W4)", async () => {
+    const { c, mailboxId, drafts } = await setup();
+    fault.mode = "off";
+    const first = (await c.post("/api/mail/drafts", { mailboxId, to: ["a@b.io"], subject: "v1", text: "first" })).body.id as string;
+    fault.mode = "committed";
+    const r = await c.post("/api/mail/drafts", { id: first, mailboxId, to: ["a@b.io"], subject: "v2", text: "second" });
+    fault.mode = "off";
+    expect(r.status).toBe(201);
+    expect(await drafts()).toEqual([{ id: r.body.id, subject: "v2" }]);
+  }, 60_000);
+
+  it("storage used counts each draft once, however often it is saved, and a sent draft once as sent (W4)", async () => {
+    const { ctx, c, mailboxId } = await setup();
+    fault.mode = "off";
+    const stored = async () => {
+      const used = (await ctx.db.select({ u: mailboxes.usedBytes }).from(mailboxes).where(eq(mailboxes.id, mailboxId)).get())!.u;
+      const sum = (await ctx.db.select({ s: messages.sizeBytes }).from(messages).where(eq(messages.mailboxId, mailboxId)).all()).reduce((n, r) => n + r.s, 0);
+      return { used, sum };
+    };
+    let id = (await c.post("/api/mail/drafts", { mailboxId, to: ["a@b.io"], subject: "v0", text: "words" })).body.id as string;
+    for (let i = 1; i <= 5; i++) id = (await c.post("/api/mail/drafts", { id, mailboxId, to: ["a@b.io"], subject: `v${i}`, text: `words ${"x".repeat(i * 100)}` })).body.id as string;
+    let s = await stored();
+    expect(s.used).toBe(s.sum);
+    // A save rolled back (F5) gives its bytes back too.
+    fault.mode = "delete";
+    await c.post("/api/mail/drafts", { id, mailboxId, to: ["a@b.io"], subject: "lost", text: "y".repeat(5000) });
+    fault.mode = "off";
+    s = await stored();
+    expect(s.used).toBe(s.sum);
+    // Sending the draft: the draft's bytes go, the sent copy's come.
+    expect((await c.post("/api/mail/send", { mailboxId, draftId: id, to: ["a@b.io"], subject: "final", text: "final words" })).status).toBeLessThan(300);
+    s = await stored();
+    expect(s.used).toBe(s.sum);
   }, 60_000);
 
   it("a save that loses the race answers 409 and leaves no extra copy", async () => {

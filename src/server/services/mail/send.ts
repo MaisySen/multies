@@ -15,7 +15,7 @@ import type { SendMessageInput } from "@/shared/schemas";
 import { addonHint, getOrg, getPlan } from "../plans";
 import { deliverInbound, isHosted, logDelivery, sentToday } from "./delivery";
 import { OutboundError } from "./outbound";
-import { storeMessage } from "./store";
+import { releaseBytes, storeMessage } from "./store";
 import { pixelUrl, trackingToken, withPixel } from "./read-status";
 import { enqueue } from "../jobs";
 import type { DeliverJobPayload } from "./deliver-job";
@@ -64,7 +64,7 @@ async function queueUntilTomorrow(deps: Deps, auth: AuthContext, input: SendMess
   const dueAt = nextUtcMidnight(deps.now());
   const id = newId("msch");
   // PRIV1b (P11): as a sent draft, only the sender's own draft (or one nobody owns) leaves Drafts.
-  if (input.draftId) await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, input.mailboxId), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, auth.userId))));
+  if (input.draftId) await releaseBytes(deps.db, input.mailboxId, await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, input.mailboxId), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, auth.userId)))).returning({ sizeBytes: messages.sizeBytes })); // W4
   // Essential write: the held message itself (one row), so nothing is lost.
   await deps.db.insert(mailSchedules).values({
     id, orgId: auth.orgId, mailboxId: input.mailboxId, userId: auth.userId || null, kind: "send", dueAt, createdAt: deps.now(),
@@ -249,7 +249,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   }
   if (input.draftId) {
     // Round 22: a draft somebody else took over stays theirs.
-    await db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, auth.userId))));
+    // W4: the draft's storage goes with it (the Sent copy counts its own).
+    await releaseBytes(db, mb.id, await db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, auth.userId)))).returning({ sizeBytes: messages.sizeBytes }));
   }
 
   {

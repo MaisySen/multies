@@ -9,7 +9,7 @@ import { attachments, idempotencyKeys, mailboxes, messages } from "../db/schema"
 import { audit } from "../services/audit";
 import { assertSendLevel, sendMessage } from "../services/mail/send";
 import { toolFilesAsAttachments } from "../services/tools/attach"; // Tools P2
-import { attachmentBytes, storeMessage } from "../services/mail/store";
+import { attachmentBytes, releaseBytes, storeMessage } from "../services/mail/store";
 import { assertNotHeld } from "../services/mail/archive-r111"; // R111: legal holds
 import { deleteMessagesPermanently, getMessage, getThread, listMessages, mailboxOverview, presentMessage } from "../services/mail/mailbox-view";
 import { badRequest, nothingToChange, notFound, tooMany } from "../lib/errors";
@@ -291,7 +291,7 @@ export function mailRoutes() {
       // the first of two saves of the same draft finds it.
       // B9: the new copy is stored first and the old one deleted after, so a failed store leaves the old draft as it
       // was (it used to be deleted first and lost). A save that loses the race takes its own new copy back out.
-      let before: { threadId: string; inReplyTo: string | null } | undefined;
+      let before: { threadId: string; inReplyTo: string | null; sizeBytes: number } | undefined;
       if (input.id) before = await checkDraftSave(deps, auth, input.id, mb.id);
       // A reply draft stays in its thread, also when it is reopened from Drafts and saved again.
       const target = (await replyTarget(deps, auth, input.inReplyToId)) ?? (before ? { threadId: before.threadId, messageIdHeader: before.inReplyTo } : null);
@@ -303,16 +303,25 @@ export function mailRoutes() {
         subject: input.subject, text: input.text, html: input.html, date: deps.now(), isRead: true,
       });
       if (input.id) {
-        const dropNew = () => deps.db.delete(messages).where(and(eq(messages.id, id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
-        let gone: { id: string }[];
+        // W4: a copy taken out gives its storage back, as a replaced old copy does, so autosaves don't grow the quota.
+        const dropNew = async () => releaseBytes(deps.db, mb.id, await deps.db.delete(messages).where(and(eq(messages.id, id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"))).returning({ sizeBytes: messages.sizeBytes }));
+        let gone: { sizeBytes: number }[];
         try {
-          gone = await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), ownedBy(auth.userId))).returning({ id: messages.id });
+          gone = await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), ownedBy(auth.userId))).returning({ sizeBytes: messages.sizeBytes });
         } catch (err) {
           // F5: storeMessage writes several rows, so the two steps cannot share one batch. If the old copy can't be
           // deleted, the new one is taken back out (best effort), so the save fails cleanly and a retry leaves one draft.
+          // W4: unless the delete went through and only its answer failed: with the old copy gone, dropping the new one
+          // would lose both, so the save stands.
+          const still = await Promise.resolve().then(() => deps.db.select({ id: messages.id }).from(messages).where(eq(messages.id, input.id)).get()).catch(() => ({ id: input.id }));
+          if (!still) {
+            await releaseBytes(deps.db, mb.id, [{ sizeBytes: before?.sizeBytes ?? 0 }]).catch(() => undefined);
+            return c.json({ id }, 201);
+          }
           await dropNew().catch((e: unknown) => (c.var.log ?? deps.log)?.warn("draft_save.rollback_failed", { error: e instanceof Error ? e.message.slice(0, 200) : String(e) }));
           throw err;
         }
+        await releaseBytes(deps.db, mb.id, gone);
         if (!gone.length) {
           await dropNew();
           await checkDraftSave(deps, auth, input.id, mb.id);

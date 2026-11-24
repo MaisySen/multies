@@ -203,7 +203,7 @@ export async function scheduleSend(deps: Deps, actor: ScheduleActor, raw: unknow
     await assertSendLevel(deps.db, actor, mb, input);
     // A draft that is scheduled leaves Drafts now; the scheduled copy is the one that goes. PRIV1b (P11): only the
     // caller's own draft or one nobody owns (as Send deletes it); someone else's draft stays.
-    if (input.draftId) await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, actor.userId))));
+    if (input.draftId) await (await import("./store")).releaseBytes(deps.db, mb.id, await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, actor.userId)))).returning({ sizeBytes: messages.sizeBytes })); // W4
     payload = { via: "person", input: { ...input, draftId: undefined }, remindDays: opts.remindDays, apiKeyId: actor.apiKeyId };
   }
   const id = opts.id ?? newId("msch");
