@@ -7,10 +7,13 @@
  * - The authorisation code and the refresh token carry the grant id and are kept only as hashes.
  * - Access tokens are signed with a key derived from APP_SECRET and never stored (0 writes). Each use
  *   reads the grant, so a revoke in Settings takes effect on the next request.
- * - D1 writes: registration 1 row; sign in 1 (grant row); code exchange 2 plus any older grants replaced;
+ * - Round 2: one person may sign in the same client on several devices; each sign in is its own grant and they live
+ *   side by side, up to MAX_GRANTS_PER_CLIENT per person, workspace and client id (the oldest beyond ends, audited
+ *   as oauth.disconnected with reason "limit"). Settings shows them as one row; Disconnect on it ends them all.
+ * - D1 writes: registration 1 row; sign in 1 (grant row); code exchange 2 plus any grant ended by the cap;
  *   refresh 2; revoke 2; last used at most once an hour per grant (2). API keys keep working unchanged.
  */
-import { and, desc, eq, isNull, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull, ne, notInArray } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { members, oauthClients, oauthGrants, organizations, users } from "../../db/schema";
 import { hmacSha256Hex, newId, randomToken, safeEqual, sha256Hex, tryFromB64 } from "../../lib/crypto";
@@ -27,6 +30,8 @@ export const CODE_TTL_MS = 60_000;
 /** last_used_at is written at most this often per grant (D1 daily write budget). */
 export const GRANT_LAST_USED_EVERY_MS = 60 * 60_000;
 export const OAUTH_SCOPES = ["mcp:read", "mcp:write"] as const;
+/** Round 2: live sign ins one person may keep of one client in one workspace (devices); the oldest beyond ends. */
+export const MAX_GRANTS_PER_CLIENT = 10;
 /** Words MCP clients add from OpenID that are not a Multies scope. They are ignored, not a failed sign-in. */
 const IGNORED_OAUTH_SCOPES = new Set(["openid", "profile", "email", "offline_access"]);
 const MAX_REDIRECT_URIS = 10;
@@ -255,11 +260,10 @@ export async function token(deps: Deps, r: TokenRequest) {
       await deps.db.update(oauthGrants).set({ revokedAt: now, refreshHash: null }).where(eq(oauthGrants.id, grant.id));
       throw new OAuthError(400, "invalid_grant", "That code was already used.");
     }
-    // Only once the new grant is usable: a new sign in of the same client replaces its older grants. Best effort: the
-    // tokens are already issued, and a 500 here would make the client retry with a code that is now used, which ends
-    // the new grant too.
-    try { await replaceOlderGrants(deps, grant); }
-    catch (err) { deps.log?.warn("oauth.replace_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
+    // Round 2: a sign in on another device keeps the others; only the cap ends the oldest. Best effort: the tokens are
+    // already issued, and a 500 here would make the client retry with a code that is now used, which ends the new grant too.
+    try { await capGrants(deps, grant); }
+    catch (err) { deps.log?.warn("oauth.cap_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
     return tokenBody(t, grant.scope);
   }
   if (r.grant_type === "refresh_token") {
@@ -367,16 +371,18 @@ export async function listGrants(deps: Deps, auth: Pick<AuthContext, "orgId" | "
   const admin = auth.role === "owner" || auth.role === "admin";
   const rows = await deps.db.select({ g: oauthGrants, clientName: oauthClients.name, userName: users.name, userEmail: users.email })
     .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId)).innerJoin(users, eq(users.id, oauthGrants.userId))
-    .where(and(eq(oauthGrants.orgId, auth.orgId), admin ? undefined : eq(oauthGrants.userId, auth.userId), isNull(oauthGrants.revokedAt)))
+    // A code nobody exchanged, a revoked grant and one whose refresh token expired are not connections. Filtered here,
+    // before the limit, so they never crowd live grants out of the 200 rows.
+    .where(and(eq(oauthGrants.orgId, auth.orgId), admin ? undefined : eq(oauthGrants.userId, auth.userId), isNull(oauthGrants.revokedAt),
+      isNotNull(oauthGrants.codeUsedAt), gt(oauthGrants.refreshExpiresAt, deps.now())))
     .orderBy(desc(oauthGrants.createdAt)).limit(200).all();
-  // A code nobody exchanged is not a connection. One row per person and app (name plus redirect host), for display
+  // One row per person and app (name plus redirect host), for display
   // only: Disconnect on the row ends every grant in it (revokeSameApp), and nothing else groups grants by name.
   // R5: the row stands for every live grant in its group, so it shows the widest scope among them, the latest use and
   // how many there are (an older, wider grant stays live beside a newer read only one until Disconnect).
   type Row = { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: Date; lastUsedAt: Date | null; mine: boolean; grants: number };
   const groups = new Map<string, Row>();
   for (const r of rows) {
-    if (!r.g.codeUsedAt) continue;
     const key = displayGroup(r.g.userId, r.clientName, r.g.redirectUri);
     const had = groups.get(key);
     if (!had) {
@@ -409,7 +415,7 @@ const displayGroup = (userId: string, clientName: string, redirectUri: string) =
 /**
  * Disconnect on a Settings row: ends every other live grant of this person in this workspace that shows in the same
  * row, so the row goes away. It is the person's (or an admin's) own choice on what the row showed; the sign in itself
- * never groups by name (replaceOlderGrants matches the client id only). Returns the ids it ended.
+ * never groups by name (capGrants matches the client id only). Returns the ids it ended.
  */
 async function revokeSameApp(deps: Deps, g: typeof oauthGrants.$inferSelect): Promise<string[]> {
   const client = await getClient(deps, g.clientId);
@@ -424,20 +430,21 @@ async function revokeSameApp(deps: Deps, g: typeof oauthGrants.$inferSelect): Pr
 }
 
 /**
- * After a code exchange: a new sign in replaces this person's older grants for the same client id in this workspace.
- * Only the client id counts: client names are self registered, so a look alike client must never end another app's
- * grant. Only grants made before this one are ended (ties broken by id), so two exchanges racing for the same client
- * never end each other: the newer one stays. Each ended grant is audited, as a Disconnect is.
+ * Round 2, after a code exchange: this person keeps at most MAX_GRANTS_PER_CLIENT live grants of this client id in this
+ * workspace (one per device). Beyond that the oldest end, each audited as a Disconnect is, with reason "limit". Only the
+ * client id counts: client names are self registered, so a look alike client never ends another app's grant. Live means
+ * exchanged, not revoked and not expired; newest first, ties broken by id, so the grant just made always stays.
  */
-export async function replaceOlderGrants(deps: Deps, g: Pick<typeof oauthGrants.$inferSelect, "id" | "userId" | "orgId" | "clientId" | "createdAt">) {
-  const rows = await deps.db.select({ id: oauthGrants.id, createdAt: oauthGrants.createdAt }).from(oauthGrants)
-    .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), eq(oauthGrants.clientId, g.clientId), isNull(oauthGrants.revokedAt), ne(oauthGrants.id, g.id))).all();
-  const at = g.createdAt.getTime();
-  const ids = rows.filter((r) => r.createdAt.getTime() < at || (r.createdAt.getTime() === at && r.id < g.id)).map((r) => r.id);
+export async function capGrants(deps: Deps, g: Pick<typeof oauthGrants.$inferSelect, "id" | "userId" | "orgId" | "clientId">) {
+  const rows = await deps.db.select({ id: oauthGrants.id }).from(oauthGrants)
+    .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), eq(oauthGrants.clientId, g.clientId), isNull(oauthGrants.revokedAt),
+      isNotNull(oauthGrants.codeUsedAt), gt(oauthGrants.refreshExpiresAt, deps.now())))
+    .orderBy(desc(oauthGrants.createdAt), desc(oauthGrants.id)).all();
+  const ids = rows.map((r) => r.id).filter((id) => id !== g.id).slice(MAX_GRANTS_PER_CLIENT - 1);
   if (!ids.length) return [];
   await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(and(inIds(oauthGrants.id, ids), isNull(oauthGrants.revokedAt)));
   for (const id of ids) {
-    await audit(deps.db, { orgId: g.orgId, actorUserId: g.userId, action: "oauth.disconnected", targetType: "oauth_grant", targetId: id, metadata: { reason: "replaced", by: g.id } });
+    await audit(deps.db, { orgId: g.orgId, actorUserId: g.userId, action: "oauth.disconnected", targetType: "oauth_grant", targetId: id, metadata: { reason: "limit", by: g.id } });
   }
   return ids;
 }

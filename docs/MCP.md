@@ -33,6 +33,9 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 - Sends still go out as an agent inbox (pass `agentId`), so approval rules and caps apply.
 - See and disconnect connected apps in Settings, Developers, Connected AI apps. A disconnect takes
   effect on the app's next request. Admins see every connection in the workspace; members see their own.
+- Signing in the same app on another device keeps the first one signed in. Settings shows them as one
+  row (with how many sign ins it holds), and Disconnect on it ends them all. Each person keeps at most
+  10 sign ins of one app in one workspace; an 11th ends the oldest.
 - Standards: OAuth 2.1 authorisation code with PKCE (S256 only), dynamic client registration
   (RFC 7591), protected resource metadata (RFC 9728) at `/.well-known/oauth-protected-resource`,
   authorisation server metadata (RFC 8414) at `/.well-known/oauth-authorization-server`, token

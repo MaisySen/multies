@@ -209,17 +209,18 @@ describe("MCP OAuth: sign in and tokens", () => {
 });
 
 describe("MCP OAuth: Settings and revoke", () => {
-  it("a second connect of the same app replaces the first, and only a human membership keeps the token", async () => {
+  it("a second connect of the same app (another device) keeps the first, and only a human membership keeps the token", async () => {
     const first = await signIn();
     const t1 = await exchange(first.clientId, first.code);
-    // The same client id signs in again (a look alike client with another id never replaces it: oauth-grants-replace.test.ts).
+    // Round 2 (owner decision): the same client id signs in again, on a second device. Both stay signed in
+    // (oauth-grants-devices.test.ts covers the cap and Disconnect); Settings shows one row holding both.
     const second = await signIn("full", {}, c, first.clientId);
     const t2 = await exchange(second.clientId, second.code);
     const list = await c.get("/api/oauth/grants");
     expect(list.body.grants).toHaveLength(1);
-    expect(list.body.grants[0].client).toBe("Claude");
-    const old = await ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${t1.body.access_token}`, "content-type": "application/json", accept: "application/json" }, body: "{}" });
-    expect(old.status).toBe(401);
+    expect(list.body.grants[0]).toMatchObject({ client: "Claude", grants: 2 });
+    const old = await ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${t1.body.access_token}`, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+    expect(old.status).toBe(200);
     const live = await ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${t2.body.access_token}`, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
     expect(live.status).toBe(200);
     const userId = (await c.get("/api/account/me")).body.user.id as string;
@@ -252,13 +253,13 @@ describe("MCP OAuth: Settings and revoke", () => {
     finally { ctx.deps.now = real; }
     expect((await mcpOk(t1.body.access_token)).status).toBe(200);
 
-    // Only a successful exchange replaces the older grant.
+    // Round 2: a successful exchange adds a second live sign in beside the first; neither ends the other.
     const next = await signIn("full", {}, c, first.clientId);
     const t2 = await exchange(next.clientId, next.code);
     expect(t2.status).toBe(200);
-    expect((await mcpOk(t1.body.access_token)).status).toBe(401);
+    expect((await mcpOk(t1.body.access_token)).status).toBe(200);
     expect((await mcpOk(t2.body.access_token)).status).toBe(200);
-    expect((await c.get("/api/oauth/grants")).body.grants).toHaveLength(1);
+    expect((await c.get("/api/oauth/grants")).body.grants).toEqual([expect.objectContaining({ grants: 2 })]);
   });
 
   it("lists connected apps, disconnects one, and the token stops at once", async () => {
