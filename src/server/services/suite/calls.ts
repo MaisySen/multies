@@ -78,11 +78,9 @@ export function roomsFor(deps: Deps): CallRooms | null {
 // Per isolate: one in flight or recent read per room, and rooms seen with people (to tell "ended" from "not joined yet").
 const cache = new Map<string, { at: number; value: Promise<CallParticipant[]> }>();
 const seen = new Set<string>();
-// Rooms read empty after people were in them, with the first empty read (the grace above starts there).
-const emptySince = new Map<string, number>();
 // R34 (MB-171): per room, each person's first and last sighting, so the call's participant-minutes are known at its end.
 const usageSeen = new Map<string, Map<string, SeenPerson>>();
-export function clearCallCache() { cache.clear(); seen.clear(); usageSeen.clear(); emptySince.clear(); }
+export function clearCallCache() { cache.clear(); seen.clear(); usageSeen.clear(); }
 
 function noteUsage(room: string, ps: CallParticipant[], now: number) {
   let people = usageSeen.get(room);
@@ -153,10 +151,10 @@ async function markEnded(deps: Deps, m: MeetingRow) {
   // MEET fixes: a weekly series stays scheduled; endedAt closes its link until the next meeting (meeting-open-meet.ts).
   // Still one write per call: a racing isolate finds endedAt already set for this meeting in the series.
   const series = !!m.recurrence;
-  const done = await deps.db.update(meetings).set(series ? { endedAt: now } : { status: "ended", endedAt: now })
+  const done = await deps.db.update(meetings).set(series ? { endedAt: now, emptySince: null } : { status: "ended", endedAt: now, emptySince: null })
     .where(and(eq(meetings.id, m.id), eq(meetings.status, "scheduled"), ...(series ? [or(isNull(meetings.endedAt), lt(meetings.endedAt, new Date(now.getTime() - SERIES_END_DEDUPE_MS)))] : [])))
     .returning({ id: meetings.id });
-  if (done.length) { if (!series) m.status = "ended"; m.endedAt = now; }
+  if (done.length) { if (!series) m.status = "ended"; m.endedAt = now; m.emptySince = null; }
   // R24 polish: recipes listening for meeting_ended hear a call that emptied too. A failed rule never breaks the call status.
   if (done.length) await (await import("./automations-r24-events")).runCallEnded(deps, m).catch(() => 0);
   // R34 (MB-171): one counter upsert per call end. A failed count never breaks the call status.
@@ -167,15 +165,26 @@ async function markEnded(deps: Deps, m: MeetingRow) {
   return done.length > 0;
 }
 
-/** True once a room has read empty for CALL_EMPTY_GRACE_MS; the first empty read starts the wait. */
-export function emptyLongEnough(room: string, now: number) {
-  const since = emptySince.get(room);
-  if (since === undefined) {
-    emptySince.set(room, now);
-    if (emptySince.size > 2000) emptySince.delete(emptySince.keys().next().value!);
-    return CALL_EMPTY_GRACE_MS <= 0;
-  }
-  return now - since >= CALL_EMPTY_GRACE_MS;
+/**
+ * True once a room has read empty for CALL_EMPTY_GRACE_MS; the first empty read starts the wait. Wave 3 review Y4: the
+ * start is the meeting's empty_since in D1, not this isolate's memory (an isolate's own first empty read could be from
+ * long before, with the call live since on other isolates). One conditional write when the wait starts.
+ */
+export async function emptyLongEnough(deps: Deps, m: MeetingRow, now: Date) {
+  if (m.emptySince) return now.getTime() - m.emptySince.getTime() >= CALL_EMPTY_GRACE_MS;
+  const set = await deps.db.update(meetings).set({ emptySince: now }).where(and(eq(meetings.id, m.id), isNull(meetings.emptySince))).returning({ id: meetings.id });
+  if (set.length) { m.emptySince = now; return CALL_EMPTY_GRACE_MS <= 0; }
+  // Another read started the wait a moment ago: its start counts.
+  const row = await deps.db.select({ emptySince: meetings.emptySince }).from(meetings).where(eq(meetings.id, m.id)).get();
+  m.emptySince = row?.emptySince ?? now;
+  return now.getTime() - m.emptySince.getTime() >= CALL_EMPTY_GRACE_MS;
+}
+
+/** Y4: people are in the room: a wait for it to stay empty starts again next time. One write, only when one was running. */
+async function clearEmpty(deps: Deps, m: MeetingRow) {
+  if (!m.emptySince) return;
+  m.emptySince = null;
+  await deps.db.update(meetings).set({ emptySince: null }).where(eq(meetings.id, m.id)).catch(() => undefined);
 }
 
 async function statusOf(deps: Deps, rooms: CallRooms | null, m: MeetingRow, fresh = false): Promise<CallStatus> {
@@ -187,7 +196,7 @@ async function statusOf(deps: Deps, rooms: CallRooms | null, m: MeetingRow, fres
   if (closedReason(m, deps.now()) || !rooms) return closedReason(m, deps.now()) ? ended() : { ...base, state: "waiting", participants: [], count: 0, endedAt: null, durationMin: null };
   const ps = await participants(deps, rooms, m.room, fresh);
   if (ps.length) {
-    emptySince.delete(m.room);
+    await clearEmpty(deps, m);
     const live: CallStatus = { ...base, state: "live", participants: ps.map((p) => ({ name: p.name })), count: ps.length, endedAt: null, durationMin: null };
     // R34 (MB-171): reads only (cached 30 s); the call shows a warning at 80% and when 5 minutes remain.
     const mm = await meetingMinutes(deps, m.orgId).catch(() => null);
@@ -195,7 +204,7 @@ async function statusOf(deps: Deps, rooms: CallRooms | null, m: MeetingRow, fres
     return live;
   }
   // Empty after this isolate saw people in it, and still empty after the grace: the call is over. Write once.
-  if (seen.has(m.room) && emptyLongEnough(m.room, deps.now().getTime()) && (await markEnded(deps, m))) { seen.delete(m.room); emptySince.delete(m.room); return ended(); }
+  if (seen.has(m.room) && (await emptyLongEnough(deps, m, deps.now())) && (await markEnded(deps, m))) { seen.delete(m.room); return ended(); }
   return { ...base, state: "waiting", participants: [], count: 0, endedAt: null, durationMin: null };
 }
 
@@ -250,7 +259,7 @@ export async function leftCall(deps: Deps, a: SuiteActor, meetingId: string) {
   const rooms = roomsFor(deps);
   if (!rooms || !m.channelId || closedReason(m, deps.now())) return { enabled: !!rooms, ...(await statusOf(deps, rooms, m)) };
   const ps = await participants(deps, rooms, m.room, true);
-  if (!ps.length && (await markEnded(deps, m))) { seen.delete(m.room); emptySince.delete(m.room); }
+  if (!ps.length && (await markEnded(deps, m))) seen.delete(m.room);
   return { enabled: true, ...(await statusOf(deps, rooms, m)) };
 }
 

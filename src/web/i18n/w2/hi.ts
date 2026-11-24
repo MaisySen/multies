@@ -985,6 +985,7 @@ export const hi: Bundle = {
   "meetings.make_task_from_selection": "चुने हुए हिस्से से काम बनाएँ",
   "meetings.make_this_a_webinar": "इसे वेबिनार बनाएँ",
   "meetings.mark_as_ended": "ख़त्म चिह्नित करें",
+  "meetings.reopen": "फिर से खोलें",
   "meetings.mark_open": "खुला चिह्नित करें",
   "meetings.meeting_notes": "मीटिंग नोट",
   "meetings.meeting_page": "मीटिंग पेज",

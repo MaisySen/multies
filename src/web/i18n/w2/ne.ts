@@ -985,6 +985,7 @@ export const ne: Bundle = {
   "meetings.make_task_from_selection": "छानिएको भागबाट काम बनाउनुहोस्",
   "meetings.make_this_a_webinar": "यसलाई वेबिनार बनाउनुहोस्",
   "meetings.mark_as_ended": "सकिएको चिन्ह लगाउनुहोस्",
+  "meetings.reopen": "फेरि खोल्नुहोस्",
   "meetings.mark_open": "खुला चिन्ह लगाउनुहोस्",
   "meetings.meeting_notes": "मिटिङ नोट",
   "meetings.meeting_page": "मिटिङ पृष्ठ",

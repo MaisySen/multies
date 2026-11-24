@@ -155,6 +155,7 @@ export const enMeetings = {
   "meetings.make_task_from_selection": "Make task from selection",
   "meetings.make_this_a_webinar": "Make this a webinar",
   "meetings.mark_as_ended": "Mark as ended",
+  "meetings.reopen": "Reopen",
   "meetings.mark_open": "Mark open",
   "meetings.meeting_notes": "Meeting notes",
   "meetings.meeting_page": "Meeting page",

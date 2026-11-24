@@ -10,7 +10,7 @@ import type { AuthContext, Deps } from "../../context";
 import { bookings, contacts, entityLinks, mailboxes, meetingActionItems, meetingRecordings, meetings, members, messages, organizations, tasks } from "../../db/schema";
 import { runBatch } from "../../db";
 import { randomToken, toB64 } from "../../lib/crypto";
-import { HttpError, notFound } from "../../lib/errors";
+import { forbidden, HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, type SuiteActor } from "./common";
 import { link, resolveTaskId } from "./tasks";
 import { admittedGuest, cleanGuestName } from "./meeting-lobby-r32";
@@ -215,7 +215,16 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
     set.startsAt = d;
   }
   if (patch.durationMin !== undefined) { if (patch.durationMin < 5 || patch.durationMin > 480) throw new HttpError(422, "validation_failed", "A meeting runs between 5 minutes and 8 hours."); set.durationMin = Math.round(patch.durationMin); }
-  if (patch.status !== undefined) { set.status = patch.status; if (patch.status === "ended") set.endedAt = deps.now(); }
+  if (patch.status !== undefined) {
+    // Wave 3 review Y4: an owner or admin can reopen an ended or cancelled meeting (its link works again).
+    if (patch.status === "scheduled" && m.status !== "scheduled") {
+      if (!actor.system && actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only an owner or admin can reopen a meeting.");
+      set.endedAt = null;
+      set.emptySince = null;
+    }
+    set.status = patch.status;
+    if (patch.status === "ended") set.endedAt = deps.now();
+  }
   if (patch.invitees !== undefined) {
     const list = [...new Set(patch.invitees.map((e) => e.trim().toLowerCase()).filter(Boolean))];
     const bad = list.filter((e) => e.length > 254 || !EMAIL.test(e)); // B6

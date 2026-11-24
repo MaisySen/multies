@@ -1532,6 +1532,8 @@ export const meetings = sqliteTable("meetings", {
   mailboxId: text("mailbox_id"),
   invitesSentAt: ts("invites_sent_at"),
   endedAt: ts("ended_at"),
+  /** Wave 3 review Y4 (0184): when the room first read empty after people were in it; cleared by a read that sees people. */
+  emptySince: ts("empty_since"),
   /** A weekly RRULE without the "RRULE:" prefix (FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=10). Occurrences are expanded on read. */
   recurrence: text("recurrence"),
   /** The IANA zone the series keeps its wall clock time in. */

@@ -1963,5 +1963,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- Wave 3 review Y1: a claim never verified is released 45 days after it was added even when a mailbox on it holds mail\n-- or settings. The row stays (its mailboxes need it), renamed to a non-routable name under .invalid; released_name keeps\n-- the name it held and released_at when. Null on every existing row; old code never reads them.\nALTER TABLE `domains` ADD `released_name` text;",
       "ALTER TABLE `domains` ADD `released_at` integer;"
     ]
+  },
+  {
+    "name": "0184_meeting_empty_since",
+    "statements": [
+      "-- Wave 3 review Y4: when the meeting's room first read empty after people were in it. Each Worker isolate kept its own\n-- first empty read, so an isolate holding an old one ended a live meeting on one momentary empty read. Kept here, any\n-- read that sees people clears it, so the grace always runs from a real empty start. Null on existing rows.\nALTER TABLE `meetings` ADD `empty_since` integer;"
+    ]
   }
 ];

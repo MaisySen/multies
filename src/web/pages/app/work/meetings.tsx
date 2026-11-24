@@ -300,7 +300,7 @@ export function MeetingPage() {
   const invite = async () => {
     try { const r = await api.post<{ status: string }>(`/meetings/${id}/invite`, {}); toast.success(r.status === "sent" ? tr("meetings.invites_sent") : tr("meetings.invites_are_waiting_for_approval")); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); }
   };
-  const setStatus = async (status: "ended" | "cancelled") => { try { await api.patch(`/meetings/${id}`, { status }); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); } };
+  const setStatus = async (status: "scheduled" | "ended" | "cancelled") => { try { await api.patch(`/meetings/${id}`, { status }); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); } };
   if (!m) return q.error ? <Card data-testid="meeting-error"><OtherWorkspace error={q.error} /><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card> : <Skeleton className="h-40" />; // POL1
   if (call && call.view === "full") return <div>{accountKept}<PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => leaveCall(call.meetingId)} data-testid="meeting-leave">{tr("meetings.leave")}</Button>} /><Room join={call.join} session={call} prefs={call.prefs ?? prefs} member title={m.title} onLeave={() => leaveCall(call.meetingId)} /></div>;
   if (prejoin) return <div className="py-2">{accountKept}<PreJoin title={m.title} who={{ mode: "member", name: me.data?.user?.name || me.data?.user?.email || "you", workspace: me.data?.organization?.name }} inCall={inCall.data?.participants.map((p) => p.name)} busy={busy} footnote={PREJOIN_NOTE} onJoin={(p) => void enter(p)} onCancel={() => setPrejoin(false)} /></div>;
@@ -341,6 +341,7 @@ export function MeetingPage() {
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><IconEdit className="h-4 w-4" />{m.recurrence ? tr("meetings.edit_series") : tr("meetings.edit")}</Button>
         <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><IconDownload className="h-4 w-4" />{tr("meetings.calendar_file")}</a>
         {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>{tr("meetings.mark_as_ended")}</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? tr("meetings.cancel_series") : tr("meetings.cancel_meeting")}</Button></>}
+        {m.status !== "scheduled" && (me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin") && <Button size="sm" variant="ghost" data-testid="meeting-reopen" onClick={() => void setStatus("scheduled")}>{tr("meetings.reopen")}</Button>}
       </div>
       <MeetingNotes meetingId={m.id} />
       {meetTd3 && <MeetingSuggestions meetingId={m.id} />}
