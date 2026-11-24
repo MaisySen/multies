@@ -32,7 +32,10 @@ export interface CpAccount {
   alias?: string | null;
   user_id?: string;
   created_at?: string;
-  /** Identity the platform already knows (email, id). Never a token. */
+  /**
+   * The platform's stored connection data. It can hold the sign in tokens (access_token, refresh_token, id_token):
+   * never log it, store it or send it to the browser. account-profiles reads only an id_token's claims from it.
+   */
   data?: Record<string, unknown> | null;
   state?: { val?: Record<string, unknown> } | null;
 }

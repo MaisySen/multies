@@ -42,9 +42,11 @@ beforeEach(async () => {
 });
 
 describe("SA1 social accounts: one row per network account", () => {
-  it("the same Gmail account connected again is one row", async () => {
-    const first = await connectAs(owner, "gmail", { email: "ada@gmail.com", name: "Ada" });
-    const second = await connectAs(owner, "gmail", { email: "ada@gmail.com", name: "Ada" });
+  it("the same Gmail account connected again is one row (identified by its OpenID Connect id_token)", async () => {
+    const b64u = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    const id_token = `${b64u({ alg: "RS256" })}.${b64u({ iss: "https://accounts.google.com", sub: "1093", email: "ada@gmail.com", name: "Ada" })}.sig`;
+    const first = await connectAs(owner, "gmail", { id_token });
+    const second = await connectAs(owner, "gmail", { id_token });
     expect(second.account.refreshed).toBe(true);
     const list = ((await owner.get("/api/apps/accounts")).body.accounts as { id: string; app: string }[]).filter((a) => a.app === "gmail");
     expect(list).toHaveLength(1);
@@ -125,37 +127,33 @@ describe("SA1 social accounts: one row per network account", () => {
     expect(mock.accounts.has(a.id)).toBe(true);
   });
 
-  it("a settle failure after merge keeps the new connection (no delete rollback)", async () => {
+  it("a failure writing the kept profile rolls the whole merge back and the new connection is still reported connected", async () => {
     const first = await connectAs(owner, "linkedin");
-    // After older accounts are folded, fail the kept profile upsert so confirm catches mid-settle.
-    const realInsert = ctx.db.insert.bind(ctx.db);
+    const realRun = ctx.db.run.bind(ctx.db);
     let failKeptUpsert = false;
-    const spy = vi.spyOn(ctx.db, "insert").mockImplementation(((table: unknown) => {
-      const builder = realInsert(table as never);
-      if (!failKeptUpsert || table !== socialAccountProfiles) return builder;
-      return {
-        values: () => ({
-          onConflictDoUpdate: async () => { throw new Error("injected upsert failure after merge"); },
-        }),
-      };
-    }) as typeof ctx.db.insert);
+    const spy = vi.spyOn(ctx.db, "run").mockImplementation(((q: Parameters<typeof ctx.db.run>[0]) => {
+      const text = typeof q === "string" ? q : (ctx.db as unknown as { dialect: { sqlToQuery(x: unknown): { sql: string } } }).dialect.sqlToQuery(q).sql;
+      if (failKeptUpsert && /^insert into "social_account_profiles"/i.test(text)) throw new Error("injected upsert failure after merge");
+      return realRun(q);
+    }) as typeof ctx.db.run);
     try {
       const start = await owner.post("/api/apps/connect", { app: "linkedin" });
       expect(start.status).toBe(201);
       const id = new URL(start.body.redirectUrl).searchParams.get("connected_account_id")!;
       failKeptUpsert = true;
       const conf = await owner.post(`/api/apps/accounts/${id}/confirm`);
-      expect(conf.status).toBe(409);
-      expect(conf.body.error.code).toBe("connection_not_saved");
-      // Older platform account was already removed; the new one must remain.
-      expect(mock.accounts.has(first.id)).toBe(false);
+      expect(conf.status).toBe(200);
+      expect(conf.body.account).toMatchObject({ id, status: "active", refreshed: false });
+      expect(conf.body.account.warning).toMatch(/disconnect the older one/i);
+      // The merge is one unit: nothing moved, so the older connection stays on the platform, and the new one too.
+      expect(mock.accounts.has(first.id)).toBe(true);
       expect(mock.accounts.has(id)).toBe(true);
     } finally {
       spy.mockRestore();
     }
   });
 
-  it("a settle failure before merge still leaves the new connection", async () => {
+  it("a settle failure before merge still leaves the new connection, reported connected with a note", async () => {
     const first = await connectAs(owner, "linkedin");
     const profiles = await import("../src/server/services/integrations/account-profiles");
     const spy = vi.spyOn(profiles, "settleAccount").mockRejectedValue(new Error("injected settle failure before merge"));
@@ -163,8 +161,8 @@ describe("SA1 social accounts: one row per network account", () => {
       const start = await owner.post("/api/apps/connect", { app: "linkedin" });
       const id = new URL(start.body.redirectUrl).searchParams.get("connected_account_id")!;
       const conf = await owner.post(`/api/apps/accounts/${id}/confirm`);
-      expect(conf.status).toBe(409);
-      expect(conf.body.error.code).toBe("connection_not_saved");
+      expect(conf.status).toBe(200);
+      expect(conf.body.account.warning).toMatch(/disconnect the older one/i);
       expect(mock.accounts.has(id)).toBe(true);
       expect(mock.accounts.has(first.id)).toBe(true);
     } finally {

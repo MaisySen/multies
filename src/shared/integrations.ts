@@ -92,6 +92,8 @@ export interface ConnectedAccountView {
   avatarUrl?: string | null;
   /** SA1: on confirm, true when this sign in replaced an older connection to the same account (one row, fresh sign in). */
   refreshed?: boolean;
+  /** On confirm: the connection is live, but it could not be checked against the workspace's other connections. */
+  warning?: string;
   /** SOC1: LinkedIn granted organization access on this login, so company Pages can be chosen (flag SOCIAL_MULTI_SOC1). */
   companyPages?: boolean;
 }

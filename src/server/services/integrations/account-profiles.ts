@@ -8,9 +8,14 @@
  * the server side guard: when a new connection turns out to be an account the workspace already has, the newest
  * connection (the freshest sign in) is kept, everything that pointed at the older one (planned and past posts, time
  * slots, inbox items, stats) is moved to it, and the older connection is removed. That runs when a connect finishes and
- * when the accounts are listed (which also backfills names for connections made before this existed).
+ * when the social accounts are listed (which also backfills names for connections made before this existed).
+ *
+ * The database side of a merge (moving pointers, dropping the older profile row, writing the kept one) is one atomic
+ * unit: a D1 batch on Workers, a SQLite transaction on Node. The older connection is removed on the platform only
+ * after that unit is written, so a failure part way never leaves posts pointing at a removed connection or the
+ * workspace without the account's identity.
  */
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { socialAccountProfiles } from "../../db/schema";
 import { audit } from "../audit";
@@ -90,12 +95,35 @@ export async function readProfile(ctx: PublishCtx, app: string): Promise<Account
   }
 }
 
-/** An identity the platform already returned with the account, for apps that have no profile read of their own. */
+/** The claims of an OpenID Connect id_token (payload only). Null for anything that is not one with an issuer and subject. */
+function idTokenClaims(v: unknown): Record<string, unknown> | null {
+  if (typeof v !== "string" || v.length > 8000) return null;
+  const parts = v.split(".");
+  if (parts.length !== 3 || !parts[1]) return null;
+  try {
+    const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(parts[1].length / 4) * 4, "="));
+    const c = JSON.parse(new TextDecoder().decode(Uint8Array.from(json, (ch) => ch.charCodeAt(0)))) as unknown;
+    if (!c || typeof c !== "object") return null;
+    const o = c as Record<string, unknown>;
+    return str(o.iss) && str(o.sub) ? o : null;
+  } catch { return null; }
+}
+
+/**
+ * An identity the platform already returned with the account, for apps that have no profile read of their own (or
+ * whose read failed). Only an OpenID Connect id_token in the stored connection counts: its issuer and subject name the
+ * outside account and are never reused for another one (OpenID Connect Core, section 2). The token came from the
+ * platform's own store over its authenticated API, the same trust as the connection itself, so its signature is not
+ * checked here. A bare id, username, email or sub in the platform's data is not provably the outside account (it can
+ * be the platform's own id, or a field another app uses differently), so it never merges two connections: null.
+ */
 export function identityFromAccount(a: CpAccount): AccountProfile | null {
-  const bag = { ...(a.data ?? {}), ...(a.state?.val ?? {}) };
-  const id = str(bag.sub) ?? str(bag.email) ?? str(bag.username) ?? str(bag.id);
-  if (!id || id === a.id || id === a.user_id) return null;
-  return { externalId: id, name: str(bag.name) ?? str(bag.email) ?? str(bag.username), avatarUrl: httpsUrl(bag.picture) ?? httpsUrl(bag.avatar_url) ?? httpsUrl(bag.profile_image_url) };
+  for (const bag of [a.state?.val, a.data]) {
+    const c = idTokenClaims(bag?.id_token);
+    if (!c) continue;
+    return { externalId: `oidc:${str(c.iss)}|${str(c.sub)}`.slice(0, 300), name: str(c.name) ?? str(c.email), avatarUrl: httpsUrl(c.picture) };
+  }
+  return null;
 }
 
 export async function profilesFor(deps: Deps, orgId: string): Promise<Map<string, ProfileRow>> {
@@ -103,10 +131,10 @@ export async function profilesFor(deps: Deps, orgId: string): Promise<Map<string
   return new Map(rows.map((r) => [r.accountId, { accountId: r.accountId, app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt }]));
 }
 
-/** Everything that pointed at the older connection now points at the kept one. */
-export async function movePointers(deps: Deps, orgId: string, from: string, to: string) {
+/** Everything that pointed at the older connection now points at the kept one, and the older profile row goes. */
+export function pointerSteps(orgId: string, from: string, to: string): SQL[] {
   const posts = sql`(select id from social_posts where org_id = ${orgId})`;
-  const steps = [
+  return [
     sql`update or ignore social_post_targets set account_id = ${to} where account_id = ${from} and post_id in ${posts}`,
     sql`delete from social_post_targets where account_id = ${from} and post_id in ${posts}`,
     sql`update social_slots set account_id = ${to} where org_id = ${orgId} and account_id = ${from}`,
@@ -117,6 +145,18 @@ export async function movePointers(deps: Deps, orgId: string, from: string, to: 
     sql`delete from social_account_state where org_id = ${orgId} and account_id = ${from}`,
     sql`delete from social_account_profiles where org_id = ${orgId} and account_id = ${from}`,
   ];
+}
+
+/** Runs the statements as one unit: a D1 batch (atomic) on Workers, a SQLite transaction on Node. */
+async function atomically(deps: Deps, steps: SQL[]) {
+  const db = deps.db as unknown as { batch?: (q: unknown[]) => Promise<unknown>; $client?: { transaction?: (fn: () => void) => () => void } };
+  if (typeof db.batch === "function") { await db.batch(steps.map((s) => deps.db.run(s))); return; }
+  const client = db.$client;
+  if (client && typeof client.transaction === "function") {
+    // better-sqlite3 runs each statement at once (no await), so the whole unit commits or rolls back together.
+    client.transaction(() => { for (const s of steps) void deps.db.run(s); })();
+    return;
+  }
   for (const s of steps) await deps.db.run(s);
 }
 
@@ -143,31 +183,36 @@ export async function settleAccount(deps: Deps, cp: Composio, orgId: string, use
     await upsert(deps, orgId, keep);
     return { profile: keep, merged: [] };
   }
-  const merged: string[] = [];
-  // Unique (org, app, externalId): fold older rows first (movePointers drops their profile rows), then upsert the kept one.
-  // Steps are idempotent (OR IGNORE / not_found). Callers must not delete `a` if this throws after merge began.
+  // Unique (org, app, externalId): at most one other connection holds this identity.
   const same = p.externalId ? await deps.db.select({ accountId: socialAccountProfiles.accountId }).from(socialAccountProfiles)
     .where(and(eq(socialAccountProfiles.orgId, orgId), eq(socialAccountProfiles.app, app), eq(socialAccountProfiles.externalId, p.externalId), ne(socialAccountProfiles.accountId, a.id))).all() : [];
-  for (const old of same) {
-    await movePointers(deps, orgId, old.accountId, a.id);
-    try { await cp.remove(old.accountId); } catch (err) {
+  const merged = same.map((o) => o.accountId);
+  // One unit: pointers move, the older profile rows go, the kept row is written. If any of it fails nothing changes
+  // and the older connection is untouched (still on the platform, still holding its identity and its posts).
+  await atomically(deps, [...merged.flatMap((old) => pointerSteps(orgId, old, a.id)), upsertSql(deps, orgId, row)]);
+  // Only now, with the kept connection holding the identity and everything that pointed at the older one, remove it.
+  for (const old of merged) {
+    try { await cp.remove(old); } catch (err) {
       if (!(err instanceof IntegrationError && err.code === "not_found")) deps.log?.warn("social.merge_remove_failed", { app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
     }
-    merged.push(old.accountId);
     try {
-      await audit(deps.db, { orgId, actorUserId: actor?.userId ?? null, actorEmail: actor?.email ?? null, action: "integration.merged", targetType: "integration", targetId: a.id, metadata: { app, replaced: old.accountId }, ip: actor?.ip ?? null });
+      await audit(deps.db, { orgId, actorUserId: actor?.userId ?? null, actorEmail: actor?.email ?? null, action: "integration.merged", targetType: "integration", targetId: a.id, metadata: { app, replaced: old }, ip: actor?.ip ?? null });
     } catch (err) {
       deps.log?.warn("social.merge_audit_failed", { app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
     }
   }
-  await upsert(deps, orgId, row);
   if (merged.length) clearHealthCache(orgId);
   return { profile: row, merged };
 }
 
+function upsertSql(deps: Deps, orgId: string, r: ProfileRow): SQL {
+  return deps.db.insert(socialAccountProfiles).values({ orgId, accountId: r.accountId, app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt })
+    .onConflictDoUpdate({ target: [socialAccountProfiles.orgId, socialAccountProfiles.accountId], set: { app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt } })
+    .getSQL();
+}
+
 async function upsert(deps: Deps, orgId: string, r: ProfileRow) {
-  await deps.db.insert(socialAccountProfiles).values({ orgId, accountId: r.accountId, app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt })
-    .onConflictDoUpdate({ target: [socialAccountProfiles.orgId, socialAccountProfiles.accountId], set: { app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt } });
+  await deps.db.run(upsertSql(deps, orgId, r));
 }
 
 /**

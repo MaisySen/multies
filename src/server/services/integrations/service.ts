@@ -166,27 +166,33 @@ export async function startConnect(deps: Deps, auth: AuthContext, app: string, i
 
 /** The person came back from the connect page: read the account and record it. */
 export async function confirmConnect(deps: Deps, auth: AuthContext, accountId: string, ip?: string | null): Promise<ConnectedAccountView> {
+  // Confirming can fold an older connection into this one (and remove it), so it is an admin action like connect.
+  if (!isAdmin(auth)) throw forbidden("Only owners and admins can connect apps.");
   const cp = platformForId(deps);
   limitWrite(auth.orgId);
   const a = await ownAccount(cp, auth.orgId, accountId);
   let view = viewOf(a);
   if (view.status === "active") {
     // The same outside account connected again refreshes the one row, for every app, not only social ones.
-    // Never roll back by deleting `a` after settleAccount may have migrated pointers or removed an older
-    // account: that can erase the only usable connection. A failed settle leaves the new row; listing
-    // folds duplicates again, and the person can disconnect a leftover if needed.
+    // settleAccount writes its database changes as one unit and removes an older connection only after that, so a
+    // failure leaves both connections as they were. The new one is live either way: it is reported connected, with a
+    // note that it may show twice. For social apps the accounts list tries the fold again; for other apps a duplicate
+    // stays until the same account is connected again or one is disconnected.
     try {
       const { settleAccount } = await import("./account-profiles");
       const r = await settleAccount(deps, cp, auth.orgId, platformUserId(cp, auth.orgId), a, { userId: auth.userId, email: auth.email, ip: ip ?? null });
       view = { ...withProfile(view, r.profile), refreshed: r.merged.length > 0 };
     } catch (err) {
       deps.log?.warn("integration.settle_failed", { app: view.app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
-      throw new HttpError(409, "connection_not_saved", "That account could not be saved as one connection. Disconnect any duplicate, then connect it again.");
+      view = { ...view, refreshed: false, warning: SETTLE_WARNING };
     }
-    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "integration.connected", targetType: "integration", targetId: a.id, metadata: { app: view.app, refreshed: view.refreshed === true }, ip: ip ?? null });
+    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "integration.connected", targetType: "integration", targetId: a.id, metadata: { app: view.app, refreshed: view.refreshed === true, ...(view.warning ? { checked: false } : {}) }, ip: ip ?? null });
   }
   return view;
 }
+
+/** Said when a live connection could not be checked against the workspace's other connections. */
+export const SETTLE_WARNING = "Connected. We could not check whether this account was already connected, so it may show twice. If it does, disconnect the older one.";
 
 export async function reconnect(deps: Deps, auth: AuthContext, accountId: string, ip?: string | null): Promise<{ redirectUrl: string }> {
   if (!isAdmin(auth)) throw forbidden("Only owners and admins can reconnect apps.");
