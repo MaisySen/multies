@@ -8,14 +8,20 @@ import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { messages } from "@/server/db/schema";
 
-const fault = vi.hoisted(() => ({ mode: "off" as "off" | "fail" | "race", raceId: "" }));
+const fault = vi.hoisted(() => ({ mode: "off" as "off" | "fail" | "race" | "delete", raceId: "" }));
 vi.mock("@/server/services/mail/store", async (orig) => {
   const real = await orig<typeof import("@/server/services/mail/store")>();
   return { ...real, storeMessage: async (...a: Parameters<typeof real.storeMessage>) => {
     if (fault.mode === "fail") throw new Error("body store unavailable");
     // Another window saved the same draft while this save was storing: the old copy is gone.
     if (fault.mode === "race") await a[0].delete(messages).where(eq(messages.id, fault.raceId));
-    return real.storeMessage(...a);
+    const id = await real.storeMessage(...a);
+    // F5: the database fails on the very next delete (the old draft's), once.
+    if (fault.mode === "delete") {
+      const db = a[0];
+      const spy = vi.spyOn(db, "delete").mockImplementationOnce(() => { spy.mockRestore(); throw new Error("injected delete failure"); });
+    }
+    return id;
   } };
 });
 
@@ -49,6 +55,21 @@ describe("B9: saving over a draft never loses it", () => {
     const second = await c.post("/api/mail/drafts", { id: first, mailboxId, to: ["a@b.io"], subject: "v3", text: "third" });
     expect(second.status).toBe(201);
     expect(await drafts()).toEqual([{ id: second.body.id, subject: "v3" }]);
+  }, 60_000);
+
+  it("when deleting the old copy fails, the new copy is taken back out, so a retry leaves one draft (F5)", async () => {
+    const { c, mailboxId, drafts } = await setup();
+    fault.mode = "off";
+    const first = (await c.post("/api/mail/drafts", { mailboxId, to: ["a@b.io"], subject: "v1", text: "first" })).body.id as string;
+    fault.mode = "delete";
+    const r = await c.post("/api/mail/drafts", { id: first, mailboxId, to: ["a@b.io"], subject: "v2", text: "second" });
+    fault.mode = "off";
+    expect(r.status).toBe(500);
+    expect(await drafts()).toEqual([{ id: first, subject: "v1" }]);
+    // The autosaver's retry of the same save replaces it cleanly.
+    const again = await c.post("/api/mail/drafts", { id: first, mailboxId, to: ["a@b.io"], subject: "v2", text: "second" });
+    expect(again.status).toBe(201);
+    expect(await drafts()).toEqual([{ id: again.body.id, subject: "v2" }]);
   }, 60_000);
 
   it("a save that loses the race answers 409 and leaves no extra copy", async () => {

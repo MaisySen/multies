@@ -303,9 +303,18 @@ export function mailRoutes() {
         subject: input.subject, text: input.text, html: input.html, date: deps.now(), isRead: true,
       });
       if (input.id) {
-        const gone = await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), ownedBy(auth.userId))).returning({ id: messages.id });
+        const dropNew = () => deps.db.delete(messages).where(and(eq(messages.id, id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
+        let gone: { id: string }[];
+        try {
+          gone = await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), ownedBy(auth.userId))).returning({ id: messages.id });
+        } catch (err) {
+          // F5: storeMessage writes several rows, so the two steps cannot share one batch. If the old copy can't be
+          // deleted, the new one is taken back out (best effort), so the save fails cleanly and a retry leaves one draft.
+          await dropNew().catch((e: unknown) => (c.var.log ?? deps.log)?.warn("draft_save.rollback_failed", { error: e instanceof Error ? e.message.slice(0, 200) : String(e) }));
+          throw err;
+        }
         if (!gone.length) {
-          await deps.db.delete(messages).where(and(eq(messages.id, id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
+          await dropNew();
           await checkDraftSave(deps, auth, input.id, mb.id);
         }
       }
