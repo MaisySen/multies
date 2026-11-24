@@ -11,7 +11,7 @@
  * A big import stops near 15 seconds, at the day's cap or at the write budget's warn level, and the same call with the
  * run id carries on from where it stopped.
  */
-import { assertOpen, callerWho, personalInfo } from "../mail-access-priv1a"; // PRIV1b (P12)
+import { assertOpen, callerWho, personalInfo, personOf } from "../mail-access-priv1a"; // PRIV1b (P12)
 import { assertRowsNotHeld, heldScope } from "../mail/archive-r111"; // PRIV1b (P44)
 import { and, desc, eq, inArray, isNull, like, lt, ne, or, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
@@ -155,7 +155,9 @@ export async function startExport(deps: Deps, actor: SuiteActor) {
     id, orgId: actor.orgId, kind: "export", source: "workspace", status: "ready", total, done: 0, counts: JSON.stringify(counts),
     ...(isPersonSession(actor as CallerLike) ? { created: JSON.stringify({ byPerson: true } satisfies Created) } : {}),
     tokenHash: await sha256Hex(token), expiresAt: new Date(now.getTime() + EXPORT_LINK_HOURS * 3600_000),
-    createdByUserId: actor.userId || null, createdByEmail: await starterEmail(deps, actor), createdAt: now, updatedAt: now,
+    // Wave 1 review V1: the person behind it, never a key's maker. The download rebuilds this auth, and a personal
+    // mailbox goes in only for its owner; a workspace key acts for nobody, so its export carries team mailboxes only.
+    createdByUserId: personOf(actor as CallerLike) || null, createdByEmail: await starterEmail(deps, actor), createdAt: now, updatedAt: now,
   });
   await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email || null, action: "workspace.export_requested", targetType: "data_move", targetId: id });
   const row = await moveRow(deps, actor.orgId, id);
