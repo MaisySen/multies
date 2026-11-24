@@ -7,7 +7,7 @@ import { makeTestApp, Client } from "./helpers";
 import { aliases, deliveries, domains, messages } from "@/server/db/schema";
 import { ACCOUNT_MAIL_NOT_SENT_TO_AGENT, sendSystemEmail } from "@/server/services/system-mail";
 import { deliverInbound } from "@/server/services/mail/delivery";
-import { NOT_FORWARDED_TO_AGENT } from "@/server/services/agents/platform-mail";
+import { NOT_FORWARDED_TO_AGENT, NOT_FORWARDED_TO_OTHER_WORKSPACE } from "@/server/services/agents/platform-mail";
 import { recordEvent } from "@/server/services/agents";
 import { makeSnippet } from "@/server/services/mail/mime";
 
@@ -255,6 +255,32 @@ describe("AIS1 row 32 (review): a forward never hands the platform's own mail to
     // Outside senders' mail through the same alias still reaches the agent.
     await outside("fwd@acme.io", "noreply@service.example", "Your code", `Your code is ${CODE}`);
     expect(ctx.outbound.sent.filter((m) => m.to.includes("bot@beta.test")).map((m) => m.subject)).toEqual(["Your code"]);
+  });
+
+  it("Round 2 (PR 23): an alias never forwards it to a person's address another workspace hosts", async () => {
+    const other = new Client(ctx.app);
+    await other.signup("boss@gamma.test", "Gamma Boss");
+    const gDomain = (await other.post("/api/domains", { name: "gamma.test" })).body.domain.id as string;
+    const { body } = await other.get(`/api/domains/${gDomain}`);
+    for (const r of body.domain.records) {
+      if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
+      else ctx.dns.records.txt = { ...ctx.dns.records.txt, [r.fqdn]: [r.value] };
+    }
+    expect((await other.post(`/api/domains/${gDomain}/verify`)).body.domain.status).toBe("verified");
+    expect((await other.post("/api/mailboxes", { domainId: gDomain, localPart: "inbox", displayName: "Inbox" })).status).toBe(201);
+    await ctx.db.insert(aliases).values({ id: "als_fwd2", orgId, domainId, localPart: "fwd2", address: "fwd2@acme.io", destinations: JSON.stringify(["inbox@gamma.test", "me@home.example"]) });
+    const sys = ctx.deps.config.systemFrom.address;
+    const r = await deliverInbound(ctx.deps, {
+      envelopeFrom: sys, rcptTo: "fwd2@acme.io", sizeBytes: 300, via: "test",
+      email: { messageId: "<sys.fwd2@localhost>", from: { address: sys, name: "Multies" }, to: [{ address: "fwd2@acme.io" }], cc: [], subject: "Reset your Multies password", text: `Choose a new password: http://localhost/reset-password/${SECRET}`, date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    expect(r.forwardedTo).toEqual(["me@home.example"]);
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("inbox@gamma.test"))).toEqual([]);
+    const log = await ctx.db.select().from(deliveries).where(eq(deliveries.toAddress, "inbox@gamma.test"));
+    expect(log.map((d) => [d.status, d.detail])).toEqual([["rejected", NOT_FORWARDED_TO_OTHER_WORKSPACE]]);
+    // Outside senders' mail through the same alias still goes there.
+    await outside("fwd2@acme.io", "noreply@service.example", "Your code", `Your code is ${CODE}`);
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("inbox@gamma.test")).map((m) => m.subject)).toEqual(["Your code"]);
   });
 
   it("a person whose own sign in alias also copies their agent still gets a password reset; the agent's copy is withheld", async () => {

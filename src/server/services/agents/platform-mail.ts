@@ -33,6 +33,8 @@ export const WITHHELD_TEXT = "This is account mail from Multies, such as an invi
 
 /** Why a mail rule or an alias didn't forward the platform's own mail (rule run log and delivery log). */
 export const NOT_FORWARDED_TO_AGENT = "Not sent: Multies' own account mail is never forwarded to an AI agent.";
+/** Round 2 (PR 23): the alias forward's refusal for an address another workspace hosts (its copy would lose the mark). */
+export const NOT_FORWARDED_TO_OTHER_WORKSPACE = "Not sent: Multies' own account mail is never forwarded to an address another Multies workspace hosts.";
 
 /** spf, dkim and dmarc only, plus the platform mark when the platform itself delivered the message. */
 export function storedAuth(auth: AuthResults | undefined, mark?: PlatformMark): AuthResults & { platform?: PlatformMark } {

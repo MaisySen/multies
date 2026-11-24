@@ -15,7 +15,7 @@ import { decide, externalSentToday, guardConfig, newSenderCap, providerSentToday
 import { notifyAgentsOfInbound } from "../agents";
 import { operatorDecision } from "../suite/operator-inbox";
 import { isBulkMail } from "@/shared/mail-splits";
-import { isWithheld, NOT_FORWARDED_TO_AGENT, storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
+import { isWithheld, NOT_FORWARDED_TO_AGENT, NOT_FORWARDED_TO_OTHER_WORKSPACE, storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
 import { makeSnippet } from "./mime";
 
 export type RecipientRoute =
@@ -201,6 +201,7 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
   const destinations = JSON.parse(alias.destinations) as string[];
   const result: InboundResult = { accepted: false, code: 550, reason: "No destination accepted the message.", storedIn: [], forwardedTo: [] };
   const external: string[] = [];
+  const hostedElsewhere = new Set<string>(); // Round 2 (PR 23): destinations another workspace hosts
   for (const dest of destinations) {
     // PRIV1b (P38): a hosted destination is delivered inside only when it is in the alias's own workspace, and the
     // nested route keeps that workspace as its signer. Another workspace's address goes out as a normal forward.
@@ -210,6 +211,7 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
       result.storedIn.push(...r.storedIn);
       result.forwardedTo.push(...r.forwardedTo);
     } else {
+      if (destRoute.kind !== "none") hostedElsewhere.add(dest);
       external.push(dest);
     }
   }
@@ -220,8 +222,11 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     const { agentAddress } = await import("../agents/agent-address");
     const keep: string[] = [];
     for (const to of external) {
-      if (!(await agentAddress(db, to))) { keep.push(to); continue; }
-      await logDelivery(db, { orgId: alias.orgId, direction: "outbound", fromAddress: alias.address, toAddress: to, subject, status: "rejected", provider: deps.outbound.name, detail: NOT_FORWARDED_TO_AGENT });
+      // Round 2 (PR 23): nor to an address another workspace hosts: delivered there it would arrive as ordinary mail,
+      // without the mark, readable in full by that workspace's keys and agents.
+      const detail = await agentAddress(db, to) ? NOT_FORWARDED_TO_AGENT : hostedElsewhere.has(to) ? NOT_FORWARDED_TO_OTHER_WORKSPACE : null;
+      if (!detail) { keep.push(to); continue; }
+      await logDelivery(db, { orgId: alias.orgId, direction: "outbound", fromAddress: alias.address, toAddress: to, subject, status: "rejected", provider: deps.outbound.name, detail });
     }
     external.splice(0, external.length, ...keep);
   }
