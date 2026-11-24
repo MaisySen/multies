@@ -178,6 +178,9 @@ export async function appendChunk(deps: Deps, a: SuiteActor, meetingId: string, 
       // QUAL1 (audit row 14): a refused key or credit is noted on the key the moment it happens, here too.
       const problem = keyProblemOf(err);
       if ((problem === "key_refused" || problem === "no_credit") && problem !== key.problem) await recordKeyProblem(deps, a.orgId, key.version, problem);
+      // Round 2 (PR 20 leftover): a key problem is the key's, not a passing outage: 409 with its own code, the same
+      // sentence and the fix link, as the other AI routes (the recorder doesn't retry a 4xx).
+      if (problem === "key_refused" || problem === "no_credit") throw (await import("../ai")).keyProblemError(problem, err.provider);
       throw new HttpError(502, "ai_provider_error", providerFailure(err));
     }
     throw err;

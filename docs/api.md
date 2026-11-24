@@ -182,8 +182,10 @@ answers 409 `ai_key_refused` asking an admin to paste it again, and goes to buil
   live meeting summary, `POST /api/catchup/summary`, the mail Translate `POST /api/translate`, and the document tools'
   `POST /api/tools/ai/ask` and `/api/tools/ai/translate`) answer **409** with the code `ai_key_refused`, `ai_no_credit`
   or `ai_model_unavailable`, the same sentence, and `details.fix: "/app/settings#ai"`. A provider that is down or rate
-  limited is still `502 ai_provider_error`. A recording chunk the provider refuses stays `502 ai_provider_error` with the
-  same sentence (the web recorder tries it again, then names the reason at Stop; the phone app does not record). While
+  limited is still `502 ai_provider_error`. A recording chunk on a refused key or an account with no credit answers the same
+  `409 ai_key_refused` or `ai_no_credit` with the sentence and `details.fix` (Round 2; it was 502), and any other
+  provider failure on a chunk stays `502 ai_provider_error` (the web recorder tries a 502 again, then names the reason
+  at Stop; it does not retry a 409; the phone app does not record). While
   the key is noted refused or out of credit, `GET /api/meetings/:id/recordings` keeps `setup.ready: true` (a chunk that
   works clears the note) with `setup.keyProblem` and the sentence in `setup.message`, which the meeting room shows.
 - Built-in AI answers in the key's place only where the deployment sets `AI_KEY_FALLBACK=on` (with AI2 on). It is off

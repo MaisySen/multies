@@ -29,7 +29,9 @@ describe("the recording setup shows a refused key (QUAL1 review)", () => {
     const rid = (await c.post(`/api/meetings/${meetingId}/recordings`, {})).body.recording.id as string;
     refused = true;
     const chunk = await c.call("PUT", `/api/meetings/${meetingId}/recordings/${rid}/chunks/0`, { audioBase64: Buffer.from(new Uint8Array(64)).toString("base64"), mime: "audio/webm;codecs=opus", offsetSec: 0, durationSec: 300 });
-    expect(chunk.status).toBe(502);
+    // Round 2 (PR 20, changed on purpose): 409 ai_key_refused, as every other AI route (was 502).
+    expect(chunk.status).toBe(409);
+    expect(chunk.body.error.code).toBe("ai_key_refused");
     expect((await c.get("/api/ai/status")).body.problem).toBe("key_refused");
     expect(providerCalls).toBeGreaterThan(0);
 

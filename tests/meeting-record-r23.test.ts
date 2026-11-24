@@ -226,17 +226,25 @@ describe("recording a call", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("a provider refusal is a plain 502 without the key; the transcript waits for a retry", async () => {
+  it("a refused key is a plain 409 ai_key_refused without the key; the transcript waits for a retry", async () => {
     await c.put("/api/ai/key", { provider: "openai", apiKey: KEY });
     const { meetingId } = await callMeeting();
     const rid = (await c.post(`/api/meetings/${meetingId}/recordings`, {})).body.recording.id;
     transcriptAnswer = () => new Response(`{"error":{"message":"Incorrect API key provided: ${KEY}"}}`, { status: 401 });
     const r = await chunk(c, meetingId, rid, 0);
-    expect(r.status).toBe(502);
+    // Round 2 (PR 20, changed on purpose): a key problem answers 409 with its own code, as every other AI route; it
+    // was 502 ai_provider_error. An outage is still 502.
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe("ai_key_refused");
+    expect(r.body.error.details).toMatchObject({ fix: "/app/settings#ai" });
     expect(JSON.stringify(r.body)).not.toContain(KEY);
     // QUAL1 (audit row 14): the same plain sentence Settings shows, and the refusal is noted on the key until it works.
     expect(r.body.error.message).toBe("OpenAI refused your workspace's AI key. An admin can paste a new key in Settings, AI.");
     expect((await c.get("/api/ai/status")).body.problem).toBe("key_refused");
+    // An outage is still 502 ai_provider_error.
+    transcriptAnswer = () => new Response("down", { status: 503 });
+    const down = await chunk(c, meetingId, rid, 0);
+    expect([down.status, down.body.error.code]).toEqual([502, "ai_provider_error"]);
     transcriptAnswer = () => Response.json({ text: "Back again." });
     expect((await chunk(c, meetingId, rid, 0)).body.recording.transcript).toBe("[00:00] Back again.");
     expect((await c.get("/api/ai/status")).body.problem).toBeUndefined();
