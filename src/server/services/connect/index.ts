@@ -198,12 +198,33 @@ async function claimCodeSend(deps: Deps, email: string, connectionId: string | n
 }
 
 /**
+ * Wave 2 review X2: providers that sign in an address on a company's own domain only once that domain is verified with
+ * them (Google Workspace, Microsoft 365), so the address itself as the user name proves it there too.
+ */
+const DOMAIN_VERIFYING_PRESETS: ReadonlySet<ConnectPresetId> = new Set(["google_workspace", "microsoft365"]);
+
+/** Wave 2 review X2: the user name the provider signs this address in with: the address, or its documented short form. */
+function usernameIsAddress(preset: ConnectPresetId, email: string, username: string): boolean {
+  const u = username.trim().toLowerCase();
+  const e = email.trim().toLowerCase();
+  if (u === e) return true;
+  // iCloud Mail documents the name before the @ alone as the user name for @icloud.com, @me.com and @mac.com.
+  return preset === "icloud" && !u.includes("@") && u === e.split("@")[0];
+}
+
+/**
  * PRIV1b (P60): whether signing in proves the address. Only a known provider at its own servers does: Gmail, Outlook and
  * the others check the person's password for that address. "Other server", or a known provider with its servers
  * changed, could be a server anyone runs that accepts any password, so the address is proven by a code instead.
+ * Wave 2 review X2: and only when the preset is the address's own provider (or one that verifies the domain, for a
+ * company address) and the user name is the address: the Gmail preset with someone else's Gmail user name signs in to
+ * their account and proves nothing about ceo@victim.com.
  */
-export function serversProveAddress(s: Pick<ResolvedSettings, "preset" | "imap" | "smtp" | "email">): boolean {
+export function serversProveAddress(s: Pick<ResolvedSettings, "preset" | "imap" | "smtp" | "email" | "username">): boolean {
   if (s.preset === "custom") return false;
+  const own = presetForEmail(s.email);
+  if (own !== s.preset && !(own === null && DOMAIN_VERIFYING_PRESETS.has(s.preset))) return false;
+  if (!usernameIsAddress(s.preset, s.email, s.username)) return false;
   const base = serversFor(s.preset, s.email);
   return s.imap.host === base.imap.host.toLowerCase() && s.smtp.host === base.smtp.host.toLowerCase();
 }
@@ -390,7 +411,9 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
   // Wave 1 review V3 (P60): a connection still waiting for its code keeps waiting (a new password proves nothing about
   // the address), and moving to servers that don't prove the address asks for a new emailed code.
   const hostChanged = s.imap.host !== c.imapHost.toLowerCase() || s.smtp.host !== c.smtpHost.toLowerCase();
-  const reverify = c.status !== "verifying" && hostChanged && !serversProveAddress(s);
+  // Wave 2 review X2: a new user name is a new account at the provider, so it has to prove the address too.
+  const userChanged = s.username.trim().toLowerCase() !== c.username.trim().toLowerCase();
+  const reverify = c.status !== "verifying" && (hostChanged || userChanged) && !serversProveAddress(s);
   const waits = c.status === "verifying" || reverify;
   if (reverify) await claimCodeSend(deps, c.email, c.id); // Wave 1 review V5: before anything is written
   await deps.db.update(mailConnections).set({
