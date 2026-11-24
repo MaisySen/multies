@@ -190,6 +190,8 @@ interface Ctx {
   ids?: string[];
   /** T1F: lookups every group of one search shares (the readable channels, the mailbox scope), read once per search. */
   memo?: Map<string, Promise<unknown>>;
+  /** Wave 3 review Y8 (e): the text goes to an AI model (Ask, Ask about this, Team AI): Multies' own mail is withheld. */
+  forAi?: boolean;
 }
 /** T1F: runs a per search lookup once and shares it between groups and the typo pass (no memo: runs it as before). */
 function once<T>(c: Ctx, key: string, fn: () => Promise<T>): Promise<T> {
@@ -215,7 +217,8 @@ async function mailGroup(c: Ctx): Promise<Candidate[]> {
   if (scope && !scope.length) return [];
   // Wave 2 review X8 (as search.ts, Round 2 B4): for a key, an agent or a connected app, Multies' own mail is matched by
   // its subject and sender only, never its preview (a match is an oracle on a reset link or code), and none is shown.
-  const hide = !isPersonSession(actor as CallerLike);
+  // Wave 3 review Y8 (e): and for a person too when the text goes to an AI model.
+  const hide = !isPersonSession(actor as CallerLike) || !!c.forAi;
   const systemFrom = c.deps.config.systemFrom.address;
   const snippetCol = hide ? sql`case when ${withheldSql(systemFrom)} then '' else ${messages.snippet} end` : sql`${messages.snippet}`;
   const rows = await c.deps.db.select({
@@ -593,7 +596,7 @@ export async function retrieveR98(deps: Deps, v: SearchViewer, rawQuery: string,
   if (!words.length) return [];
   const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 8), 1), 20);
   const types = allowedTypes(deps, v, opts.types ?? ASK_SOURCE_TYPES).filter((t) => t !== "attachments");
-  const base = { deps, v, words, limit, f: {}, person: null, memo: new Map<string, Promise<unknown>>() };
+  const base = { deps, v, words, limit, f: {}, person: null, memo: new Map<string, Promise<unknown>>(), forAi: true };
   const scored: { x: Candidate; score: number }[] = [];
   await Promise.all(types.map(async (t) => {
     try {
@@ -637,7 +640,7 @@ export async function retrieveRefsR98(deps: Deps, v: SearchViewer, refs: SourceR
   const out: RetrievedR98[] = [];
   for (const r of refs.slice(0, 5)) {
     if (!allowed.has(r.type) || r.type === "attachments") continue;
-    const c: Ctx = { deps, v, words: [], fuzzy: false, limit: 20, f: {}, person: null, ids: [r.id] };
+    const c: Ctx = { deps, v, words: [], fuzzy: false, limit: 20, f: {}, person: null, ids: [r.id], forAi: true };
     const hit = (await GROUPS[r.type](c)).find((x) => x.item.id === r.id);
     if (hit) out.push({ ...hit.item, body: `${hit.title ? `${hit.title}\n` : ""}${hit.body}`.replace(/\s+/g, " ").trim().slice(0, BODY_CHARS), score: 1000 });
   }

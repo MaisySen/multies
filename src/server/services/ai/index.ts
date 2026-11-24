@@ -19,6 +19,7 @@ import { keyFallbackOn, keyFor } from "./keys";
 import { AI_PROVIDER_INFO, AiProviderError, keyProblemOf, type AiCompletion, type AiProviderId } from "./providers";
 import { assertAiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 import { AI_KEY_FIX_PATH, aiFallbackText, aiKeyProblemText, type AiKeyProblem } from "../../../shared/ai-connect-ai2";
+import { isWithheld, WITHHELD_TEXT } from "../agents/platform-mail"; // Wave 3 review Y8 (e)
 
 export { AI_PROVIDERS, AI_PROVIDER_INFO, byoProvider, isAiProviderId, type AiCompletion, type AiProvider, type AiProviderId } from "./providers";
 export { aiKeyStatus, deleteAiKey, saveAiKey } from "./keys";
@@ -121,8 +122,10 @@ async function threadFor(deps: Deps, auth: AuthContext, messageId: string) {
 
 type ThreadMsg = Awaited<ReturnType<typeof getThread>>[number];
 const who = (a: { address: string; name?: string | null }) => (a.name ? `${a.name} <${a.address}>` : a.address);
-function transcript(thread: ThreadMsg[], maxChars = 6000) {
-  const parts = thread.map((m) => `From: ${who(m.from)}\nDate: ${new Date(m.date).toISOString().slice(0, 10)}\nSubject: ${m.subject}\n\n${latestText(m.text ?? "").slice(0, 2000)}`);
+function transcript(thread: ThreadMsg[], systemFrom: string, maxChars = 6000) {
+  // Wave 3 review Y8 (e): Multies' own account mail (resets, sign in links, codes) never goes to an AI model.
+  const body = (m: ThreadMsg) => (isWithheld((m.authResults as { platform?: unknown } | null)?.platform, m.from.address, systemFrom) ? WITHHELD_TEXT : latestText(m.text ?? "").slice(0, 2000));
+  const parts = thread.map((m) => `From: ${who(m.from)}\nDate: ${new Date(m.date).toISOString().slice(0, 10)}\nSubject: ${m.subject}\n\n${body(m)}`);
   let out = parts.join("\n\n---\n\n");
   if (out.length > maxChars) out = out.slice(out.length - maxChars);
   return out;
@@ -157,7 +160,7 @@ export async function triageMessage(deps: Deps, auth: AuthContext, messageId: st
   const fallback = basicTriage({ ...message, text: message.text ?? "" });
   const res = await ask(deps, auth.orgId, {
     system: `${SYSTEM} Sort one email. Reply with JSON only: {"category": one of ${TRIAGE_CATEGORIES.join("|")}, "priority": "high"|"normal"|"low", "reason": one short sentence}.`,
-    user: transcript([message], 3000), maxTokens: 120,
+    user: transcript([message], deps.config.systemFrom.address, 3000), maxTokens: 120,
   });
   const out = firstJson(res.text);
   const category = TRIAGE_CATEGORIES.includes(out?.category as TriageCategory) ? (out!.category as TriageCategory) : fallback.category;
@@ -181,7 +184,7 @@ export async function summariseThread(deps: Deps, auth: AuthContext, messageId: 
   const { thread } = await threadFor(deps, auth, messageId);
   const res = await ask(deps, auth.orgId, {
     system: `${SYSTEM} Summarise the email thread in at most three sentences, then list what the reader needs to do. Reply with JSON only: {"summary": string, "actionItems": string[]}.`,
-    user: transcript(thread), maxTokens: 350,
+    user: transcript(thread, deps.config.systemFrom.address), maxTokens: 350,
   });
   const out = firstJson(res.text);
   if (out && typeof out.summary === "string") {
@@ -201,7 +204,7 @@ export async function draftReply(deps: Deps, auth: AuthContext, messageId: strin
   const to = own ? message.to[0] ?? message.from : message.from;
   const res = await ask(deps, auth.orgId, {
     system: `${SYSTEM} Draft a reply from ${auth.name || auth.email} to ${who(to)}. Tone: ${opts.tone ?? "friendly"}. Write only the body, starting with a greeting and ending with "${auth.name?.split(" ")[0] || "Thanks"}" as the sign off. Don't invent facts, prices or dates: leave [square brackets] where the writer must fill something in.${opts.instructions ? ` The writer's notes: ${opts.instructions.slice(0, 500)}` : ""}`,
-    user: transcript(thread), maxTokens: 450,
+    user: transcript(thread, deps.config.systemFrom.address), maxTokens: 450,
   });
   const { text, provider } = res;
   if (text) return { text: text.replace(/^subject:.*\n+/i, "").trim(), provider, ...withFallback(res) };
