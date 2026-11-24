@@ -119,14 +119,14 @@ test("CSV import: preview counts, dedupe, import, then a saved segment of import
   await expect(summary).toContainText("line 4");
   await page.getByTestId("import-run").click();
   await expect(page.getByTestId("import-result")).toContainText("2 added");
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("dialog", { name: "Import contacts" }).getByRole("button", { name: "Done" }).click();
   // Import the same file again: nobody is added twice.
   await page.getByTestId("import-contacts").click();
   await page.getByTestId("import-file").setInputFiles({ name: "people.csv", mimeType: "text/csv", buffer: Buffer.from(CSV) });
   await expect(page.getByTestId("import-summary")).toContainText("2 already in your contacts");
   await page.getByTestId("import-run").click();
   await expect(page.getByTestId("import-result")).toContainText("0 added");
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("dialog", { name: "Import contacts" }).getByRole("button", { name: "Done" }).click();
   // Segment of imported people.
   await page.getByTestId("filters-toggle").click();
   await page.getByTestId("filters-panel").getByLabel("Added").selectOption("import");
