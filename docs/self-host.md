@@ -255,7 +255,17 @@ Client addresses (per address limits, the audit log) come from the socket unless
 Set it only when every request passes through your proxy, and name the one header your proxy sets with
 `TRUST_PROXY_HEADER`: `x-forwarded-for` (the default; Multies takes its rightmost entry, the one your proxy
 appended, since anything to its left came from the client), `x-real-ip`, or `cf-connecting-ip` behind
-Cloudflare. Other client address headers are ignored. Stalwart can get its own certificate for
+Cloudflare. Other client address headers are ignored.
+
+The rightmost `X-Forwarded-For` entry is the client only when exactly one proxy appends to that header. With
+two hops, for example a CDN in front of your own proxy, your proxy appends the CDN's edge address, so every
+visitor would share it (one shared rate limit, audit entries naming the CDN). In that case don't use
+`x-forwarded-for`: set `TRUST_PROXY_HEADER` to the header the outer hop sets to the real client
+(`cf-connecting-ip` behind Cloudflare, `true-client-ip` or your CDN's equivalent), make your own proxy pass that
+header through unchanged, and let your proxy accept connections only from the CDN's address ranges, so nobody
+can reach it directly and send that header themselves. If your proxy can copy the CDN's header into
+`X-Real-IP` (Caddy: `header_up X-Real-IP {http.request.header.CF-Connecting-IP}`), `x-real-ip` works the same
+way. Stalwart can get its own certificate for
 `mail.example.com.au` (Stalwart admin, Domains, TLS certificates, ACME); until then mail apps
 show a certificate warning.
 
