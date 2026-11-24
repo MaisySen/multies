@@ -6,7 +6,7 @@ import { HttpError } from "../lib/errors";
 import { createAliasSchema, createMailboxSchema, updateAliasSchema, updateMailboxSchema } from "@/shared/schemas";
 import { audit } from "../services/audit";
 import {
-  createAlias, createMailbox, deleteAlias, deleteMailbox, listAliases, listMailboxes, updateAlias, updateMailbox,
+  assertMayDeleteMailbox, createAlias, createMailbox, deleteAlias, deleteMailbox, listAliases, listMailboxes, updateAlias, updateMailbox,
 } from "../services/addresses";
 import { deprovisionMailbox, syncQuota } from "../services/mailserver";
 import { mailboxScope } from "../services/team";
@@ -53,12 +53,14 @@ export function mailboxRoutes() {
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "mailbox.updated", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, ...patch }, ip: c.var.ip });
       return c.json({ mailbox: m });
     })
-    .delete("/:id", requireAdmin, async (c) => {
+    // PRIV1b (P59): open to the owner of a personal mailbox; assertMayDeleteMailbox decides (team mailboxes: admins).
+    .delete("/:id", async (c) => {
       const { auth, deps } = c.var;
+      await assertMayDeleteMailbox(deps.db, auth.orgId, c.req.param("id"), auth);
       await assertMailboxNotHeld(deps, auth.orgId, c.req.param("id")); // R111: a mailbox on legal hold stays
       // Remove the mail server account first, so a failure there leaves nothing orphaned.
       await deprovisionMailbox(deps, auth.orgId, c.req.param("id"));
-      const m = await deleteMailbox(deps.db, auth.orgId, c.req.param("id"));
+      const m = await deleteMailbox(deps.db, auth.orgId, c.req.param("id"), auth);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "mailbox.deleted", targetType: "mailbox", targetId: m.id, metadata: { address: m.address }, ip: c.var.ip });
       return c.json({ ok: true });
     });

@@ -45,12 +45,6 @@ const SKIP = /\/api\/(auth|webhooks|inbound|import-runner|guest)\b|\/api\/v1\/mc
 const MAILISH = /mail|thread|message|draft|label|snooze|remind|schedule|tasks\/from|doc-inbox|archive|data-moves|bulk|connections|mailboxes|inbox|ai\/|ask|search|send|agents|approvals|sign/;
 /** Writes that end the walker's own session or workspace, never Pat's mail. */
 const SELF = /\/(leave|sign-out|logout|delete-account)$|\/api\/account$|\/api\/org$/;
-/**
- * Left out on purpose, by name: an owner or admin deleting or disconnecting a colleague's personal mailbox is P59 (a
- * product decision still open: "management by design, but destruction needs a decision"). The walk would also lose
- * Pat's mailbox for every route after it. Remove these lines once P59 is decided.
- */
-const DESIGN = new Set(["DELETE /api/mailboxes/:id", "DELETE /api/v1/mailboxes/:id", "DELETE /api/connections/:id", "DELETE /api/v1/connections/:id"]);
 
 /** Valid bodies for the routes that check their body without parseBody (the v1 OpenAPI routes), so no schema is captured. */
 const BODIES: Record<string, (ids: Ids) => unknown> = {
@@ -185,7 +179,6 @@ describe("PRIV1a route walk: someone else's personal mailbox", () => {
         if (who === "dRead" && r.method === "GET") continue; // a read share reads; its writes are what is walked
         if (!params.length && (r.method === "GET" || !MAILISH.test(r.path) || SELF.test(r.path))) continue;
         if (SELF.test(r.path) && r.method !== "GET") continue;
-        if (DESIGN.has(`${r.method} ${r.path}`) && who !== "dRead") continue;
         if (params.length && /user|member|delegate/i.test(params[0]!)) continue; // people, not mail (team member pages)
         const sentBefore = outbox().length;
         const choices = params.length ? idsForParam(r.path, params[0]!, me) : [ids.message];

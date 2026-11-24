@@ -46,9 +46,11 @@ describe("PRIV1b (P7) a personal mailbox's name and Reply-To", () => {
     const mine = await w.pat.c.patch(`/api/mailboxes/${p}`, { replyTo: "pat.replies@acme.io", displayName: "Pat P" });
     expect(mine.status).toBe(200);
     expect(mine.body.mailbox.replyTo).toBe("pat.replies@acme.io");
-    // ...but not the quota or status, which stay with admins.
+    // ...but not the quota, which stays with admins. P59 (round 2, owner decision): the status is hers, not an admin's.
     expect((await w.pat.c.patch(`/api/mailboxes/${p}`, { quotaMb: 50 })).status).toBe(403);
-    expect((await w.pat.c.patch(`/api/mailboxes/${p}`, { status: "suspended" })).status).toBe(403);
+    expect((await w.admin.c.patch(`/api/mailboxes/${p}`, { status: "suspended" })).status).toBe(404);
+    expect((await w.pat.c.patch(`/api/mailboxes/${p}`, { status: "suspended" })).status).toBe(200);
+    expect((await w.pat.c.patch(`/api/mailboxes/${p}`, { status: "active" })).status).toBe(200);
     expect((await w.admin.c.patch(`/api/mailboxes/${p}`, { quotaMb: 50 })).status).toBe(200);
     row = (await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.id, p)).get())!;
     expect(row.replyTo).toBe("pat.replies@acme.io");
@@ -126,7 +128,7 @@ async function connectedWorld() {
 }
 
 describe("PRIV1b (P5, P62) reconnecting a personal connection", () => {
-  it("an admin can't repoint it; the owner can; the connector who isn't the owner can't; admins can still remove it", async () => {
+  it("an admin can't repoint or remove it; the owner can; the connector who isn't the owner can't", async () => {
     const w = await connectedWorld();
     const id = w.conn.id;
     const evil = { password: "evilpw", username: "evil", imap: { host: "imap.attacker-mail.com" }, smtp: { host: "smtp.attacker-mail.com" } };
@@ -139,17 +141,18 @@ describe("PRIV1b (P5, P62) reconnecting a personal connection", () => {
     // P62: whoever connected it no longer decides once the mailbox is someone else's.
     await w.ctx.db.update(mailConnections).set({ createdByUserId: w.nobody.id }).where(eq(mailConnections.id, id));
     expect((await w.nobody.c.put(`/api/connections/${id}`, evil)).status).toBe(403);
-    expect((await w.nobody.c.del(`/api/connections/${id}`)).status).toBe(403);
+    expect((await w.nobody.c.del(`/api/connections/${id}`)).status).toBe(404); // P59: she can't open it, so 404 (was 403)
     // The owner reconnects.
     const ok = await w.pat.c.put(`/api/connections/${id}`, { password: PW });
     expect(ok.status).toBe(200);
     row = (await w.ctx.db.select().from(mailConnections).where(eq(mailConnections.id, id)).get())!;
     expect(row.smtpHost).toBe("smtp.gmail.com");
-    // Admins can still remove it.
-    expect((await w.admin.c.del(`/api/connections/${id}`)).status).toBe(200);
+    // P59 (round 2, owner decision): an admin no longer removes it (she can't open it: 404); its owner does.
+    expect((await w.admin.c.del(`/api/connections/${id}`)).status).toBe(404);
+    expect((await w.pat.c.del(`/api/connections/${id}`)).status).toBe(200);
   }, 120_000);
 
-  it("an orphaned personal connection is changed by nobody; admins can still remove it", async () => {
+  it("an orphaned personal connection is changed by nobody; the workspace owner can still remove it", async () => {
     const w = await connectedWorld();
     await w.ctx.db.update(mailboxes).set({ ownerUserId: null }).where(eq(mailboxes.id, w.conn.mailboxId));
     expect((await w.admin.c.put(`/api/connections/${w.conn.id}`, { password: PW })).status).toBe(403);

@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRight, IconClose, IconEdit, IconInbox, IconMention, IconMore, IconPause, IconPlay, IconPlus, IconTeam, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
-import { useAliases, useDomains, useMailboxes, useOrg, useTeam, qk } from "@/web/lib/queries";
+import { useAliases, useDomains, useMailboxes, useMe, useOrg, useTeam, qk } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
 import type { Alias, Domain, Mailbox } from "@/web/lib/types";
 import { Button, ButtonLink } from "@/web/components/ui/button";
@@ -81,6 +81,7 @@ function ListSkeleton() {
 function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onCreate: () => void; freeDomain?: string }) {
   const { data, isPending, isError, refetch } = useMailboxes();
   const team = useTeam();
+  const me = useMe();
   const navigate = useNavigate();
   const [editing, setEditing] = useState<Mailbox | null>(null);
   const [deleting, setDeleting] = useState<Mailbox | null>(null);
@@ -98,7 +99,12 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
     <>
       {/* R39 premium pass 5: each mailbox a card with a tinted avatar tile, a kind pill and a storage ring. */}
       <ul className="space-y-2" aria-label="Mailboxes" data-testid="mailbox-cards">
-        {data.map((m) => { const locked = m.openable === false; return (
+        {data.map((m) => {
+          const locked = m.openable === false;
+          // PRIV1b (P59): a personal mailbox is suspended or deleted only by its owner; once the owner left, the workspace owner.
+          const orphan = !!m.personal && !!team.data && !team.data.members.some((x) => x.userId === m.ownerUserId);
+          const removable = !m.personal || m.ownerUserId === me.data?.user.id || (orphan && me.data?.organization?.role === "owner");
+          return (
           <li key={m.id}>
             <Card className="flex items-center gap-3 p-3.5 transition-shadow duration-200 hover:shadow-[var(--shadow-e2)] motion-reduce:transition-none sm:gap-4" data-testid="mailbox-card">
               <AvatarTile label={initials(m.displayName)} name={m.address} />
@@ -120,10 +126,10 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
               <Menu label={`Actions for ${m.address}`} trigger={<button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg sm:h-9 sm:w-9" aria-label={`Actions for ${m.address}`}><IconMore className="h-4 w-4" /></button>}>
                 {!locked && <MenuItem icon={<IconInbox />} onSelect={() => navigate(`/app/mail?mailbox=${m.id}`)}>Open in mail</MenuItem>}
                 {!locked && <MenuItem icon={<IconEdit />} onSelect={() => setEditing(m)}>Edit</MenuItem>}
-                {m.status === "active"
+                {!removable ? null : m.status === "active"
                   ? <MenuItem icon={<IconPause />} onSelect={() => update.mutate({ id: m.id, status: "suspended" })}>Suspend</MenuItem>
                   : <MenuItem icon={<IconPlay />} onSelect={() => update.mutate({ id: m.id, status: "active" })}>Reactivate</MenuItem>}
-                <MenuItem icon={<IconTrash />} danger onSelect={() => setDeleting(m)}>Delete</MenuItem>
+                {removable && <MenuItem icon={<IconTrash />} danger onSelect={() => setDeleting(m)}>Delete</MenuItem>}
               </Menu>
             </Card>
           </li>

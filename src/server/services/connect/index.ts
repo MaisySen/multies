@@ -22,6 +22,7 @@ import { audit } from "../audit";
 import { ensurePlatformDomain } from "../free-address";
 import { getPlan } from "../plans";
 import { canOpen, isPersonalOwner, personalInfo, scopeFor } from "../mail-access-priv1a";
+import { assertMayRemovePersonal } from "../addresses";
 import { CONNECT_PRESETS, cleanAppPassword, presetForEmail, serversFor, type ConnectionLimited, type ConnectionView, type ConnectPresetId, type ConnectProblem, type ServerSettings } from "@/shared/mail-connect";
 import { imapflowConnector, type ImapAuth } from "./imap";
 import { nodeSocketOpenerLazy } from "./default-socket";
@@ -130,7 +131,9 @@ export function present(c: Connection, mb: { address: string; displayName: strin
 /**
  * Who may manage a connection: the person who connected it, or a workspace owner or admin.
  * PRIV1b (P5, P62): on a personal mailbox the mailbox's owner decides, not whoever connected it: only the owner (nobody
- * on an orphan, P9) changes the sign in or the servers ("change"); admins can still remove it.
+ * on an orphan, P9) changes the sign in or the servers ("change").
+ * PRIV1b (P59, round 2 owner decision): and only the owner disconnects it ("remove"); once the owner has left, the
+ * workspace owner may. Someone who can't open it gets 404, a share 403 (assertMayRemovePersonal).
  */
 async function assertCanManage(deps: Deps, auth: AuthContext, c: Connection, what: "change" | "remove") {
   const own = await isPersonalOwner(deps.db, auth, c.mailboxId);
@@ -138,8 +141,9 @@ async function assertCanManage(deps: Deps, auth: AuthContext, c: Connection, wha
     if (c.createdByUserId === auth.userId || auth.role === "owner" || auth.role === "admin") return;
     throw forbidden("Only the person who connected this mailbox, or a workspace admin, can change it.");
   }
-  if (own || (what === "remove" && (auth.role === "owner" || auth.role === "admin"))) return;
-  throw forbidden(what === "remove" ? "Only the person this mailbox belongs to, or a workspace admin, can remove it." : "Only the person this mailbox belongs to can change its sign in.");
+  if (own) return;
+  if (what === "remove") return assertMayRemovePersonal(deps.db, auth.orgId, c.mailboxId, auth);
+  throw forbidden("Only the person this mailbox belongs to can change its sign in.");
 }
 
 /**

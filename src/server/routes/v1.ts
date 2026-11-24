@@ -16,7 +16,7 @@ import { claimFreeAddress } from "../services/free-address";
 import { HttpError, unauthorized } from "../lib/errors";
 import { idempotency, idempotentCreate } from "../lib/idempotency"; // R53: idempotentCreate for webhook endpoints
 import { audit } from "../services/audit";
-import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes, updateMailbox } from "../services/addresses";
+import { assertMayDeleteMailbox, createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes, updateMailbox } from "../services/addresses";
 import { createDomainSchema, mailboxReplyToSchema } from "@/shared/schemas";
 import { resolveApiKey } from "../services/developer/api-keys";
 import { hasScope, insufficientScopeBody, isPresetScope, routeScopeForRequest } from "../lib/api-scopes";
@@ -432,9 +432,10 @@ export function v1Routes() {
   async (c) => {
     const { auth, deps } = c.var;
     const id = c.req.valid("param").id;
+    await assertMayDeleteMailbox(deps.db, auth.orgId, id, auth); // PRIV1b (P59): a personal mailbox only by its owner
     await assertMailboxNotHeld(deps, auth.orgId, id); // R111: a mailbox on legal hold stays
     await deprovisionMailbox(deps, auth.orgId, id);
-    const m = await deleteMailbox(deps.db, auth.orgId, id);
+    const m = await deleteMailbox(deps.db, auth.orgId, id, auth);
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.deleted", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, via: "api" }, ip: c.var.ip });
     return c.json({ deleted: true as const }, 200);
   });

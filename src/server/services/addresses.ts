@@ -5,7 +5,7 @@ import { aliases, domains, mailboxes, members, users } from "../db/schema";
 import { audit } from "./audit";
 import { newId } from "../lib/crypto";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
-import { callerWho, canOpen, isPersonalOwner } from "./mail-access-priv1a";
+import { callerWho, canOpen, isPersonalOwner, personalOwnerState } from "./mail-access-priv1a";
 import type { CallerLike } from "../lib/actor-kind";
 import { assertCanCreate, getPlan } from "./plans";
 import { isOperatorDomainRow, type OperatorConfig } from "./suite/operator-inbox";
@@ -77,12 +77,30 @@ export async function createMailbox(db: DB, orgId: string, input: CreateMailboxI
   return getMailbox(db, orgId, id);
 }
 
-export async function updateMailbox(db: DB, orgId: string, id: string, patch: { displayName?: string; quotaMb?: number; status?: "active" | "suspended"; replyTo?: string | null }, who: CallerLike & { userId: string; role?: "owner" | "admin" | "member" | null }) {
+type Who = CallerLike & { userId: string; role?: "owner" | "admin" | "member" | null };
+
+/**
+ * PRIV1b (P59, round 2 owner decision): only the person a personal mailbox belongs to suspends, deletes or disconnects
+ * it. Once that person has left (an orphan), the workspace owner may. Anyone else who can open it (a share) gets 403;
+ * anyone who can't gets 404, as everywhere in PRIV1a. Team and agent mailboxes are not checked here.
+ */
+export async function assertMayRemovePersonal(db: DB, orgId: string, mailboxId: string, who: Who) {
+  const st = await personalOwnerState(db, callerWho({ ...who, orgId }), mailboxId);
+  if (st === undefined || st === "owner") return;
+  if (st === "orphan" && who.role === "owner") return;
+  if (await canOpen(db, callerWho({ ...who, orgId }), mailboxId, "read")) throw forbidden("Only the person this mailbox belongs to can suspend, delete or disconnect it.");
+  throw notFound("Mailbox");
+}
+
+export async function updateMailbox(db: DB, orgId: string, id: string, patch: { displayName?: string; quotaMb?: number; status?: "active" | "suspended"; replyTo?: string | null }, who: Who) {
   const m = await getMailbox(db, orgId, id);
   // PRIV1b (P7): on a personal mailbox only its owner (nobody on an orphan, P9) sets the name and Reply-To,
-  // so an admin can't route the owner's replies to herself. Admins keep quota and status; elsewhere admins only.
+  // so an admin can't route the owner's replies to herself. Admins keep quota; elsewhere admins only.
+  // PRIV1b (P59): and only its owner (the workspace owner once the owner left) suspends it.
   const admin = who.role === "owner" || who.role === "admin";
-  if ((patch.quotaMb !== undefined || patch.status !== undefined) && !admin) throw forbidden("Only workspace owners and admins can change a mailbox's storage or status.");
+  if (patch.status !== undefined && m.personal) await assertMayRemovePersonal(db, orgId, m.id, who);
+  else if (patch.status !== undefined && !admin) throw forbidden("Only workspace owners and admins can change a mailbox's storage or status.");
+  if (patch.quotaMb !== undefined && !admin) throw forbidden("Only workspace owners and admins can change a mailbox's storage or status.");
   if (patch.displayName !== undefined || patch.replyTo !== undefined) {
     const own = m.personal ? await isPersonalOwner(db, callerWho({ ...who, orgId }), m.id) : undefined;
     // PRIV1b (P7, S3): like the rest of PRIV1a, a personal mailbox the caller can't open answers 404; a share gets 403.
@@ -98,8 +116,19 @@ export async function updateMailbox(db: DB, orgId: string, id: string, patch: { 
   return getMailbox(db, orgId, id);
 }
 
-export async function deleteMailbox(db: DB, orgId: string, id: string) {
+/**
+ * Who may delete this mailbox (before anything is removed, the mail server account included): a team mailbox takes a
+ * workspace owner or admin; a personal one its owner (P59). Returns the mailbox.
+ */
+export async function assertMayDeleteMailbox(db: DB, orgId: string, id: string, who: Who) {
   const m = await getMailbox(db, orgId, id);
+  if (m.personal) await assertMayRemovePersonal(db, orgId, m.id, who);
+  else if (who.role !== "owner" && who.role !== "admin") throw forbidden("Only workspace owners and admins can delete a mailbox.");
+  return m;
+}
+
+export async function deleteMailbox(db: DB, orgId: string, id: string, who: Who) {
+  const m = await assertMayDeleteMailbox(db, orgId, id, who);
   if (m.kind === "agent") throw conflict("This is an agent inbox. Delete the agent instead, from Agents or DELETE /api/v1/agents/{id}.");
   await db.update(domains).set({ catchAllMailboxId: null }).where(eq(domains.catchAllMailboxId, m.id));
   await db.delete(mailboxes).where(eq(mailboxes.id, m.id));
