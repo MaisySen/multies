@@ -13,6 +13,7 @@ import { scopeFor, type Actor } from "../agents";
 import { memoryPresence, presenceKey, type PresenceState, type PresenceStore, type PresenceView } from "../../collab/thread-presence";
 import { notify } from "./notify";
 import { inIds } from "../../lib/sql-chunks";
+import { parseAddressList } from "../mail/address-list"; // Wave 3 (M4)
 
 type Who = Pick<Actor, "orgId" | "userId" | "role" | "agentId">;
 
@@ -75,7 +76,7 @@ export async function listThreadDrafts(deps: Deps, actor: Who, threadId: string)
   const who = await names(deps, [...new Set(rows.map((r) => r.sentByUserId).filter((x): x is string => !!x))]);
   return rows.map((r) => ({
     id: r.id, threadId: r.threadId, mailboxId: r.mailboxId, subject: r.subject, snippet: r.text.slice(0, 280),
-    to: (JSON.parse(r.to) as { address: string }[]).map((a) => a.address),
+    to: parseAddressList(r.to).map((a) => a.address), // Wave 3 (M4)
     author: r.sentByUserId ? { userId: r.sentByUserId, name: who.get(r.sentByUserId) ?? "Someone" } : null,
     mine: r.sentByUserId === actor.userId, updatedAt: r.date.toISOString(),
   }));
@@ -122,9 +123,9 @@ export async function takeOverDraft(deps: Deps, actor: Who & { name?: string }, 
   return {
     draft: {
       id: d.id, threadId: d.threadId, mailboxId: d.mailboxId, subject: d.subject, text: d.text, inReplyTo: d.inReplyTo, inReplyToId: answers?.id ?? null,
-      to: (JSON.parse(d.to) as { address: string }[]).map((a) => a.address),
-      cc: (JSON.parse(d.cc) as { address: string }[]).map((a) => a.address),
-      bcc: (JSON.parse(d.bcc) as { address: string }[]).map((a) => a.address),
+      to: parseAddressList(d.to).map((a) => a.address), // Wave 3 (M4)
+      cc: parseAddressList(d.cc).map((a) => a.address),
+      bcc: parseAddressList(d.bcc).map((a) => a.address),
     },
     previousAuthorId: previous && previous !== actor.userId ? previous : null,
   };

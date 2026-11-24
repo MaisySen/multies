@@ -11,6 +11,7 @@ import { assertWritable, createdBy, iso, scopeOf, parseDate, recordWrite, sortab
 import { addressNeedle, containsLower, inIds } from "../../lib/sql-chunks";
 import { containsAny } from "../../lib/like-search";
 import { withheldRow, withoutSecrets } from "../agents/platform-mail"; // Round 2 (PR 23)
+import { parseAddressList } from "../mail/address-list"; // Wave 3 (M4)
 
 const FREE_MAIL = new Set([
   "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.com.au", "live.com", "live.com.au", "msn.com", "yahoo.com", "yahoo.com.au", "ymail.com",
@@ -128,7 +129,7 @@ export async function backfillContacts(deps: Deps, orgId: string, opts: { force?
     else agg.set(email, { name: name ?? "", count: 1, first: at, last: at });
   };
   for (const r of rows) {
-    if (r.folder === "sent") for (const x of [...JSON.parse(r.to), ...JSON.parse(r.cc)] as { address: string; name?: string }[]) add(x.address, x.name, r.date);
+    if (r.folder === "sent") for (const x of [...parseAddressList(r.to), ...parseAddressList(r.cc)]) add(x.address, x.name, r.date); // Wave 3 (M4)
     else add(r.fromAddress, r.fromName, r.date);
   }
   let created = 0;

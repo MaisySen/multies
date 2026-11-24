@@ -34,6 +34,7 @@ import { safeSnippet, withheldRow, withheldSql, withheldView } from "./platform-
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
 import { containsAny } from "../../lib/like-search";
+import { parseAddressList } from "../mail/address-list"; // Wave 3 (M4)
 import { callerKind, isPersonSession, requirePerson } from "../../lib/actor-kind";
 
 type Agent = typeof agents.$inferSelect;
@@ -745,8 +746,8 @@ export async function replyInThread(deps: Deps, actor: Actor, agentId: string, t
   const last = rows.find((m) => m.folder !== "sent") ?? rows[0];
   if (!last) throw notFound("Thread");
   const own = (await deps.db.select({ address: mailboxes.address }).from(mailboxes).where(eq(mailboxes.id, last.mailboxId)).get())!.address;
-  const replyTo = last.folder === "sent" ? (JSON.parse(last.to) as { address: string }[]).map((t) => t.address) : [last.replyTo ?? last.fromAddress];
-  const others = input.replyAll ? [...(JSON.parse(last.to) as { address: string }[]), ...(JSON.parse(last.cc) as { address: string }[])].map((t) => t.address) : [];
+  const replyTo = last.folder === "sent" ? parseAddressList(last.to).map((t) => t.address) : [last.replyTo ?? last.fromAddress]; // Wave 3 (M4)
+  const others = input.replyAll ? [...parseAddressList(last.to), ...parseAddressList(last.cc)].map((t) => t.address) : [];
   const cc = [...new Set(others.map((x) => x.toLowerCase()))].filter((x) => x !== own && !replyTo.map((r) => r.toLowerCase()).includes(x));
   const subject = /^re:/i.test(last.subject) ? last.subject : `Re: ${last.subject}`;
   return requestSend(deps, actor, agentId, { mailboxId: input.mailboxId ?? last.mailboxId, to: replyTo, cc: cc.length ? cc : undefined, subject, text: input.text, html: input.html, inReplyToId: last.id });

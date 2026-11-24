@@ -2,10 +2,11 @@ import { and, desc, eq, lt, or, sql, type SQL } from "drizzle-orm";
 import type { DB } from "../../db";
 import { attachments, mailboxDelegations, mailboxes, mailConnections, messages } from "../../db/schema";
 import { notFound } from "../../lib/errors";
-import type { Address, Folder } from "@/shared/mail";
+import type { Folder } from "@/shared/mail";
 import { inIds } from "../../lib/sql-chunks";
 import { PENDING_FROM } from "./pending-from";
 import { containsAny } from "../../lib/like-search";
+import { parseAddressList } from "./address-list";
 
 type Row = typeof messages.$inferSelect;
 
@@ -13,7 +14,7 @@ export function presentListItem(m: Row) {
   return {
     id: m.id, mailboxId: m.mailboxId, folder: m.folder, threadId: m.threadId,
     from: { address: m.fromAddress, name: m.fromName || undefined },
-    to: JSON.parse(m.to) as Address[],
+    to: parseAddressList(m.to), // Wave 3 (M4): the documented shape, whatever the row holds
     subject: m.subject, snippet: m.snippet, date: m.date, isRead: m.isRead, isStarred: m.isStarred, hasAttachments: m.hasAttachments,
     sentByAgentId: m.sentByAgentId ?? null,
     /** Round 19: the provider folder a connected mailbox's message is in (a folder key), or null. */
@@ -26,8 +27,8 @@ export function presentListItem(m: Row) {
 export function presentMessage(m: Row, atts: (typeof attachments.$inferSelect)[] = []) {
   return {
     ...presentListItem(m),
-    cc: JSON.parse(m.cc) as Address[],
-    bcc: JSON.parse(m.bcc) as Address[],
+    cc: parseAddressList(m.cc),
+    bcc: parseAddressList(m.bcc),
     replyTo: m.replyTo,
     text: m.text,
     html: m.html,

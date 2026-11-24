@@ -17,6 +17,7 @@ import { admittedGuest, cleanGuestName } from "./meeting-lobby-r32";
 import { vtimezone } from "./vtimezone";
 import { closedReason, shownStatus } from "./meeting-open-meet";
 import { assertZone, describeRecurrence, expandWeekly, normaliseRecurrence, parseRrule, toRrule, weekdayIn, type Recurrence, type RecurrenceInput } from "./meeting-recurrence";
+import { parseAddressList } from "../mail/address-list"; // Wave 3 (M4)
 
 type MeetingRow = typeof meetings.$inferSelect;
 export type MeetingSource = { type: "thread" | "task" | "contact"; id: string };
@@ -150,7 +151,7 @@ async function fromSource(deps: Deps, actor: SuiteActor, s: MeetingSource) {
     const guests = new Set<string>();
     for (const m of visible) {
       if (m.folder !== "sent") guests.add(m.fromAddress.toLowerCase());
-      else for (const t of JSON.parse(m.to) as { address: string }[]) guests.add(t.address.toLowerCase());
+      else for (const t of parseAddressList(m.to)) guests.add(t.address.toLowerCase()); // Wave 3 (M4)
     }
     return { title: visible[0].subject.replace(/^(re|fwd?):\s*/i, "") || "Meeting", invitees: [...guests].filter((g) => !own.has(g)), mailboxId: visible[0].mailboxId, sourceId: s.id };
   }

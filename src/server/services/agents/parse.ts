@@ -5,7 +5,7 @@
  */
 import EmailReplyParser from "email-reply-parser";
 import type { attachments, messages } from "../../db/schema";
-import type { Address } from "@/shared/mail";
+import { parseAddressList } from "../mail/address-list"; // Wave 3 (M4)
 
 type Row = typeof messages.$inferSelect;
 type Att = typeof attachments.$inferSelect;
@@ -58,8 +58,8 @@ export function agentMessage(m: Row, atts: Att[], origin: string, info?: SenderI
     folder: m.folder,
     direction: m.folder === "sent" || m.folder === "drafts" ? "outbound" as const : "inbound" as const,
     from: { address: m.fromAddress, name: m.fromName || undefined },
-    to: JSON.parse(m.to) as Address[],
-    cc: JSON.parse(m.cc) as Address[],
+    to: parseAddressList(m.to), // Wave 3 (M4)
+    cc: parseAddressList(m.cc),
     replyTo: m.replyTo,
     subject: m.subject,
     date: new Date(m.date).toISOString(),
