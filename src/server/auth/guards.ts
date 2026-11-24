@@ -95,6 +95,9 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
       if (refCode) await ref.recordReferralSignup(deps, { orgId, userId: s.user.id, email: s.user.email, code: refCode });
     }
   }
+  // Round 2 (PR 23): a paused member (an AI agent member, or the twin of a paused agent) has no session either, as its
+  // keys are refused (api-keys.ts). The member row is already loaded: no extra read.
+  if (member.disabledAt) throw new HttpError(403, "member_paused", "This member is paused in this workspace. An admin can resume it in Team.");
   if (member.organizationId !== s.session.activeOrganizationId) {
     await db.update(sessions).set({ activeOrganizationId: member.organizationId }).where(eq(sessions.id, s.session.id));
   }

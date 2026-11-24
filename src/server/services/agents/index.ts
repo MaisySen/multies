@@ -6,10 +6,10 @@
  * sends before they leave), the plan's monthly agent message allowance, and an audit log
  * entry for everything an agent does.
  */
-import { and, asc, count, desc, eq, gt, gte, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
-  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals, users,
+  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, members, messages, sendApprovals, users,
 } from "../../db/schema";
 
 /** Agent thread reads are audited once per agent, thread, key or connected app (AIS1) and hour. */
@@ -336,7 +336,7 @@ export interface UpdateAgentInput {
 
 export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: UpdateAgentInput) {
   assertWorkspaceActor(actor);
-  const { a } = await row(deps, actor.orgId, id);
+  const { a, mb } = await row(deps, actor.orgId, id);
   const held = patch.mailboxIds ? new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id)) : new Set<string>();
   // AIS1 (row 4): a key or a connected AI app may only tighten an agent. Checked before any write, the whole patch refused.
   await refuseLoosening(deps, actor, looserFields(a, patch, held), { action: "agent.update_refused", agentId: a.id });
@@ -359,6 +359,13 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
   };
   // AIS1: a patch of only mailboxIds (taking a mailbox away) has nothing to set on the agent row.
   if (Object.keys(set).length) await deps.db.update(agents).set(set).where(eq(agents.id, a.id));
+  // Round 2 (PR 23): pausing an agent also pauses its member twin(s): an AI agent member linked to it, or one that signs
+  // in with its inbox address. Their keys and sessions stop until an admin resumes the member; resuming the agent
+  // doesn't resume them (a person decides each). One update, only when the agent goes from active to paused.
+  if (patch.status === "paused" && a.status !== "paused") {
+    await deps.db.update(members).set({ disabledAt: deps.now() }).where(and(eq(members.organizationId, actor.orgId), isNull(members.disabledAt),
+      or(eq(members.linkedAgentId, a.id), sql`${members.userId} in (select ${users.id} from ${users} where ${users.email} = ${mb.address.toLowerCase()})`)));
+  }
   if (patch.name) await deps.db.update(mailboxes).set({ displayName: patch.name }).where(eq(mailboxes.id, a.mailboxId));
   if (patch.mailboxIds) {
     const ids = [...new Set(patch.mailboxIds.filter((m) => m !== a.mailboxId))];
