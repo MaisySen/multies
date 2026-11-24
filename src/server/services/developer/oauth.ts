@@ -102,6 +102,28 @@ export async function getClient(deps: Deps, clientId: string) {
 
 export interface AuthorizeRequest { client_id?: string; redirect_uri?: string; response_type?: string; code_challenge?: string; code_challenge_method?: string; scope?: string; state?: string; resource?: string }
 
+/** Keys that must appear once. RFC 6749 section 3.1: request parameters must not be included more than once. */
+const SINGLE_AUTHORIZE_KEYS = ["client_id", "redirect_uri", "response_type", "code_challenge", "code_challenge_method", "state", "resource"] as const;
+
+/**
+ * Reads an authorisation request from its query string. The consent screen (GET) and Allow or Cancel (POST)
+ * both read the raw link with this, so what is approved is exactly what was shown: a repeated client_id,
+ * redirect_uri or code_challenge is refused instead of one side reading the first value and the other the last.
+ * A repeated `scope` is joined.
+ */
+export function parseAuthorizeQuery(params: URLSearchParams): AuthorizeRequest {
+  const q: Record<string, string> = {};
+  for (const key of new Set(params.keys())) {
+    const all = params.getAll(key);
+    if (key === "scope") { q.scope = all.join(" "); continue; }
+    if (all.length > 1 && (SINGLE_AUTHORIZE_KEYS as readonly string[]).includes(key)) {
+      throw new OAuthError(400, "invalid_request", `This sign in link repeats ${key}. Start again from the app you are connecting.`);
+    }
+    q[key] = all[0] ?? "";
+  }
+  return q as AuthorizeRequest;
+}
+
 /**
  * Checks an authorisation request. Errors that make the redirect URI untrustworthy are shown to the
  * person (never redirected); the rest go back to the client as ?error=.

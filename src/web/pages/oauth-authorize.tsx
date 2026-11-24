@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { IconAgent, IconCheck, IconEye, IconPencilLine, IconShieldCheck } from "@/web/components/ui/icon";
@@ -23,14 +23,8 @@ interface Info {
 export function OAuthAuthorizePage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const request = useMemo(() => {
-    const o: Record<string, string> = {};
-    for (const key of new Set(params.keys())) {
-      const all = params.getAll(key);
-      o[key] = key === "scope" ? all.join(" ") : all[all.length - 1] ?? "";
-    }
-    return o;
-  }, [params]);
+  // The raw link goes to the server on both the consent read and Allow, so the server reads one request the same
+  // way both times (a repeated client_id or redirect_uri is refused there) and the page never picks a value itself.
   const qs = params.toString();
   const info = useQuery({ queryKey: ["oauth-authorize", qs], queryFn: () => api.get<Info>(`/oauth/authorize?${qs}`), retry: false });
   const [orgId, setOrgId] = useState("");
@@ -42,7 +36,7 @@ export function OAuthAuthorizePage() {
     if (info.error instanceof ApiError && info.error.status === 401) navigate(`/login?next=${encodeURIComponent(`/oauth/authorize?${qs}`)}`, { replace: true });
   }, [info.error, navigate, qs]);
   const decide = useMutation({
-    mutationFn: (decision: "allow" | "deny") => api.post<{ redirectTo: string }>("/oauth/authorize", { decision, orgId, scope, request }),
+    mutationFn: (decision: "allow" | "deny") => api.post<{ redirectTo: string }>("/oauth/authorize", { decision, orgId, scope, query: qs }),
     onSuccess: (r) => { window.location.assign(r.redirectTo); },
   });
 

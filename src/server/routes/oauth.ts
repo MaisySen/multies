@@ -10,19 +10,16 @@ import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
 import {
-  OAuthError, approve, authorizationServerMetadata, checkAuthorizeRequest, deny, listGrants, protectedResourceMetadata, registerClient, revokeGrant, revokeToken, token, workspacesFor,
+  OAuthError, approve, authorizationServerMetadata, checkAuthorizeRequest, deny, listGrants, parseAuthorizeQuery, protectedResourceMetadata, registerClient, revokeGrant, revokeToken, token, workspacesFor,
   type AuthorizeRequest,
 } from "../services/developer/oauth";
 import { writeBudget } from "../services/write-budget";
 import { HttpError } from "../lib/errors";
 import { ssoBlocks } from "../auth/session";
 
-/** Every `scope` value, so `scope=mcp:read&scope=mcp:write` is not collapsed to one word. */
+/** The raw link, read the same way on GET and POST (parseAuthorizeQuery refuses repeated keys and joins `scope`). */
 function authorizeQuery(c: Context<AppEnv>): AuthorizeRequest {
-  const q = { ...c.req.query() } as AuthorizeRequest;
-  const scopes = c.req.queries("scope");
-  if (scopes?.length) q.scope = scopes.join(" ");
-  return q;
+  return parseAuthorizeQuery(new URL(c.req.url).searchParams);
 }
 
 const origin = (c: Context<AppEnv>) => {
@@ -101,9 +98,8 @@ export function oauthRoutes() {
 
   // Consent: what the sign in page shows.
   r.get("/authorize", requireAuth, async (c) => {
-    const q = authorizeQuery(c);
     try {
-      const req = await checkAuthorizeRequest(c.var.deps, q);
+      const req = await checkAuthorizeRequest(c.var.deps, authorizeQuery(c));
       const workspaces = (await workspacesFor(c.var.deps, c.var.auth.userId)).filter((w) => !w.suspendedAt)
         // PRIV1b (P41): say up front which workspaces this sign in can't connect, instead of a 403 after Allow.
         .map((w) => ({ id: w.id, name: w.name, role: w.role, ssoRequired: ssoBlocks(w.requireSso, w.role, c.var.auth.loginMethod) }));
@@ -119,12 +115,16 @@ export function oauthRoutes() {
   r.post("/authorize", requireAuth, async (c) => {
     const input = await parseBody(c, z.object({
       decision: z.enum(["allow", "deny"]), orgId: z.string().max(64).optional(), scope: z.enum(["read", "full"]).default("full"),
-      request: z.record(z.string(), z.string().max(4000)),
-    }));
+      // The consent page sends the raw link (`query`), which the server reads exactly as GET did. `request` (one value per key) is kept for older pages and API callers.
+      query: z.string().max(8000).optional(),
+      request: z.record(z.string(), z.string().max(4000)).optional(),
+    }).refine((b) => b.query !== undefined || b.request !== undefined, { message: "Send the sign in request." }));
     const { deps, auth } = c.var;
     try {
-      if (input.decision === "deny") return c.json(await deny(deps, input.request));
-      const out = await approve(deps, auth, input.request, { orgId: input.orgId ?? auth.orgId, scope: input.scope }, origin(c));
+      // Both paths go back through checkAuthorizeRequest inside approve() and deny().
+      const request: AuthorizeRequest = input.query !== undefined ? parseAuthorizeQuery(new URLSearchParams(input.query)) : input.request!;
+      if (input.decision === "deny") return c.json(await deny(deps, request));
+      const out = await approve(deps, auth, request, { orgId: input.orgId ?? auth.orgId, scope: input.scope }, origin(c));
       await audit(deps.db, { orgId: out.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "oauth.connected", targetType: "oauth_grant", targetId: out.grantId, metadata: { scope: out.scope }, ip: c.var.ip });
       return c.json({ redirectTo: out.redirectTo });
     } catch (e) {
