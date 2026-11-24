@@ -38,6 +38,8 @@ export interface ComposeDraft {
   text: string;
   inReplyToId?: string;
   draftId?: string;
+  /** Round 2 (PR 23): the message a Forward forwards, so the server keeps Multies' own mail marked. */
+  forwardOfId?: string;
   /** Round 22: the thread a reply belongs to, for live presence ("Maya is also replying"). */
   threadId?: string;
   /** Tools P2: Tools results to send as attachments (download tokens; the server reads them from the engine at send time). */
@@ -150,6 +152,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     const message = {
       mailboxId: snapshot.mailboxId, to: splitAddrs(snapshot.to), cc: splitAddrs(snapshot.cc), bcc: splitAddrs(snapshot.bcc),
       subject: snapshot.subject, text: snapshot.text, inReplyToId: snapshot.inReplyToId, draftId: snapshot.draftId,
+      ...(snapshot.forwardOfId ? { forwardOfId: snapshot.forwardOfId } : {}),
       ...(snapshot.toolFiles?.length ? { toolFiles: snapshot.toolFiles.map((f) => f.token) } : {}),
     };
     const remind = remindDays;

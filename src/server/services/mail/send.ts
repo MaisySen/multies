@@ -22,7 +22,7 @@ import type { DeliverJobPayload } from "./deliver-job";
 import "./deliver-job";
 import { countNewRecipients, maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_FLAG_AT, SPAM_HOLD_AT } from "../abuse";
 import { makeSnippet, type ParsedAttachment } from "./mime";
-import { storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
+import { NOT_FORWARDED_TO_AGENT, storedAuth, withheldRow, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
 
 /** Most recipients one message from a free address can have. */
 export const FREE_MAX_RECIPIENTS = 10;
@@ -127,6 +127,22 @@ async function assertAgentInboxSend(db: DB, auth: AuthContext, mb: { id: string;
   throw new HttpError(403, "agent_inbox", `${mb.address} is an agent's inbox. Send as the agent instead (${where}, or send_email on MCP), so its approval rule, daily limit and allowed recipients apply.`);
 }
 
+/**
+ * Round 2 (PR 23): the mark a forward carries. When the forwarded message (one the caller can read) is Multies' own
+ * mail, "system", and a recipient that reaches an AI agent is refused before anything is written. One read of the
+ * message, and the agent check per recipient only for such mail.
+ */
+async function forwardedMark(deps: Deps, auth: AuthContext, input: SendMessageInput): Promise<PlatformMark | undefined> {
+  const src = await deps.db.select({ authResults: messages.authResults, fromAddress: messages.fromAddress, mailboxId: messages.mailboxId }).from(messages)
+    .where(and(eq(messages.id, input.forwardOfId!), eq(messages.orgId, auth.orgId))).get();
+  if (!src || !(await canOpen(deps.db, auth, src.mailboxId, "read")) || !withheldRow(src, deps.config.systemFrom.address)) return undefined;
+  const { agentAddress } = await import("../agents/agent-address");
+  for (const to of new Set([...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])].map((x) => x.toLowerCase()))) {
+    if (await agentAddress(deps.db, to)) throw new HttpError(422, "platform_mail_to_agent", `${NOT_FORWARDED_TO_AGENT} Remove ${to} and send again.`);
+  }
+  return "system";
+}
+
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */
 /** PRIV1b (P58): the refusal for a connected mailbox whose connection is gone (kept for a legal hold). */
 const connectionRemoved = (address: string) => new HttpError(409, "connection_removed", `${address} is no longer connected, so it can't send. Connect it again in Settings, Connections, Mail accounts.`);
@@ -136,6 +152,9 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const mb = await db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
   if (!mb) throw notFound("Mailbox");
   await assertAgentInboxSend(db, auth, mb, extra); // AIS1
+  // Round 2 (PR 23): a person forwarding Multies' own mail (an invite, a reset) from Compose: never to an AI agent, and
+  // the copies keep the mark, as a mail rule's forward does (rules-r85.ts).
+  if (input.forwardOfId && !extra.platformMail) extra = { ...extra, platformMail: await forwardedMark(deps, auth, input) };
   // PRIV1a (MB-366): a personal mailbox sends only for its owner and the people it was shared with (a reply needs
   // Read and reply, new mail needs Send as). Every send path (app, phone, REST, MCP, schedules) comes through here.
   // PRIV1b (P10): a reply share answers the thread's own people only (assertSendLevel).

@@ -757,7 +757,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
     });
   };
   const forward = () => onCompose({
-    mailboxId: last.mailboxId, to: "", subject: /^fwd?:/i.test(last.subject) ? last.subject : `Fwd: ${last.subject}`,
+    mailboxId: last.mailboxId, to: "", forwardOfId: last.id, subject: /^fwd?:/i.test(last.subject) ? last.subject : `Fwd: ${last.subject}`,
     text: `\n\n---------- Forwarded message ----------\nFrom: ${last.from.name ? `${last.from.name} <${last.from.address}>` : last.from.address}\nDate: ${fullDate(last.date)}\nSubject: ${last.subject}\nTo: ${last.to.map((t) => t.address).join(", ")}\n\n${last.text}`,
   });
 

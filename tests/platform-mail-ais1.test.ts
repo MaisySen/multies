@@ -229,6 +229,31 @@ describe("AIS1 row 32 (review): a forward never hands the platform's own mail to
     expect(JSON.stringify((await owner.get(`/api/mail/messages/${inTeam.id}`)).body)).toContain(SECRET);
   });
 
+  it("Round 2 (PR 23): a person's Forward from Compose keeps the mark and is refused to an AI agent", async () => {
+    const hello = (await owner.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox.id as string;
+    const team = (await owner.post("/api/mailboxes", { domainId, localPart: "team", displayName: "Team" })).body.mailbox.id as string;
+    await resetMail("hello@acme.io");
+    const src = (await ctx.db.select().from(messages).where(eq(messages.mailboxId, hello)).all()).find((m) => /password/i.test(m.subject))!;
+    const body = (to: string[]) => ({ mailboxId: hello, to, subject: `Fwd: ${src.subject}`, text: `---------- Forwarded message ----------\n${src.text}`, forwardOfId: src.id });
+    const refused = await owner.post("/api/mail/send", body(["agent@acme.io"]));
+    expect(refused.status).toBe(422);
+    expect(refused.body.error.code).toBe("platform_mail_to_agent");
+    expect(await ctx.db.select().from(messages).where(eq(messages.subject, `Fwd: ${src.subject}`))).toEqual([]);
+    expect((await owner.post("/api/mail/send", body(["team@acme.io"]))).status).toBe(201);
+    const copies = await ctx.db.select().from(messages).where(eq(messages.subject, `Fwd: ${src.subject}`));
+    expect(copies.map((m) => m.mailboxId).sort()).toEqual([hello, team].sort());
+    for (const m of copies) {
+      expect(JSON.parse(m.authResults!)).toMatchObject({ platform: "system" });
+      const read = await api(wsKey, "GET", `/messages/${m.id}`);
+      expect(read.body.withheld).toBe("platform_mail");
+      expect(JSON.stringify(read.body)).not.toContain(SECRET);
+    }
+    // An ordinary message's forward is ordinary mail.
+    await outside("hello@acme.io", "friend@example.com", "Lunch", "Friday?");
+    const lunch = (await ctx.db.select().from(messages).where(eq(messages.subject, "Lunch")).get())!;
+    expect((await owner.post("/api/mail/send", { mailboxId: hello, to: ["agent@acme.io"], subject: "Fwd: Lunch", text: "Friday?", forwardOfId: lunch.id })).status).toBe(201);
+  });
+
   it("an alias never forwards it out to another workspace's agent; a plain outside address still gets it", async () => {
     const other = new Client(ctx.app);
     await other.signup("boss@beta.test", "Beta Boss");

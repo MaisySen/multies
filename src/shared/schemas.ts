@@ -72,6 +72,8 @@ export const sendMessageSchema = z.object({
   html: z.string().max(2_000_000).optional(),
   inReplyToId: z.string().optional(),
   draftId: z.string().optional(),
+  // Round 2 (PR 23): the message this one forwards (Compose's Forward), so Multies' own mail keeps its mark when forwarded.
+  forwardOfId: z.string().max(64).optional(),
   // MB-61: where replies go (for example a support inbox when sending from no-reply@).
   replyTo: emailSchema.optional(),
   // Tools P2: Tools results to attach (download tokens; read from the document engine at send time).
