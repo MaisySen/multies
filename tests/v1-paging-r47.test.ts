@@ -7,13 +7,14 @@ describe("public task list paging", () => {
     const ctx = await makeTestApp();
     const c = new Client(ctx.app);
     await c.signup("owner@acme.io", "Olive Owner");
-    // AIS1: a key's task waits in Triage when the project uses it (new projects do); this first project has it off.
-    await c.post("/api/projects", { name: "Work", triage: false });
+    // AIS1: a key's task waits in Triage when the project uses it (new projects do); this project has it off and the
+    // calls name it (Round 2: a key's task that names no project always waits).
+    const projectId = (await c.post("/api/projects", { name: "Work", triage: false })).body.project.id as string;
     const key = (await c.post("/api/developer/keys", { name: "rw" })).body.secret as string;
     const h = { host: "localhost", authorization: `Bearer ${key}` };
     const made: string[] = [];
     for (let i = 0; i < 7; i++) {
-      const r = await ctx.app.request("/api/v1/tasks", { method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify({ title: `Task ${i}` }) });
+      const r = await ctx.app.request("/api/v1/tasks", { method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify({ title: `Task ${i}`, projectId }) });
       expect(r.status).toBe(201);
       made.push(((await r.json()) as { task: { id: string } }).task.id);
     }

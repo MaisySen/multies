@@ -328,6 +328,8 @@ waiting under a waiting item (`PATCH /tasks/{id}` with `parentId`: 403 `person_o
 own waiting repeating task the next one waits too. A key or an AI app can't move a task from a project with Triage off into one
 with Triage on (`PATCH /tasks/{id}` or `POST /tasks/bulk` with `projectId`: 403 `person_only`, nothing changes)
 unless it waits in Triage or a person accepted it there; it can make the task in that project, where it waits.
+A key's or an AI app's task that names no project and no parent lands in the workspace's first project and always
+waits in Triage there, whatever that project's setting.
 When a key or an AI app turned Triage on for a project itself, that project counts as Triage off for the tasks
 made there before, so a key can't move them onto a checked board that way either.
 It is on for every new project, made in the app, by a key (`POST /projects`), from a template, by an import

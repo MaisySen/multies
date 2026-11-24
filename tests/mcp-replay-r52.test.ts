@@ -11,8 +11,9 @@ async function setup() {
   const t = await makeTestApp();
   const c = new Client(t.app);
   await c.signup("owner.mcp52@acme.io", "Olive Owner");
-  // AIS1: a key's task with no project goes to the first project; this one has Triage off, so it shows in list_tasks.
-  await c.post("/api/projects", { name: "Work", triage: false });
+  // AIS1: a key's task waits in Triage when its project uses it. This project has Triage off and the calls below name
+  // it, so a task shows in list_tasks. Round 2: a key's task that names no project always waits.
+  const projectId = (await c.post("/api/projects", { name: "Work", triage: false })).body.project.id as string;
   const secret = (await c.post("/api/developer/keys", { name: "mcp" })).body.secret as string;
   const rpc = async (method: string, params: unknown, id: number, extra: Record<string, string> = {}) => {
     const r = await t.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${secret}`, "content-type": "application/json", accept: "application/json, text/event-stream", ...extra },
@@ -26,7 +27,7 @@ async function setup() {
   const db = t.db as unknown as { all: (q: unknown) => { n: number }[] };
   const tasks = () => db.all(sql`select count(*) as n from tasks where deleted_at is null`)[0]!.n;
   const call = (name: string, args: unknown, id: number, extra: Record<string, string> = {}) => rpc("tools/call", { name, arguments: args }, id, extra);
-  return { rpc, call, tasks };
+  return { rpc, call, tasks, projectId };
 }
 const payload = (r: { json: { result?: { content?: { text: string }[] } } }) => JSON.parse(r.json.result!.content![0]!.text) as Record<string, unknown>;
 
@@ -57,11 +58,11 @@ describe("POST /mcp replay (R52 MB-239)", () => {
   });
 
   it("a read call is unaffected: without a key it answers fresh each time, and a write in between shows", async () => {
-    const { call } = await setup();
+    const { call, projectId } = await setup();
     const one = await call("list_tasks", {}, 10);
     expect(one.replayed).toBe(false);
     const n1 = JSON.stringify(payload(one)).length;
-    await call("create_task", { title: "Shows up" }, 11);
+    await call("create_task", { title: "Shows up", projectId }, 11);
     const two = await call("list_tasks", {}, 10);
     expect(two.replayed).toBe(false);
     expect(JSON.stringify(payload(two))).toContain("Shows up");

@@ -58,7 +58,7 @@ export const RepeatRule = z.object({
 export const TaskCreate = z.object({
   title: z.string().trim().min(1).max(300).openapi({ example: "Send Harbour Coffee the revised quote" }),
   notes: z.string().max(50_000).optional(),
-  projectId: z.string().optional().openapi({ description: "Defaults to the workspace's first project." }),
+  projectId: z.string().optional().openapi({ description: "Defaults to the workspace's first project. A task an API key or an AI app makes without one always waits in Triage there." }),
   statusId: z.string().optional(), status: Category.optional(),
   assignee: AssigneeRef, assigneeId: AssigneeRef,
   priority: Priority.optional(), start: date, due: date,

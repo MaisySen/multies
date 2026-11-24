@@ -26,12 +26,13 @@ describe("lazily built public API", () => {
     const { app } = await makeTestApp();
     const c = new Client(app);
     await c.signup("dev@acme.io");
-    // AIS1: a key's task waits in Triage when the project uses it (new projects do); this first project has it off.
-    await c.post("/api/projects", { name: "Work", triage: false });
+    // AIS1: a key's task waits in Triage when the project uses it (new projects do); this project has it off and the
+    // call names it (Round 2: a key's task that names no project always waits).
+    const projectId = (await c.post("/api/projects", { name: "Work", triage: false })).body.project.id as string;
     const key = (await c.post("/api/developer/keys", { name: "QA", scopes: ["read", "write"] })).body;
     const token = key.key ?? key.token ?? key.secret;
     expect(typeof token).toBe("string");
-    const res = await app.request("/api/v1/tasks", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ title: "From the API" }) });
+    const res = await app.request("/api/v1/tasks", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ title: "From the API", projectId }) });
     expect(res.status).toBe(201);
     const list = await app.request("/api/v1/tasks", { headers: { host: "localhost", authorization: `Bearer ${token}` } });
     expect(JSON.stringify(await list.json())).toContain("From the API");

@@ -684,7 +684,9 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
   let spec = input.triage !== undefined ? input.triage : machine;
   // Round 2 (PR 24): with "AI and API tasks always wait in Triage" on, a machine's task waits in every project. One read
   // of the workspace row, only for a machine's task in a project with Triage off.
-  if (spec && machine && spec.when !== "always" && !project.triage && await machineTriageAlways(deps, actor.orgId)) spec = { ...spec, when: "always" };
+  // Round 2 (PR 24): a machine's task that names no project and no parent lands in the oldest project, whose setting
+  // nobody chose for it, so it always waits there.
+  if (spec && machine && spec.when !== "always" && !project.triage && ((!input.projectId && !input.parentId) || await machineTriageAlways(deps, actor.orgId))) spec = { ...spec, when: "always" };
   const triage = spec && (!input.parentId || machine) && (spec.when === "always" || project.triage) ? spec : null;
   const now = deps.now();
   // Claim the next number in the project. The unique index on (project, number) guards races.

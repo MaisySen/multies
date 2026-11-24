@@ -54,10 +54,11 @@ describe("suite over the REST API", () => {
       email: { messageId: "<q1@bondisurf.com.au>", from: { address: "ravi@bondisurf.com.au", name: "Ravi" }, to: [{ address: "hello@acme.io" }], cc: [], subject: "Wetsuit order", text: "Need 20 by Friday.", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
     });
     const msg = (await api(wsKey, "GET", `/messages?mailboxId=${mailboxId}`)).body.data?.[0] ?? (await api(wsKey, "GET", `/messages?mailboxId=${mailboxId}`)).body.messages?.[0];
-    // AIS1: a key's task waits in Triage when the project uses it (new projects do). The first project here has it
-    // off, so the key's task lands there and goes straight to the list this test reads.
-    await c.post("/api/projects", { name: "Orders", triage: false });
-    const t = await api(wsKey, "POST", "/tasks/from-email", { messageId: msg.id, priority: "urgent" });
+    // AIS1: a key's task waits in Triage when the project uses it (new projects do). This project has it off and the
+    // call names it, so the key's task goes straight to the list this test reads. Round 2: one that names no project
+    // always waits.
+    const orders = (await c.post("/api/projects", { name: "Orders", triage: false })).body.project.id as string;
+    const t = await api(wsKey, "POST", "/tasks/from-email", { messageId: msg.id, priority: "urgent", projectId: orders });
     expect(t.status).toBe(201);
     expect(t.body.task).toMatchObject({ title: "Wetsuit order", priority: "urgent", createdBy: { type: "member" } });
     const moved = await api(wsKey, "PATCH", `/tasks/${t.body.task.ref}`, { status: "doing" });
