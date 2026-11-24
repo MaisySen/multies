@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { FakeImapServer, FakeSmtpServer, rawMail } from "./fake-mail-servers";
-import { mailConnections, mailboxes, messages, users } from "@/server/db/schema";
+import { mailConnections, mailLegalHolds, mailboxes, messages, users } from "@/server/db/schema";
 import { PENDING_CONNECTION_MS, pruneUnverifiedConnections } from "@/server/services/connect";
 import { storeMessage } from "@/server/services/mail/store";
 
@@ -79,10 +79,13 @@ describe("X6: the 24 hour drop keeps a mailbox that holds mail or a hold", () =>
     expect((await ctx.db.select().from(messages).where(eq(messages.mailboxId, row.mailboxId)).all()).map((m) => m.subject)).toEqual(["KEEP-ME"]);
   });
 
+  // Wave 3 review Y6 (deliberate change): a hold can no longer be placed on a waiting mailbox (409), so this one is
+  // written directly, as a hold placed before that fix. It still stays, suspended (and now off the address).
   it("one under a legal hold stays, suspended", async () => {
     const row = await waiting();
     const hold = await c.post("/api/mail-archive/holds", { kind: "mailbox", targetId: row.mailboxId, name: "Matter" });
-    expect(hold.status).toBe(200);
+    expect(hold.status).toBe(409);
+    await ctx.db.insert(mailLegalHolds).values({ id: "hold_x6", orgId: row.orgId, kind: "mailbox", targetId: row.mailboxId, name: "Matter", createdAt: new Date() } as never);
     await later(() => pruneUnverifiedConnections(ctx.deps));
     expect((await box(row.mailboxId))?.status).toBe("suspended");
   });

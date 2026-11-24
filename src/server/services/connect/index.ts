@@ -329,10 +329,26 @@ export async function pruneUnverifiedConnections(deps: Deps, limit = 50): Promis
  * hold (mail got in some other way): it stays too, suspended. Two reads, only for a mailbox the connection made.
  */
 async function dropPending(deps: Deps, r: { id: string; mailboxId: string; madeMailbox: boolean }) {
-  const gone = await deps.db.delete(mailConnections).where(and(eq(mailConnections.id, r.id), eq(mailConnections.status, "verifying"))).returning({ id: mailConnections.id, orgId: mailConnections.orgId });
+  const gone = await deps.db.delete(mailConnections).where(and(eq(mailConnections.id, r.id), eq(mailConnections.status, "verifying"))).returning({ id: mailConnections.id, orgId: mailConnections.orgId, email: mailConnections.email });
   if (!gone.length) return;
   if (r.madeMailbox && !(await mailboxKeeps(deps, gone[0].orgId, r.mailboxId))) await deps.db.delete(mailboxes).where(eq(mailboxes.id, r.mailboxId));
+  // Wave 3 review Y6: one it made that must stay keeps its mail, off the address it never proved.
+  else if (r.madeMailbox) await keepOffAddress(deps, gone[0].orgId, r.mailboxId, gone[0].email, "dropped");
   else await deps.db.update(mailboxes).set({ status: "suspended" }).where(eq(mailboxes.id, r.mailboxId));
+}
+
+/** Wave 3 review Y6: the non-routable address a kept mailbox moves to; the original stays readable in it and in the audit. */
+export const releasedAddress = (address: string, mailboxId: string) =>
+  `${address.toLowerCase().replace("@", "=").replace(/[^a-z0-9.=_-]/g, "-").slice(0, 120)}+${mailboxId.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}@released.invalid`;
+
+/**
+ * Wave 3 review Y6: a mailbox made by a connection that never proved its address, kept because it holds mail or a
+ * legal hold, stays (suspended, its data untouched) but gives the address up, so its real owner can connect it.
+ */
+async function keepOffAddress(deps: Deps, orgId: string, mailboxId: string, address: string, why: "dropped" | "removed") {
+  const to = releasedAddress(address, mailboxId);
+  await deps.db.update(mailboxes).set({ status: "suspended", address: to }).where(eq(mailboxes.id, mailboxId));
+  await audit(deps.db, { orgId, actorUserId: null, action: "mailbox.address_released", targetType: "mailbox", targetId: mailboxId, metadata: { address, renamedTo: to, why } }).catch(() => undefined);
 }
 
 /** Wave 2 review X6: a mailbox that holds any message or a legal hold is never deleted with a waiting connection. */
@@ -480,6 +496,8 @@ export async function removeConnection(deps: Deps, auth: AuthContext, id: string
   });
   await deps.db.delete(mailConnections).where(eq(mailConnections.id, c.id));
   if (!held) await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
+  // Wave 3 review Y6: a held mailbox this connection made while still waiting for its code keeps its mail, off the address.
+  else if (c.status === "verifying" && c.madeMailbox) await keepOffAddress(deps, auth.orgId, c.mailboxId, c.email, "removed");
   // PRIV1b (P58): the kept copy can't send (no connection to send through); connecting the address again reattaches it.
   else await deps.db.update(mailboxes).set({ status: "suspended" }).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.disconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email, ...(held ? { keptForLegalHold: true } : {}) } });

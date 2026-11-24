@@ -299,6 +299,10 @@ export async function placeHold(deps: Deps, auth: Actor, input: { kind: "mailbox
   if (input.kind === "mailbox") {
     const mb = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.id, input.targetId), eq(mailboxes.orgId, auth.orgId))).get();
     if (!mb) throw notFound("Mailbox");
+    // Wave 3 review Y6: a connection still waiting for its emailed code proved nothing about the address; a hold on its
+    // mailbox would keep the address from its real owner.
+    const waiting = await deps.db.select({ id: mailConnections.id }).from(mailConnections).where(and(eq(mailConnections.mailboxId, mb.id), eq(mailConnections.status, "verifying"))).get();
+    if (waiting) throw new HttpError(409, "connection_unverified", "This mailbox is still waiting for its emailed code. Place the hold once the address is confirmed.");
   } else {
     const m = await deps.db.select({ id: members.id }).from(members).where(and(eq(members.organizationId, auth.orgId), eq(members.userId, input.targetId), eq(members.kind, "human"))).get();
     if (!m) throw notFound("Person");
