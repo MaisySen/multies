@@ -6,7 +6,9 @@
 import { describe, it, expect } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { privacyWorld } from "./priv1a-world";
-import { authEmailHooks, domains, mailboxes } from "@/server/db/schema";
+import { agentMailboxAccess, authEmailHooks, domains, mailboxAccess, mailboxes } from "@/server/db/schema";
+import { applyLoginMailboxRule } from "@/server/services/addresses";
+import { Client } from "./helpers";
 import { MIGRATIONS } from "@/server/db/migrations.generated";
 
 type W = Awaited<ReturnType<typeof privacyWorld>>;
@@ -55,14 +57,61 @@ describe("PRIV1b P37: a mailbox at a member's sign in address is theirs", () => 
     await w.ctx.db.run(sql`update users set email = ${`bot${w.n}@acme.io`} where id = ${w.dRead.id}`);
     await w.ctx.db.run(sql`update users set email = 'support@acme.io' where id = ${w.dReply.id}`);
     const support = await mk("support");
+    // Wave 1 review V12: Sam's address is a team mailbox granted to Max (team use), and Nia's is worked by an agent: both stay.
+    const sam = await mk(`sam${w.n}`);
+    await w.ctx.db.insert(mailboxAccess).values({ orgId: w.orgId, userId: w.member.id, mailboxId: sam });
+    const nia = await mk(`nia${w.n}`);
+    const ag = await w.admin.c.post("/api/agents", { name: "Helper", localPart: `helper${w.n}`, mailboxIds: [w.boxes.team] });
+    await w.ctx.db.insert(agentMailboxAccess).values({ agentId: ag.body.agent.id, mailboxId: nia, orgId: w.orgId });
+    // A grant to the member herself doesn't count as team use.
+    await w.ctx.db.insert(mailboxAccess).values({ orgId: w.orgId, userId: w.pat.id, mailboxId: pat });
 
     const m = MIGRATIONS.find((x) => x.name.startsWith("0174_"))!;
     expect(m).toBeTruthy();
     for (const st of m.statements) await w.ctx.db.run(sql.raw(st));
 
     expect(await box(w, pat)).toMatchObject({ personal: true, ownerUserId: w.pat.id });
-    for (const id of [ada, max, ops, support, w.boxes.agent, w.boxes.team]) expect(await box(w, id), id).toMatchObject({ personal: false });
+    for (const id of [ada, max, ops, support, sam, nia, w.boxes.agent, w.boxes.team]) expect(await box(w, id), id).toMatchObject({ personal: false });
+    // Admins see the ones left at a member's sign in address.
+    const notice = (await w.owner.get("/api/mailboxes/privacy/mine")).body.loginAddressTeam as { address: string }[];
+    expect(notice.map((x) => x.address).sort()).toEqual(expect.arrayContaining([`sam${w.n}@acme.io`, `nia${w.n}@acme.io`, "support@acme.io"]));
+    expect((await w.member.c.get("/api/mailboxes/privacy/mine")).body.loginAddressTeam).toEqual([]);
     // Already personal mailboxes keep their owner.
     expect(await box(w, w.boxes.personal)).toMatchObject({ personal: true, ownerUserId: w.pat.id });
+  }, 120_000);
+
+  it("Wave 1 review V12: a member who joins at an unshared team mailbox's address gets it; a shared one stays and is listed", async () => {
+    const w = await privacyWorld();
+    const mk = async (local: string) => {
+      const id = `mbx_v12${local.replace(/[^a-z0-9]/g, "")}`;
+      await w.ctx.db.insert(mailboxes).values({ id, orgId: w.orgId, domainId: w.domainId, localPart: local, address: `${local}@acme.io`, displayName: local, quotaMb: 100 });
+      return id;
+    };
+    const zoe = await mk(`zoe${w.n}`);
+    const yan = await mk(`yan${w.n}`);
+    await w.ctx.db.insert(mailboxAccess).values({ orgId: w.orgId, userId: w.member.id, mailboxId: yan });
+    const join = async (email: string) => {
+      const inv = await w.owner.post("/api/team/invites", { email, role: "member" });
+      const c = new Client(w.ctx.app);
+      await c.call("POST", "/api/auth/sign-up/email", { name: "New", email, password: "a-strong-password" }, { "cf-connecting-ip": `10.77.${w.n % 250}.${email.length}` });
+      c.email = email;
+      const acc = await c.call("POST", `/api/invites/${inv.body.link.split("/invite/")[1]}/accept`, {}, { "cf-connecting-ip": `10.78.${w.n % 250}.${email.length}` });
+      // The first request after sign up may already have joined through the pending invite (410 invite_used then).
+      expect([200, 410]).toContain(acc.status);
+      expect((await c.get("/api/account/me")).status).toBe(200);
+    };
+    await join(`zoe${w.n}@acme.io`);
+    await join(`yan${w.n}@acme.io`);
+    expect(await box(w, zoe)).toMatchObject({ personal: true });
+    expect((await box(w, zoe)).ownerUserId).toBeTruthy();
+    expect(await box(w, yan)).toMatchObject({ personal: false });
+    const notice = (await w.owner.get("/api/mailboxes/privacy/mine")).body.loginAddressTeam as { address: string }[];
+    expect(notice.map((x) => x.address)).toContain(`yan${w.n}@acme.io`);
+    expect(notice.map((x) => x.address)).not.toContain(`zoe${w.n}@acme.io`);
+    // A changed sign in address: Rae moves to an address with an unshared team mailbox, and it becomes hers.
+    const rae = await mk(`rae.new${w.n}`);
+    await w.ctx.db.run(sql`update users set email = ${`rae.new${w.n}@acme.io`} where id = ${w.dRead.id}`);
+    expect(await applyLoginMailboxRule(w.ctx.deps, w.orgId, w.dRead.id)).toBe(rae);
+    expect(await box(w, rae)).toMatchObject({ personal: true, ownerUserId: w.dRead.id });
   }, 120_000);
 });

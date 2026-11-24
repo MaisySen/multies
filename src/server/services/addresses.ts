@@ -1,7 +1,7 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { DB } from "../db";
 import type { Deps } from "../context";
-import { aliases, domains, mailConnections, mailboxes, members, users } from "../db/schema";
+import { agentMailboxAccess, aliases, authEmailHooks, domains, mailboxAccess, mailConnections, mailboxes, members, users } from "../db/schema";
 import { audit } from "./audit";
 import { newId } from "../lib/crypto";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
@@ -31,6 +31,54 @@ export async function memberSigningInAs(db: DB, orgId: string, address: string) 
   return db.select({ userId: users.id, email: users.email }).from(users)
     .innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, orgId), eq(members.kind, "human")))
     .where(eq(users.email, address.toLowerCase())).get();
+}
+
+/**
+ * Wave 1 review V12 (P37): a team mailbox at a member's sign in address that nobody else uses becomes that member's
+ * personal mailbox when they join the workspace or change their sign in address to it (the createMailbox rule). One
+ * that is in team use (granted to someone else, or worked by an AI agent), a domain's catch-all, one that sends the
+ * workspace's sign-up emails, and the operator's own addresses stay team mailboxes; admins see them listed in
+ * Settings (loginAddressTeamMailboxes). A few reads; one update only when a mailbox converts.
+ */
+export async function applyLoginMailboxRule(deps: Deps, orgId: string, userId: string) {
+  const u = await deps.db.select({ email: users.email }).from(users)
+    .innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, orgId), eq(members.kind, "human"))).where(eq(users.id, userId)).get();
+  if (!u) return null;
+  const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, orgId), sql`lower(${mailboxes.address}) = ${u.email.toLowerCase()}`, eq(mailboxes.personal, false), eq(mailboxes.kind, "person"))).get();
+  if (!mb || orgId === "org_platform") return null;
+  const d = await deps.db.select({ name: domains.name, catchAll: domains.catchAllMailboxId }).from(domains).where(eq(domains.id, mb.domainId)).get();
+  if (!d || d.catchAll === mb.id) return null;
+  if (isOperatorDomainRow(deps.config, { orgId, name: d.name }) && deps.config.operatorInbox.addresses.includes(mb.address.toLowerCase())) return null;
+  const [grant, agent, hook] = await Promise.all([
+    deps.db.select({ u: mailboxAccess.userId }).from(mailboxAccess).where(and(eq(mailboxAccess.mailboxId, mb.id), ne(mailboxAccess.userId, userId))).get(),
+    deps.db.select({ a: agentMailboxAccess.agentId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.mailboxId, mb.id)).get(),
+    deps.db.select({ id: authEmailHooks.id }).from(authEmailHooks).where(eq(authEmailHooks.mailboxId, mb.id)).get(),
+  ]);
+  if (grant || agent || hook) return null;
+  const won = await deps.db.update(mailboxes).set({ personal: true, ownerUserId: userId }).where(and(eq(mailboxes.id, mb.id), eq(mailboxes.personal, false))).returning({ id: mailboxes.id });
+  if (!won.length) return null;
+  await audit(deps.db, { orgId, actorUserId: null, action: "mailbox.became_personal_at_login", targetType: "mailbox", targetId: mb.id, metadata: { address: mb.address, memberUserId: userId } }).catch(() => undefined);
+  return mb.id;
+}
+
+/** Wave 1 review V12: every workspace the person is in, after their sign in address changed. */
+export async function applyLoginMailboxRuleEverywhere(deps: Deps, userId: string) {
+  const orgs = await deps.db.select({ orgId: members.organizationId }).from(members).where(and(eq(members.userId, userId), eq(members.kind, "human")));
+  for (const o of orgs) await applyLoginMailboxRule(deps, o.orgId, userId).catch((err: unknown) => deps.reportError?.(err, { where: "p37.apply" }));
+}
+
+/**
+ * Wave 1 review V12: for admins, the team mailboxes at a member's sign in address (left as team mailboxes because they
+ * are in team use, or made before the rule): account mail for that member, password resets included, lands there.
+ */
+export async function loginAddressTeamMailboxes(deps: Deps, orgId: string) {
+  const rows = await deps.db.select({ id: mailboxes.id, address: mailboxes.address, domainName: domains.name, memberName: users.name, memberEmail: users.email }).from(mailboxes)
+    .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+    .innerJoin(users, sql`lower(${users.email}) = lower(${mailboxes.address})`)
+    .innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, mailboxes.orgId), eq(members.kind, "human")))
+    .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.personal, false), eq(mailboxes.kind, "person"))).limit(50);
+  return rows.filter((r) => !(isOperatorDomainRow(deps.config, { orgId, name: r.domainName }) && deps.config.operatorInbox.addresses.includes(r.address.toLowerCase())))
+    .map((r) => ({ id: r.id, address: r.address, member: r.memberName || r.memberEmail }));
 }
 
 // ---------------------------------------------------------------- mailboxes

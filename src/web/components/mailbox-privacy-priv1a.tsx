@@ -17,7 +17,9 @@ import { t } from "@/web/i18n";
 import { noticeKey } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66)
 
 type Level = "read" | "reply" | "send_as";
-interface Mine { own: { id: string; address: string; displayName: string }[]; shared: { id: string; address: string; displayName: string; level: Level }[]; hiddenFromMe: number }
+interface Mine { own: { id: string; address: string; displayName: string }[]; shared: { id: string; address: string; displayName: string; level: Level }[]; hiddenFromMe: number;
+  /** Wave 1 review V12 (P37): for admins, team mailboxes at a member's sign in address. */
+  loginAddressTeam?: { id: string; address: string; member: string }[] }
 interface Sharing {
   personal: boolean; isOwner: boolean; address?: string;
   shares: { userId: string; name: string; email: string; level: Level; since: string }[];
@@ -67,10 +69,19 @@ export function MailboxPrivacyPanel() {
     onError: showError,
   });
   if (!q.data) return null;
-  const { own, shared } = q.data;
+  const { own, shared, loginAddressTeam } = q.data;
   return (
     <div className="space-y-4" data-testid="priv1a-panel">
       <p className="text-sm text-muted">{t("priv1a.section_hint")}</p>
+      {loginAddressTeam?.length ? (
+        <div role="status" className="rounded-xl border border-warn/30 bg-warn-soft p-3" data-testid="priv1a-login-team">
+          <h3 className="text-[13px] font-semibold">{t("priv1a.login_team_title")}</h3>
+          <p className="mt-1 text-[12.5px] text-muted">{t("priv1a.login_team_hint")}</p>
+          <ul className="mt-2 space-y-1">
+            {loginAddressTeam.map((m) => <li key={m.id} className="text-[13px]">{t("priv1a.login_team_item", { address: m.address, member: m.member })}</li>)}
+          </ul>
+        </div>
+      ) : null}
       {own.length === 0 && <p className="text-sm text-muted">{t("priv1a.none_own")}</p>}
       {own.map((m) => <ShareCard key={m.id} id={m.id} address={m.address} />)}
       {shared.length > 0 && (

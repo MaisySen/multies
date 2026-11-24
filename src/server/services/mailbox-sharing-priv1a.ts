@@ -134,9 +134,12 @@ export async function myMailboxPrivacy(deps: Deps, who: Who) {
   ]);
   // The one time notice for owners and admins: personal inboxes in this workspace they no longer open.
   let hiddenFromMe = 0;
+  // Wave 1 review V12 (P37): team mailboxes at a member's sign in address, for admins to decide on.
+  let loginAddressTeam: { id: string; address: string; member: string }[] = [];
   if (who.role === "owner" || who.role === "admin") {
     const all = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId }).from(mailboxes).where(and(eq(mailboxes.orgId, who.orgId), eq(mailboxes.personal, true)));
     hiddenFromMe = all.filter((m) => m.owner && m.owner !== who.userId && !shared.some((s) => s.id === m.id)).length;
+    loginAddressTeam = await (await import("./addresses")).loginAddressTeamMailboxes(deps, who.orgId);
   }
-  return { own, shared, hiddenFromMe };
+  return { own, shared, hiddenFromMe, loginAddressTeam };
 }
