@@ -33,6 +33,14 @@ const qk = {
 const TABS = [["memory", "Memory"], ["instructions", "Instructions"], ["routines", "Routines"], ["runs", "Run log"]] as const;
 type Tab = (typeof TABS)[number][0];
 /** POL2 (HQ MB-328): the header names the AI source actually in use, never "own key" on built in AI. */
+/**
+ * Round 2 (PR 20 leftover): whether "Run now" is offered. AI off: no. No source at all: no, unless the reason is a key
+ * problem (a refused key or no credit): then a run shows the problem (or the stand-in, when that is on) in the run log,
+ * which is how an admin checks a fixed key.
+ */
+export const canRunNow = (ai: { on: boolean; source?: "own_key" | "built_in" | "none"; keyProblem?: unknown }) =>
+  ai.on && (ai.source !== "none" || !!ai.keyProblem);
+
 export const aiSourceLine = (source: "own_key" | "built_in" | "none" | undefined) =>
   source === "own_key" ? " It uses your workspace's own AI key." : source === "built_in" ? " It runs on free built in AI until you add your own key." : "";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
@@ -394,7 +402,7 @@ function RoutinesTab({ s }: { s: TeamAiState }) {
                 {s.isAdmin && (
                   <div className="flex shrink-0 flex-wrap items-center gap-1">
                     <Switch checked={r.enabled} onChange={(x) => void toggle(r, x)} label={`${r.name} on`} />
-                    <Button size="sm" variant="secondary" loading={busy === r.id} disabled={!s.ai.on || s.ai.source === "none"} onClick={() => void runNow(r)}>Run now</Button>
+                    <Button size="sm" variant="secondary" loading={busy === r.id} disabled={!canRunNow(s.ai)} onClick={() => void runNow(r)}>Run now</Button>
                     <Button size="sm" variant="ghost" onClick={() => setEdit({ r })} aria-label={`Edit ${r.name}`}>Edit</Button>
                     <Button size="sm" variant="ghost" onClick={() => void remove(r)} aria-label={`Delete ${r.name}`}>Delete</Button>
                   </div>
