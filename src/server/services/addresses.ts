@@ -63,15 +63,18 @@ export async function createMailbox(db: DB, orgId: string, input: CreateMailboxI
   const address = `${input.localPart}@${d.name}`;
   await assertAddressFree(db, address);
   const id = newId("mbx");
-  await db.insert(mailboxes).values({ id, orgId, domainId: d.id, localPart: input.localPart, address, displayName: input.displayName, quotaMb });
-  // PRIV1b (P37): a mailbox at a colleague's sign in address receives their account mail (password resets).
+  // PRIV1b (P37, round 2 owner decision): a mailbox at a human member's sign in address receives that person's account
+  // mail (password resets, sign in links), so it is that person's personal mailbox, whoever creates it. The operator's
+  // own addresses (support@, security@ on the company domain) stay team mailboxes. Migration 0174 did the same for
+  // mailboxes made before.
+  const target = operatorAddress ? undefined : await memberSigningInAs(db, orgId, address);
+  await db.insert(mailboxes).values({ id, orgId, domainId: d.id, localPart: input.localPart, address, displayName: input.displayName, quotaMb, ...(target ? { personal: true, ownerUserId: target.userId } : {}) });
   // Allowed (that is how an admin sets up Pat's mailbox), but Pat is told and the audit log says who did it.
   if (who) {
-    const target = await memberSigningInAs(db, orgId, address);
     if (target && target.userId !== who.userId) {
       await audit(db, { orgId, actorUserId: who.userId || null, actorEmail: who.email ?? null, action: "mailbox.created_at_member_login", targetType: "mailbox", targetId: id, metadata: { address, memberUserId: target.userId }, ip: who.ip ?? null });
       const { notify } = await import("./suite/notify");
-      await notify(who.deps, orgId, target.userId, { type: "security.mailbox_at_login", entityType: "mailbox", entityId: id, title: `A mailbox was created at your sign in address ${address}. Mail for it, including password resets, now lands there.`, actorName: who.email ?? null });
+      await notify(who.deps, orgId, target.userId, { type: "security.mailbox_at_login", entityType: "mailbox", entityId: id, title: `A mailbox was created at your sign in address ${address}. It is your personal mailbox: mail for it, including password resets, lands there and only you can open it.`, actorName: who.email ?? null });
     }
   }
   return getMailbox(db, orgId, id);
