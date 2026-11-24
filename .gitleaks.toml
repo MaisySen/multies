@@ -78,3 +78,12 @@ condition = "AND"
 paths = ['^tests/integration-wave1-ais1\.test\.ts$']
 regexTarget = "secret"
 regexes = ['^Hq4nW8tZ2yLp6RxC3vBm$']
+
+# Console mail tests on another branch plant connection secrets to prove list responses never
+# echo them. CI scans every branch history, so the markers are allowlisted here by exact value.
+[[allowlists]]
+description = "Planted connection secrets in console mail tests"
+condition = "AND"
+paths = ['^tests/console-mail-routes\.test\.ts$', '^tests/console-mail-service\.test\.ts$']
+regexTarget = "secret"
+regexes = ['^PLANTED-ROUTE-CONN-SECRET-m7Hx2Rb6$', '^PLANTED-CONN-SECRET-n5Bv3$']

@@ -1,7 +1,7 @@
 /**
  * The in-app workspace agent on the Node server. The Worker uses its Workers AI binding.
  * Node uses the same door: the public Workers AI HTTPS API when this server has an account id and
- * token. Without those credentials there is no built-in runner — callers see unavailable, the same
+ * token. Without those credentials there is no built-in runner. Callers see unavailable, the same
  * as a Worker with no AI binding. It never calls a private address and never invents an answer.
  */
 import type { AiRunner } from "../tools/p2-bindings";
