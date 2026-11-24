@@ -19,6 +19,14 @@ export const conflict = (message: string) => new HttpError(409, "conflict", mess
 export const planLimit = (message: string) => new HttpError(403, "plan_limit", message);
 export const tooMany = (message = "Too many attempts. Try again in a minute.") => new HttpError(429, "rate_limited", message);
 
+/** MB-368: an update with nothing to change, in the words every route uses (PATCH /api/mailboxes/:id first, PRIV1b S1). */
+export const nothingToChange = () => new HttpError(422, "validation_failed", "Send a field to change.");
+
+/** MB-368: true for the error the database layer throws for an update with an empty SET (Sentry MYMAIL-API-1Y). */
+export function isNoValuesToSet(err: unknown): boolean {
+  return err instanceof Error && err.message === "No values to set";
+}
+
 export function zodToHttp(err: ZodError): HttpError {
   const fields: Record<string, string> = {};
   for (const issue of err.issues) {
