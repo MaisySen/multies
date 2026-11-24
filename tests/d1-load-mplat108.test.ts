@@ -255,7 +255,8 @@ describe("the fill pages through big mailboxes and survives a failing one (F4)",
     ctx.deps.now = () => new Date(t);
     try {
       await failing([mailbox2], () => fillFirstSender(ctx.deps, { mailboxesPerPass: 1 }));
-      while (JSON.parse(markOf()!).after < mailbox2) await failing([mailbox2], () => fillFirstSender(ctx.deps, { mailboxesPerPass: 1 }));
+      const last = [mailboxId, mailbox2].sort()[1]!; // every mailbox so far handled (ids are random)
+      while (JSON.parse(markOf()!).after < last) await failing([mailbox2], () => fillFirstSender(ctx.deps, { mailboxesPerPass: 1 }));
       // A new mailbox arrives; mailbox2 is due again. One mailbox a pass: the new one goes first.
       // (An id that sorts after every other one, and a row the triggers didn't flag, as one stored before 0171.)
       const box3 = "mbx_zzzzzzzzzzzzzzzz";
@@ -416,28 +417,54 @@ describe("cron passes run one after another (MPLAT-96)", () => {
     expect(flushed).toBeGreaterThanOrEqual(1);
   });
 
-  it("no pass may run past the total budget: its own limit is what is left of it (F3)", async () => {
+  // W3 (round 2): the limit is for true hangs only. The old "what is left of the budget" gave late passes seconds and
+  // cut them mid write (a digest sent, its next time not saved). A pass is not started with under a minute left.
+  it("each pass gets the full per pass limit, and none starts with less than a minute of the budget left (W3)", async () => {
     let now = 0;
     const seen: number[] = [];
     const steps: CronStep[] = [
       { name: "a", run: async () => { now += 9 * 60_000; } },
       { name: "b", run: () => new Promise(() => {}) },
+      { name: "c", run: async () => { now += 60_000; } },
     ];
     const realSetTimeout = globalThis.setTimeout;
     const spy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void, ms?: number) => { seen.push(ms ?? 0); return realSetTimeout(fn, 1); }) as typeof setTimeout);
-    try {
-      const out = await runCronSteps(ctx.deps, steps, { clock: () => now });
-      expect(out.timedOut).toEqual(["b"]);
-    } finally { spy.mockRestore(); }
-    expect(seen.at(-1)).toBe(60_000); // 10 minutes in all, 9 used
-    expect(seen[0]).toBe(CRON_STEP_MS);
+    let out;
+    try { out = await runCronSteps(ctx.deps, steps, { clock: () => now }); } finally { spy.mockRestore(); }
+    expect(out.timedOut).toEqual(["b"]);
+    expect(seen).toEqual([CRON_STEP_MS, CRON_STEP_MS, CRON_STEP_MS]);
+    now = 0;
+    const late = await runCronSteps(ctx.deps, [{ name: "e", run: async () => { now += 9.5 * 60_000; } }, { name: "d", run: async () => undefined }], { clock: () => now });
+    expect(late).toMatchObject({ ran: ["e"], skipped: ["d"] });
   });
 
-  it("the scheduled handler hands the passes over as one sequence", () => {
+  it("a timed out pass is kept alive (waitUntil) to finish, and its later failure is reported (W3)", async () => {
+    const errors: string[] = [];
+    const kept: Promise<unknown>[] = [];
+    const deps = { ...ctx.deps, reportError: (_e: unknown, c: { where: string }) => { errors.push(c.where); } } as typeof ctx.deps;
+    let fail!: (e: Error) => void;
+    const slow = new Promise((_, reject) => { fail = reject; });
+    const out = await runCronSteps(deps, [{ name: "notify.digest_pass", run: () => slow }], { stepMs: 10, keepAlive: (p) => kept.push(p) });
+    expect(out.timedOut).toEqual(["notify.digest_pass"]);
+    expect(kept).toHaveLength(1);
+    fail(new Error("late"));
+    await kept[0];
+    expect(errors).toEqual(["cron.notify.digest_pass", "cron.notify.digest_pass"]);
+  });
+
+  it("a pass that reports its own error (lazy, guard) still flushes reporting at once (W3)", async () => {
+    let flushed = 0;
+    const deps = { ...ctx.deps, reportError: () => undefined } as typeof ctx.deps;
+    const guarded: CronStep = { name: "tools.sign_pass", run: () => Promise.reject(new Error("x")).catch((err: unknown) => deps.reportError?.(err, { where: "tools.sign_pass" })) };
+    await runCronSteps(deps, [guarded, { name: "b", run: async () => undefined }], { flush: async () => { flushed++; } });
+    expect(flushed).toBe(1);
+  });
+
+  it("the scheduled handler runs the passes itself, not handed to waitUntil (W3)", () => {
     const src = readFileSync("src/entry/worker.ts", "utf8");
     const scheduled = src.slice(src.indexOf("async scheduled(_event"), src.indexOf("\n  },\n};", src.indexOf("async scheduled(_event")));
-    expect(scheduled.match(/ctx\.waitUntil\(/g)).toHaveLength(1);
-    expect(scheduled).toContain("runScheduledSteps(deps)");
+    expect(scheduled).toContain("await runScheduledSteps(deps, ctx)");
+    expect(scheduled).not.toMatch(/ctx\.waitUntil\(runScheduledSteps/);
     expect(src).toMatch(/\{ name: "maintenance", run: \(\) => runMaintenanceIfMigrated\(deps, \{ rotate: true \}\) \}/);
   });
 

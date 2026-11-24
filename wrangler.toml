@@ -520,7 +520,7 @@ enabled = true
 enabled = true
 invocation_logs = false
 
-# Hourly on staging: nobody depends on its queue, and each pass writes.
+# Staging runs every 15 minutes like production (see below).
 [env.staging.triggers]
 # R43: every 15 minutes like production, so staging proves the same background import timing.
 # MPLAT-96: 7 minutes after production's ticks (:07, :22, :37, :52), so the two Workers on the one Cloudflare

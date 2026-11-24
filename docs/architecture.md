@@ -22,7 +22,7 @@ flowchart LR
     D1[(D1: mymail-au prod, mymail-staging)]
     DO[Durable Object DocRoom: live doc editing]
     RL[Rate limit bindings: auth, api, webhooks, app]
-    CRON[Cron: every 5 min prod, 15 min staging]
+    CRON[Cron: every 15 min, staging 7 min later]
     ER[Email Routing]
     IN[Worker mymail-inbound]
     WA[Web Analytics beacon]

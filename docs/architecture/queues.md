@@ -7,7 +7,7 @@ free Cloudflare plan, where Cloudflare Queues bindings are not available to ever
 ## How it works
 
 - `enqueue(type, payload, { delayMs, maxAttempts, dedupeKey })` writes a row with `run_at`.
-- The cron (every 5 minutes in production, 15 on staging), and a run at most every 10 minutes from live traffic, call `runDueJobs`. It leases due jobs (a lease stops two isolates running the same job), runs the handler, and on failure reschedules with backoff and jitter: 30 seconds, 2 minutes, 10 minutes, 30 minutes, then 1, 2, 4, 8, 12 and 24 hours, about 52 hours in total by default.
+- The cron (every 15 minutes in production and on staging, staging 7 minutes later), and a run at most every 10 minutes from live traffic, call `runDueJobs`. It leases due jobs (a lease stops two isolates running the same job), runs the handler, and on failure reschedules with backoff and jitter: 30 seconds, 2 minutes, 10 minutes, 30 minutes, then 1, 2, 4, 8, 12 and 24 hours, about 52 hours in total by default.
 - After `maxAttempts` the job becomes **dead**. Dead jobs stay visible in the operator console with their last error and can be replayed one by one or in bulk (`replayJobs`).
 - Finished jobs are pruned after 7 days, dead ones after 30.
 

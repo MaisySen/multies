@@ -594,7 +594,8 @@ const handler = {
 
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
     const { deps } = await getReady(env);
-    ctx.waitUntil(runScheduledSteps(deps));
+    // W3: run here, not handed to waitUntil, so the invocation lives as long as its passes; a timed out pass is kept alive.
+    await runScheduledSteps(deps, ctx);
   },
 };
 
@@ -627,9 +628,10 @@ export function scheduledSteps(deps: Deps): CronStep[] {
 }
 
 /** R43: what the passes report is sent before the run ends. */
-async function runScheduledSteps(deps: Deps) {
+async function runScheduledSteps(deps: Deps, ctx: ExecutionContext) {
   // F3: each pass has its own time limit, so the final flush is always reached; a failed or timed out pass flushes at once.
-  try { await runCronSteps(deps, scheduledSteps(deps), { flush: () => flushReporting() }); } finally { await flushReporting(); }
+  // W3: a timed out pass stays registered with waitUntil, so it can finish instead of being cut off when this returns.
+  try { await runCronSteps(deps, scheduledSteps(deps), { flush: () => flushReporting(), keepAlive: (p) => ctx.waitUntil(p.then(() => flushReporting())) }); } finally { await flushReporting(); }
 }
 
 const buildEnv = (typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) as Record<string, string | undefined>;

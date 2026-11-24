@@ -162,7 +162,7 @@ Not cut in R32, and why: task create at 8 rows (the goal) was not reached; it ne
 
 Measured with `tests/d1-meter.ts` (`tests/r33-measure.test.ts` prints the table by table split); `tests/write-budget-r32.test.ts` locks the new numbers and `tests/d1-rows-r33.test.ts` checks the query plan (`changes_entity_idx`) and the behaviour.
 
-The cron writes one uptime row per pass: 96 a day on production (every 15 minutes) and 24 on staging (hourly), about 360 D1 rows a day with the row's index. No cut needed.
+The cron writes one uptime row per pass: 96 a day on production and 96 on staging (both every 15 minutes), about 380 D1 rows a day with the row's index. No cut needed.
 
 ## Imports (R54, 28 Oct 2026)
 
