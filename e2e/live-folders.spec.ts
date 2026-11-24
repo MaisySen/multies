@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { ImapFlow } from "imapflow";
+import { connectCode } from "./support/connect-code"; // PRIV1b (P60)
 
 /**
  * Round 19, end to end on the local server against the local Stalwart test server (never remote):
@@ -73,6 +74,9 @@ test("live mail and folders on a connected mailbox", async ({ page }) => {
   }, { email: user, password: pass, preset: "custom", imap: { host: imapHost, port: Number(imapPort), security: "starttls" }, smtp: { host: smtpHost, port: Number(smtpPort), security: "starttls" } });
   expect(made.status).toBe(201);
   const connectionId = made.json.connection.id as string;
+  // PRIV1b (P60): an unrecognised server waits for the code emailed to the address.
+  const code = await connectCode(user);
+  expect(await page.evaluate(async ([id, c]) => (await fetch(`/api/connections/${id}/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: c }) })).status, [connectionId, code] as const)).toBe(200);
   const mailboxId = made.json.connection.mailboxId as string;
 
   // 1. Live mail: the open inbox shows new mail without a reload.

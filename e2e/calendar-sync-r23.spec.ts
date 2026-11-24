@@ -5,6 +5,7 @@ import { mkdirSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { sydneyMonth } from "./support/sydney-month";
 import { SHOTS_ROOT } from "./support/shots";
+import { connectCode } from "./support/connect-code"; // PRIV1b (P60)
 
 /**
  * Round 23 (R23.4) end to end: Settings > Calendar turns on a personal feed whose .ics holds a meeting
@@ -111,6 +112,8 @@ test("calendar feed with a meeting, reset, and a calendar link shown read only o
     const conn = await page.request.post(`${BASE}/api/connections`, { data: { email: acct.user, password: acct.pass, preset: "custom", imap: { host: imapHost, port: Number(imapPort), security: "starttls" }, smtp: { host: smtpHost, port: Number(smtpPort), security: "starttls" } }, headers });
     expect(conn.status()).toBe(201);
     const connectionId = (await conn.json()).connection?.id;
+    // PRIV1b (P60): an unrecognised server waits for the code emailed to the address.
+    expect((await page.request.post(`${BASE}/api/connections/${connectionId}/verify`, { data: { code: await connectCode(acct.user) }, headers })).status()).toBe(200);
     const cal = `${process.env.STALWART_TEST_URL}/dav/cal/${encodeURIComponent(acct.user)}/default/standup.ics`;
     const put = await fetch(cal, { method: "PUT", headers: { authorization: `Basic ${Buffer.from(`${acct.user}:${acct.pass}`).toString("base64")}`, "content-type": "text/calendar" }, body: ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//T//T//EN", "BEGIN:VEVENT", "UID:stalwart-1", `DTSTAMP:${day(now)}T000000Z`, `DTSTART:${day(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 20)))}T230000Z`, `DTEND:${day(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 20)))}T233000Z`, "SUMMARY:Team standup (Stalwart)", "END:VEVENT", "END:VCALENDAR", ""].join("\r\n") });
     expect(put.status).toBeLessThan(300);

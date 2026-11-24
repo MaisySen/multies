@@ -6,7 +6,7 @@ import { HttpError, tooMany } from "../lib/errors";
 import { RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
 import {
-  connectEnabled, connectionFor, createConnection, listConnections, openableConnections, reconnect, removeConnection, testConnection,
+  connectEnabled, connectionFor, createConnection, listConnections, openableConnections, reconnect, removeConnection, resendConnectionCode, testConnection, verifyConnection,
 } from "../services/connect";
 import { ConnectFailed } from "../services/connect/problems";
 import { setBackfillPaused, syncAndChain, syncConnection } from "../services/connect/sync";
@@ -102,6 +102,8 @@ export function connectionRoutes() {
       const b = await parseBody(c, connectBody);
       const { deps, auth } = c.var;
       const connection = await run(() => createConnection(deps, auth, b as never));
+      // PRIV1b (P60): an unrecognised server waits for the emailed code; nothing syncs until then.
+      if (connection.status === "verifying") return c.json({ connection }, 201);
       // The first pass runs now so the inbox has mail when the person opens it; the rest follows on its own.
       const first = deps.dispatchMailSync ? deps.dispatchMailSync(connection.id) : syncAndChain(deps, connection.id);
       const work = first.catch((err) => deps.log?.warn("mail_sync.first_failed", { connection: connection.id, error: (err as Error).message }));
@@ -112,6 +114,19 @@ export function connectionRoutes() {
       const fresh = (await openableConnections(deps, auth)).find((x) => x.id === connection.id) ?? connection;
       return c.json({ connection: fresh }, 201);
     })
+    // PRIV1b (P60): the code emailed to the address of a connection through an unrecognised server, and a new code.
+    .post("/:id/verify", async (c) => {
+      const b = await parseBody(c, z.object({ code: z.string().max(20) }));
+      const { deps, auth } = c.var;
+      const connection = await verifyConnection(deps, auth, c.req.param("id"), b.code);
+      const first = deps.dispatchMailSync ? deps.dispatchMailSync(connection.id) : syncAndChain(deps, connection.id);
+      const work = first.catch((err) => deps.log?.warn("mail_sync.first_failed", { connection: connection.id, error: (err as Error).message }));
+      let waitUntil: ((p: Promise<unknown>) => void) | undefined;
+      try { const ctx = c.executionCtx; waitUntil = ctx.waitUntil.bind(ctx); } catch { waitUntil = undefined; }
+      if (waitUntil) waitUntil(work); else await work;
+      return c.json({ connection });
+    })
+    .post("/:id/verify/resend", async (c) => c.json(await resendConnectionCode(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/:id/sync", async (c) => {
       const { deps, auth } = c.var;
       if (!syncs.take(auth.userId)) throw tooMany("Syncing already. Give it a minute.");

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { ImapFlow } from "imapflow";
+import { connectCode } from "./support/connect-code"; // PRIV1b (P60)
 
 /**
  * Connect an existing mailbox, end to end on the local server against a real IMAP and SMTP server
@@ -103,6 +104,10 @@ test("connect a mailbox from onboarding, read its mail, reply as that address, m
   await expect(form.getByTestId("connect-result")).toContainText("Both servers accepted the password");
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/1-connect-screen.png`, fullPage: true });
   await form.getByTestId("connect-submit").click();
+  // PRIV1b (P60): an unrecognised server waits for the code emailed to the address, entered in the same card.
+  await expect(card.getByTestId("connect-code")).toBeVisible({ timeout: 20_000 });
+  await card.getByTestId("connect-code-input").fill(await connectCode(user));
+  await card.getByTestId("connect-code-confirm").click();
   await expect(card.getByTestId("connect-done")).toContainText(`${user} is connected`, { timeout: 20_000 });
 
   // The inbox shows the provider's mail.

@@ -78,6 +78,8 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
     // Reads the account's D1 writes today from analytics (no database write) and alerts past 60%.
     step("write_budget", () => checkWriteBudget(deps)),
   ]);
+  // PRIV1b (P60): connections still waiting for their emailed code after a day go (one indexed read when none).
+  if (inSlot(3) && deps.config.mailConnect.enabled) await step("connect_pending", async () => (await import("./connect")).pruneUnverifiedConnections(deps));
   // Connected mailboxes: each due one is handed to its own invocation (services/connect/sync.ts).
   const mailSync = !has.mailSync ? { dispatched: 0 } : await step("mail_sync", async () => (await import("./connect/sync")).runDueMailSyncs(deps));
   // Round 20: scheduled sends, snoozes and reminders that are due. Reads first; an idle pass writes nothing.

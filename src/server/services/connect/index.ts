@@ -11,11 +11,11 @@
  * - Sync (sync.ts) copies recent mail in, then new mail on a schedule; replies go out through the
  *   provider's own SMTP (outbound.ts), so they pass SPF and DKIM as the person's own mail.
  */
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { assertMailboxNotHeld } from "../mail/archive-r111"; // R111
 import type { AuthContext, Deps } from "../../context";
 import { mailboxes, mailConnections, messages, mailSyncOutbox } from "../../db/schema";
-import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
+import { decryptSecret, encryptSecret, hmacSha256Hex, newId, safeEqual } from "../../lib/crypto";
 import { badRequest, conflict, forbidden, HttpError, notFound } from "../../lib/errors";
 import { isPublicHost } from "../../lib/ssrf";
 import { audit } from "../audit";
@@ -161,35 +161,137 @@ export async function connectionFor(deps: Deps, auth: AuthContext, id: string, n
   return c;
 }
 
+// ---------------------------------------------------------------- PRIV1b P60: proving the address
+
+/** A connection waiting for its code is removed after this long (the maintenance pass). */
+export const PENDING_CONNECTION_MS = 24 * 3_600_000;
+const CODE_TTL_MS = 60 * 60_000;
+const CODE_MIN_GAP_MS = 60_000;
+const CODE_MAX_TRIES = 5;
+
+/**
+ * PRIV1b (P60): whether signing in proves the address. Only a known provider at its own servers does: Gmail, Outlook and
+ * the others check the person's password for that address. "Other server", or a known provider with its servers
+ * changed, could be a server anyone runs that accepts any password, so the address is proven by a code instead.
+ */
+export function serversProveAddress(s: Pick<ResolvedSettings, "preset" | "imap" | "smtp" | "email">): boolean {
+  if (s.preset === "custom") return false;
+  const base = serversFor(s.preset, s.email);
+  return s.imap.host === base.imap.host.toLowerCase() && s.smtp.host === base.smtp.host.toLowerCase();
+}
+
+const connectCodeHash = (deps: Deps, connectionId: string, code: string) => hmacSha256Hex(deps.config.appSecret, `connect-code:${connectionId}:${code}`);
+
+/** Makes a code, keeps its HMAC on the row and emails it to the address through the platform's own sender. */
+async function sendConnectCode(deps: Deps, c: Pick<Connection, "id" | "orgId" | "email">) {
+  const { newCode } = await import("../tools/esign-v2"); // the 6 digit code the e-signature check uses
+  const code = newCode();
+  const now = deps.now();
+  await deps.db.update(mailConnections).set({ verifyCodeHash: await connectCodeHash(deps, c.id, code), verifyExpiresAt: new Date(now.getTime() + CODE_TTL_MS), verifyTries: 0, verifySentAt: now })
+    .where(eq(mailConnections.id, c.id));
+  const { sendSystemEmail } = await import("../system-mail");
+  // accountSecurity: inside the platform only to a mailbox at exactly this address, never through an alias or catch all.
+  await sendSystemEmail(deps, {
+    to: c.email, orgId: c.orgId, accountSecurity: true,
+    subject: `Your code to connect ${c.email} to ${deps.config.appName}`,
+    text: `Your code is ${code}\n\nSomeone asked to connect ${c.email} to ${deps.config.appName} through a mail server we don't recognise. Enter this code where they connected it to show the address is theirs. It works once, for 1 hour.\n\nIf this wasn't you, ignore this email: without the code the mailbox is not connected and is removed within a day.`,
+  });
+}
+
+/** Enters the code emailed for a connection waiting on it (P60). Turns the connection and its mailbox on. */
+export async function verifyConnection(deps: Deps, auth: AuthContext, id: string, code: unknown) {
+  const c = await getConnection(deps, auth, id);
+  await assertCanManage(deps, auth, c, "change");
+  if (c.status !== "verifying") throw conflict("This mailbox is already confirmed.");
+  const now = deps.now();
+  const entered = typeof code === "string" ? code.replace(/\s+/g, "") : "";
+  if (!/^\d{6}$/.test(entered)) throw badRequest("Enter the 6 digit code from the email.");
+  if (!c.verifyCodeHash || !c.verifyExpiresAt || c.verifyExpiresAt.getTime() <= now.getTime()) throw conflict("This code has expired. Ask for a new one.");
+  if (c.verifyTries >= CODE_MAX_TRIES) throw new HttpError(429, "too_many_tries", "Too many wrong codes. Ask for a new one.");
+  const h = await connectCodeHash(deps, c.id, entered);
+  if (!safeEqual(h, c.verifyCodeHash)) {
+    // Counted in the statement itself, so parallel guesses can't go past the limit.
+    await deps.db.update(mailConnections).set({ verifyTries: sql`${mailConnections.verifyTries} + 1` }).where(and(eq(mailConnections.id, c.id), lt(mailConnections.verifyTries, CODE_MAX_TRIES)));
+    const left = CODE_MAX_TRIES - c.verifyTries - 1;
+    throw badRequest(left > 0 ? `That code is not right. ${left} ${left === 1 ? "try" : "tries"} left.` : "Too many wrong codes. Ask for a new one.");
+  }
+  // Single use: the hash is cleared in the statement that turns it on.
+  const won = await deps.db.update(mailConnections).set({ status: "active", verifyCodeHash: null, verifyExpiresAt: null, verifyTries: 0, nextSyncAt: now })
+    .where(and(eq(mailConnections.id, c.id), eq(mailConnections.verifyCodeHash, h), eq(mailConnections.status, "verifying"))).returning({ id: mailConnections.id });
+  if (!won.length) throw conflict("This code was already used.");
+  await deps.db.update(mailboxes).set({ status: "active" }).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.connect_verified", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email } });
+  const mb = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, c.mailboxId)).get())!;
+  return present((await deps.db.select().from(mailConnections).where(eq(mailConnections.id, c.id)).get())!, mb);
+}
+
+/** A new code for a connection waiting on one, at most one a minute. */
+export async function resendConnectionCode(deps: Deps, auth: AuthContext, id: string) {
+  const c = await getConnection(deps, auth, id);
+  await assertCanManage(deps, auth, c, "change");
+  if (c.status !== "verifying") throw conflict("This mailbox is already confirmed.");
+  const now = deps.now().getTime();
+  if (c.verifySentAt && now - c.verifySentAt.getTime() < CODE_MIN_GAP_MS) {
+    const wait = Math.ceil((CODE_MIN_GAP_MS - (now - c.verifySentAt.getTime())) / 1000);
+    throw new HttpError(429, "rate_limited", `A code was just sent. You can ask for another in ${wait} seconds.`, { retryAfterSeconds: wait });
+  }
+  await sendConnectCode(deps, c);
+  return { sent: true as const };
+}
+
+/** The maintenance pass: connections still waiting for their code after PENDING_CONNECTION_MS go, with their mailbox. */
+export async function pruneUnverifiedConnections(deps: Deps, limit = 50): Promise<number> {
+  const cutoff = new Date(deps.now().getTime() - PENDING_CONNECTION_MS);
+  const rows = await deps.db.select({ id: mailConnections.id, mailboxId: mailConnections.mailboxId }).from(mailConnections)
+    .where(and(eq(mailConnections.status, "verifying"), lt(mailConnections.createdAt, cutoff))).limit(limit).all();
+  for (const r of rows) await dropPending(deps, r);
+  return rows.length;
+}
+
+/** Removes a connection that never got its code, and the mailbox it made (nothing was synced into it). */
+async function dropPending(deps: Deps, r: { id: string; mailboxId: string }) {
+  await deps.db.delete(mailConnections).where(and(eq(mailConnections.id, r.id), eq(mailConnections.status, "verifying")));
+  await deps.db.delete(mailboxes).where(eq(mailboxes.id, r.mailboxId));
+}
+
 /** Tests, then saves the connection and its mailbox. The first sync runs right after. */
 export async function createConnection(deps: Deps, auth: AuthContext, input: ConnectInput, extra: { secret?: string; authKind?: "password" | "oauth" } = {}) {
   assertEnabled(deps);
   const s = resolveSettings(deps, { ...input, password: input.password || extra.secret || "" });
+  // PRIV1b (P60): a connection still waiting for its code holds no claim on the address: it proved nothing, so a new
+  // connect (by anyone) replaces it. Checked once the new settings are valid; nothing synced into it.
+  const pending = await deps.db.select({ id: mailConnections.id, mailboxId: mailConnections.mailboxId }).from(mailConnections)
+    .innerJoin(mailboxes, eq(mailboxes.id, mailConnections.mailboxId)).where(and(eq(mailboxes.address, s.email), eq(mailConnections.status, "verifying"))).get();
   const taken = await deps.db.select({ id: mailboxes.id, orgId: mailboxes.orgId, domainId: mailboxes.domainId, personal: mailboxes.personal, ownerUserId: mailboxes.ownerUserId }).from(mailboxes).where(eq(mailboxes.address, s.email)).get();
   // PRIV1b (P58): a copy kept for a legal hold after its connection was removed goes back to whoever it belongs to (the
   // personal owner; an admin or key for a team one) when they connect the address again, held or not.
   const kept = taken && taken.orgId === auth.orgId && (taken.personal ? !!auth.userId && taken.ownerUserId === auth.userId : !auth.userId || auth.role === "owner" || auth.role === "admin")
     && !(await connectionForMailbox(deps, taken.id)) && (await ensurePlatformDomain(deps, CONNECTED_DOMAIN)).id === taken.domainId ? taken.id : null;
-  if (taken && !kept) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
+  const replacing = !!pending && !!taken && taken.id === pending.mailboxId;
+  if (taken && !kept && !replacing) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
   const secret = extra.secret ?? s.password;
   const authKind = extra.authKind ?? "password";
   if (authKind === "password") await testSettings(deps, s, { secret });
+  // PRIV1b (P60): an unrecognised server proves nothing about the address: the connection waits for an emailed code.
+  const needsCode = authKind === "password" && !serversProveAddress(s);
+  if (replacing) await dropPending(deps, pending!);
   const plan = await getPlan(deps.db, auth.orgId);
   const domain = await ensurePlatformDomain(deps, CONNECTED_DOMAIN);
   const mailboxId = kept ?? newId("mbx");
   const id = newId("mcn");
   const [local] = s.email.split("@");
   // PRIV1a: a connected inbox is personal, private to the person who connected it (a workspace key with no person: a team mailbox).
-  if (kept) await deps.db.update(mailboxes).set({ status: "active", displayName: s.displayName }).where(eq(mailboxes.id, kept));
-  else await deps.db.insert(mailboxes).values({ id: mailboxId, orgId: auth.orgId, domainId: domain.id, localPart: local, address: s.email, displayName: s.displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null });
+  if (kept) await deps.db.update(mailboxes).set({ status: needsCode ? "suspended" : "active", displayName: s.displayName }).where(eq(mailboxes.id, kept));
+  else await deps.db.insert(mailboxes).values({ id: mailboxId, orgId: auth.orgId, domainId: domain.id, localPart: local, address: s.email, displayName: s.displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null, ...(needsCode ? { status: "suspended" as const } : {}) });
   await deps.db.insert(mailConnections).values({
     id, orgId: auth.orgId, mailboxId, provider: s.preset, email: s.email, username: s.username,
     imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
     smtpHost: s.smtp.host, smtpPort: s.smtp.port, smtpSecurity: s.smtp.security,
     authKind, secretEnc: await encryptSecret(deps.config.appSecret, secret), savesSent: s.savesSent,
-    status: "active", nextSyncAt: deps.now(), createdByUserId: auth.userId || null,
+    status: needsCode ? "verifying" : "active", nextSyncAt: needsCode ? null : deps.now(), createdByUserId: auth.userId || null,
   });
-  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.connected", targetType: "mailbox", targetId: mailboxId, metadata: { address: s.email, provider: s.preset, authKind } });
+  if (needsCode) await sendConnectCode(deps, { id, orgId: auth.orgId, email: s.email });
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.connected", targetType: "mailbox", targetId: mailboxId, metadata: { address: s.email, provider: s.preset, authKind, ...(needsCode ? { waitingForCode: true } : {}) } });
   const row = (await deps.db.select().from(mailConnections).where(eq(mailConnections.id, id)).get())!;
   return present(row, { address: s.email, displayName: s.displayName });
 }

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { ImapFlow } from "imapflow";
+import { connectCode } from "./support/connect-code"; // PRIV1b (P60)
 
 /**
  * R57 full mailbox sync, end to end on the local server against the local Stalwart test server (never remote): a mailbox
@@ -71,7 +72,11 @@ test("a 620 message mailbox syncs whole through chained passes, shows progress, 
     imap: { host: imapHost, port: Number(imapPort), security: "starttls" }, smtp: { host: smtpHost, port: Number(smtpPort), security: "starttls" },
   } });
   expect(made.status()).toBe(201);
-  const { connection } = (await made.json()) as { connection: { id: string; mailboxId: string; messagesSynced: number } };
+  // PRIV1b (P60): an unrecognised server waits for the code emailed to the address; confirming it runs the first pass.
+  const waiting = (await made.json()) as { connection: { id: string } };
+  const confirmed = await page.request.post(`${BASE}/api/connections/${waiting.connection.id}/verify`, { data: { code: await connectCode(user) } });
+  expect(confirmed.status()).toBe(200);
+  const { connection } = (await confirmed.json()) as { connection: { id: string; mailboxId: string; messagesSynced: number } };
   // The first pass: the recent 5, then the first batch of older mail. Far from all of it.
   expect(connection.messagesSynced).toBeLessThan(TOTAL);
 

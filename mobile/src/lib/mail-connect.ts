@@ -121,7 +121,8 @@ export interface ConnectionView {
   provider: ConnectPresetId;
   providerLabel: string;
   authKind: "password" | "oauth";
-  status: "active" | "syncing" | "auth_failed" | "error" | "paused";
+  /** "verifying" (server PRIV1b P60): waiting for the code emailed to the address; it is entered on the web. */
+  status: "active" | "syncing" | "auth_failed" | "error" | "paused" | "verifying";
   lastError: string | null;
   lastSyncAt: string | null;
   initialDone: boolean;
@@ -252,7 +253,7 @@ export function localPartProblem(local: string): string | null {
 }
 
 const STATUS_LABEL: Record<ConnectionView["status"], string> = {
-  active: "Connected", syncing: "Syncing", auth_failed: "Password needed", error: "Problem", paused: "Paused",
+  active: "Connected", syncing: "Syncing", auth_failed: "Password needed", error: "Problem", paused: "Paused", verifying: "Enter the emailed code on the web",
 };
 
 export function connectionStatusLabel(s: ConnectionView["status"]): string {
@@ -262,7 +263,7 @@ export function connectionStatusLabel(s: ConnectionView["status"]): string {
 export function connectionTone(s: ConnectionView["status"]): "ok" | "warn" | "bad" | "neutral" {
   if (s === "active") return "ok";
   if (s === "syncing" || s === "paused") return "neutral";
-  if (s === "auth_failed") return "warn";
+  if (s === "auth_failed" || s === "verifying") return "warn";
   return "bad";
 }
 

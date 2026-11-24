@@ -47,12 +47,13 @@ export function factorStatus(status: "good" | "warn" | "bad" | "unknown"): Plain
 }
 
 /** A connected mailbox in plain words and the one next step to take, or null when there is nothing to do. */
-export function connectionStatus(status: "active" | "syncing" | "auth_failed" | "error" | "paused"): { status: PlainStatus; next: string | null } {
+export function connectionStatus(status: "active" | "syncing" | "auth_failed" | "error" | "paused" | "verifying"): { status: PlainStatus; next: string | null } {
   switch (status) {
     case "active": case "syncing": return { status: "good", next: null };
     case "auth_failed": return { status: "check", next: "Reconnect with a new app password from your provider." };
     case "error": return { status: "check", next: "Sync now. If it keeps failing, check the server name and port with your provider." };
     case "paused": return { status: "check", next: "Sync now to start copying new mail again." };
+    case "verifying": return { status: "check", next: "Enter the code we emailed to this address." }; // PRIV1b (P60)
   }
 }
 

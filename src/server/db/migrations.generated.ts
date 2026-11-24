@@ -1900,5 +1900,14 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- PRIV1b P37 (round 2, owner decision): a mailbox at a human member's sign in address receives that person's account\n-- mail (password resets, sign in links), so it is that person's personal mailbox: only they (and whoever they share it\n-- with) open it, not every admin. New mailboxes get this when they are made (services/addresses.ts createMailbox);\n-- this converts the team mailboxes made before.\n-- The rule: a team mailbox (personal = 0) of kind person whose address equals, ignoring case, the sign in address of a\n-- human member of the same workspace becomes personal, owned by that member. Left as team mailboxes, because the\n-- platform relies on them being open to the team: agent inboxes (kind agent), the platform's free address workspace\n-- (org_platform), a mailbox that sends a workspace's sign-up emails (auth_email_hooks, which refuse a personal mailbox),\n-- a domain's catch-all, and support@ and security@ (the operator inbox addresses on the company domain).\n-- Grants on a converted mailbox (mailbox_access) stay in the table but no longer open it; the owner can share it.\n-- Idempotent; old code reads personal and owner_user_id the same way.\nUPDATE `mailboxes` SET `personal` = 1, `owner_user_id` = (\n  SELECT u.`id` FROM `users` u JOIN `members` m ON m.`user_id` = u.`id` AND m.`organization_id` = `mailboxes`.`org_id` AND m.`kind` = 'human'\n  WHERE lower(u.`email`) = lower(`mailboxes`.`address`) LIMIT 1\n)\nWHERE `personal` = 0 AND `kind` = 'person' AND `org_id` <> 'org_platform'\n  AND lower(`local_part`) NOT IN ('support', 'security')\n  AND `id` NOT IN (SELECT `mailbox_id` FROM `auth_email_hooks`)\n  AND `id` NOT IN (SELECT `catch_all_mailbox_id` FROM `domains` WHERE `catch_all_mailbox_id` IS NOT NULL)\n  AND EXISTS (\n    SELECT 1 FROM `users` u JOIN `members` m ON m.`user_id` = u.`id` AND m.`organization_id` = `mailboxes`.`org_id` AND m.`kind` = 'human'\n    WHERE lower(u.`email`) = lower(`mailboxes`.`address`)\n  );"
     ]
+  },
+  {
+    "name": "0175_connection_verify_p60",
+    "statements": [
+      "-- PRIV1b P60 (round 2, owner decision): a mailbox connected through an unrecognised server (\"Other server\", or a known\n-- provider with its servers changed) waits, with status 'verifying', until the person enters a code emailed to the\n-- address. These columns hold the code's HMAC, when it ends, wrong tries and when it was sent. All null or 0 on\n-- existing rows, which stay as they are; old code never reads them (and never sees the new status, set only by new code).\nALTER TABLE `mail_connections` ADD `verify_code_hash` text;",
+      "ALTER TABLE `mail_connections` ADD `verify_expires_at` integer;",
+      "ALTER TABLE `mail_connections` ADD `verify_tries` integer DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `mail_connections` ADD `verify_sent_at` integer;"
+    ]
   }
 ];

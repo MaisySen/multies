@@ -11,7 +11,7 @@ import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
-import { ConnectMailboxForm, connectionsKey, providerSaid, useConnections } from "@/web/components/connect-mailbox";
+import { ConnectCodeForm, ConnectMailboxForm, connectionsKey, providerSaid, useConnections } from "@/web/components/connect-mailbox";
 import { isFullConnection, type ConnectionLimited, type ConnectionView } from "@/shared/mail-connect";
 import { Section } from "./settings";
 import { MailFolderArt } from "@/web/components/illustrations";
@@ -27,6 +27,7 @@ const STATUS: Record<ConnectionView["status"], { label: string; tone: "ok" | "wa
   auth_failed: { label: "Needs reconnect", tone: "bad" },
   error: { label: "Can't reach server", tone: "warn" },
   paused: { label: "Paused", tone: "neutral" },
+  verifying: { label: "Waiting for code", tone: "warn" }, // PRIV1b (P60)
 };
 
 /** Settings, Connections, Mail accounts (R82F; was Connected accounts): mailboxes at other providers, their sync, and their stored password. */
@@ -141,12 +142,12 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
           <p className="mt-0.5 text-[13px] text-muted">
             {c.providerLabel} · {c.authKind === "oauth" ? "signed in with the provider" : "app password"} · {c.lastSyncAt ? `last sync ${timeAgo(c.lastSyncAt)}` : "first sync starting"} · {num(c.messagesSynced)} messages{c.initialDone ? "" : ", still copying recent mail"}
           </p>
-          <MailboxSyncProgress c={c} />
+          {c.status === "verifying" ? <div className="mt-3"><ConnectCodeForm connection={c} /></div> : <MailboxSyncProgress c={c} />}
           {c.lastError && c.status !== "active" && <p className="mt-1.5 text-[13px] text-bad" data-testid="connection-error">{c.lastError}</p>}
           {plain.next && <p className="mt-2 flex items-start gap-1.5 rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] text-fg" data-testid="connection-next"><IconArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden /><span><span className="font-semibold">Next step: </span>{plain.next}</span></p>}
           <div className="mt-3 flex flex-wrap gap-2">
-          <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${c.mailboxId}`}>Open inbox <IconArrowRight className="h-4 w-4" /></ButtonLink>
-          <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync now ${c.email}`}><IconRefresh className="h-4 w-4" />Sync now</Button>
+          {c.status !== "verifying" && <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${c.mailboxId}`}>Open inbox <IconArrowRight className="h-4 w-4" /></ButtonLink>}
+          {c.status !== "verifying" && <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync now ${c.email}`}><IconRefresh className="h-4 w-4" />Sync now</Button>}
           {c.sample
             ? <Button size="sm" variant={c.status === "active" ? "secondary" : "primary"} loading={resetSample.isPending} onClick={() => resetSample.mutate()} data-testid="sample-reconnect"><IconRefresh className="h-4 w-4" />Reconnect</Button>
             : <Button size="sm" variant={c.status === "auth_failed" ? "primary" : "secondary"} onClick={() => { setError(null); setReconnecting(true); }}><IconKey className="h-4 w-4" />Reconnect</Button>}

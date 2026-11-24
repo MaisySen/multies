@@ -864,9 +864,15 @@ export const mailConnections = sqliteTable("mail_connections", {
   authKind: text("auth_kind", { enum: ["password", "oauth"] }).notNull().default("password"),
   secretEnc: text("secret_enc").notNull(),
   savesSent: integer("saves_sent", { mode: "boolean" }).notNull().default(false),
-  status: text("status", { enum: ["active", "syncing", "auth_failed", "error", "paused"] }).notNull().default("active"),
+  /** PRIV1b (P60): "verifying" waits for the code emailed to the address (an unrecognised server); nothing syncs or sends. */
+  status: text("status", { enum: ["active", "syncing", "auth_failed", "error", "paused", "verifying"] }).notNull().default("active"),
   lastError: text("last_error"),
   lastSyncAt: ts("last_sync_at"),
+  /** PRIV1b (P60, 0175): the emailed code's HMAC, when it ends, wrong tries and when it was sent. Null once verified. */
+  verifyCodeHash: text("verify_code_hash"),
+  verifyExpiresAt: ts("verify_expires_at"),
+  verifyTries: integer("verify_tries").notNull().default(0),
+  verifySentAt: ts("verify_sent_at"),
   nextSyncAt: ts("next_sync_at"),
   initialDone: integer("initial_done", { mode: "boolean" }).notNull().default(false),
   /** JSON: per folder UIDVALIDITY and last UID seen, plus the Sent, Archive and Trash paths. */

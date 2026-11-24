@@ -1058,6 +1058,13 @@
       "when": 1794300174000,
       "tag": "0174_login_mailbox_personal",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "6",
+      "when": 1794300175000,
+      "tag": "0175_connection_verify_p60",
+      "breakpoints": true
     }
   ]
 }

@@ -123,7 +123,8 @@ export interface ConnectionView {
   provider: ConnectPresetId;
   providerLabel: string;
   authKind: "password" | "oauth";
-  status: "active" | "syncing" | "auth_failed" | "error" | "paused";
+  /** PRIV1b (P60): "verifying" waits for the code emailed to the address. */
+  status: "active" | "syncing" | "auth_failed" | "error" | "paused" | "verifying";
   lastError: string | null;
   lastSyncAt: string | null;
   initialDone: boolean;

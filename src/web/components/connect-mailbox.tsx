@@ -26,6 +26,41 @@ export function providerSaid(e: unknown): string | undefined {
 interface ServerFields { host: string; port: string; security: ConnectSecurity }
 
 /**
+ * PRIV1b (P60): a mailbox connected through a server Multies doesn't recognise waits for a code emailed to the address.
+ * The code field, a Confirm button and "Send a new code". Used right after Connect and on the waiting connection's row.
+ */
+export function ConnectCodeForm({ connection, onDone }: { connection: Pick<ConnectionView, "id" | "email">; onDone?: (c: ConnectionView) => void }) {
+  const qc = useQueryClient();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const refresh = () => { for (const k of [connectionsKey, qk.mailboxes, qk.overview]) qc.invalidateQueries({ queryKey: k }); };
+  const verify = useMutation({
+    mutationFn: () => api.post<{ connection: ConnectionView }>(`/connections/${connection.id}/verify`, { code: code.trim() }),
+    onSuccess: (r) => { refresh(); setCode(""); toast.success(`${r.connection.email} is connected`); onDone?.(r.connection); },
+    onError: (e) => setError(e instanceof ApiError ? e.message : "That didn't work. Try again."),
+  });
+  const resend = useMutation({
+    mutationFn: () => api.post(`/connections/${connection.id}/verify/resend`, {}),
+    onSuccess: () => { setError(null); toast.success(`A new code is on its way to ${connection.email}`); },
+    onError: (e) => setError(e instanceof ApiError ? e.message : "That didn't work. Try again."),
+  });
+  const ready = /^\d{6}$/.test(code.trim());
+  return (
+    <div className="space-y-3 rounded-xl border border-line p-4" data-testid="connect-code">
+      <p className="text-sm text-muted">We don't recognise this mail server, so we emailed a code to {connection.email} to check the address is yours. Nothing is copied or sent until you enter it. Without it the connection is removed after a day.</p>
+      <Field label="Code from the email" error={error ?? undefined}>{(fp) => (
+        <Input {...fp} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456" value={code} onChange={(e) => { setCode(e.target.value.replace(/\D/g, "")); setError(null); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && ready) { e.preventDefault(); verify.mutate(); } }} data-testid="connect-code-input" />
+      )}</Field>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" loading={resend.isPending} onClick={() => resend.mutate()} data-testid="connect-code-resend">Send a new code</Button>
+        <Button type="button" size="sm" loading={verify.isPending} disabled={!ready} onClick={() => verify.mutate()} data-testid="connect-code-confirm">Confirm</Button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Connect an existing mailbox: the address, the provider (guessed from the address), the app
  * password with the provider's own steps, and the servers for anything else. "Test connection"
  * signs in to both servers without saving; "Connect" tests again, saves and starts the first sync.
@@ -47,6 +82,7 @@ export function ConnectMailboxForm({ onConnected, oauth = [], className }: { onC
   const im = imap ?? { host: defaults.imap.host, port: String(defaults.imap.port), security: defaults.imap.security };
   const sm = smtp ?? { host: defaults.smtp.host, port: String(defaults.smtp.port), security: defaults.smtp.security };
   const [result, setResult] = useState<{ ok: boolean; message: string; detail?: string } | null>(null);
+  const [waiting, setWaiting] = useState<ConnectionView | null>(null); // PRIV1b (P60): connected, waiting for the emailed code
 
   const body = () => ({
     email: email.trim(), password, preset,
@@ -63,9 +99,10 @@ export function ConnectMailboxForm({ onConnected, oauth = [], className }: { onC
     mutationFn: () => api.post<{ connection: ConnectionView }>("/connections", body()),
     onSuccess: (r) => {
       for (const k of [connectionsKey, qk.mailboxes, qk.overview, qk.dashboard]) qc.invalidateQueries({ queryKey: k });
-      toast.success(`${r.connection.email} is connected`);
       setPassword("");
       setResult(null);
+      if (r.connection.status === "verifying") { setWaiting(r.connection); toast.success(`We emailed a code to ${r.connection.email}`); return; }
+      toast.success(`${r.connection.email} is connected`);
       onConnected?.(r.connection);
     },
     onError: explain,
@@ -75,6 +112,7 @@ export function ConnectMailboxForm({ onConnected, oauth = [], className }: { onC
   const submit = (e: FormEvent) => { e.preventDefault(); if (ready) connect.mutate(); };
   const oauthFor = preset === "gmail" || preset === "google_workspace" ? "google" : preset === "outlook" || preset === "microsoft365" ? "microsoft" : null;
 
+  if (waiting) return <div className={className}><ConnectCodeForm connection={waiting} onDone={(c) => { setWaiting(null); onConnected?.(c); }} /></div>;
   return (
     <form onSubmit={submit} className={cn("space-y-4", className)} data-testid="connect-form" noValidate>
       <div className="grid gap-4 sm:grid-cols-2">
