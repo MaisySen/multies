@@ -21,7 +21,7 @@ import { callerKind, isPersonSession, requirePerson } from "../../lib/actor-kind
 import { isAgentEmail } from "../people";
 import { agentInboxIdAt } from "../agents/agent-address";
 import { WITHHELD_TEXT, withheldRow } from "../agents/platform-mail";
-import { machineTriageAlways } from "./triage-settings";
+import { machineTriageAlways, passedTriageIn, recordTriageOnByMachine, triageMeta } from "./triage-settings";
 import { containsAny, containsText } from "../../lib/like-search";
 import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
 
@@ -182,6 +182,9 @@ export async function updateProject(deps: Deps, actor: SuiteActor, id: string, p
   // AIS1 (audit row 35): a key or a connected AI app may turn Triage on, never off.
   if (patch.triage === false && p.triage) requirePerson(actor, "Turning Triage off for a project");
   const now = deps.now();
+  // Round 2 (PR 24): when a key or an AI app turns it on, remember when, so its earlier tasks there can't move onto a
+  // checked board as if they had passed Triage (the move check reads it).
+  if (patch.triage === true && !p.triage && !isPersonSession(actor)) await recordTriageOnByMachine(deps, actor.orgId, id, now);
   const key = patch.key !== undefined ? await assertKeyFree(deps, actor.orgId, patch.key, id) : undefined;
   if (patch.ownerId) {
     const m = await deps.db.select({ id: members.id, kind: members.kind, agentInboxId: agentInboxIdAt(users.email) }).from(members).innerJoin(users, eq(users.id, members.userId))
@@ -858,7 +861,11 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     // R34: the ref it leaves behind (OPS-12) keeps opening it after the move.
     const from = await projectRow(deps, actor.orgId, t.projectId).catch(() => null);
     // AIS1 review (row 35): checked before the number claim below writes anything.
-    if (!t.triageState && !t.triageSource) assertMoveKeepsTriage(actor, await moveIntoTriage(deps, actor, p), [{ ...t, fromTriage: !!from?.triage }]);
+    if (!t.triageState && !t.triageSource && await moveIntoTriage(deps, actor, p)) {
+      // Round 2 (PR 24): a source project a key turned Triage on for counts as Triage off for tasks made before that.
+      const fromTriage = !!from?.triage && (!machineTriage(actor) || passedTriageIn(await triageMeta(deps, actor.orgId), from.id, t.createdAt));
+      assertMoveKeepsTriage(actor, true, [{ ...t, fromTriage }]);
+    }
     // R55: moving back to a project it left gives the task its old number again when it is free (exact Undo).
     const refs = await import("./task-refs-r34");
     set.projectId = p.id; set.number = (await refs.keptNumberFor(deps, actor.orgId, p, t.id)) ?? await claimNumbers(deps, p.id); projectId = p.id;

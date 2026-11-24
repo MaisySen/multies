@@ -68,3 +68,25 @@ export async function setTriageSettings(deps: Deps, actor: SuiteActor & { guest?
   return { machineTasksAlwaysWait: on };
 }
 
+/**
+ * A key or an AI app turned Triage on for a project: remember when, so tasks made there before it still count as
+ * never checked when a key moves them. One read and one write of the workspace row; only on that rare path.
+ */
+export async function recordTriageOnByMachine(deps: Deps, orgId: string, projectId: string, at: Date) {
+  const org = await deps.db.select({ metadata: organizations.metadata }).from(organizations).where(eq(organizations.id, orgId)).get();
+  if (!org) return;
+  const meta = readMeta(org.metadata);
+  const map = parse(org.metadata).onByMachine;
+  await deps.db.update(organizations).set({ metadata: JSON.stringify({ ...meta, [ON_BY_MACHINE]: { ...map, [projectId]: at.getTime() } }) }).where(eq(organizations.id, orgId));
+}
+
+/**
+ * Whether a task in a project with Triage on counts as having been checked there: not when a key or an AI app turned
+ * Triage on for that project after the task was made.
+ */
+export function passedTriageIn(meta: TriageMeta, projectId: string, createdAt: Date | number | null | undefined): boolean {
+  const at = meta.onByMachine[projectId];
+  if (at === undefined) return true;
+  const made = createdAt instanceof Date ? createdAt.getTime() : typeof createdAt === "number" ? createdAt : 0;
+  return made >= at;
+}

@@ -25,6 +25,7 @@ import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
 import { actorOf, assertWritable, parseDate, sortableId, withCaller, type SuiteActor } from "./common";
 import { assertMoveKeepsTriage, assertNoWaitingItems, coAssigneesOf, machineTriage, moveIntoTriage, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
+import { passedTriageIn, triageMeta } from "./triage-settings";
 import { inIds } from "../../lib/sql-chunks";
 import { claimNumbers } from "./project-counter";
 
@@ -205,7 +206,10 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
     if (unchecked.length) {
       const on = new Set((await deps.db.select({ id: projects.id }).from(projects)
         .where(and(eq(projects.orgId, actor.orgId), eq(projects.triage, true), inIds(projects.id, [...new Set(unchecked.map((t) => t.projectId))])))).map((p) => p.id));
-      assertMoveKeepsTriage(actor, true, unchecked.map((t) => ({ ...t, fromTriage: on.has(t.projectId) })));
+      // Round 2 (PR 24): a source project a key turned Triage on for counts as Triage off for tasks made before that
+      // (one read of the workspace row, only when such a task comes from a project with Triage on).
+      const meta = unchecked.some((t) => on.has(t.projectId)) ? await triageMeta(deps, actor.orgId) : null;
+      assertMoveKeepsTriage(actor, true, unchecked.map((t) => ({ ...t, fromTriage: on.has(t.projectId) && (!meta || passedTriageIn(meta, t.projectId, t.createdAt)) })));
     }
   }
   const projectOf = (t: TaskRow) => (target ? target.id : t.projectId);
