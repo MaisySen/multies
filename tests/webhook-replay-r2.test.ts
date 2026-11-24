@@ -121,4 +121,18 @@ describe("Round 2: webhook replays", () => {
     expect(again.status).toBe(200);
     expect(await again.json()).toMatchObject({ ok: true, replay: true });
   });
+
+  it("Wave 1 review V8, TikTok: the same signature spelled another way is still a replay", async () => {
+    const body = JSON.stringify({ event: "authorization.removed", user_openid: "replay-user-2" });
+    const t = Math.floor(ctx.deps.now().getTime() / 1000);
+    const hex = await hmacSha256Hex(TIKTOK.TIKTOK_CLIENT_SECRET, `${t}.${body}`);
+    const send = (sig: string) => ctx.app.request("/api/connections/webhooks/tiktok", { method: "POST", headers: { "content-type": "application/json", "tiktok-signature": sig, host: "localhost" }, body });
+    expect(await (await send(`t=${t},s=${hex}`)).json()).toMatchObject({ ok: true });
+    for (const sig of [`s=${hex.toUpperCase()},t=${t}`, ` t = ${t} , s = ${hex} `, `t=0${t},s=${hex}`]) {
+      const r = await send(sig);
+      expect(r.status).toBe(200);
+      expect(await r.json()).toMatchObject({ ok: true, replay: true });
+    }
+    expect(await ctx.db.select().from(webhookReceipts).where(eq(webhookReceipts.source, "tiktok")).all()).toHaveLength(1);
+  });
 });

@@ -44,6 +44,15 @@ export async function verifyTikTokSignature(header: string | undefined, body: st
   return false;
 }
 
+/**
+ * Wave 1 review V8: the replay key for a signed TikTok delivery. The raw header can be spelled many ways for the same
+ * signature (spaces, order, case, "t=0100"), so the key is built from the parsed time and signature, normalised.
+ */
+export function tiktokReceiptKey(header: string | undefined): string {
+  const parts = Object.fromEntries((header ?? "").split(",").map((kv) => { const i = kv.indexOf("="); return [kv.slice(0, i).trim(), kv.slice(i + 1).trim()]; }));
+  return `${Number(parts.t)}:${String(parts.s ?? "").toLowerCase()}`;
+}
+
 interface TikTokEvent { client_key?: string; event?: string; create_time?: number; user_openid?: string; content?: string }
 
 /** Applies one verified TikTok event. Unknown events are ignored. */
