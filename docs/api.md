@@ -333,6 +333,10 @@ or as the first "Tasks" project (AIS1); projects made before keep what they had.
 turns it off: `triage: false` from a key, on create or on `PATCH /projects/{id}`, answers 403 `person_only`.
 A form's own "Send to triage" switch (`triage: true`, on by default for new forms, also from the API and
 MCP) sends its answers there whatever the project's setting.
+The workspace setting "AI and API tasks always wait in Triage" (Settings, Workspace; off by default; only an
+admin signed in to Multies changes it, `GET`/`PUT /api/triage/settings` `{ machineTasksAlwaysWait }`) makes
+a key's or an AI app's task, subtask and import wait in every project, Triage on or off, and a move by a key
+then counts every project as one with Triage on.
 A triage item is a task row with `triage_state = 'pending'`: it keeps its number, and lists, boards,
 My Work, search, reports, the portfolio and counts leave it out (`GET /api/tasks?triage=pending` asks
 for them). Accept clears the flag in the same task write as any other change; decline soft deletes the

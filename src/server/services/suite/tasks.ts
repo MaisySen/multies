@@ -21,6 +21,7 @@ import { callerKind, isPersonSession, requirePerson } from "../../lib/actor-kind
 import { isAgentEmail } from "../people";
 import { agentInboxIdAt } from "../agents/agent-address";
 import { WITHHELD_TEXT, withheldRow } from "../agents/platform-mail";
+import { machineTriageAlways } from "./triage-settings";
 import { containsAny, containsText } from "../../lib/like-search";
 import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
 
@@ -632,6 +633,17 @@ export function assertMoveKeepsTriage(actor: SuiteActor, intoTriage: boolean, ro
   if (rows.some((r) => !r.triageState && !r.triageSource && !r.fromTriage)) requirePerson(actor, "Moving a task from a project without Triage into one with Triage on");
 }
 
+/**
+ * Round 2 (PR 24): whether a machine's move lands in a project that counts as Triage on. With "AI and API tasks always
+ * wait in Triage" on, every project does. Reads the workspace row only for a machine moving into a project with Triage
+ * off.
+ */
+export async function moveIntoTriage(deps: Deps, actor: SuiteActor, target: { triage: boolean | null }): Promise<boolean> {
+  if (target.triage) return true;
+  if (!machineTriage(actor)) return false;
+  return machineTriageAlways(deps, actor.orgId);
+}
+
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
 
 export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTaskInput, opts: { id?: string; retry?: boolean } = {}) {
@@ -666,7 +678,10 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
 
   // AIS1: subtasks skip Triage for people and automations, but a key's or an AI app's subtask waits like any task.
   const machine = machineTriage(actor);
-  const spec = input.triage !== undefined ? input.triage : machine;
+  let spec = input.triage !== undefined ? input.triage : machine;
+  // Round 2 (PR 24): with "AI and API tasks always wait in Triage" on, a machine's task waits in every project. One read
+  // of the workspace row, only for a machine's task in a project with Triage off.
+  if (spec && machine && spec.when !== "always" && !project.triage && await machineTriageAlways(deps, actor.orgId)) spec = { ...spec, when: "always" };
   const triage = spec && (!input.parentId || machine) && (spec.when === "always" || project.triage) ? spec : null;
   const now = deps.now();
   // Claim the next number in the project. The unique index on (project, number) guards races.
@@ -843,7 +858,7 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     // R34: the ref it leaves behind (OPS-12) keeps opening it after the move.
     const from = await projectRow(deps, actor.orgId, t.projectId).catch(() => null);
     // AIS1 review (row 35): checked before the number claim below writes anything.
-    assertMoveKeepsTriage(actor, !!p.triage, [{ ...t, fromTriage: !!from?.triage }]);
+    if (!t.triageState && !t.triageSource) assertMoveKeepsTriage(actor, await moveIntoTriage(deps, actor, p), [{ ...t, fromTriage: !!from?.triage }]);
     // R55: moving back to a project it left gives the task its old number again when it is free (exact Undo).
     const refs = await import("./task-refs-r34");
     set.projectId = p.id; set.number = (await refs.keptNumberFor(deps, actor.orgId, p, t.id)) ?? await claimNumbers(deps, p.id); projectId = p.id;

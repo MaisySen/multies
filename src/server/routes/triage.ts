@@ -1,15 +1,19 @@
 /**
  * Round 21 (R21.3): Triage in the web app (cookie session). The same services back the REST API
  * (v1-triage.ts) and the MCP tools (mcp-r21-triage.ts). Guests have no workspace session, so they get 401.
+ *   GET /api/triage/settings  { machineTasksAlwaysWait }
+ *   PUT /api/triage/settings  { machineTasksAlwaysWait } (admins signed in to Multies)
  */
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { parseAssignee } from "../services/suite/tasks";
+import { setTriageSettings, triageSettings } from "../services/suite/triage-settings";
 import { TRIAGE_ACTIONS, triageAction, type TriageActionInput } from "../services/suite/triage-r32";
 import { acceptTriage, bulkTriage, createTriageItem, declineTriage, getTriageItem, listTriage, mergeTriage, triageCount, BULK_LIMIT, type AcceptInput } from "../services/suite/triage";
 
+export const TriageSettingsBody = z.object({ machineTasksAlwaysWait: z.boolean() });
 export const TriageQuery = z.object({
   projectId: z.string().max(64).optional(),
   /** R32: pending (default, the queue) or snoozed. */
@@ -65,6 +69,9 @@ export function triageRoutes() {
     .use("*", requireAuth)
     .get("/", async (c) => c.json(await listTriage(c.var.deps, c.var.auth, parseQuery(c, TriageQuery))))
     .get("/count", async (c) => c.json({ count: await triageCount(c.var.deps, c.var.auth) }))
+    // Round 2 (PR 24): "AI and API tasks always wait in Triage" (admins signed in to Multies; off by default).
+    .get("/settings", async (c) => c.json(await triageSettings(c.var.deps, c.var.auth.orgId)))
+    .put("/settings", async (c) => c.json(await setTriageSettings(c.var.deps, c.var.auth, await parseBody(c, TriageSettingsBody))))
     .post("/", async (c) => c.json({ item: await createTriageItem(c.var.deps, c.var.auth, await parseBody(c, TriageCreate)) }, 201))
     .post("/bulk", async (c) => {
       const b = await parseBody(c, TriageBulk);

@@ -24,7 +24,7 @@ import { activity, automations, changes, projectStatuses, projects, taskFieldVal
 import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
 import { actorOf, assertWritable, parseDate, sortableId, withCaller, type SuiteActor } from "./common";
-import { assertMoveKeepsTriage, assertNoWaitingItems, coAssigneesOf, machineTriage, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
+import { assertMoveKeepsTriage, assertNoWaitingItems, coAssigneesOf, machineTriage, moveIntoTriage, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
 import { inIds } from "../../lib/sql-chunks";
 import { claimNumbers } from "./project-counter";
 
@@ -198,7 +198,10 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
     if (!target) throw new HttpError(404, "not_found", "Project not found.");
     // AIS1 review (row 35): a key may not move tasks out of a project with Triage off into one with Triage on. One read
     // of the source projects, only for a key or an AI app moving tasks that never passed Triage; before any write.
-    const unchecked = target.triage && machineTriage(actor) ? rows.filter((t) => t.projectId !== target!.id && !t.triageState && !t.triageSource) : [];
+    // Round 2 (PR 24): with "AI and API tasks always wait in Triage" on, every target counts as Triage on (moveIntoTriage
+    // reads the workspace row only for a machine moving into a project with Triage off).
+    const machineMoves = machineTriage(actor) ? rows.filter((t) => t.projectId !== target!.id && !t.triageState && !t.triageSource) : [];
+    const unchecked = machineMoves.length && await moveIntoTriage(deps, actor, target) ? machineMoves : [];
     if (unchecked.length) {
       const on = new Set((await deps.db.select({ id: projects.id }).from(projects)
         .where(and(eq(projects.orgId, actor.orgId), eq(projects.triage, true), inIds(projects.id, [...new Set(unchecked.map((t) => t.projectId))])))).map((p) => p.id));

@@ -28,6 +28,7 @@ import {
 } from "./parse";
 import { inIds } from "../../lib/sql-chunks";
 import { claimNumbers } from "../suite/project-counter";
+import { machineTriageAlways } from "../suite/triage-settings";
 
 export const DAILY_TASK_CAP = 2_000;
 export const BATCH_SIZE = 50;
@@ -203,7 +204,10 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
   // AIS1 review (row 35): an API key's or a connected AI app's import into a project with Triage on (a new project
   // the import makes starts with it on) waits there for a person, subtasks too, like the key's own tasks. A person's
   // import goes straight to the board. Nothing extra is read or written: the rows carry the flag.
-  const wait = project.triage ? machineTriage(actor) : null;
+  // Round 2 (PR 24): with "AI and API tasks always wait in Triage" on, it waits in a project with Triage off too (one
+  // read of the workspace row, only for a machine's import into such a project).
+  const machine = machineTriage(actor);
+  const wait = machine && (project.triage || await machineTriageAlways(deps, actor.orgId)) ? machine : null;
 
   // Statuses the project lacks are added after its own, in the file's order.
   const statuses = [...project.statuses];

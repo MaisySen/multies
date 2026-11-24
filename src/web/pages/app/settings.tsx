@@ -6,6 +6,7 @@ import { SavedRepliesSection } from "./mail/saved-replies";
 import { ReadStatusSection } from "./mail/splits"; // R31
 import { AttachmentIndexSection } from "./attachment-index-settings"; // Tools P2 (17)
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
+import { TriageAlwaysSetting } from "./work/triage-setting-w2"; // Round 2 (PR 24)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { isNavP2 } from "@/web/layouts/shell-nav"; // R121
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -231,6 +232,7 @@ export function GeneralSettings() {
       {translateOn && <Section id="translate" title={tr("settings.translate_and_read_aloud")} description={tr("settings.just_for_you_on_this_device_translate_mail_docs")}><TranslateSettingsLazy /></Section>}
       <WorkspaceSection />
       <Section id="share-links" title={tr("settings.share_links")} description={tr("settings.read_only_links_to_a_doc_or_a_board_for_people_o")}><ShareLinksSetting /></Section>
+      <Section id="triage" title={tr("settings.triage")} description={tr("settings.triage_hint")}><TriageAlwaysSetting /></Section>
       <AiTrustSection />
       <AiSection />
       <ToolsSection />
