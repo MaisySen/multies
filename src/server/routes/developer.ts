@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
-import { createApiKey, deleteApiKey, listApiKeys, updateApiKeyScope } from "../services/developer/api-keys";
+import { MAX_KEY_EXPIRY_DAYS, createApiKey, deleteApiKey, listApiKeys, updateApiKeyScope } from "../services/developer/api-keys";
 import { ALL_SCOPES, SCOPE_AREAS, SCOPE_PRESETS, normalizeScopes } from "../lib/api-scopes";
 import { HttpError } from "../lib/errors";
 
@@ -29,14 +29,16 @@ export function developerRoutes() {
     // R36: the scope list and presets the create and edit sheets show.
     .get("/scopes", (c) => c.json({ areas: SCOPE_AREAS, presets: SCOPE_PRESETS }))
     .post("/keys", async (c) => {
-      const input = await parseBody(c, z.object({ name: z.string().trim().min(1, "Name the key after what uses it.").max(60), scope: scopeInput.default("full"), showOnlyUsableTools: z.boolean().optional() }));
+      const input = await parseBody(c, z.object({ name: z.string().trim().min(1, "Name the key after what uses it.").max(60), scope: scopeInput.default("full"), showOnlyUsableTools: z.boolean().optional(),
+        // Round 2: optional end date, in whole days from now. Left out or null: the key never ends.
+        expiresInDays: z.number().int("Pick a whole number of days.").min(1, "A key lasts at least 1 day.").max(MAX_KEY_EXPIRY_DAYS, `A key can last at most ${MAX_KEY_EXPIRY_DAYS} days.`).nullable().optional() }));
       const { auth, deps } = c.var;
       const scope = toStoredScope(input.scope);
       // R37: a new key with picked areas hides the tools it can't use unless the admin turns it off. The two
       // presets keep their pre-R37 behaviour (Full never hides; Read only hides only when asked).
       const showOnlyUsableTools = scope === "full" ? false : scope === "read" ? input.showOnlyUsableTools ?? false : input.showOnlyUsableTools ?? true;
-      const out = await createApiKey(deps, auth, { name: input.name, scope, showOnlyUsableTools });
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.created", targetType: "api_key", targetId: out.apiKey.id, metadata: { name: input.name, prefix: out.apiKey.prefix, scope, showOnlyUsableTools }, ip: c.var.ip });
+      const out = await createApiKey(deps, auth, { name: input.name, scope, showOnlyUsableTools, expiresInDays: input.expiresInDays ?? null });
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.created", targetType: "api_key", targetId: out.apiKey.id, metadata: { name: input.name, prefix: out.apiKey.prefix, scope, showOnlyUsableTools, expiresAt: out.apiKey.expiresAt?.toISOString() ?? null }, ip: c.var.ip });
       return c.json(out, 201);
     })
     // R36: edit a key's scopes. Essential write (one row on an admin's click).

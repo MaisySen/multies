@@ -1882,5 +1882,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TRIGGER `messages_first_sender_au_new_set` AFTER UPDATE OF `mailbox_id`, `from_address`, `date`, `folder` ON `messages` WHEN OLD.`mailbox_id` IS NOT NEW.`mailbox_id` OR lower(OLD.`from_address`) IS NOT lower(NEW.`from_address`) OR OLD.`date` IS NOT NEW.`date` OR (OLD.`folder` IN ('sent', 'drafts')) IS NOT (NEW.`folder` IN ('sent', 'drafts')) BEGIN UPDATE `messages` SET `first_of_sender` = 1 WHERE `id` = (SELECT p.`id` FROM `messages` p WHERE p.`mailbox_id` = NEW.`mailbox_id` AND lower(p.`from_address`) = lower(NEW.`from_address`) AND p.`folder` <> 'sent' AND p.`folder` <> 'drafts' ORDER BY p.`date`, p.`id` LIMIT 1) AND `first_of_sender` = 0; END;",
       "-- Saved contacts (not the automatic \"mail\" ones) for the Important rule: read only those, not every contact.\nCREATE INDEX `contacts_org_kept_email_idx` ON `contacts` (`org_id`, lower(`email`)) WHERE `source` <> 'mail';"
     ]
+  },
+  {
+    "name": "0172_api_key_expiry",
+    "statements": [
+      "-- Round 2: an API key may end on a date picked when it is made (Settings, Developers). Null, the default and every\n-- existing key, means it never ends, so older code that doesn't read the column behaves exactly as before.\nALTER TABLE `api_keys` ADD `expires_at` integer;"
+    ]
   }
 ];

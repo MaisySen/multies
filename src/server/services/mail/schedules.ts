@@ -422,8 +422,9 @@ export async function runMailSchedules(deps: Deps, opts: { now?: Date; orgId?: s
 async function sendScheduled(deps: Deps, r: Row) {
   const p = JSON.parse(r.payload ?? "{}") as SendPayload;
   if (p.apiKeyId) {
-    const key = await deps.db.select({ id: apiKeys.id }).from(apiKeys).where(and(eq(apiKeys.id, p.apiKeyId), eq(apiKeys.orgId, r.orgId))).get();
+    const key = await deps.db.select({ id: apiKeys.id, expiresAt: apiKeys.expiresAt }).from(apiKeys).where(and(eq(apiKeys.id, p.apiKeyId), eq(apiKeys.orgId, r.orgId))).get();
     if (!key) throw badRequest("The API key that scheduled this was revoked, so it wasn't sent.");
+    if (key.expiresAt && key.expiresAt.getTime() <= deps.now().getTime()) throw badRequest("The API key that scheduled this has expired, so it wasn't sent.");
   }
   const u = r.userId ? await deps.db.select().from(users).where(eq(users.id, r.userId)).get() : undefined;
   const m = r.userId ? await deps.db.select({ role: members.role }).from(members).where(and(eq(members.organizationId, r.orgId), eq(members.userId, r.userId))).get() : undefined;

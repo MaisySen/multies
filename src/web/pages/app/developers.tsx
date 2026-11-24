@@ -7,12 +7,15 @@ import { useMe } from "@/web/lib/queries";
 import { CopyButton, EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Field, Input } from "@/web/components/ui/input";
-import { timeAgo } from "@/web/lib/format";
+import { Field, Input, Select } from "@/web/components/ui/input";
+import { shortDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Section } from "./settings";
 
-interface ApiKey { id: string; name: string; prefix: string; scope: string; showOnlyUsableTools?: boolean; scopeChips?: string[]; agentId?: string | null; lastUsedAt: string | null; createdAt: string }
+interface ApiKey { id: string; name: string; prefix: string; scope: string; showOnlyUsableTools?: boolean; scopeChips?: string[]; agentId?: string | null; lastUsedAt: string | null; expiresAt?: string | null; createdAt: string }
+
+/** Round 2: the end dates a new key can have. "" keeps the old behaviour: the key never ends. */
+const EXPIRY_CHOICES = [["", "Never"], ["30", "In 30 days"], ["90", "In 90 days"], ["365", "In 1 year"]] as const;
 interface Endpoint { id: string; url: string; description: string | null; events: string[]; enabled: boolean; disabledReason?: string | null; createdAt: string }
 interface Delivery { id: string; eventType: string; status: "pending" | "delivered" | "failed"; attempts: number; responseStatus: number | null; lastError: string | null; createdAt: string }
 
@@ -142,10 +145,11 @@ function ApiKeys() {
   const [editPreset, setEditPreset] = useState<Preset>("full");
   const [editPicked, setEditPicked] = useState<string[]>([]);
   const [hideTools, setHideTools] = useState(true); // R37: on by default for new scoped keys
+  const [expiry, setExpiry] = useState(""); // Round 2: days until the key ends; "" never
   const [editHide, setEditHide] = useState(false);
   const create = useMutation({
-    mutationFn: () => api.post<{ secret: string }>("/developer/keys", { name, scope: scopeValue(preset, picked), showOnlyUsableTools: preset !== "full" && hideTools }),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["api-keys"] }); setOpen(false); setName(""); setPreset("full"); setPicked([]); setHideTools(true); setSecret(r.secret); },
+    mutationFn: () => api.post<{ secret: string }>("/developer/keys", { name, scope: scopeValue(preset, picked), showOnlyUsableTools: preset !== "full" && hideTools, ...(expiry ? { expiresInDays: Number(expiry) } : {}) }),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["api-keys"] }); setOpen(false); setName(""); setPreset("full"); setPicked([]); setHideTools(true); setExpiry(""); setSecret(r.secret); },
   });
   const edit = useMutation({
     mutationFn: () => api.patch(`/developer/keys/${editing!.id}`, { scope: scopeValue(editPreset, editPicked), showOnlyUsableTools: editPreset !== "full" && editHide }),
@@ -173,6 +177,7 @@ function ApiKeys() {
                       <code className="rounded-md bg-fill px-1.5 py-0.5 font-mono text-[11.5px] text-muted" aria-label={`Key starts ${k.prefix}`}>{k.prefix}{"\u2022".repeat(6)}</code>
                       <ScopeChips chips={k.scopeChips ?? (k.scope === "read" ? ["Read only"] : ["Full access"])} />
                       {k.showOnlyUsableTools ? <span data-testid="tool-list-chip" className="rounded-full bg-hover px-2 py-0.5 text-[11px] text-muted">Shows only its tools</span> : null}
+                      {k.expiresAt ? <span data-testid="key-expiry-chip" className={cn("rounded-full px-2 py-0.5 text-[11px]", Date.parse(k.expiresAt) <= Date.now() ? "bg-bad-soft text-bad" : "bg-hover text-muted")}>{Date.parse(k.expiresAt) <= Date.now() ? `Expired ${shortDate(k.expiresAt)}` : `Expires ${shortDate(k.expiresAt)}`}</span> : null}
                     </div>
                   </div>
                 </div>
@@ -201,6 +206,9 @@ function ApiKeys() {
           </Field>
           <ScopePicker preset={preset} picked={picked} onChange={(pr, list) => { if (pr !== preset) setHideTools(pr === "custom"); setPreset(pr); setPicked(list); }} />
           <ToolListToggle preset={preset} picked={picked} on={hideTools} onChange={setHideTools} />
+          <Field label="Expires" hint="After this date the key stops working and apps using it get api_key_expired.">
+            {(p) => <Select {...p} data-testid="key-expiry" value={expiry} onChange={(e) => setExpiry(e.target.value)}>{EXPIRY_CHOICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>}
+          </Field>
         </form>
       </Dialog>
       <Dialog open={!!editing} onClose={() => setEditing(null)} title={editing ? `Scopes for ${editing.name}` : "Scopes"} description="Apps using this key keep working; calls outside the new scopes get insufficient_scope."

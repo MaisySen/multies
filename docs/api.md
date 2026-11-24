@@ -25,6 +25,12 @@ A workspace key has **Full access**, **Read only**, or scopes per area that you 
 
 A write scope includes its read scope. Every `/api/v1` route and every MCP tool needs one scope (GET needs the read scope, other methods the write scope); the MCP tools page at https://multies.si/developers/mcp shows each tool's. A call without it answers 403 `{"error":{"code":"insufficient_scope","message":"...","required":"tasks:write"}}` (on MCP, a tool error starting `insufficient_scope:`). Full access and Read only keys behave exactly as before. Session endpoints: `GET /api/developer/scopes` (areas and presets), `POST /api/developer/keys` with `scope` as `"full"`, `"read"` or a list, `PATCH /api/developer/keys/{id}` with `{ scope }`.
 
+A key may end on a date (round 2): `POST /api/developer/keys` takes `expiresInDays` (a whole number from 1 to 3650;
+left out or null, the default, the key never ends), and Settings, Developers offers Never, 30 days, 90 days or a year.
+Keys list `expiresAt` (ISO time or null). From that moment every call with the key answers 401
+`{"error":{"code":"api_key_expired","message":"..."}}`, an open agent event stream ends, and a send it scheduled is not
+sent. Make a new key and delete the old one.
+
 A workspace key acts for the workspace, not for the person who made it. It acts with its maker's current role, at
 most admin: a key made by the owner is an admin key, and once its maker is changed to a member it is a member's key
 (403 `agent_member_key_scope` on mail, agents and integrations). A key whose maker left keeps working as a plain

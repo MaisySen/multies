@@ -265,10 +265,11 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
         return !!g && !g.revokedAt && !!g.member && sameScope(g.scope);
       }
       if (!actor.apiKeyId) return true;
-      const k = await deps.db.select({ id: apiKeys.id, scope: apiKeys.scope, member: members.id }).from(apiKeys)
+      const k = await deps.db.select({ id: apiKeys.id, scope: apiKeys.scope, expiresAt: apiKeys.expiresAt, member: members.id }).from(apiKeys)
         .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
         .where(and(eq(apiKeys.id, actor.apiKeyId), eq(apiKeys.orgId, actor.orgId))).get();
-      return !!k && !(actor.userId && !k.member) && sameScope(splitToolList(k.scope).scope);
+      // Round 2: an open stream also ends once the key's end date passes.
+      return !!k && !(actor.userId && !k.member) && sameScope(splitToolList(k.scope).scope) && !(k.expiresAt && k.expiresAt.getTime() <= deps.now().getTime());
     };
     const stillValid = async () => (await keyValid()) && getAgent(deps, actor.orgId, id).then(() => true, () => false);
     return streamSSE(c, async (stream) => {

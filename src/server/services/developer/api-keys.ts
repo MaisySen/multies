@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { agents, apiKeys, members, organizations, users } from "../../db/schema";
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
-import { conflict, notFound } from "../../lib/errors";
+import { conflict, HttpError, notFound } from "../../lib/errors";
 import { deferrableWrite } from "../write-priority";
 import { grantedScopes, scopeChips, splitToolList, withToolList } from "../../lib/api-scopes";
 
@@ -15,7 +15,7 @@ export type ApiKeyScope = "full" | "read" | (string & {});
 
 export function presentApiKey(k: typeof apiKeys.$inferSelect) {
   const { scope, scopedList } = splitToolList(k.scope); // R37: the tool list option rides in the scope column
-  return { id: k.id, name: k.name, prefix: k.prefix, scope, showOnlyUsableTools: scopedList, scopes: [...grantedScopes(scope)], scopeChips: scopeChips(scope), agentId: k.agentId ?? null, lastUsedAt: k.lastUsedAt, createdAt: k.createdAt, createdByUserId: k.createdByUserId };
+  return { id: k.id, name: k.name, prefix: k.prefix, scope, showOnlyUsableTools: scopedList, scopes: [...grantedScopes(scope)], scopeChips: scopeChips(scope), agentId: k.agentId ?? null, lastUsedAt: k.lastUsedAt, expiresAt: k.expiresAt ?? null, createdAt: k.createdAt, createdByUserId: k.createdByUserId };
 }
 
 export async function listApiKeys(deps: Deps, orgId: string, agentId?: string) {
@@ -24,7 +24,10 @@ export async function listApiKeys(deps: Deps, orgId: string, agentId?: string) {
 }
 
 /** Creates a key. The full key is returned once; only its hash is kept. */
-export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId">, input: { name: string; scope: ApiKeyScope; agentId?: string; showOnlyUsableTools?: boolean }) {
+/** Round 2: the longest expiry a key can be given, in days (about ten years). */
+export const MAX_KEY_EXPIRY_DAYS = 3650;
+
+export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId">, input: { name: string; scope: ApiKeyScope; agentId?: string; showOnlyUsableTools?: boolean; expiresInDays?: number | null }) {
   const count = (await deps.db.select({ id: apiKeys.id }).from(apiKeys).where(eq(apiKeys.orgId, auth.orgId))).length;
   if (count >= MAX_API_KEYS) throw conflict(`A workspace can have up to ${MAX_API_KEYS} API keys. Delete one you no longer use.`);
   const secret = `mm_live_${randomToken(30)}`;
@@ -32,6 +35,7 @@ export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" |
   await deps.db.insert(apiKeys).values({
     id, orgId: auth.orgId, createdByUserId: auth.userId || null, name: input.name, scope: withToolList(input.scope, !!input.showOnlyUsableTools), agentId: input.agentId ?? null,
     prefix: secret.slice(0, 12), keyHash: await sha256Hex(secret),
+    expiresAt: input.expiresInDays ? new Date(deps.now().getTime() + input.expiresInDays * 86_400_000) : null,
   });
   const row = await deps.db.select().from(apiKeys).where(eq(apiKeys.id, id)).get();
   return { apiKey: presentApiKey(row!), secret };
@@ -81,13 +85,17 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
     .where(eq(apiKeys.keyHash, await sha256Hex(token))).get();
   if (!row) return null;
   const { k } = row;
+  const now = deps.now();
+  // Round 2: an expired key is refused with its own code, so a script's owner knows to make a new one.
+  if (k.expiresAt && k.expiresAt.getTime() <= now.getTime()) {
+    throw new HttpError(401, "api_key_expired", `This API key (${k.prefix}) expired on ${k.expiresAt.toISOString().slice(0, 10)}. Make a new one in Settings, Developers.`);
+  }
   // A key outlives its creator's membership only as a plain workspace key.
   const userId = k.createdByUserId && row.memberId ? k.createdByUserId : "";
   // An AI agent member's key acts as that member, under its name, with the member role.
   const agentMember = !!userId && row.memberKind === "agent";
   // R26 (DF-3): a paused agent member's keys are refused until an admin resumes it.
   if (agentMember && row.memberDisabledAt) return null;
-  const now = deps.now();
   // PRIV1b (P48): the keys of a person under a platform ban stop working (same rule as the OAuth resolver).
   if (row.creatorBanned && (!row.creatorBanExpires || row.creatorBanExpires.getTime() > now.getTime())) return null;
   // Write at most once every 15 minutes per key: an agent polling once a minute would otherwise

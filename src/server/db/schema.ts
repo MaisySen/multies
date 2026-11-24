@@ -523,6 +523,8 @@ export const apiKeys = sqliteTable("api_keys", {
   /** An agent key acts only as this agent: its own inbox and the mailboxes it was given. */
   agentId: text("agent_id"),
   lastUsedAt: ts("last_used_at"),
+  /** Round 2: the key stops working at this moment (401 api_key_expired). Null: it never ends (the default). */
+  expiresAt: ts("expires_at"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("api_keys_hash_uq").on(t.keyHash), index("api_keys_org_idx").on(t.orgId)]);
 
