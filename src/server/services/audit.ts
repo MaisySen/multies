@@ -83,16 +83,32 @@ const SECRET_KEYS = /^ip$|ipAddress|userAgent|invit|token/i;
 const NAME_KEYS = /^(name|displayName|display_name|fromName|toName|senderName)$/i;
 // W5: the domain ends in an alphabetic label, so a version like pkg@1.2.3 is not an address; quoted local parts count.
 // Wave 1 review V13: the label's letters are any script's (x@primer.рф, a .भारत address), with its combining marks.
-const ADDRESS = /(?:"[^"]*"|[^\s@<>"]+)@(?:[^\s@<>"]+\.)+\p{L}[\p{L}\p{M}]+/u;
+// Wave 2 review X9: the whole pattern, /(?:"[^"]*"|[^\s@<>"]+)@(?:[^\s@<>"]+\.)+\p{L}[\p{L}\p{M}]+/u, backtracked
+// exponentially on a domain of many labels (labels could hold dots) and quadratically on a long run with no address
+// (tried from every start). The same rule now runs from each @ only: the character before it closes a local part (an
+// allowed character, or the closing quote of a quoted one), and a sticky domain pattern whose labels hold no dot reads
+// forward from it once. Linear in the text.
+const DOMAIN_AT = /(?:[^\s@<>".]+\.)+\p{L}[\p{L}\p{M}]+/uy;
+const NOT_LOCAL = /[\s@<>"]/;
+function hasAddress(s: string): boolean {
+  for (let at = s.indexOf("@"); at > -1; at = s.indexOf("@", at + 1)) {
+    if (at === 0) continue;
+    const before = s[at - 1];
+    if (before === '"' ? s.lastIndexOf('"', at - 2) < 0 : NOT_LOCAL.test(before)) continue;
+    DOMAIN_AT.lastIndex = at + 1;
+    if (DOMAIN_AT.test(s)) return true;
+  }
+  return false;
+}
 const DROP = Symbol("drop");
 
 /** W5: an address in any spelling: fullwidth ＠ (NFKC), percent encoded (%40), quoted local part. Prefers hiding. */
 function holdsAddress(s: string): boolean {
   const n = s.normalize("NFKC");
-  if (ADDRESS.test(n)) return true;
+  if (hasAddress(n)) return true;
   let decoded: string;
   try { decoded = decodeURIComponent(n); } catch { decoded = n.replace(/%40/gi, "@"); }
-  return decoded !== n && ADDRESS.test(decoded.normalize("NFKC"));
+  return decoded !== n && hasAddress(decoded.normalize("NFKC"));
 }
 
 /**
