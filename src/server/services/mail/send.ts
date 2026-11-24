@@ -153,6 +153,10 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   // PRIV1b (P58): a connected mailbox kept after its connection was removed (legal hold) has no way to send as that
   // address; the platform's own outbound must never send as someone else's Gmail.
   if (!conn && domain.name === CONNECTED_DOMAIN) throw connectionRemoved(mb.address);
+  // Wave 1 review V3: a connection waiting for its emailed code (P60) has not shown the address is the caller's.
+  if (conn?.status === "verifying") {
+    throw new HttpError(409, "connection_unverified", `${mb.address} waits for the code we emailed to it. Enter the code in Settings, Connections, Mail accounts, then send again.`);
+  }
   if (conn?.status === "auth_failed") {
     throw new HttpError(409, "connection_auth_failed", `${mb.address} stopped accepting its password. Reconnect it in Settings, Connections, Mail accounts, then send again.`);
   }

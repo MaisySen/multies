@@ -342,12 +342,21 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
     smtp: { host: c.smtpHost, port: c.smtpPort, security: c.smtpSecurity, ...input.smtp },
   });
   await testSettings(deps, s, { secret: s.password });
+  // Wave 1 review V3 (P60): a connection still waiting for its code keeps waiting (a new password proves nothing about
+  // the address), and moving to servers that don't prove the address asks for a new emailed code.
+  const hostChanged = s.imap.host !== c.imapHost.toLowerCase() || s.smtp.host !== c.smtpHost.toLowerCase();
+  const reverify = c.status !== "verifying" && hostChanged && !serversProveAddress(s);
+  const waits = c.status === "verifying" || reverify;
   await deps.db.update(mailConnections).set({
     username: s.username, imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
     smtpHost: s.smtp.host, smtpPort: s.smtp.port, smtpSecurity: s.smtp.security, authKind: "password",
-    secretEnc: await encryptSecret(deps.config.appSecret, s.password), status: "active", lastError: null, nextSyncAt: deps.now(),
+    secretEnc: await encryptSecret(deps.config.appSecret, s.password), status: waits ? "verifying" : "active", lastError: null, nextSyncAt: waits ? null : deps.now(),
   }).where(eq(mailConnections.id, c.id));
-  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.reconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email } });
+  if (reverify) {
+    await deps.db.update(mailboxes).set({ status: "suspended" }).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
+    await sendConnectCode(deps, c);
+  }
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.reconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email, ...(waits ? { waitingForCode: true } : {}) } });
   const mb = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, c.mailboxId)).get())!;
   return present((await deps.db.select().from(mailConnections).where(eq(mailConnections.id, c.id)).get())!, mb);
 }

@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { DB } from "../db";
 import type { Deps } from "../context";
-import { aliases, domains, mailboxes, members, users } from "../db/schema";
+import { aliases, domains, mailConnections, mailboxes, members, users } from "../db/schema";
 import { audit } from "./audit";
 import { newId } from "../lib/crypto";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
@@ -104,6 +104,10 @@ export async function updateMailbox(db: DB, orgId: string, id: string, patch: { 
   if (patch.status !== undefined && m.personal) await assertMayRemovePersonal(db, orgId, m.id, who);
   else if (patch.status !== undefined && !admin) throw forbidden("Only workspace owners and admins can change a mailbox's storage or status.");
   if (patch.quotaMb !== undefined && !admin) throw forbidden("Only workspace owners and admins can change a mailbox's storage or status.");
+  // Wave 1 review V3: a connected mailbox waiting for its emailed code (P60) stays suspended until the code is entered.
+  if (patch.status === "active" && m.status !== "active" && await db.select({ id: mailConnections.id }).from(mailConnections).where(and(eq(mailConnections.mailboxId, m.id), eq(mailConnections.status, "verifying"))).get()) {
+    throw conflict("This mailbox waits for the code we emailed to its address. Enter the code to turn it on.");
+  }
   if (patch.displayName !== undefined || patch.replyTo !== undefined) {
     const own = m.personal ? await isPersonalOwner(db, callerWho({ ...who, orgId }), m.id) : undefined;
     // PRIV1b (P7, S3): like the rest of PRIV1a, a personal mailbox the caller can't open answers 404; a share gets 403.
