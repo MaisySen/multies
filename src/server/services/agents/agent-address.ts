@@ -106,8 +106,11 @@ async function find(db: DB, addr: string, depth: number, seen: Set<string>): Pro
 }
 
 /** The message a refused invite, sign-up or join shows. */
-export const agentAddressMessage = (email: string) =>
-  `${email} is an AI agent's inbox. An agent can't join as a person. Add agents in Agents instead.`;
+export const agentAddressMessage = (email: string, via?: AgentAddress["via"]) =>
+  // Round 2 (PR 23): a person's own address that is an alias also copying an agent reads as a person's, so say what to fix.
+  via === "alias"
+    ? `${email} is an alias that also sends to an AI agent, so mail for this person would reach the agent too. Remove the agent from the alias, or use another address.`
+    : `${email} is an AI agent's inbox. An agent can't join as a person. Add agents in Agents instead.`;
 
 export interface RefusalContext {
   /** Audit action, for example "member.invite_refused". */
@@ -148,5 +151,5 @@ export async function refuseAgentAddress(deps: Deps, email: string, ctx: Refusal
     }).catch((err: unknown) => deps.reportError?.(err, { where: "agent_address.audit" }));
   }
   deps.log?.warn("agent_address.refused", { action: ctx.action, reason: hit.via });
-  throw new HttpError(422, "agent_address", agentAddressMessage(address), { fields: { email: agentAddressMessage(address) } });
+  throw new HttpError(422, "agent_address", agentAddressMessage(address, hit.via), { fields: { email: agentAddressMessage(address, hit.via) } });
 }

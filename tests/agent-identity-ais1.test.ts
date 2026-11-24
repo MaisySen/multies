@@ -177,6 +177,14 @@ describe("AIS1 row 1: no invite to an agent inbox, on any path", () => {
     expect((await refusals("member.invite_refused")).map((m) => m.reason)).toEqual(["agent_inbox", "agent_inbox", "alias"]);
   });
 
+  it("Round 2 (PR 23): a person's address that is an alias also copying an agent says what to fix", async () => {
+    await ctx.db.insert(aliases).values({ id: "als_pat", orgId, domainId, localPart: "pat", address: "pat@acme.io", destinations: JSON.stringify(["pat@home.example", "agent@acme.io"]) });
+    const r = await owner.post("/api/team/invites", { email: "pat@acme.io", role: "member", mailboxIds: [] });
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe("agent_address");
+    expect(r.body.error.message).toBe("pat@acme.io is an alias that also sends to an AI agent, so mail for this person would reach the agent too. Remove the agent from the alias, or use another address.");
+  });
+
   it("guests: a person, a workspace key and an agent can't invite the agent's inbox to a project", async () => {
     const project = (await owner.post("/api/projects", { name: "Launch" })).body.project;
     const byPerson = await owner.post("/api/guests", { projectId: project.id, email: "agent@acme.io" });
