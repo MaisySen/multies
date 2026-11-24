@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { members, users } from "@/server/db/schema";
 
@@ -56,5 +56,22 @@ describe("Round 2: pausing an agent pauses its member twin", () => {
     const r = await m.get("/api/tasks");
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe("member_paused");
+  });
+
+  it("Wave 2 review X11a: a human member at the agent's inbox address is not paused with the agent", async () => {
+    await c.post("/api/domains", { name: "acme.io" });
+    const agent = (await c.post("/api/agents", { name: "Scout", localPart: "scout" })).body.agent;
+    const inv = await c.post("/api/team/invites", { email: "max@acme.io", role: "member" });
+    const m = new Client(ctx.app);
+    await m.signup("max@acme.io", "Max", "Max Co");
+    expect((await m.post(`/api/invites/${inv.body.link.split("/invite/")[1]}/accept`)).status).toBe(200);
+    // A person whose sign in address became the agent's inbox address (made before the AIS1 checks, or changed since).
+    expect(agent.address).toBe("scout@acme.io");
+    await ctx.db.update(users).set({ email: agent.address }).where(eq(users.email, "max@acme.io"));
+    expect((await c.patch(`/api/agents/${agent.id}`, { status: "paused" })).status).toBe(200);
+    const orgId = (await c.get("/api/account/me")).body.organization.id as string;
+    const row = (await ctx.db.select({ disabledAt: members.disabledAt, kind: members.kind }).from(members).innerJoin(users, eq(users.id, members.userId)).where(and(eq(users.email, agent.address), eq(members.organizationId, orgId))).get())!;
+    expect(row.kind).toBe("human");
+    expect(row.disabledAt).toBeNull();
   });
 });

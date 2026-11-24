@@ -388,7 +388,8 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
   // in with its inbox address. Their keys and sessions stop until an admin resumes the member; resuming the agent
   // doesn't resume them (a person decides each). One update, only when the agent goes from active to paused.
   if (patch.status === "paused" && a.status !== "paused") {
-    await deps.db.update(members).set({ disabledAt: deps.now() }).where(and(eq(members.organizationId, actor.orgId), isNull(members.disabledAt),
+    // Wave 2 review X11: only AI agent members; a person at that address (made before the AIS1 checks) is never paused.
+    await deps.db.update(members).set({ disabledAt: deps.now() }).where(and(eq(members.organizationId, actor.orgId), isNull(members.disabledAt), eq(members.kind, "agent"),
       or(eq(members.linkedAgentId, a.id), sql`${members.userId} in (select ${users.id} from ${users} where ${users.email} = ${mb.address.toLowerCase()})`)));
   }
   if (patch.name) await deps.db.update(mailboxes).set({ displayName: patch.name }).where(eq(mailboxes.id, a.mailboxId));
