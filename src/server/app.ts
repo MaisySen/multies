@@ -167,8 +167,11 @@ export const PRESENCE_PATH = /^\/api\/threads\/[^/]+\/presence(\/leave)?$/;
  * "unknown" counter and trip late in a long run. Everywhere else the address is used as read.
  */
 export function requestIp(ip: string, localAddresslessUnlimited?: boolean): string {
-  return localAddresslessUnlimited && ip === "unknown" ? `unknown:${crypto.randomUUID()}` : ip;
+  // W4: since Wave 1 a Node request with no forwarded header is keyed by its socket address, so on a local E2E server
+  // every browser request is 127.0.0.1 (or ::1): on such servers only, a loopback address counts as addressless too.
+  return localAddresslessUnlimited && (ip === "unknown" || LOOPBACK.test(ip)) ? `unknown:${crypto.randomUUID()}` : ip;
 }
+const LOOPBACK = /^(?:::ffff:)?127\.\d{1,3}\.\d{1,3}\.\d{1,3}$|^::1$/i;
 
 /** Writes that can change another person's access or end their sessions (R40 sec). */
 const ACCESS_WRITE = /^\/api\/(team|org|admin|invites|account)(\/|$)|^\/api\/auth\/(revoke|change-password|reset-password|organization|admin|two-factor|delete-user)/;
