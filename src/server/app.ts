@@ -14,7 +14,7 @@ import { installCspReport } from "./routes/csp-report-r30";
 import { installMonitoringTunnel } from "./routes/monitoring-tunnel-pol3";
 import type { AppEnv, Deps } from "./context";
 import { HttpError, isNoValuesToSet, nothingToChange } from "./lib/errors";
-import { clientIp, csrfGuard, requireAuth } from "./middleware";
+import { CLIENT_IP_HEADER, clientIp, csrfGuard, requireAuth } from "./middleware";
 import { jsonLogger, requestIdFrom } from "./lib/logger";
 import { runWithRequestCaller } from "./lib/request-caller";
 import { rateLimit } from "./lib/rate-limit";
@@ -572,7 +572,13 @@ export function createApp(deps: Deps) {
   // PRIV1b (P49): account deletion goes through DELETE /api/account (password, Auth0 user); Better Auth's own endpoint needed only a fresh session.
   app.all("/api/auth/delete-user", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
   app.all("/api/auth/delete-user/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
-  app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
+  // Round 2: Better Auth reads the client address (its rate limits, the session's IP) from one header that only this
+  // line sets, to the address clientIp worked out (middleware.ts), so the runtime and TRUST_PROXY rules hold there too.
+  app.on(["GET", "POST"], "/api/auth/*", (c) => {
+    const headers = new Headers(c.req.raw.headers);
+    headers.set(CLIENT_IP_HEADER, c.var.ip);
+    return authFor(deps).handler(new Request(c.req.raw, { headers }));
+  });
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());
   app.route("/api/free-address", freeAddressRoutes());

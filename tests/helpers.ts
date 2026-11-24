@@ -44,7 +44,9 @@ export async function makeTestApp(env: Record<string, string> = {}, opts: { fetc
   const dns = new StaticResolver();
   const outbound = new LogOutbound();
   const fetchImpl = opts.fetch ?? (async () => { throw new Error("network disabled in tests"); });
-  const deps: Deps = { db, indexDb, config: loadConfig({ APP_SECRET: "t".repeat(40), ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch, log: nullLogger };
+  // Round 2: tests stand behind a trusted proxy (TRUST_PROXY), so a client's CF-Connecting-IP or X-Forwarded-For names its
+  // address as it did before, and per address limits can be tested. tests/client-ip-r2.test.ts covers TRUST_PROXY off.
+  const deps: Deps = { db, indexDb, config: loadConfig({ APP_SECRET: "t".repeat(40), TRUST_PROXY: "true", ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch, log: nullLogger };
   const app = createApp(deps);
   appDbs.set(app, db);
   return { app, deps, db, indexDb, dns, outbound };

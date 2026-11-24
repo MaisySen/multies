@@ -1,6 +1,8 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { z, type ZodType } from "zod";
-import type { AppEnv } from "./context";
+import { getConnInfo } from "@hono/node-server/conninfo";
+export { CLIENT_IP_HEADER } from "./lib/client-ip-header";
+import type { AppEnv, Deps } from "./context";
 import { HttpError, zodToHttp } from "./lib/errors";
 
 // The guards live in the auth module; re-exported here for the existing imports.
@@ -72,6 +74,23 @@ export const pageQuery = z.object({
   before: z.iso.datetime({ offset: true }).optional().transform((v) => (v ? new Date(v) : undefined)),
 });
 
+/**
+ * The client's address. Round 2: on Workers only CF-Connecting-IP, which Cloudflare sets and a client can't. On Node
+ * (self host, local) the forwarded headers are believed only with TRUST_PROXY (a proxy the operator runs sets them);
+ * otherwise the socket's address, so a client can't name its own address to dodge per address limits or plant one in
+ * the audit log. "unknown" when there is none (app.request in tests has no socket). Requests reuse the value the app
+ * worked out first (c.var.ip), so every route agrees.
+ */
 export function clientIp(c: Context): string {
-  return c.req.header("cf-connecting-ip") ?? c.req.header("x-real-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const v = c.var as { ip?: string; deps?: Pick<Deps, "runtime" | "config"> };
+  if (v.ip && !v.ip.startsWith("unknown")) return v.ip;
+  const cf = c.req.header("cf-connecting-ip")?.trim() || undefined;
+  if (v.deps?.runtime === "workers") return cf ?? "unknown";
+  if (v.deps?.config.auth.trustProxy) return cf ?? c.req.header("x-real-ip")?.trim() ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? socketAddress(c) ?? "unknown";
+  return socketAddress(c) ?? "unknown";
+}
+
+/** The Node socket's remote address (@hono/node-server). Undefined on Workers and in app.request. */
+function socketAddress(c: Context): string | undefined {
+  try { return getConnInfo(c).remote.address || undefined; } catch { return undefined; }
 }

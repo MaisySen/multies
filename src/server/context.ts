@@ -6,6 +6,11 @@ import type { OutboundProvider } from "./services/mail/outbound";
 /** Everything the app needs from the outside world. Swapped wholesale in tests. */
 export interface Deps {
   db: DB;
+  /**
+   * Round 2: where this process runs, set by the entry point (src/entry/worker.ts, src/entry/node.ts). Client addresses
+   * depend on it (middleware.ts clientIp): Workers believe only CF-Connecting-IP. Unset (tests) counts as Node.
+   */
+  runtime?: "workers" | "node";
   /** When set, recordWrite collects activity and change rows here and the caller writes them in one batch (bulk seeds). */
   writeBuffer?: { activity: unknown[]; changes: unknown[] };
   config: AppConfig;

@@ -128,7 +128,7 @@ function bootWith(env: WorkerEnv, db: DB, vars: Record<string, string | undefine
   bindTestSessionEnv(vars); // R45: the app gets no env from app.fetch here, so the test session reads its settings from this.
   const outbound = config.outbound.driver === "resend" ? new ResilientOutbound(new ResendOutbound(config.outbound.resendApiKey!)) : new LogOutbound();
   const deps: Deps = {
-    db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: peerAwareFetch(env),
+    db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: peerAwareFetch(env), runtime: "workers", // Round 2: client addresses from CF-Connecting-IP only
     log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
     // R43 (MB-199): reported through our own lazily created client (src/entry/reporting.ts), not a request wrapper.
     reportError: config.sentry.dsnApi ? (err, context) => reportException(err, context) : undefined,

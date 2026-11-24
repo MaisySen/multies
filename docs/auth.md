@@ -99,8 +99,10 @@ password storage once the form is off.
   from the last 15 minutes.
 - Auth rate limits are counted in memory per Worker isolate, with no database write per request. The
   account lockout and the provider's own brute force protection hold across isolates.
-- Client addresses come from `CF-Connecting-IP`. `X-Forwarded-For` is only believed with `TRUST_PROXY=true`
-  (self host behind your own proxy).
+- Client addresses (rate limits, the audit log, Better Auth's limits and session IP) follow one rule
+  (`clientIp` in src/server/middleware.ts). On Workers: `CF-Connecting-IP` only. On Node (self host):
+  `CF-Connecting-IP`, `X-Real-IP` or `X-Forwarded-For` only with `TRUST_PROXY=true` (behind your own proxy),
+  otherwise the connection's own address, so a client can't name its address.
 - Workspaces can require single sign on; owners keep password access as the break glass account.
 
 ## Agents: API keys and MCP tokens

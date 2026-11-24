@@ -83,7 +83,7 @@ const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver
 
 const fetchImpl = ((f: typeof fetch) => (mockDirectAllowed(process.env) ? mockDirectFetch(f) : f))(((f: typeof fetch) => (mockComposioAllowed(process.env) ? mockComposioFetch(f) : f))(fakeAiAllowed(process.env) ? fakeAiFetch(globalThis.fetch.bind(globalThis)) : globalThis.fetch.bind(globalThis)));
 const deps = {
-  db, indexDb, config, dns, outbound, now: () => new Date(),
+  db, indexDb, config, dns, outbound, now: () => new Date(), runtime: "node" as const, // Round 2: forwarded addresses only with TRUST_PROXY
   // R110: ASK_AI_FAKE=1 on a localhost APP_URL answers Ask locally (end to end tests only).
   askAi: fakeAskAllowed(process.env) ? fakeAskAi : undefined,
   // The in-app workspace agent, the same door the Worker opens with its AI binding.

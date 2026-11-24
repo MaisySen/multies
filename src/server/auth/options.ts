@@ -37,6 +37,7 @@ import { beforeUserDelete } from "../services/privacy";
 import { HttpError } from "../lib/errors";
 import { getPlan } from "../services/plans";
 import { inIds } from "../lib/sql-chunks";
+import { CLIENT_IP_HEADER } from "../lib/client-ip-header";
 
 /** Better Auth endpoints whose success is a security event worth an audit entry. */
 const SECURITY_EVENTS: Record<string, string> = {
@@ -116,9 +117,9 @@ export function authOptions(deps: Deps) {
     }),
     advanced: {
       ...cookieOptions(prod),
-      // Cloudflare sets CF-Connecting-IP and a client cannot forge it there. Forwarded headers
-      // are only believed behind a proxy the operator names (TRUST_PROXY=true, self host).
-      ipAddress: { ipAddressHeaders: config.auth.trustProxy ? ["x-forwarded-for", "x-real-ip"] : ["cf-connecting-ip"] },
+      // Round 2: the address clientIp worked out (middleware.ts): CF-Connecting-IP on Workers, forwarded headers on Node
+      // only with TRUST_PROXY, else the socket. app.ts puts it in this header on the way in and replaces any sent value.
+      ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] },
       database: {
         // Invitation ids double as the invite link, so they get a long random token.
         generateId: ({ model }) => (model === "invitation" ? randomToken(24) : newId(ID_PREFIX[model] ?? model.slice(0, 3))),

@@ -7,7 +7,7 @@
  */
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import type { AppEnv } from "../context";
-import { requireAuth } from "../middleware";
+import { clientIp, requireAuth } from "../middleware";
 import { RateLimiter } from "../lib/rate-limit";
 import { parseBody } from "./dashboards";
 import { plusEnabled } from "../services/suite/dash-r91-common";
@@ -69,7 +69,7 @@ function limit(n: number, key: (c: Context<AppEnv>) => string): MiddlewareHandle
     return next();
   };
 }
-const ip = (c: Context<AppEnv>) => c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+const ip = (c: Context<AppEnv>) => { const a = clientIp(c); return a === "unknown" ? "local" : a; }; // Round 2: the shared rule (middleware.ts)
 const page = (title: string, text: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${title}</title>
 <style>body{font-family:system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#f6f7f9;color:#16181d}@media(prefers-color-scheme:dark){body{background:#111317;color:#e8eaee}}main{max-width:420px;padding:32px;text-align:center}h1{font-size:20px;margin:0 0 8px}p{margin:0;line-height:1.5;opacity:.8}</style></head><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`;
 
