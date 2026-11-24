@@ -249,20 +249,20 @@ describe("free address abuse limits", () => {
       const c = new Client(ctx.app);
       // Each person signs up from their own network (sign up has its own per network limit).
       const email = `person${i}@example.com`;
-      const up = await c.call("POST", "/api/auth/sign-up/email", { name: `Person ${i}`, email, password: "a-strong-password" }, { "x-forwarded-for": `192.0.2.${i}` });
+      const up = await c.call("POST", "/api/auth/sign-up/email", { name: `Person ${i}`, email, password: "a-strong-password" }, { "cf-connecting-ip": `192.0.2.${i}` });
       expect(up.status).toBe(200);
       await ctx.db.update(users).set({ emailVerified: true }).where(eq(users.email, email));
       return c.call("POST", "/api/free-address", { localPart: `person${i}.x` }, headers);
     };
-    for (let i = 1; i <= 3; i++) expect((await claim(i, { "x-forwarded-for": "203.0.113.9" })).status).toBe(201);
-    const blockedIp = await claim(4, { "x-forwarded-for": "203.0.113.9" });
+    for (let i = 1; i <= 3; i++) expect((await claim(i, { "cf-connecting-ip": "203.0.113.9" })).status).toBe(201);
+    const blockedIp = await claim(4, { "cf-connecting-ip": "203.0.113.9" });
     expect(blockedIp.status).toBe(429);
     expect(blockedIp.body.error.message).toMatch(/network or device/);
     // Another network, but the same device as before.
-    expect((await claim(5, { "x-forwarded-for": "198.51.100.1", "x-device-id": "dev-1" })).status).toBe(201);
-    expect((await claim(6, { "x-forwarded-for": "198.51.100.2", "x-device-id": "dev-1" })).status).toBe(201);
+    expect((await claim(5, { "cf-connecting-ip": "198.51.100.1", "x-device-id": "dev-1" })).status).toBe(201);
+    expect((await claim(6, { "cf-connecting-ip": "198.51.100.2", "x-device-id": "dev-1" })).status).toBe(201);
     // The server's ceiling (5 a day here) is reached.
-    const full = await claim(7, { "x-forwarded-for": "198.51.100.3" });
+    const full = await claim(7, { "cf-connecting-ip": "198.51.100.3" });
     expect(full.status).toBe(429);
     expect(full.body.error.message).toMatch(/today's free addresses/);
   });

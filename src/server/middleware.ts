@@ -86,7 +86,14 @@ export function clientIp(c: Context): string {
   if (v.ip && !v.ip.startsWith("unknown")) return v.ip;
   const cf = c.req.header("cf-connecting-ip")?.trim() || undefined;
   if (v.deps?.runtime === "workers") return cf ?? "unknown";
-  if (v.deps?.config.auth.trustProxy) return cf ?? c.req.header("x-real-ip")?.trim() ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? socketAddress(c) ?? "unknown";
+  // Wave 1 review V9: only the one header the trusted proxy sets (TRUST_PROXY_HEADER), so a client can't pick another.
+  // X-Forwarded-For: the rightmost entry, which the trusted proxy appended; entries to its left came from the client.
+  if (v.deps?.config.auth.trustProxy) {
+    const name = v.deps.config.auth.trustProxyHeader || "x-forwarded-for";
+    const raw = c.req.header(name);
+    const picked = name === "x-forwarded-for" ? raw?.split(",").map((x) => x.trim()).filter(Boolean).pop() : raw?.trim();
+    return picked || socketAddress(c) || "unknown";
+  }
   return socketAddress(c) ?? "unknown";
 }
 

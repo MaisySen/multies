@@ -195,8 +195,13 @@ export interface AppConfig {
      * Node deployments without it. AUTH_LOCAL_PASSWORD=on|off overrides.
      */
     localPassword: boolean;
-    /** Believe X-Forwarded-For and X-Real-IP for client addresses (self host behind a known proxy). */
+    /** Believe the trusted proxy's client address header (self host behind a known proxy). */
     trustProxy: boolean;
+    /**
+     * Wave 1 review V9: which header the trusted proxy sets (TRUST_PROXY_HEADER, lower case; default x-forwarded-for).
+     * For X-Forwarded-For the rightmost entry is used: the one the trusted proxy appended, not one the client sent.
+     */
+    trustProxyHeader: string;
     /**
      * R34: local E2E only (E2E_LOCAL_RATE_KEYS, set by playwright.config's web servers). A request with no
      * client address at all is not counted against one shared auth limit, so a long local run does not trip
@@ -578,6 +583,7 @@ const EnvSchema = z.object({
   AUTH0_SOCIAL_CONNECTIONS: z.string().optional(),
   AUTH_LOCAL_PASSWORD: z.enum(["on", "off", "true", "false"]).optional(),
   TRUST_PROXY: z.string().optional(),
+  TRUST_PROXY_HEADER: z.string().optional(),
   PASSWORD_BREACH_CHECK: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   SENTRY_DSN_API: z.string().optional(),
@@ -914,6 +920,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         ? { auth0Management: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_MGMT_CLIENT_ID, clientSecret: env.AUTH0_MGMT_CLIENT_SECRET } } : {}),
       socialConnections: env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET ? parseSocialConnections(env.AUTH0_SOCIAL_CONNECTIONS) : [],
       trustProxy: env.TRUST_PROXY === "true" || env.TRUST_PROXY === "1",
+      trustProxyHeader: (env.TRUST_PROXY_HEADER?.trim().toLowerCase() || "x-forwarded-for"),
       localAddresslessUnlimited: localRateKeys(env.E2E_LOCAL_RATE_KEYS, mode),
       localPassword: resolveLocalPassword(env.AUTH_LOCAL_PASSWORD, !!(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET)),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",

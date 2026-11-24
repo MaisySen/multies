@@ -15,7 +15,7 @@ const BASE = { TOOLS_ENABLED: "true", DOC_ENGINE_URL: "https://engine.test", DOC
 const CHROME = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 const visit = (path: string, init: RequestInit & { ua?: string; ip?: string } = {}) => ctx.app.request(path, {
   ...init, redirect: "manual",
-  headers: { host: "localhost", "user-agent": init.ua ?? CHROME, "x-forwarded-for": init.ip ?? "203.0.113.9", "cf-ipcountry": "AU", referer: "https://www.instagram.com/p/1", ...(init.headers as Record<string, string> ?? {}) },
+  headers: { host: "localhost", "user-agent": init.ua ?? CHROME, "cf-connecting-ip": init.ip ?? "203.0.113.9", "cf-ipcountry": "AU", referer: "https://www.instagram.com/p/1", ...(init.headers as Record<string, string> ?? {}) },
 });
 
 beforeAll(async () => {

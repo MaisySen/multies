@@ -13,7 +13,7 @@ let otherDocId = "";
 
 const tokenOf = (url: string) => url.split("/s/")[1];
 const page = async (token: string, ip = "10.0.0.1") => {
-  const res = await ctx.app.request(`/s/${token}`, { headers: { host: "localhost", "x-forwarded-for": ip } });
+  const res = await ctx.app.request(`/s/${token}`, { headers: { host: "localhost", "cf-connecting-ip": ip } });
   return { status: res.status, headers: res.headers, html: await res.text() };
 };
 

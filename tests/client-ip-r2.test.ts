@@ -23,7 +23,7 @@ async function served(deps: Pick<Deps, "runtime" | "config">) {
   const port = await new Promise<number>((ok) => { server = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, (info) => ok(info.port)); });
   return async (headers: Record<string, string> = {}) => (await fetch(`http://127.0.0.1:${port}/ip`, { headers })).text();
 }
-const cfg = (trustProxy: boolean) => ({ auth: { trustProxy } }) as unknown as Deps["config"];
+const cfg = (trustProxy: boolean, trustProxyHeader = "x-forwarded-for") => ({ auth: { trustProxy, trustProxyHeader } }) as unknown as Deps["config"];
 
 describe("Round 2: client address", () => {
   it("Node without TRUST_PROXY: forged forwarded headers are ignored, the socket address is used", async () => {
@@ -32,10 +32,22 @@ describe("Round 2: client address", () => {
     expect(await ip()).toMatch(/^(::ffff:)?127\.0\.0\.1$/);
   });
 
-  it("Node with TRUST_PROXY: the proxy's forwarded address is used", async () => {
+  it("Node with TRUST_PROXY (default X-Forwarded-For): the entry the proxy appended, never one the client chose", async () => {
+    // Wave 1 review V9 (changed on purpose): it used to prefer CF-Connecting-IP, then X-Real-IP, then the leftmost
+    // X-Forwarded-For entry, all of which a client behind a generic proxy can set. Now only the configured header
+    // counts, and for X-Forwarded-For its rightmost entry: the one the trusted proxy appended.
     const ip = await served({ runtime: "node", config: cfg(true) });
+    expect(await ip(FORGED)).toBe("10.0.0.1");
+    expect(await ip({ "x-forwarded-for": "6.6.6.6, 10.0.0.1" })).toBe("10.0.0.1");
+    expect(await ip({ "x-forwarded-for": "6.6.6.6" })).toBe("6.6.6.6");
+    // CF-Connecting-IP and X-Real-IP alone are not believed: the socket address.
+    expect(await ip({ "cf-connecting-ip": "7.7.7.7", "x-real-ip": "8.8.8.8" })).toMatch(/^(::ffff:)?127\.0\.0\.1$/);
+  });
+
+  it("Node with TRUST_PROXY_HEADER=cf-connecting-ip (behind Cloudflare): only that header", async () => {
+    const ip = await served({ runtime: "node", config: cfg(true, "cf-connecting-ip") });
     expect(await ip(FORGED)).toBe("7.7.7.7");
-    expect(await ip({ "x-forwarded-for": "6.6.6.6, 10.0.0.1" })).toBe("6.6.6.6");
+    expect(await ip({ "x-forwarded-for": "6.6.6.6", "x-real-ip": "8.8.8.8" })).toMatch(/^(::ffff:)?127\.0\.0\.1$/);
   });
 
   it("Workers: only CF-Connecting-IP, never X-Forwarded-For or X-Real-IP, whatever TRUST_PROXY says", async () => {

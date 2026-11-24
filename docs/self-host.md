@@ -249,7 +249,13 @@ receivers distrust mail from an IP without one.
 
 Put a reverse proxy with automatic certificates in front of the web app.
 [Caddy](https://caddyserver.com/) is the simplest: `deploy/au/Caddyfile` is a two-line example
-that serves `APP_HOST` and forwards to `mymail:8787`. Stalwart can get its own certificate for
+that serves `APP_HOST` and forwards to `mymail:8787`.
+
+Client addresses (per address limits, the audit log) come from the socket unless you set `TRUST_PROXY=true`.
+Set it only when every request passes through your proxy, and name the one header your proxy sets with
+`TRUST_PROXY_HEADER`: `x-forwarded-for` (the default; Multies takes its rightmost entry, the one your proxy
+appended, since anything to its left came from the client), `x-real-ip`, or `cf-connecting-ip` behind
+Cloudflare. Other client address headers are ignored. Stalwart can get its own certificate for
 `mail.example.com.au` (Stalwart admin, Domains, TLS certificates, ACME); until then mail apps
 show a certificate warning.
 
