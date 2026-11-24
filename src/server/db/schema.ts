@@ -201,6 +201,9 @@ export const domains = sqliteTable("domains", {
   providerRecords: text("provider_records"),
   /** The provider's last word: its status ("verified", "pending"), or why registering failed. */
   providerStatus: text("provider_status"),
+  /** Wave 3 review Y1 (0183): a claim released at the 45 day cap while it held mail keeps its row under a .invalid name; this is the name it held. */
+  releasedName: text("released_name"),
+  releasedAt: ts("released_at"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("domains_name_uq").on(t.name), index("domains_org_idx").on(t.orgId)]);
 

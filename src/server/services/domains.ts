@@ -29,6 +29,8 @@ export function presentDomain(d: DomainRow, deps: Deps, counts?: { mailboxes: nu
     counts: counts ?? null,
     // Outbound and provider-MX inbound for this domain: null when it was never registered with the provider.
     sending: d.providerStatus ? sendingState(d.providerStatus) : null,
+    // Wave 3 review Y1: released at the 45 day cap while it held mail; the name it held (its mailboxes are suspended).
+    ...(d.releasedAt ? { releasedName: d.releasedName, releasedAt: d.releasedAt } : {}),
   };
 }
 
@@ -246,14 +248,18 @@ export const DOMAIN_CLAIM_HARD_DAYS = 45;
  * inbox, received or imported mail (not a draft or anything the workspace wrote itself, which a squatter makes at will),
  * a connected mailbox, a grant or share, a mail rule, a sign-up email hook, or an AI agent's access.
  */
-const claimKept = (domainId: unknown) => sql`exists (select 1 from ${mailboxes} m where m.domain_id = ${domainId} and (m.kind = 'agent'
-  or exists (select 1 from ${messages} x where x.mailbox_id = m.id and x.folder <> 'drafts' and x.sent_by_user_id is null)
-  or exists (select 1 from ${mailConnections} c where c.mailbox_id = m.id)
-  or exists (select 1 from ${mailboxAccess} g where g.mailbox_id = m.id)
-  or exists (select 1 from ${mailboxDelegations} s where s.mailbox_id = m.id)
-  or exists (select 1 from ${mailRules} r where r.mailbox_id = m.id)
-  or exists (select 1 from ${authEmailHooks} h where h.mailbox_id = m.id)
-  or exists (select 1 from ${agentMailboxAccess} a where a.mailbox_id = m.id)))`;
+const mailboxKept = (m: unknown) => sql`(${m}.kind = 'agent'
+  or exists (select 1 from ${messages} x where x.mailbox_id = ${m}.id and x.folder <> 'drafts' and x.sent_by_user_id is null)
+  or exists (select 1 from ${mailConnections} c where c.mailbox_id = ${m}.id)
+  or exists (select 1 from ${mailboxAccess} g where g.mailbox_id = ${m}.id)
+  or exists (select 1 from ${mailboxDelegations} s where s.mailbox_id = ${m}.id)
+  or exists (select 1 from ${mailRules} r where r.mailbox_id = ${m}.id)
+  or exists (select 1 from ${authEmailHooks} h where h.mailbox_id = ${m}.id)
+  or exists (select 1 from ${agentMailboxAccess} a where a.mailbox_id = ${m}.id))`;
+const claimKept = (domainId: unknown) => sql`exists (select 1 from ${mailboxes} m where m.domain_id = ${domainId} and ${mailboxKept(sql.raw("m"))})`;
+
+/** Wave 3 review Y1: the non-routable name a released claim's row (and its kept mailboxes) move to. */
+export const releasedDomainName = (id: string) => `${id.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.released.invalid`;
 
 /**
  * PRIV1b (pending claims): a domain name is unique across every workspace, so the first workspace to add a name holds
@@ -277,16 +283,26 @@ export async function releaseStaleDomainClaims(deps: Deps, limit = 25): Promise<
     isNull(domains.verifiedAt), ne(domains.status, "verified"), lt(domains.createdAt, cutoff), quietOrOld,
     sql`not ${claimKept(domains.id)}`,
   );
+  // Wave 3 review Y1: past DOMAIN_CLAIM_HARD_DAYS a claim never verified goes whatever is on it (a squatter can make
+  // everything claimKept counts on an unverified domain). What holds mail or settings is kept, off the name.
+  const hardReleasable = (id?: string) => and(
+    id ? eq(domains.id, id) : undefined,
+    isNull(domains.verifiedAt), ne(domains.status, "verified"), lt(domains.createdAt, hard), isNull(domains.releasedAt),
+  );
   const rows = await deps.db.select({ d: domains }).from(domains)
     .innerJoin(organizations, eq(organizations.id, domains.orgId))
     .where(and(
-      releasable(),
+      or(releasable(), hardReleasable()),
       eq(organizations.isDemo, false), ne(domains.orgId, "org_platform"),
       deps.config.operatorInbox.domain ? ne(domains.name, deps.config.operatorInbox.domain) : undefined,
     ))
     .orderBy(asc(domains.createdAt)).limit(limit).all();
   const released: string[] = [];
   for (const { d } of rows) {
+    if (d.releasedAt === null && !(await deps.db.select({ id: domains.id }).from(domains).where(releasable(d.id)).get())) {
+      if (await releaseKeptClaim(deps, d, hardReleasable(d.id))) released.push(d.name);
+      continue;
+    }
     // Wave 2 review X7: checked again right before the mail server accounts go (mail, a check or a grant that came in
     // since the read keeps the claim and its accounts), and once more in the delete.
     if (!(await deps.db.select({ id: domains.id }).from(domains).where(releasable(d.id)).get())) continue;
@@ -307,6 +323,39 @@ export async function releaseStaleDomainClaims(deps: Deps, limit = 25): Promise<
     if (rows.some((r) => r.d.providerDomainId)) await retryQueuedProviderDomains(deps).catch((err) => deps.reportError?.(err, { where: "domains.retryQueued" }));
   }
   return released;
+}
+
+/**
+ * Wave 3 review Y1: releases a claim past the hard cap that something keeps. Empty mailboxes and every alias go; each
+ * mailbox holding mail or settings stays, suspended, its address moved under the row's new non-routable name (the
+ * local part is unchanged; the original name is in released_name), so no mail reaches it and the name and its
+ * addresses can be added by another workspace. Mail server accounts go first. Audited. Returns whether it released.
+ */
+async function releaseKeptClaim(deps: Deps, d: DomainRow, still: ReturnType<typeof and>): Promise<boolean> {
+  // Checked before any account goes: a claim kept and younger than the cap is left alone (it was read as soft releasable).
+  if (!(await deps.db.select({ id: domains.id }).from(domains).where(still).get())) return false;
+  const all = await deps.db.select({ id: mailboxes.id, localPart: mailboxes.localPart }).from(mailboxes).where(eq(mailboxes.domainId, d.id)).all();
+  const keptIds = new Set((await deps.db.select({ id: sql<string>`m.id` }).from(sql`${mailboxes} m`).where(sql`m.domain_id = ${d.id} and ${mailboxKept(sql.raw("m"))}`).all()).map((r) => r.id));
+  if (all.length) {
+    const { deprovisionMailbox } = await import("./mailserver");
+    for (const m of all) await deprovisionMailbox(deps, d.orgId, m.id).catch((err: unknown) => deps.reportError?.(err, { where: "domains.releaseClaim.mailbox" }));
+  }
+  const name = releasedDomainName(d.id);
+  const now = deps.now();
+  const moved = await deps.db.update(domains).set({ name, releasedName: d.name, releasedAt: now, catchAllMailboxId: null, providerDomainId: null, providerStatus: null, providerRecords: null })
+    .where(still).returning({ id: domains.id });
+  if (!moved.length) return false;
+  const empty = all.filter((m) => !keptIds.has(m.id));
+  for (const m of empty) await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, m.id), sql`not ${mailboxKept(mailboxes)}`));
+  for (const m of all.filter((x) => keptIds.has(x.id))) await deps.db.update(mailboxes).set({ status: "suspended", address: `${m.localPart}@${name}` }).where(eq(mailboxes.id, m.id));
+  // Something kept since the read (mail arrived between the reads): still off the name, as a suspended mailbox.
+  for (const m of await deps.db.select({ id: mailboxes.id, localPart: mailboxes.localPart, address: mailboxes.address }).from(mailboxes).where(eq(mailboxes.domainId, d.id)).all()) {
+    if (!m.address.endsWith(`@${name}`)) await deps.db.update(mailboxes).set({ status: "suspended", address: `${m.localPart}@${name}` }).where(eq(mailboxes.id, m.id));
+  }
+  await deps.db.delete(aliases).where(eq(aliases.domainId, d.id));
+  if (d.providerDomainId) await removeProviderDomain(deps, d.providerDomainId).catch((err) => deps.reportError?.(err, { where: "domains.releaseClaim" }));
+  await audit(deps.db, { orgId: d.orgId, actorUserId: null, action: "domain.claim_released", targetType: "domain", targetId: d.id, metadata: { name: d.name, days: DOMAIN_CLAIM_HARD_DAYS, hardCap: true, keptMailboxes: keptIds.size, emptyMailboxes: empty.length, renamedTo: name } }).catch(() => undefined);
+  return true;
 }
 
 export async function setCatchAll(db: DB, orgId: string, id: string, mailboxId: string | null) {

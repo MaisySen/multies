@@ -1956,5 +1956,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- Wave 2 review X11 (B1 leftover): before Round 2 an agent's guest invite went through its send approval queue as mail\n-- from its inbox with the /g/ link in it, so the agent held a working link. Those not yet joined (status 'pending', an\n-- approval_id set) lose the link and become held invites (no link, no approval), listed in the project's Guests for a\n-- person to confirm, which mails a fresh link through Multies' own account mail. Their approvals still waiting are\n-- rejected with a note. Guests who already joined are left alone. Idempotent; new code never sets approval_id.\nUPDATE `send_approvals` SET `status` = 'rejected', `note` = 'Guest invites from an agent now wait for a person in the project''s Guests.', `decided_at` = CAST(strftime('%s', 'now') AS INTEGER) * 1000\nWHERE `status` = 'pending' AND `id` IN (SELECT `approval_id` FROM `project_guests` WHERE `approval_id` IS NOT NULL AND `status` = 'pending');",
       "UPDATE `project_guests` SET `invite_hash` = NULL, `approval_id` = NULL WHERE `approval_id` IS NOT NULL AND `status` = 'pending';"
     ]
+  },
+  {
+    "name": "0183_domain_claim_released",
+    "statements": [
+      "-- Wave 3 review Y1: a claim never verified is released 45 days after it was added even when a mailbox on it holds mail\n-- or settings. The row stays (its mailboxes need it), renamed to a non-routable name under .invalid; released_name keeps\n-- the name it held and released_at when. Null on every existing row; old code never reads them.\nALTER TABLE `domains` ADD `released_name` text;",
+      "ALTER TABLE `domains` ADD `released_at` integer;"
+    ]
   }
 ];
