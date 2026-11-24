@@ -277,6 +277,25 @@ describe("AIS1 row 32 (review): a forward never hands the platform's own mail to
     expect(tl).not.toContain(SECRET);
   });
 
+  it("Wave 2 review X8: with SEARCH_R98 on, search everything doesn't match or show its preview for a key either", async () => {
+    (ctx.deps.config as { searchR98?: boolean }).searchR98 = true;
+    const hello = (await owner.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox.id as string;
+    await resetMail("hello@acme.io");
+    const row = (await ctx.db.select().from(messages).where(eq(messages.mailboxId, hello)).all()).find((m) => /password/i.test(m.subject))!;
+    await ctx.db.update(messages).set({ snippet: `Someone asked to reset it: http://localhost/reset-password/${SECRET}` }).where(eq(messages.id, row.id));
+    for (const key of [wsKey, agentKey]) {
+      const viaKey = await api(key, "GET", `/search/everything?q=${encodeURIComponent("asked to reset")}&types=mail`);
+      expect(viaKey.status).toBe(200);
+      expect(JSON.stringify(viaKey.body)).not.toContain(row.id);
+    }
+    const bySubject = await api(wsKey, "GET", `/search/everything?q=${encodeURIComponent("Reset your Multies")}&types=mail`);
+    expect(JSON.stringify(bySubject.body)).toContain(row.id);
+    expect(JSON.stringify(bySubject.body)).not.toContain(SECRET);
+    expect(JSON.stringify(bySubject.body)).not.toContain("asked to reset");
+    // A person in the app still finds it by its text.
+    expect(JSON.stringify((await owner.get(`/api/search?q=${encodeURIComponent("asked to reset")}&types=mail`)).body)).toContain(row.id);
+  });
+
   it("an alias never forwards it out to another workspace's agent; a plain outside address still gets it", async () => {
     const other = new Client(ctx.app);
     await other.signup("boss@beta.test", "Beta Boss");

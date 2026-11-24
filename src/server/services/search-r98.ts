@@ -27,7 +27,8 @@ import {
   type SearchItem, type SearchResult, type SearchType, type SearchViewer,
 } from "./search";
 import { containsAny, containsText } from "../lib/like-search";
-import { safeSnippet } from "./agents/platform-mail"; // AIS1 (row 32): pre-fix previews of the platform's own mail
+import { safeSnippet, withheldRow, withheldSql } from "./agents/platform-mail"; // AIS1 (row 32): pre-fix previews of the platform's own mail
+import { isPersonSession, type CallerLike } from "../lib/actor-kind"; // Wave 2 review X8
 
 // ---------------------------------------------------------------- words, typos, ranking (pure)
 
@@ -209,24 +210,31 @@ const userOf = (v: SearchViewer) => (v.kind === "actor" && !isKey(v.actor) && v.
 
 async function mailGroup(c: Ctx): Promise<Candidate[]> {
   if (c.v.kind !== "actor") return [];
-  const scope = await once(c, "scope", () => scopeOf(c.deps, (c.v as Extract<SearchViewer, { kind: "actor" }>).actor));
+  const actor = (c.v as Extract<SearchViewer, { kind: "actor" }>).actor;
+  const scope = await once(c, "scope", () => scopeOf(c.deps, actor));
   if (scope && !scope.length) return [];
+  // Wave 2 review X8 (as search.ts, Round 2 B4): for a key, an agent or a connected app, Multies' own mail is matched by
+  // its subject and sender only, never its preview (a match is an oracle on a reset link or code), and none is shown.
+  const hide = !isPersonSession(actor as CallerLike);
+  const systemFrom = c.deps.config.systemFrom.address;
+  const snippetCol = hide ? sql`case when ${withheldSql(systemFrom)} then '' else ${messages.snippet} end` : sql`${messages.snippet}`;
   const rows = await c.deps.db.select({
     id: messages.id, threadId: messages.threadId, mailboxId: messages.mailboxId, folder: messages.folder, subject: messages.subject,
-    fromName: messages.fromName, fromAddress: messages.fromAddress, snippet: messages.snippet, date: messages.date,
+    fromName: messages.fromName, fromAddress: messages.fromAddress, snippet: messages.snippet, date: messages.date, authResults: messages.authResults,
   }).from(messages)
     .where(and(eq(messages.orgId, c.v.actor.orgId), scope ? inIds(messages.mailboxId, scope) : undefined, sql`${messages.folder} <> 'trash'`,
       c.person ? sql`lower(${messages.fromAddress}) = ${c.person.email.toLowerCase()}` : undefined, range(messages.date, c.f), onlyIds(c, messages.id),
-      matchAll([sql`${messages.subject}`, sql`${messages.fromName}`, sql`${messages.fromAddress}`, sql`${messages.snippet}`], c.words, c.fuzzy)))
+      matchAll([sql`${messages.subject}`, sql`${messages.fromName}`, sql`${messages.fromAddress}`, snippetCol], c.words, c.fuzzy)))
     .orderBy(desc(messages.date)).limit(fetchN(c));
   const seen = new Set<string>();
   const out: Candidate[] = [];
   for (const m of rows) {
     if (seen.has(m.threadId)) continue;
     seen.add(m.threadId);
+    const snippet = hide && withheldRow(m, systemFrom) ? "" : safeSnippet(m.snippet, m.fromAddress, systemFrom);
     out.push({
-      title: m.subject || "", body: `${m.fromName} ${m.fromAddress} ${m.snippet}`, at: m.date ? new Date(m.date).getTime() : 0,
-      item: { type: "mail", id: m.id, title: m.subject || "(no subject)", subtitle: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress, snippet: safeSnippet(m.snippet, m.fromAddress, c.deps.config.systemFrom.address).slice(0, 160),
+      title: m.subject || "", body: `${m.fromName} ${m.fromAddress} ${snippet}`, at: m.date ? new Date(m.date).getTime() : 0,
+      item: { type: "mail", id: m.id, title: m.subject || "(no subject)", subtitle: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress, snippet: snippet.slice(0, 160),
         url: `/app/mail?mailbox=${encodeURIComponent(m.mailboxId)}&folder=${encodeURIComponent(m.folder)}&m=${encodeURIComponent(m.id)}`, at: iso(m.date) },
     });
   }
