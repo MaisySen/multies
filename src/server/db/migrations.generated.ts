@@ -1949,5 +1949,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- Wave 2 review X11: on a draft, the id of the first copy of this draft (each save stores a new copy and deletes the\n-- old one), so a save that lost a race finds the copy that won it, not another draft in the same thread. Null on every\n-- existing row; old code never reads or writes it. Adding a nullable column is a metadata change in SQLite.\nALTER TABLE `messages` ADD `draft_of` text;"
     ]
+  },
+  {
+    "name": "0182_guest_agent_invites_held",
+    "statements": [
+      "-- Wave 2 review X11 (B1 leftover): before Round 2 an agent's guest invite went through its send approval queue as mail\n-- from its inbox with the /g/ link in it, so the agent held a working link. Those not yet joined (status 'pending', an\n-- approval_id set) lose the link and become held invites (no link, no approval), listed in the project's Guests for a\n-- person to confirm, which mails a fresh link through Multies' own account mail. Their approvals still waiting are\n-- rejected with a note. Guests who already joined are left alone. Idempotent; new code never sets approval_id.\nUPDATE `send_approvals` SET `status` = 'rejected', `note` = 'Guest invites from an agent now wait for a person in the project''s Guests.', `decided_at` = CAST(strftime('%s', 'now') AS INTEGER) * 1000\nWHERE `status` = 'pending' AND `id` IN (SELECT `approval_id` FROM `project_guests` WHERE `approval_id` IS NOT NULL AND `status` = 'pending');",
+      "UPDATE `project_guests` SET `invite_hash` = NULL, `approval_id` = NULL WHERE `approval_id` IS NOT NULL AND `status` = 'pending';"
+    ]
   }
 ];

@@ -63,8 +63,8 @@ function inviteText(inviter: string, org: string, project: string) {
  * AIS1 (audit row 1): an invite lets someone in, so it never goes out without a person. Round 2 (PR 23): every
  * non-person invite, an agent's included, waits unsent with no link until a person confirms it (confirmGuest), which
  * mails it through Multies' own account mail. An agent never holds the guest link (before, an agent's invite went
- * through its approval queue as mail from its inbox, link and all). acceptInvite still honours an approvalId on rows
- * made that way before.
+ * through its approval queue as mail from its inbox, link and all). Wave 2 review X11: such rows made before no longer
+ * open (acceptInvite), and migration 0182 holds the ones still waiting for a person to confirm.
  */
 export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: string, input: { email: string; name?: string }) {
   assertWritable(actor);
@@ -185,11 +185,9 @@ export async function acceptInvite(deps: Deps, token: string) {
   if (!g.inviteExpiresAt || g.inviteExpiresAt < now) throw new HttpError(410, "invite_expired", "This invite link has expired. Ask for a new one.");
   // AIS1 (row 1): an invite made before the fix to an address that reaches an AI agent never opens.
   await refuseAgentAddress(deps, g.email, { action: "guest.join_refused", orgId: g.orgId, metadata: { guestId: g.id } });
-  if (g.approvalId) {
-    // An agent's invite counts only once a person approved its email.
-    const a = await deps.db.select({ status: sendApprovals.status }).from(sendApprovals).where(eq(sendApprovals.id, g.approvalId)).get();
-    if (a?.status !== "sent") throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
-  }
+  // Wave 2 review X11: an agent's invite made the old way (its approval mail held the link, so the agent held it too)
+  // never opens, approved or not. Migration 0182 turned the ones still waiting into held invites a person confirms.
+  if (g.approvalId) throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
   /* R41 (MB-227): the link opens on every device of the guest until it expires (a phone and a laptop), instead of only
    * the first. The first device gets the stored session; each later device gets its own session, signed with the app
    * secret and bound to that stored session, so opening the link again never signs out a device that already has it,

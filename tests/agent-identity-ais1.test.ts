@@ -372,6 +372,42 @@ describe("AIS1 row 1: a guest invite never goes out without a person", () => {
   });
 });
 
+describe("Wave 2 review X11c: an agent's guest invite made before the fix", () => {
+  async function oldInvite(email: string, approvalStatus: "pending" | "sent") {
+    const project = (await owner.post("/api/projects", { name: "Launch" })).body.project;
+    const agentId = (await ctx.db.select().from(agents).get())!.id;
+    const { sha256Hex, randomToken } = await import("@/server/lib/crypto");
+    const token = randomToken(32);
+    const approvalId = `apr_x11c${approvalStatus}`;
+    // As the agent's invite was stored before Round 2: a send approval whose mail holds the /g/ link, and the hash.
+    await ctx.db.insert(sendApprovals).values({ id: approvalId, orgId, agentId, mailboxId: inboxId, status: approvalStatus, payload: JSON.stringify({ to: [email], subject: "You're invited", text: `Open the project: http://localhost/g/${token}` }), expiresAt: new Date(Date.now() + 86_400_000) } as never);
+    await ctx.db.insert(projectGuests).values({ id: `gst_x11c${approvalStatus}`, orgId, projectId: project.id, email, name: "", status: "pending", inviteHash: await sha256Hex(token), inviteExpiresAt: new Date(Date.now() + 86_400_000), approvalId, invitedByType: "agent", invitedById: agentId, createdAt: new Date(), updatedAt: new Date() } as never);
+    return { token, approvalId, guestId: `gst_x11c${approvalStatus}`, project };
+  }
+
+  it("its link never opens, even once its approval is sent; a person confirms it in Guests instead", async () => {
+    const { acceptInvite } = await import("@/server/services/suite/guests");
+    const sent = await oldInvite("client@example.com", "sent");
+    await expect(acceptInvite(ctx.deps, sent.token)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("migration 0182 turns such invites into held ones (no link) and rejects their pending approvals", async () => {
+    const { MIGRATIONS } = await import("@/server/db/migrations.generated");
+    const { sql } = await import("drizzle-orm");
+    const pending = await oldInvite("pending@example.com", "pending");
+    const m = MIGRATIONS.find((x) => x.name.startsWith("0182_"))!;
+    for (const st of m.statements) await ctx.db.run(sql.raw(st));
+    const g = (await ctx.db.select().from(projectGuests).where(eq(projectGuests.id, pending.guestId)).get())!;
+    expect(g.inviteHash).toBeNull();
+    expect(g.approvalId).toBeNull();
+    expect((await ctx.db.select().from(sendApprovals).where(eq(sendApprovals.id, pending.approvalId)).get())!.status).toBe("rejected");
+    const listed = (await owner.get(`/api/guests?projectId=${pending.project.id}`)).body.guests;
+    expect(listed[0]).toMatchObject({ email: "pending@example.com", awaitingConfirmation: true });
+    expect((await owner.post(`/api/guests/${g.id}/confirm`, {})).status).toBe(200);
+    expect(ctx.outbound.sent.filter((x) => x.to.includes("pending@example.com")).map((x) => x.subject)).toEqual(["You're invited to Launch"]);
+  });
+});
+
 describe("AIS1 row 44: sign-up emails come only from the workspace's own verified domains, never an agent", () => {
   const SECRET = "v1,whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw";
   it("the From list and every save refuse the agent's inbox and a connected address", async () => {
