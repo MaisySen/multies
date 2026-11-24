@@ -527,6 +527,12 @@ export const apiKeys = sqliteTable("api_keys", {
   lastUsedAt: ts("last_used_at"),
   /** Round 2: the key stops working at this moment (401 api_key_expired). Null: it never ends (the default). */
   expiresAt: ts("expires_at"),
+  /**
+   * Wave 2 review X1: on an agent key, the person who minted it in their own app session. The key reaches a personal
+   * mailbox only when this person owns it. Null for a key minted by a workspace key, a connected AI app or anything else
+   * that is not a person session (and for older keys the audit log can't prove), so it reaches no personal mailbox.
+   */
+  mintedByUserId: text("minted_by_user_id"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("api_keys_hash_uq").on(t.keyHash), index("api_keys_org_idx").on(t.orgId)]);
 

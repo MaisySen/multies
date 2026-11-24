@@ -1086,6 +1086,13 @@
       "when": 1794300178000,
       "tag": "0178_domain_verify_attempted",
       "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "6",
+      "when": 1794300179000,
+      "tag": "0179_agent_key_minted_by",
+      "breakpoints": true
     }
   ]
 }

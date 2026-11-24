@@ -79,6 +79,31 @@ async function row(deps: Deps, orgId: string, id: string) {
   return r;
 }
 
+/** Wave 2 review X1: the person an agent key is minted for: only a person in their own app session. */
+const minterOf = (actor: Actor): string | null => (isPersonSession(actor) ? actor.userId || null : null);
+
+/**
+ * Wave 2 review X1: the key an agent actor came in with, if any (apiKeyId, or the "apikey:" session id some callers
+ * carry instead). An agent working without a key (a scheduled run, an approval) has none.
+ */
+const agentKeyIdOf = (actor: Pick<Actor, "apiKeyId" | "sessionId">): string | null => {
+  if (actor.apiKeyId && !actor.apiKeyId.includes(":")) return actor.apiKeyId;
+  const s = (actor.sessionId ?? "").replace(/^mcp:/, "");
+  return s.startsWith("apikey:") ? s.slice("apikey:".length) : null;
+};
+
+/**
+ * Wave 2 review X1: an agent key keeps a personal mailbox only when the person who minted it in the app owns it (and
+ * is still a member). Checking only at mint time let a key minted by another admin, or by a workspace key, reach the
+ * maker's personal inbox once she attached it later. One primary key read, only when the agent holds a personal one.
+ */
+async function keepForAgentKey(deps: Deps, a: Agent, actor: Pick<Actor, "apiKeyId" | "sessionId">, ids: string[]): Promise<string[]> {
+  const keyId = agentKeyIdOf(actor);
+  if (!keyId || ids.length <= 1) return ids;
+  const k = await deps.db.select({ minted: apiKeys.mintedByUserId }).from(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.agentId, a.id))).get();
+  return keepOpenableBy(deps.db, a.orgId, k?.minted ?? null, ids);
+}
+
 /** The agent's own inbox plus the mailboxes it was given. */
 export async function agentMailboxIds(deps: Deps, a: Agent): Promise<string[]> {
   const rows = await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id));
@@ -95,7 +120,7 @@ export async function agentMailboxIdsFor(deps: Deps, actor: Actor, agent: Agent 
   const a = typeof agent === "string" ? (await row(deps, actor.orgId, agent)).a : agent;
   const ids = await agentMailboxIds(deps, a);
   // Round 2: a workspace key acting for the agent counts as nobody's (personOf), even when its maker owns the mailbox.
-  return actor.agentId === a.id ? ids : keepOpenableBy(deps.db, a.orgId, personOf(actor), ids);
+  return actor.agentId === a.id ? keepForAgentKey(deps, a, actor, ids) : keepOpenableBy(deps.db, a.orgId, personOf(actor), ids);
 }
 
 const startOfUtcDay = (now: Date) => new Date(Math.floor(now.getTime() / DAY) * DAY);
@@ -314,7 +339,7 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.created", targetType: "agent", targetId: id, metadata: { name: input.name, address, approvalMode: input.approvalMode ?? "always", sendCapDaily: cap, allowedRecipients: allow, via: actor.apiKeyId ? "api" : "app" } });
   let key: { id: string; secret: string; prefix: string } | null = null;
   if (input.createKey !== false) {
-    const k = await createApiKey(deps, actor, { name: `${input.name} agent key`, scope: "full", agentId: id });
+    const k = await createApiKey(deps, actor, { name: `${input.name} agent key`, scope: "full", agentId: id, mintedByUserId: minterOf(actor) });
     key = { id: k.apiKey.id, prefix: k.apiKey.prefix, secret: k.secret };
     await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { name: k.apiKey.name, prefix: k.apiKey.prefix } });
   }
@@ -415,7 +440,7 @@ export async function createAgentKey(deps: Deps, actor: Actor, agentId: string, 
       .where(and(eq(agentMailboxAccess.agentId, a.id), eq(mailboxes.personal, true))).limit(1).get();
     if (personal) throw forbidden("This agent works a personal mailbox. Only the person who made it can create its keys.");
   }
-  const k = await createApiKey(deps, actor, { name: name ?? `${a.name} agent key`, scope: "full", agentId: a.id });
+  const k = await createApiKey(deps, actor, { name: name ?? `${a.name} agent key`, scope: "full", agentId: a.id, mintedByUserId: minterOf(actor) });
   await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { name: k.apiKey.name, prefix: k.apiKey.prefix } });
   return k;
 }
@@ -445,8 +470,8 @@ export async function scopeFor(deps: Deps, actor: Actor): Promise<string[] | nul
   if (actor.agentId) {
     const a = await deps.db.select().from(agents).where(and(eq(agents.id, actor.agentId), eq(agents.orgId, actor.orgId))).get();
     if (!a) throw new HttpError(403, "agent_key_scope", "This agent no longer exists.");
-    // PRIV1a: an agent never reaches a personal mailbox its maker can't open.
-    return agentMailboxIds(deps, a);
+    // PRIV1a: an agent never reaches a personal mailbox its maker can't open. X1: nor one its key's minter doesn't own.
+    return keepForAgentKey(deps, a, actor, await agentMailboxIds(deps, a));
   }
   return mailboxScope(deps.db, actor);
 }

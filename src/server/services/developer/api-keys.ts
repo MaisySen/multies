@@ -30,7 +30,7 @@ export async function listApiKeys(deps: Deps, orgId: string, agentId?: string) {
 /** Round 2: the longest expiry a key can be given, in days (about ten years). */
 export const MAX_KEY_EXPIRY_DAYS = 3650;
 
-export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId">, input: { name: string; scope: ApiKeyScope; agentId?: string; showOnlyUsableTools?: boolean; expiresInDays?: number | null }) {
+export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId">, input: { name: string; scope: ApiKeyScope; agentId?: string; showOnlyUsableTools?: boolean; expiresInDays?: number | null; mintedByUserId?: string | null }) {
   const count = (await deps.db.select({ id: apiKeys.id }).from(apiKeys).where(eq(apiKeys.orgId, auth.orgId))).length;
   if (count >= MAX_API_KEYS) throw conflict(`A workspace can have up to ${MAX_API_KEYS} API keys. Delete one you no longer use.`);
   const secret = `mm_live_${randomToken(30)}`;
@@ -39,6 +39,7 @@ export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" |
     id, orgId: auth.orgId, createdByUserId: auth.userId || null, name: input.name, scope: withToolList(input.scope, !!input.showOnlyUsableTools), agentId: input.agentId ?? null,
     prefix: secret.slice(0, 12), keyHash: await sha256Hex(secret),
     expiresAt: input.expiresInDays ? new Date(deps.now().getTime() + input.expiresInDays * 86_400_000) : null,
+    mintedByUserId: input.mintedByUserId || null,
   });
   const row = await deps.db.select().from(apiKeys).where(eq(apiKeys.id, id)).get();
   return { apiKey: presentApiKey(row!), secret };
