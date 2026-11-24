@@ -19,9 +19,9 @@ async function register(name = "Claude", redirect = REDIRECT) {
   const res = await ctx.app.request("/api/oauth/register", { method: "POST", headers: { "content-type": "application/json", host: "localhost" }, body: JSON.stringify({ client_name: name, redirect_uris: [redirect] }) });
   return (await res.json() as { client_id: string }).client_id;
 }
-async function approve(clientId: string, redirect = REDIRECT) {
+async function approve(clientId: string, redirect = REDIRECT, scope: "full" | "read" = "full") {
   const request = { client_id: clientId, redirect_uri: redirect, response_type: "code", code_challenge: await pkceChallenge(verifier), code_challenge_method: "S256", state: "s" };
-  const r = await c.post("/api/oauth/authorize", { decision: "allow", scope: "full", request });
+  const r = await c.post("/api/oauth/authorize", { decision: "allow", scope, request });
   expect(r.status).toBe(200);
   return new URL(r.body.redirectTo).searchParams.get("code")!;
 }
@@ -56,6 +56,26 @@ describe("OAuth grants: what a new sign in replaces", () => {
     expect(await works(t1.body.access_token)).toBe(false);
     expect(await works(t2.body.access_token)).toBe(false);
     expect(await ctx.db.select().from(auditLogs).where(eq(auditLogs.action, "oauth.disconnected")).all()).toHaveLength(2);
+  });
+
+  it("a grouped Settings row shows the widest scope, the latest use and how many sign ins it holds (R5)", async () => {
+    const real = ctx.deps.now;
+    const t0 = real().getTime();
+    const wide = await register("Claude");
+    ctx.deps.now = () => new Date(t0);
+    const tWide = await exchange(wide, await approve(wide, REDIRECT, "full"));
+    const narrow = await register("Claude");
+    ctx.deps.now = () => new Date(t0 + 60_000);
+    const tNarrow = await exchange(narrow, await approve(narrow, REDIRECT, "read"));
+    expect(tNarrow.status).toBe(200);
+    expect(await works(tNarrow.body.access_token)).toBe(true);
+    ctx.deps.now = real;
+    // The older, wider grant was used last.
+    expect(await works(tWide.body.access_token)).toBe(true);
+    await ctx.db.update(oauthGrants).set({ lastUsedAt: new Date(t0 + 30 * 60_000) }).where(eq(oauthGrants.clientId, wide));
+    const list = (await c.get("/api/oauth/grants")).body.grants as { scope: string; lastUsedAt: string | null; grants: number }[];
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ scope: "full", lastUsedAt: new Date(t0 + 30 * 60_000).toISOString(), grants: 2 });
   });
 
   it("a new sign in of the same client id ends the older grant, and that is audited", async () => {

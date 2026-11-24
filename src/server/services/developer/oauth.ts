@@ -371,19 +371,26 @@ export async function listGrants(deps: Deps, auth: Pick<AuthContext, "orgId" | "
     .orderBy(desc(oauthGrants.createdAt)).limit(200).all();
   // A code nobody exchanged is not a connection. One row per person and app (name plus redirect host), for display
   // only: Disconnect on the row ends every grant in it (revokeSameApp), and nothing else groups grants by name.
-  const seen = new Set<string>();
-  const out: { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: Date; lastUsedAt: Date | null; mine: boolean }[] = [];
+  // R5: the row stands for every live grant in its group, so it shows the widest scope among them, the latest use and
+  // how many there are (an older, wider grant stays live beside a newer read only one until Disconnect).
+  type Row = { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: Date; lastUsedAt: Date | null; mine: boolean; grants: number };
+  const groups = new Map<string, Row>();
   for (const r of rows) {
     if (!r.g.codeUsedAt) continue;
     const key = displayGroup(r.g.userId, r.clientName, r.g.redirectUri);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({
-      id: r.g.id, client: r.clientName, scope: r.g.scope, user: { id: r.g.userId, name: r.userName, email: r.userEmail },
-      createdAt: r.g.createdAt, lastUsedAt: r.g.lastUsedAt, mine: r.g.userId === auth.userId,
-    });
+    const had = groups.get(key);
+    if (!had) {
+      groups.set(key, {
+        id: r.g.id, client: r.clientName, scope: r.g.scope, user: { id: r.g.userId, name: r.userName, email: r.userEmail },
+        createdAt: r.g.createdAt, lastUsedAt: r.g.lastUsedAt, mine: r.g.userId === auth.userId, grants: 1,
+      });
+      continue;
+    }
+    had.grants++;
+    if (r.g.scope !== "read") had.scope = r.g.scope;
+    if (r.g.lastUsedAt && (!had.lastUsedAt || r.g.lastUsedAt > had.lastUsedAt)) had.lastUsedAt = r.g.lastUsedAt;
   }
-  return out;
+  return [...groups.values()];
 }
 
 export async function revokeGrant(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId" | "role">, id: string) {

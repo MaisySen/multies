@@ -343,7 +343,7 @@ function EndpointRow({ e }: { e: Endpoint }) {
   );
 }
 
-interface Grant { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: string; lastUsedAt: string | null; mine: boolean }
+interface Grant { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: string; lastUsedAt: string | null; mine: boolean; grants?: number }
 
 /** AI apps and other MCP clients signed in with OAuth, round 20. */
 function ConnectedApps() {
@@ -371,6 +371,7 @@ function ConnectedApps() {
               <ScopeChips chips={[g.scope === "read" ? "Read only" : "Read and write"]} />
             </div>
             <div className="flex items-center gap-3 text-xs text-subtle">
+              {(g.grants ?? 1) > 1 && <span title="Disconnect ends every sign in of this app.">{g.grants} sign ins</span>}
               <span>{g.lastUsedAt ? `used ${timeAgo(g.lastUsedAt)}` : `connected ${timeAgo(g.createdAt)}`}</span>
               <Button size="sm" variant="ghost" aria-label={`Disconnect ${g.client}`} loading={revoke.isPending && revoke.variables === g.id} onClick={() => revoke.mutate(g.id)}>Disconnect</Button>
             </div>
