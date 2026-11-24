@@ -6,14 +6,14 @@
  */
 import { Zip, ZipDeflate } from "fflate";
 import Papa from "papaparse";
-import { and, asc, eq, gt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lte, ne, or, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import {
   accounts, aliases, apiKeys, appPasswords, attachments, auditLogs, domains, invitations, mailboxAccess, mailboxes,
   members, messages, organizations, sessions, suppressions, twoFactors, users, webhookEndpoints,
 } from "../db/schema";
 import { HttpError, forbidden } from "../lib/errors";
-import { audit, redactAuditRow } from "./audit";
+import { audit, auditFilterCond, redactAuditRow, type AuditFilter } from "./audit";
 import { cancelForDeletion } from "./billing";
 import { inIds } from "../lib/sql-chunks";
 import { EXPORT_README, writeWorkData, type ZipSink } from "./data-move/export";
@@ -52,18 +52,29 @@ export async function personalData(deps: Deps, userId: string) {
   };
 }
 
+/** B7: the most audit rows one export holds in Worker memory. */
+export const AUDIT_EXPORT_MAX = 50_000;
+
 /**
- * Audit log rows for a workspace in a date range, oldest first. AIS1: the last two columns say which key or connected
- * AI app made the change (callerKind, and via in plain words), empty for a person in the app or an older entry.
+ * Audit log rows for a workspace in a date range (both ends included), oldest first. AIS1: the last two columns say
+ * which key or connected AI app made the change (callerKind, and via in plain words), empty for a person in the app or
+ * an older entry. B7: the range is applied in SQL (audit_org_idx), and when more than `max` rows match, the newest
+ * `max` are kept and `truncated` says so; it used to read the oldest 50,000 of the whole log and filter after, so the
+ * newest rows (and any recent range) went missing without a word.
  */
-export async function auditRows(deps: Deps, orgId: string, from?: Date, to?: Date) {
-  const rows = await deps.db.select().from(auditLogs).where(eq(auditLogs.orgId, orgId)).orderBy(asc(auditLogs.createdAt)).limit(50_000);
-  return rows
-    .filter((r) => (!from || r.createdAt >= from) && (!to || r.createdAt <= to))
-    .map((r) => {
-      const stamp = r.metadata?.includes("\"caller\"") ? callerStampOf(parseMeta(r.metadata)?.caller) : null;
-      return redactAuditRow({ at: iso(r.createdAt), action: r.action, actor: r.actorEmail ?? "", actorUserId: r.actorUserId ?? "", targetType: r.targetType ?? "", targetId: r.targetId ?? "", ip: r.ip ?? "", metadata: r.metadata ?? "", callerKind: stamp?.kind ?? "", via: stamp ? viaLabel(stamp) : "" });
-    });
+export async function auditExport(deps: Deps, orgId: string, from?: Date, to?: Date, opts: { max?: number; filter?: Pick<AuditFilter, "prefixes" | "actor"> } = {}) {
+  const max = opts.max ?? AUDIT_EXPORT_MAX;
+  // The action and actor filters in SQL too (case blind there; the route keeps its exact check), so a narrow export
+  // is not cut short by rows it would drop.
+  const narrow = opts.filter ? auditFilterCond({ prefixes: opts.filter.prefixes, actor: opts.filter.actor }) : undefined;
+  const where = and(eq(auditLogs.orgId, orgId), from ? gte(auditLogs.createdAt, from) : undefined, to ? lte(auditLogs.createdAt, to) : undefined, narrow);
+  const newest = await deps.db.select().from(auditLogs).where(where).orderBy(desc(auditLogs.createdAt), desc(auditLogs.id)).limit(max + 1);
+  const truncated = newest.length > max;
+  const rows = newest.slice(0, max).reverse().map((r) => {
+    const stamp = r.metadata?.includes("\"caller\"") ? callerStampOf(parseMeta(r.metadata)?.caller) : null;
+    return redactAuditRow({ at: iso(r.createdAt), action: r.action, actor: r.actorEmail ?? "", actorUserId: r.actorUserId ?? "", targetType: r.targetType ?? "", targetId: r.targetId ?? "", ip: r.ip ?? "", metadata: r.metadata ?? "", callerKind: stamp?.kind ?? "", via: stamp ? viaLabel(stamp) : "" });
+  });
+  return { rows, truncated };
 }
 const parseMeta = (raw: string): Record<string, unknown> | null => { try { return JSON.parse(raw) as Record<string, unknown>; } catch { return null; } };
 
@@ -127,7 +138,10 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
           format: "Mail is in mail/<address>.jsonl, one message per line with its attachments in base64. The audit log and members are also CSV files.",
         }, null, 2));
         add("members.csv", toCsv(mem.map((m) => ({ ...m, joinedAt: iso(m.joinedAt) }))));
-        add("audit-log.csv", toCsv(await auditRows(deps, orgId)));
+        // B7: the newest rows are kept when the log is longer than one export holds, with a note saying so.
+        const auditLog = await auditExport(deps, orgId);
+        add("audit-log.csv", toCsv(auditLog.rows));
+        if (auditLog.truncated) add("audit-log-note.txt", `The audit log is longer than ${AUDIT_EXPORT_MAX.toLocaleString("en")} entries. This file holds the newest ${AUDIT_EXPORT_MAX.toLocaleString("en")}. Export older entries by date range from Settings, Audit log.\n`);
         add("README.txt", EXPORT_README);
         // R38: tasks, projects, docs, calendar, contacts and chat (JSON, CSV, Markdown, ICS, vCard).
         const sink: ZipSink = { file(name) { const f = new ZipDeflate(name, { level: 6 }); zip.add(f); return { push: (t: string) => f.push(enc.encode(t)), end: () => f.push(new Uint8Array(0), true) }; } };

@@ -1,4 +1,4 @@
-import { auditRows, toCsv } from "../services/privacy";
+import { auditExport, toCsv } from "../services/privacy";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
@@ -85,13 +85,16 @@ export function orgRoutes() {
       if (auth.role !== "owner" && auth.role !== "admin") throw forbidden("Only workspace owners and admins can export the audit log.");
       const q = parseQuery(c, Q_ORG_1);
       const f = auditFilterFrom(c);
-      const rows = (await auditRows(deps, auth.orgId, q.from ?? f?.from, q.to ?? f?.to)).filter((r) => auditRowMatches(r, f));
+      // B7: the range is applied in SQL and, past the export's size, the newest rows are kept and a header says so.
+      const exported = await auditExport(deps, auth.orgId, q.from ?? f?.from, q.to ?? f?.to, { filter: f });
+      const rows = exported.rows.filter((r) => auditRowMatches(r, f));
       const day = deps.now().toISOString().slice(0, 10);
       const body = q.format === "csv" ? toCsv(rows) : JSON.stringify(rows, null, 2);
       return new Response(body, {
         headers: {
           "content-type": q.format === "csv" ? "text/csv; charset=utf-8" : "application/json; charset=utf-8",
           "content-disposition": `attachment; filename="multies-audit-${day}.${q.format}"`, "cache-control": "no-store",
+          ...(exported.truncated ? { "x-audit-truncated": "newest-kept" } : {}),
         },
       });
     })
