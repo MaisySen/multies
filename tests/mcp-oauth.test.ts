@@ -214,6 +214,36 @@ describe("MCP OAuth: Settings and revoke", () => {
     expect(human.status).toBe(200);
   });
 
+  it("an abandoned reconnect leaves the existing tokens working until a new code is exchanged", async () => {
+    const first = await signIn();
+    const t1 = await exchange(first.clientId, first.code);
+    const mcpOk = async (token: string) => ctx.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+    expect((await mcpOk(t1.body.access_token)).status).toBe(200);
+
+    // Consent again but never exchange: closed browser / abandoned reconnect.
+    const abandoned = await signIn();
+    expect((await mcpOk(t1.body.access_token)).status).toBe(200);
+    expect((await c.get("/api/oauth/grants")).body.grants).toHaveLength(1);
+
+    // Bad PKCE and an expired code also leave the live grant alone.
+    expect((await exchange(abandoned.clientId, abandoned.code, "w".repeat(50))).body.error).toBe("invalid_grant");
+    expect((await mcpOk(t1.body.access_token)).status).toBe(200);
+    const expired = await signIn();
+    const real = ctx.deps.now;
+    ctx.deps.now = () => new Date(real().getTime() + 120_000);
+    try { expect((await exchange(expired.clientId, expired.code)).body.error).toBe("invalid_grant"); }
+    finally { ctx.deps.now = real; }
+    expect((await mcpOk(t1.body.access_token)).status).toBe(200);
+
+    // Only a successful exchange replaces the older grant.
+    const next = await signIn();
+    const t2 = await exchange(next.clientId, next.code);
+    expect(t2.status).toBe(200);
+    expect((await mcpOk(t1.body.access_token)).status).toBe(401);
+    expect((await mcpOk(t2.body.access_token)).status).toBe(200);
+    expect((await c.get("/api/oauth/grants")).body.grants).toHaveLength(1);
+  });
+
   it("lists connected apps, disconnects one, and the token stops at once", async () => {
     const a = await signIn();
     const t = await exchange(a.clientId, a.code);

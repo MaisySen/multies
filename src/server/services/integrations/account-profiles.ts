@@ -144,6 +144,8 @@ export async function settleAccount(deps: Deps, cp: Composio, orgId: string, use
     return { profile: keep, merged: [] };
   }
   const merged: string[] = [];
+  // Unique (org, app, externalId): fold older rows first (movePointers drops their profile rows), then upsert the kept one.
+  // Steps are idempotent (OR IGNORE / not_found). Callers must not delete `a` if this throws after merge began.
   const same = p.externalId ? await deps.db.select({ accountId: socialAccountProfiles.accountId }).from(socialAccountProfiles)
     .where(and(eq(socialAccountProfiles.orgId, orgId), eq(socialAccountProfiles.app, app), eq(socialAccountProfiles.externalId, p.externalId), ne(socialAccountProfiles.accountId, a.id))).all() : [];
   for (const old of same) {
@@ -152,7 +154,11 @@ export async function settleAccount(deps: Deps, cp: Composio, orgId: string, use
       if (!(err instanceof IntegrationError && err.code === "not_found")) deps.log?.warn("social.merge_remove_failed", { app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
     }
     merged.push(old.accountId);
-    await audit(deps.db, { orgId, actorUserId: actor?.userId ?? null, actorEmail: actor?.email ?? null, action: "integration.merged", targetType: "integration", targetId: a.id, metadata: { app, replaced: old.accountId }, ip: actor?.ip ?? null });
+    try {
+      await audit(deps.db, { orgId, actorUserId: actor?.userId ?? null, actorEmail: actor?.email ?? null, action: "integration.merged", targetType: "integration", targetId: a.id, metadata: { app, replaced: old.accountId }, ip: actor?.ip ?? null });
+    } catch (err) {
+      deps.log?.warn("social.merge_audit_failed", { app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    }
   }
   await upsert(deps, orgId, row);
   if (merged.length) clearHealthCache(orgId);

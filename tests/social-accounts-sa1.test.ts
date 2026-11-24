@@ -4,7 +4,7 @@
  * before this (duplicates already on the platform) fold into the newest one the first time the accounts are listed,
  * and posts that pointed at the older one move with it. The 0134 unique index is the server side guard.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { Client, makeTestApp } from "./helpers";
 import { auditLogs, members, socialAccountProfiles, socialPostTargets, users } from "../src/server/db/schema";
@@ -123,6 +123,53 @@ describe("SA1 social accounts: one row per network account", () => {
     expect(b.account.refreshed).toBe(false);
     expect((await owner.get("/api/apps/accounts")).body.accounts).toHaveLength(2);
     expect(mock.accounts.has(a.id)).toBe(true);
+  });
+
+  it("a settle failure after merge keeps the new connection (no delete rollback)", async () => {
+    const first = await connectAs(owner, "linkedin");
+    // After older accounts are folded, fail the kept profile upsert so confirm catches mid-settle.
+    const realInsert = ctx.db.insert.bind(ctx.db);
+    let failKeptUpsert = false;
+    const spy = vi.spyOn(ctx.db, "insert").mockImplementation(((table: unknown) => {
+      const builder = realInsert(table as never);
+      if (!failKeptUpsert || table !== socialAccountProfiles) return builder;
+      return {
+        values: () => ({
+          onConflictDoUpdate: async () => { throw new Error("injected upsert failure after merge"); },
+        }),
+      };
+    }) as typeof ctx.db.insert);
+    try {
+      const start = await owner.post("/api/apps/connect", { app: "linkedin" });
+      expect(start.status).toBe(201);
+      const id = new URL(start.body.redirectUrl).searchParams.get("connected_account_id")!;
+      failKeptUpsert = true;
+      const conf = await owner.post(`/api/apps/accounts/${id}/confirm`);
+      expect(conf.status).toBe(409);
+      expect(conf.body.error.code).toBe("connection_not_saved");
+      // Older platform account was already removed; the new one must remain.
+      expect(mock.accounts.has(first.id)).toBe(false);
+      expect(mock.accounts.has(id)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("a settle failure before merge still leaves the new connection", async () => {
+    const first = await connectAs(owner, "linkedin");
+    const profiles = await import("../src/server/services/integrations/account-profiles");
+    const spy = vi.spyOn(profiles, "settleAccount").mockRejectedValue(new Error("injected settle failure before merge"));
+    try {
+      const start = await owner.post("/api/apps/connect", { app: "linkedin" });
+      const id = new URL(start.body.redirectUrl).searchParams.get("connected_account_id")!;
+      const conf = await owner.post(`/api/apps/accounts/${id}/confirm`);
+      expect(conf.status).toBe(409);
+      expect(conf.body.error.code).toBe("connection_not_saved");
+      expect(mock.accounts.has(id)).toBe(true);
+      expect(mock.accounts.has(first.id)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("members see the names; the LinkedIn page note is plain", async () => {

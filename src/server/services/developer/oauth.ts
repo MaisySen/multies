@@ -7,8 +7,8 @@
  * - The authorisation code and the refresh token carry the grant id and are kept only as hashes.
  * - Access tokens are signed with a key derived from APP_SECRET and never stored (0 writes). Each use
  *   reads the grant, so a revoke in Settings takes effect on the next request.
- * - D1 writes: registration 1 row; sign in 2 (row + org index); code exchange 2; refresh 2; revoke 2;
- *   last used at most once an hour per grant (2). API keys keep working unchanged.
+ * - D1 writes: registration 1 row; sign in 1 (grant row); code exchange 2 plus any older grants replaced;
+ *   refresh 2; revoke 2; last used at most once an hour per grant (2). API keys keep working unchanged.
  */
 import { and, desc, eq, inArray, isNull, ne, notInArray } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
@@ -164,8 +164,8 @@ export async function approve(deps: Deps, user: Pick<AuthContext, "userId" | "lo
     id, clientId: req.client.id, orgId: ws.id, userId: user.userId, scope, redirectUri: req.redirectUri,
     codeHash: await sha256Hex(code), codeChallenge: req.codeChallenge, codeExpiresAt: new Date(now.getTime() + CODE_TTL_MS), createdAt: now,
   });
-  // A retry, or a new client id for the same app, replaces the previous live grant instead of adding another row.
-  await replaceOlderGrants(deps, { id, userId: user.userId, orgId: ws.id, clientId: req.client.id, clientName: req.client.name, redirectUri: req.redirectUri });
+  // Older live grants stay until this code is exchanged. An abandoned reconnect (closed browser, bad PKCE, expired code)
+  // must not revoke the tokens the person already has.
   const url = new URL(req.redirectUri);
   url.searchParams.set("code", code);
   if (req.state) url.searchParams.set("state", req.state);
@@ -231,6 +231,12 @@ export async function token(deps: Deps, r: TokenRequest) {
       await deps.db.update(oauthGrants).set({ revokedAt: now, refreshHash: null }).where(eq(oauthGrants.id, grant.id));
       throw new OAuthError(400, "invalid_grant", "That code was already used.");
     }
+    // Only once the new grant is usable: a retry, or a new client id for the same app, replaces older live grants.
+    const client = await getClient(deps, grant.clientId);
+    await replaceOlderGrants(deps, {
+      id: grant.id, userId: grant.userId, orgId: grant.orgId, clientId: grant.clientId,
+      clientName: client?.name ?? "", redirectUri: grant.redirectUri,
+    });
     return tokenBody(t, grant.scope);
   }
   if (r.grant_type === "refresh_token") {
