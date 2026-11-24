@@ -96,6 +96,8 @@ export interface ConnectedAccountView {
   warning?: string;
   /** SOC1: LinkedIn granted organization access on this login, so company Pages can be chosen (flag SOCIAL_MULTI_SOC1). */
   companyPages?: boolean;
+  /** W6: an older connection that was folded into another (since disconnected) and that the platform kept refusing to remove for a week. Admins only. */
+  removalStuck?: boolean;
 }
 
 /** SA1: the plain note on LinkedIn, until LinkedIn approves page access (no organization scopes are asked for). */

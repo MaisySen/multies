@@ -23,7 +23,10 @@ import { IntegrationError, type Composio, type CpAccount } from "./composio";
 import { clearHealthCache, dig, graph, linkedinGet, proxyCall, runTool, type PublishCtx } from "./social";
 
 export interface AccountProfile { externalId: string | null; name: string | null; avatarUrl: string | null }
-export interface ProfileRow { accountId: string; app: string; externalId: string | null; name: string | null; avatarUrl: string | null; checkedAt: Date }
+export interface ProfileRow { accountId: string; app: string; externalId: string | null; name: string | null; avatarUrl: string | null; checkedAt: Date; removalFailedSince?: Date | null }
+
+/** W6: a waiting connection whose kept connection is gone and whose removal kept failing this long is shown to admins again. */
+export const REMOVAL_STUCK_MS = 7 * 86_400_000;
 
 /** A profile read that worked is asked again after a week (pictures from the networks expire); one that failed after an hour. */
 export const PROFILE_TTL_MS = 7 * 86_400_000;
@@ -128,7 +131,7 @@ export function identityFromAccount(a: CpAccount): AccountProfile | null {
 
 export async function profilesFor(deps: Deps, orgId: string): Promise<Map<string, ProfileRow>> {
   const rows = await deps.db.select().from(socialAccountProfiles).where(eq(socialAccountProfiles.orgId, orgId)).all();
-  return new Map(rows.map((r) => [r.accountId, { accountId: r.accountId, app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt }]));
+  return new Map(rows.map((r) => [r.accountId, { accountId: r.accountId, app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt, removalFailedSince: r.removalFailedSince ?? null }]));
 }
 
 /** Everything that pointed at the older connection now points at the kept one, and the older profile row goes. */
@@ -185,7 +188,9 @@ export async function settleAccount(deps: Deps, cp: Composio, orgId: string, use
   if (!p) {
     // Keep a name we already had; only the time of the try changes.
     const had = (await profilesFor(deps, orgId)).get(a.id);
-    const keep = had ? { ...had, checkedAt: now } : row;
+    // W6: a connection waiting to be removed that was signed in again is the person's own again: its marker goes, or the
+    // next listing would remove the connection they just renewed.
+    const keep = had && !pendingInto(had) ? { ...had, checkedAt: now } : row;
     await upsert(deps, orgId, keep);
     return { profile: keep, merged: [] };
   }
@@ -203,7 +208,7 @@ export async function settleAccount(deps: Deps, cp: Composio, orgId: string, use
         deps.log?.warn("social.merge_remove_failed", { app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
         // R3: the older connection is still live on the platform with no profile row. Left so, the next listing would
         // settle it as a fresh connection and fold the newest one into it. A marker row says it waits to be removed.
-        try { await upsert(deps, orgId, { accountId: old, app, externalId: pendingMarker(a.id, old), name: null, avatarUrl: null, checkedAt: now }); } catch (e) {
+        try { await upsert(deps, orgId, { accountId: old, app, externalId: pendingMarker(a.id, old), name: null, avatarUrl: null, checkedAt: now, removalFailedSince: now }); } catch (e) {
           deps.log?.warn("social.merge_mark_failed", { app, error: e instanceof Error ? e.message.slice(0, 200) : String(e) });
         }
       }
@@ -219,8 +224,9 @@ export async function settleAccount(deps: Deps, cp: Composio, orgId: string, use
 }
 
 function upsertSql(deps: Deps, orgId: string, r: ProfileRow): SQL {
-  return deps.db.insert(socialAccountProfiles).values({ orgId, accountId: r.accountId, app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt })
-    .onConflictDoUpdate({ target: [socialAccountProfiles.orgId, socialAccountProfiles.accountId], set: { app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt } })
+  const since = r.removalFailedSince ?? null;
+  return deps.db.insert(socialAccountProfiles).values({ orgId, accountId: r.accountId, app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt, removalFailedSince: since })
+    .onConflictDoUpdate({ target: [socialAccountProfiles.orgId, socialAccountProfiles.accountId], set: { app: r.app, externalId: r.externalId, name: r.name, avatarUrl: r.avatarUrl, checkedAt: r.checkedAt, removalFailedSince: since } })
     .getSQL();
 }
 
@@ -233,7 +239,7 @@ async function upsert(deps: Deps, orgId: string, r: ProfileRow) {
  * the newest connection of a pair is the one kept, then drops profile rows of connections that are gone.
  * Returns the profiles and the ids that were folded into another connection (the caller leaves them out).
  */
-export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, userId: string, accounts: CpAccount[], isSocial: (app: string) => boolean, opts: { settle?: boolean } = {}): Promise<{ profiles: Map<string, ProfileRow>; merged: Set<string> }> {
+export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, userId: string, accounts: CpAccount[], isSocial: (app: string) => boolean, opts: { settle?: boolean } = {}): Promise<{ profiles: Map<string, ProfileRow>; merged: Set<string>; stuck: Set<string> }> {
   const profiles = await profilesFor(deps, orgId);
   const now = deps.now().getTime();
   const live = new Set(accounts.map((a) => a.id));
@@ -245,12 +251,12 @@ export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, 
       profiles.delete(id);
       hidden.add(id); // F1: hidden whether or not its kept connection is still there
     }
-    return { profiles, merged: hidden };
+    return { profiles, merged: hidden, stuck: new Set() };
   }
   // R3: older connections already folded whose removal the platform refused: hidden, never settled, removal retried.
-  const merged = await retryPendingRemovals(deps, cp, orgId, profiles, live);
+  const { merged, stuck } = await retryPendingRemovals(deps, cp, orgId, profiles, live);
   const due = accounts
-    .filter((a) => !merged.has(a.id))
+    .filter((a) => !merged.has(a.id) && !stuck.has(a.id))
     .filter((a) => isSocial(a.toolkit?.slug ?? "") && (a.status ?? "").toUpperCase() === "ACTIVE")
     .filter((a) => { const p = profiles.get(a.id); return !p || now - p.checkedAt.getTime() > (p.externalId ? PROFILE_TTL_MS : PROFILE_RETRY_MS); })
     .sort((x, y) => (x.created_at ?? "").localeCompare(y.created_at ?? ""))
@@ -271,7 +277,7 @@ export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, 
     await deps.db.delete(socialAccountProfiles).where(and(eq(socialAccountProfiles.orgId, orgId), inArray(socialAccountProfiles.accountId, gone.slice(0, 50)))); // D1: at most 50 ids
     for (const id of gone) profiles.delete(id);
   }
-  return { profiles, merged };
+  return { profiles, merged, stuck };
 }
 
 /**
@@ -292,8 +298,10 @@ function pendingInto(p: ProfileRow): string | null {
  * R3: connections folded into another whose removal the platform refused. They stay out of the list (returned as
  * merged) and are never settled; their removal is tried again at most once an hour, and the marker goes with them.
  */
-async function retryPendingRemovals(deps: Deps, cp: Composio, orgId: string, profiles: Map<string, ProfileRow>, live: Set<string>): Promise<Set<string>> {
+async function retryPendingRemovals(deps: Deps, cp: Composio, orgId: string, profiles: Map<string, ProfileRow>, live: Set<string>): Promise<{ merged: Set<string>; stuck: Set<string> }> {
   const merged = new Set<string>();
+  // W6: waiting connections an admin should see again: the kept one is gone and removal kept failing for a week.
+  const stuck = new Set<string>();
   const now = deps.now();
   for (const [id, p] of [...profiles]) {
     const into = pendingInto(p);
@@ -306,14 +314,16 @@ async function retryPendingRemovals(deps: Deps, cp: Composio, orgId: string, pro
     }
     // F1: even when its kept connection is gone too, a folded connection never stands on its own again: settled, it
     // would become the kept side of a newer sign in to the same account. It stays hidden and its removal is retried.
-    merged.add(id);
+    // W6: unless that has gone on for a week: then admins see it again (never settled), marked, to disconnect by hand.
+    const since = (p.removalFailedSince ?? p.checkedAt).getTime();
+    if (!live.has(into) && now.getTime() - since > REMOVAL_STUCK_MS) stuck.add(id); else merged.add(id);
     if (now.getTime() - p.checkedAt.getTime() < PROFILE_RETRY_MS) continue;
     try { await cp.remove(id); } catch (err) {
       if (!(err instanceof IntegrationError && err.code === "not_found")) {
         deps.log?.warn("social.merge_remove_failed", { app: p.app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
-        await upsert(deps, orgId, { ...p, checkedAt: now });
+        await upsert(deps, orgId, { ...p, checkedAt: now, removalFailedSince: p.removalFailedSince ?? now });
       }
     }
   }
-  return merged;
+  return { merged, stuck };
 }

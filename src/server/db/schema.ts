@@ -3898,6 +3898,8 @@ export const socialAccountProfiles = sqliteTable("social_account_profiles", {
   name: text("name"),
   avatarUrl: text("avatar_url"),
   checkedAt: ts("checked_at").notNull(),
+  /** W6 (0176): on a removal-pending marker, when the platform first refused to remove the connection. */
+  removalFailedSince: ts("removal_failed_since"),
 }, (t) => [primaryKey({ columns: [t.orgId, t.accountId] }), uniqueIndex("social_account_profiles_ext_uq").on(t.orgId, t.app, t.externalId)]);
 // SOC1: the Pages (Facebook Pages, LinkedIn company Pages) an admin chose, one row per Page per workspace (migration 0163).
 // key is the account id a post target carries; via_account_id is the connection the Page's own token is asked through

@@ -367,6 +367,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-medium">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : n ? <span className="text-muted">, account {n}</span> : null}</p>
                   <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted"><Badge tone={s.tone} dot>{s.label}</Badge><span>{a.status === "pending" ? "Started" : "Connected"} {timeAgo(a.createdAt)}</span></p>
+                  {a.removalStuck && <p className="mt-1 text-[13px] text-warn" data-testid="account-removal-stuck">An older sign in to this account that we couldn't remove for you. Disconnect it here.</p>}
                 </div>
                 {canManage && (
                   <div className="flex gap-2 max-sm:w-full">

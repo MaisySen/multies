@@ -273,6 +273,65 @@ describe("after the platform refused to remove the older connection (R3)", () =>
   });
 });
 
+describe("W6: waiting connections (round 2)", () => {
+  const refuseDeletes = (ids: string[]) => {
+    const realFetch = ctx.deps.fetch;
+    ctx.deps.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "DELETE" && ids.some((x) => String(input).includes(x))) return Response.json({ error: "down" }, { status: 500 });
+      return realFetch(input, init);
+    }) as typeof fetch;
+  };
+  const listed = async (c = owner) => (await c.get("/api/apps/accounts")).body.accounts as { id: string; app: string; removalStuck?: boolean }[];
+
+  it("(a) a folded app that can't post (Gmail) stays hidden and its removal is retried, with no social connection in the workspace", async () => {
+    const tok = idToken({ iss: "https://accounts.google.com", sub: "1093", email: "ada@gmail.com", name: "Ada" });
+    const first = await connectAs(owner, "gmail", { id_token: tok });
+    const id = await start(owner, "gmail", { id_token: tok });
+    refuseDeletes([first.id]);
+    expect((await owner.post(`/api/apps/accounts/${id}/confirm`)).body.account).toMatchObject({ refreshed: true });
+    expect(mock.accounts.has(first.id)).toBe(true);
+    expect((await listed()).filter((a) => a.app === "gmail").map((a) => a.id)).toEqual([id]);
+  });
+
+  it("(b) after its kept connection was disconnected and removal failed for 7 days, admins see it again, marked; members don't", async () => {
+    const first = await connectAs(owner, "linkedin");
+    const id = await start(owner, "linkedin");
+    refuseDeletes([first.id]);
+    expect((await owner.post(`/api/apps/accounts/${id}/confirm`)).body.account).toMatchObject({ refreshed: true });
+    expect((await owner.del(`/api/apps/accounts/${id}`)).status).toBe(200);
+    expect((await listed()).filter((a) => a.app === "linkedin")).toEqual([]);
+    const t0 = Date.now();
+    ctx.deps.now = () => new Date(t0 + 8 * 86_400_000);
+    const shown = (await listed()).filter((a) => a.app === "linkedin");
+    expect(shown).toEqual([expect.objectContaining({ id: first.id, removalStuck: true })]);
+    const orgId = await orgIdOf("owner-merge@acme.io");
+    const member = new Client(ctx.app);
+    await member.signup("member-w6@acme.io", "Kiran Rao", "");
+    const u = (await ctx.db.select().from(users).where(eq(users.email, "member-w6@acme.io")).get())!;
+    await ctx.db.insert(members).values({ id: `mem_${u.id}`, organizationId: orgId, userId: u.id, role: "member" });
+    await ctx.db.run(sql`update sessions set active_organization_id = ${orgId} where user_id = ${u.id}`);
+    expect((await listed(member)).filter((a) => a.app === "linkedin")).toEqual([]);
+  });
+
+  it("(c) a waiting connection signed in again whose profile read fails drops its marker, so it isn't removed later", async () => {
+    const first = await connectAs(owner, "linkedin");
+    const id = await start(owner, "linkedin");
+    refuseDeletes([first.id]);
+    expect((await owner.post(`/api/apps/accounts/${id}/confirm`)).body.account).toMatchObject({ refreshed: true });
+    // The person signs the waiting connection in again; the network can't say who it is this time.
+    mock.accounts.get(first.id)!.data.expired = true;
+    expect((await owner.post(`/api/apps/accounts/${first.id}/confirm`)).status).toBe(200);
+    const orgId = await orgIdOf("owner-merge@acme.io");
+    const row = await ctx.db.select().from(socialAccountProfiles).where(and(eq(socialAccountProfiles.orgId, orgId), eq(socialAccountProfiles.accountId, first.id))).get();
+    expect(String(row?.externalId ?? "")).not.toMatch(/^removal-pending:/);
+    ctx.deps.fetch = mockComposioFetch(async () => { throw new Error("network disabled in tests"); }, mock);
+    const t0 = Date.now();
+    ctx.deps.now = () => new Date(t0 + 2 * 3_600_000);
+    await listed();
+    expect(mock.accounts.has(first.id)).toBe(true);
+  });
+});
+
 describe("which identities can merge two connections", () => {
   const acct = (data: Record<string, unknown>, val?: Record<string, unknown>) => ({ id: "ca_1", user_id: "h:org", status: "ACTIVE", toolkit: { slug: "gmail" }, data, ...(val ? { state: { val } } : {}) });
 

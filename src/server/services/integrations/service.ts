@@ -91,11 +91,14 @@ export async function listAccounts(deps: Deps, auth: AuthContext): Promise<Conne
   // SA1: names and pictures for social accounts, and one row per network account (older duplicates fold in).
   let profiles = new Map<string, { name: string | null; avatarUrl: string | null }>();
   let merged = new Set<string>();
-  if (mine.some((a) => canPostTo(a.toolkit?.slug ?? ""))) {
+  let stuck = new Set<string>();
+  // W6: every app can be folded (confirmConnect settles each one), so waiting connections are hidden and their removal
+  // retried whatever the apps; profiles are only read (settled) for social ones. A member's listing still only reads.
+  if (mine.length) {
     try {
       const { backfillProfiles } = await import("./account-profiles");
       // R4: settling can fold and remove a connection on the platform, so only an owner or admin's listing does it.
-      ({ profiles, merged } = await backfillProfiles(deps, cp, auth.orgId, userId, mine, canPostTo, { settle: isAdmin(auth) }));
+      ({ profiles, merged, stuck } = await backfillProfiles(deps, cp, auth.orgId, userId, mine, canPostTo, { settle: isAdmin(auth) }));
     } catch (err) { deps.log?.warn("social.profiles_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
   }
   // SOC1: whether LinkedIn granted organization access (company Pages), read from the login's granted scope.
@@ -103,7 +106,7 @@ export async function listAccounts(deps: Deps, auth: AuthContext): Promise<Conne
   const orgScope = (a: CpAccount) => { const v = (a as unknown as { state?: { val?: { scope?: unknown; scopes?: unknown } } }).state?.val; const sc = v?.scope ?? v?.scopes; return /w_organization_social/.test(typeof sc === "string" ? sc : Array.isArray(sc) ? sc.join(",") : ""); };
   return mine
     .filter((a) => !merged.has(a.id))
-    .map((a) => { const v = withProfile(viewOf(a), profiles.get(a.id)); return soc1 && v.app === "linkedin" ? { ...v, companyPages: orgScope(a) } : v; })
+    .map((a) => { const v0 = withProfile(viewOf(a), profiles.get(a.id)); const v = stuck.has(a.id) ? { ...v0, removalStuck: true } : v0; return soc1 && v.app === "linkedin" ? { ...v, companyPages: orgScope(a) } : v; })
     .filter((v) => !(v.status === "pending" && Date.parse(v.createdAt) < staleBefore))
     .sort((a, b) => a.appName.localeCompare(b.appName) || a.createdAt.localeCompare(b.createdAt));
 }

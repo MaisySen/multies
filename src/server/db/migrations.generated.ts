@@ -1909,5 +1909,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `mail_connections` ADD `verify_tries` integer DEFAULT 0 NOT NULL;",
       "ALTER TABLE `mail_connections` ADD `verify_sent_at` integer;"
     ]
+  },
+  {
+    "name": "0176_social_removal_since",
+    "statements": [
+      "-- W6 (round 2): a connection folded into another waits to be removed (a removal-pending marker row) while the platform\n-- refuses the removal. This keeps when that started, so a connection whose kept one is gone and whose removal has\n-- failed for a week is shown to admins again to disconnect by hand. Null on every existing row; old code never reads it.\nALTER TABLE `social_account_profiles` ADD `removal_failed_since` integer;"
+    ]
   }
 ];
