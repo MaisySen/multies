@@ -30,3 +30,14 @@ it("public/legacy.js adds .at() on a window that lacks it, and index.html loads 
   expect(html.indexOf('src="/legacy.js"')).toBeGreaterThan(-1);
   expect(html.indexOf('src="/legacy.js"')).toBeLessThan(html.indexOf('type="module"'));
 });
+
+/** W4: Zod 4's `new Function("")` probe trips our CSP (no 'unsafe-eval'). Importing the polyfills first turns it off. */
+it("sets Zod's jitless config, so Zod never probes eval and object schemas parse without compiling", async () => {
+  expect((globalThis as { __zod_globalConfig?: { jitless?: boolean } }).__zod_globalConfig?.jitless).toBe(true);
+  const core = await import("zod/v4/core");
+  expect(core.globalConfig.jitless).toBe(true);
+  // Node allows eval, so only jitless makes this false.
+  expect(core.util.allowsEval.value).toBe(false);
+  const { z } = await import("zod");
+  expect(z.object({ a: z.string() }).parse({ a: "x" })).toEqual({ a: "x" });
+});
