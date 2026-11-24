@@ -146,6 +146,10 @@ export function pointerSteps(orgId: string, from: string, to: string): SQL[] {
     sql`delete from social_post_stats where org_id = ${orgId} and account_id = ${from}`,
     sql`delete from social_account_state where org_id = ${orgId} and account_id = ${from}`,
     sql`delete from social_account_profiles where org_id = ${orgId} and account_id = ${from}`,
+    // F1: connections still waiting to be removed into the older one now wait on the kept one, so none of them is
+    // ever left pointing at a removed connection (and settled as if it were fresh).
+    sql`update social_account_profiles set external_id = ${REMOVAL_PENDING} || ${to} || ':' || account_id
+      where org_id = ${orgId} and (external_id = ${REMOVAL_PENDING + from} or substr(external_id, 1, length(${`${REMOVAL_PENDING}${from}:`})) = ${`${REMOVAL_PENDING}${from}:`})`,
   ];
 }
 
@@ -237,10 +241,9 @@ export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, 
   if (opts.settle === false) {
     const hidden = new Set<string>();
     for (const [id, p] of [...profiles]) {
-      const into = pendingInto(p);
-      if (!into) continue;
+      if (!pendingInto(p)) continue;
       profiles.delete(id);
-      if (live.has(into)) hidden.add(id);
+      hidden.add(id); // F1: hidden whether or not its kept connection is still there
     }
     return { profiles, merged: hidden };
   }
@@ -286,9 +289,8 @@ function pendingInto(p: ProfileRow): string | null {
 }
 
 /**
- * R3: connections folded into another whose removal the platform refused. While the kept connection is live they stay
- * out of the list (returned as merged) and are never settled; their removal is tried again at most once an hour. If the
- * kept connection is gone, the marker goes and the older connection stands on its own again.
+ * R3: connections folded into another whose removal the platform refused. They stay out of the list (returned as
+ * merged) and are never settled; their removal is tried again at most once an hour, and the marker goes with them.
  */
 async function retryPendingRemovals(deps: Deps, cp: Composio, orgId: string, profiles: Map<string, ProfileRow>, live: Set<string>): Promise<Set<string>> {
   const merged = new Set<string>();
@@ -297,11 +299,13 @@ async function retryPendingRemovals(deps: Deps, cp: Composio, orgId: string, pro
     const into = pendingInto(p);
     if (!into) continue;
     profiles.delete(id);
-    // Removed meanwhile (the marker goes), or the kept connection is gone (the older one stands on its own again).
-    if (!live.has(id) || !live.has(into)) {
+    // Removed meanwhile: the marker goes.
+    if (!live.has(id)) {
       await deps.db.delete(socialAccountProfiles).where(and(eq(socialAccountProfiles.orgId, orgId), eq(socialAccountProfiles.accountId, id)));
       continue;
     }
+    // F1: even when its kept connection is gone too, a folded connection never stands on its own again: settled, it
+    // would become the kept side of a newer sign in to the same account. It stays hidden and its removal is retried.
     merged.add(id);
     if (now.getTime() - p.checkedAt.getTime() < PROFILE_RETRY_MS) continue;
     try { await cp.remove(id); } catch (err) {

@@ -82,8 +82,9 @@ describe("confirming a connection", () => {
 });
 
 describe("folding a second connection to the same account, with a failure at each step", () => {
-  // pointers (9 statements, with the chosen Pages since R2), the older profile row, then the kept profile row: one unit.
-  const STEPS = 11;
+  // pointers (9 statements, with the chosen Pages since R2), the older profile row, the waiting markers moved to the
+  // kept connection (F1), then the kept profile row: one unit.
+  const STEPS = 12;
 
   for (let step = 0; step < STEPS; step++) {
     it(`a failure at write ${step + 1} of ${STEPS} changes nothing, keeps both connections, and still reports the new one connected`, async () => {
@@ -192,6 +193,34 @@ describe("listing accounts (R4)", () => {
 });
 
 describe("after the platform refused to remove the older connection (R3)", () => {
+  it("a connection still waiting when its kept one is folded into a newer one never takes the newer one's place (F1)", async () => {
+    const o1 = await connectAs(owner, "linkedin");
+    const k = await start(owner, "linkedin");
+    const realFetch = ctx.deps.fetch;
+    ctx.deps.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "DELETE" && String(input).includes(o1.id)) return Response.json({ error: "down" }, { status: 500 });
+      return realFetch(input, init);
+    }) as typeof fetch;
+    expect((await owner.post(`/api/apps/accounts/${k}/confirm`)).body.account).toMatchObject({ refreshed: true });
+    const n = await start(owner, "linkedin");
+    let removedN = false;
+    const withK = ctx.deps.fetch;
+    ctx.deps.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "DELETE" && String(input).includes(n)) removedN = true;
+      return withK(input, init);
+    }) as typeof fetch;
+    expect((await owner.post(`/api/apps/accounts/${n}/confirm`)).body.account).toMatchObject({ refreshed: true });
+    expect(mock.accounts.has(k)).toBe(false); // K's removal went through
+    const shown = async () => ((await owner.get("/api/apps/accounts")).body.accounts as { id: string; app: string }[]).filter((a) => a.app === "linkedin").map((a) => a.id);
+    expect(await shown()).toEqual([n]);
+    const t = Date.now() + 2 * 3_600_000;
+    ctx.deps.now = () => new Date(t);
+    expect(await shown()).toEqual([n]);
+    expect(removedN).toBe(false);
+    expect(mock.accounts.has(n)).toBe(true);
+    expect(mock.accounts.has(o1.id)).toBe(true); // the platform still refuses; it stays hidden and waiting
+  });
+
   it("two connections waiting to be removed into the same kept one each keep their marker (F2)", async () => {
     const first = await connectAs(owner, "linkedin");
     const id = await start(owner, "linkedin");
