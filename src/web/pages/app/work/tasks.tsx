@@ -502,7 +502,10 @@ export function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate
       <label className="mr-auto inline-flex min-h-10 cursor-pointer items-center gap-2 text-[13px] text-muted"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={keepGoing} onChange={(e) => setKeepGoing(e.target.checked)} />{tr("tasks.add_another")}</label>
       <Button variant="secondary" onClick={onClose}>{keepGoing ? "Done" : "Cancel"}</Button><Button loading={busy} disabled={!title.trim()} onClick={() => void submit()}>{keepGoing ? "Add task" : "Create task"}</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <Field label={tr("common.title")}>{(f) => <Input {...f} ref={titleRef} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("tasks.what_needs_doing")} />}</Field>
+        <Field label={tr("common.title")}>{(f) => <Input {...f} ref={titleRef} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("tasks.what_needs_doing")}
+          // Enter in the title adds the task: the form has more than one text field since R67 (dates are text fields), so
+          // the browser no longer submits it on Enter by itself.
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); } }} />}</Field>
         <TypePicker value={type} onChange={setType} />
         <div className="grid grid-cols-2 gap-3">
           <Field label={tr("tasks.project")}>{(f) => <Select {...f} value={pid} onChange={(e) => { setPid(e.target.value); setSid(""); }}>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>
