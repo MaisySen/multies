@@ -192,7 +192,9 @@ function FilesCell({ formId, files }: { formId: string; files: ResponseFile[] })
         const href = `/api/forms/${encodeURIComponent(formId)}/uploads/${encodeURIComponent(x.id)}`;
         return x.type.startsWith("image/") ? (
           <a key={x.id} href={`${href}?inline=1`} target="_blank" rel="noreferrer" className="inline-block w-fit rounded border border-line bg-white p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" title={x.name}>
-            <img src={`${href}?inline=1`} alt={x.kind === "signature" ? "Signature" : x.name} className="h-10 max-w-[160px] object-contain" loading="lazy" />
+            {/* A set size, so the picture holds its place before it loads (it loads lazily, and a row scrolled out of
+                view sideways had no width at all until then). */}
+            <img src={`${href}?inline=1`} alt={x.kind === "signature" ? "Signature" : x.name} width={120} height={40} className="h-10 w-[120px] object-contain object-left" loading="lazy" />
           </a>
         ) : (
           <a key={x.id} href={href} download className="inline-flex max-w-[240px] items-center gap-1 text-brand-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="response-file">
