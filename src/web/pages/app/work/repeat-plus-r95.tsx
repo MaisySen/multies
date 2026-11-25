@@ -24,6 +24,10 @@ export function ruleKey(r: Partial<Rule> | null | undefined): string {
 type Kind = "" | "daily" | "weekdays" | "weekly" | "monthly" | "yearly";
 const kindOf = (r: Rule | null): Kind => !r ? "" : isEveryWeekday(r) ? "weekdays" : r.freq;
 
+const waitingSaves = new Set<() => void>();
+/** Saves every repeat change still waiting for its pause, now (before another edit of the task goes out). */
+export function flushRepeatSaves() { for (const f of [...waitingSaves]) f(); }
+
 export function RepeatPlus({ value: saved, due, people, onChange: save }: { value: Rule | null; due: string | null; people: Person[]; onChange: (r: Omit<Rule, "text"> | null) => void }) {
   // A local draft, so two quick changes (week then weekday) build on each other instead of on the last saved rule.
   // Saved rules are compared by content (keys sorted, text left out): an echo of what this picker sent, or of an older
@@ -41,6 +45,13 @@ export function RepeatPlus({ value: saved, due, people, onChange: save }: { valu
   const saveRef = useRef(save);
   saveRef.current = save;
   useEffect(() => () => { const p = pending.current; if (p) { clearTimeout(p.timer); saveRef.current(p.r); } }, []);
+  // suite-r10: a change still waiting for its pause is saved at once when the task's other fields are saved (Mark as
+  // done right after picking Weekly): the repeat must reach the server first, or the done task makes no next one.
+  useEffect(() => {
+    const flush = () => { const p = pending.current; if (p) { clearTimeout(p.timer); pending.current = null; saveRef.current(p.r); } };
+    waitingSaves.add(flush);
+    return () => { waitingSaves.delete(flush); };
+  }, []);
   const onChange = (r: Omit<Rule, "text"> | null) => {
     seen.current.add(ruleKey(r));
     setValue(r ? { ...r } : null);

@@ -11,7 +11,7 @@ import { IconAgent, IconCalendar, IconCheckCircle, IconCircle, IconClose, IconCo
 import { AssigneePicker, CommentBox, DescriptionEditor, TagPicker } from "./tasks-r84"; // R84
 import { CommentText, ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 import { TaskTime } from "./time";
-import { RepeatPlus } from "./repeat-plus-r95"; // R95
+import { flushRepeatSaves, RepeatPlus } from "./repeat-plus-r95"; // R95
 import { AddToMyDay } from "./my-day-r95"; // R95
 import { useConfig } from "@/web/lib/queries";
 import { PrivateComments } from "./portal-td9"; // TD9
@@ -120,7 +120,8 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
     return () => window.removeEventListener("keydown", on);
   }, [onClose, page]);
 
-  const save = (patch: Record<string, unknown>) => t && update.mutate({ id: t.id, patch }, { onSuccess: () => void q.refetch() });
+  // A repeat change still waiting for its pause goes first (edits to one task go out in order: data.ts).
+  const save = (patch: Record<string, unknown>) => { if (!t) return; if (!("repeat" in patch)) flushRepeatSaves(); update.mutate({ id: t.id, patch }, { onSuccess: () => void q.refetch() }); };
   const project = projects.data?.find((p) => p.id === t?.projectId);
 
   const addSub = async () => {
