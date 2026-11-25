@@ -22,13 +22,13 @@ test("select with X, archive with E, Undo restores; Shift+click range; bulk mark
   await demo(page);
   const overview = await (await page.request.get("/api/mail/overview")).json();
   const mb = [...overview.mailboxes].sort((a, b) => (b.folders.inbox?.total ?? 0) - (a.folders.inbox?.total ?? 0))[0] as { id: string };
-  const important = await list(page, mb.id, "folder=inbox&split=important");
-  const other = await list(page, mb.id, "folder=inbox&split=other");
-  const tab = important.length >= other.length ? "important" : "other";
-  const items = tab === "important" ? important : other;
-  expect(items.length).toBeGreaterThanOrEqual(3); // demo inboxes split three or more each way
+  // R85: the inbox opens on its first category, Primary (Primary, Updates, Promotions), in place of the older
+  // Important and Other split; the rows below are that list.
+  const items = await list(page, mb.id, "folder=inbox&split=primary");
+  expect(items.length).toBeGreaterThanOrEqual(3);
 
-  await page.goto(`/app/mail?mailbox=${mb.id}${tab === "other" ? "&split=other" : ""}`);
+  await page.goto(`/app/mail?mailbox=${mb.id}`);
+  await expect(page.getByRole("tab", { name: /^Primary/ })).toHaveAttribute("aria-selected", "true");
   const rows = page.getByTestId("mail-row");
   await expect(rows.first()).toBeVisible({ timeout: 20_000 });
   const count = await rows.count();
@@ -64,7 +64,7 @@ test("select with X, archive with E, Undo restores; Shift+click range; bulk mark
   await rows.nth(0).getByTestId("mail-select").click();
   await rows.nth(n - 1).getByTestId("mail-select").click({ modifiers: ["Shift"] });
   await expect(page.getByTestId("bulk-count")).toHaveText(`${n} selected`);
-  const range = (await list(page, mb.id, `folder=inbox${tab === "other" ? "&split=other" : "&split=important"}`)).slice(0, n).map((m) => m.id);
+  const range = (await list(page, mb.id, "folder=inbox&split=primary")).slice(0, n).map((m) => m.id);
 
   // Mark unread, then read, from the bar.
   await bar.getByRole("button", { name: "Mark unread" }).click();
