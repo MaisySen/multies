@@ -22,13 +22,16 @@ import { plainTextOf } from "./docs";
 import { getMeeting } from "./meetings";
 import { createTask, deleteTask, getTask, link, parseAssignee, validateAssignee } from "./tasks";
 import { actionItemsOf, actionItemText, appendActionItem, itemKey, notesTemplate, sectionsOf, type ActionPerson, type PMNodeLike } from "@/shared/action-items";
+import { assertMeetingVisible, meetingVisibleTo } from "./meeting-visibility"; // Review Z1
 
 type Assignee = { type: "member" | "agent"; id: string };
 const MAX_CREATE = 50;
 
-async function meetingRow(deps: Deps, orgId: string, id: string) {
-  const m = await deps.db.select().from(meetings).where(and(eq(meetings.orgId, orgId), eq(meetings.id, id), isNull(meetings.deletedAt))).get();
+/** Review Z1: the notes of a DM's or private channel's call are only for the people in that chat. */
+async function meetingRow(deps: Deps, actor: SuiteActor, id: string) {
+  const m = await deps.db.select().from(meetings).where(and(eq(meetings.orgId, actor.orgId), eq(meetings.id, id), isNull(meetings.deletedAt))).get();
   if (!m) throw notFound("Meeting");
+  await assertMeetingVisible(deps, actor, m);
   return m;
 }
 
@@ -62,7 +65,7 @@ export async function ensureNotesDoc(deps: Deps, actor: SuiteActor, meetingId: s
 
 /** Round 31: the same, with an optional title for a new doc, and whether this call made it (the race winner). */
 export async function ensureNotesDocOnce(deps: Deps, actor: SuiteActor, meetingId: string, opts: { title?: string } = {}): Promise<{ id: string; created: boolean }> {
-  const m = await meetingRow(deps, actor.orgId, meetingId);
+  const m = await meetingRow(deps, actor, meetingId);
   if (await liveDoc(deps, actor.orgId, m.docId)) return { id: m.docId!, created: false };
   assertWritable(actor);
   const now = deps.now();
@@ -92,7 +95,7 @@ export interface NotesActionItem {
 /** The meeting's notes: the doc (if made yet), its agenda and notes lines, and the action items with their tasks. Reads only. */
 export async function meetingNotes(deps: Deps, actor: SuiteActor, meetingId: string) {
   const meeting = await getMeeting(deps, actor, meetingId);
-  const m = await meetingRow(deps, actor.orgId, meetingId);
+  const m = await meetingRow(deps, actor, meetingId);
   const d = await liveDoc(deps, actor.orgId, m.docId);
   const content = d ? (JSON.parse(d.content) as PMNodeLike) : null;
   const [people, tz, done, recorded] = await Promise.all([actionPeople(deps, actor.orgId), zoneOf(deps, actor, m),
@@ -134,7 +137,7 @@ export async function meetingNotes(deps: Deps, actor: SuiteActor, meetingId: str
 export async function meetingForDoc(deps: Deps, actor: SuiteActor, docId: string) {
   if (!(await liveDoc(deps, actor.orgId, docId))) throw notFound("Doc");
   const m = await deps.db.select({ id: meetings.id, title: meetings.title, startsAt: meetings.startsAt }).from(meetings)
-    .where(and(eq(meetings.orgId, actor.orgId), eq(meetings.docId, docId), isNull(meetings.deletedAt))).get();
+    .where(and(eq(meetings.orgId, actor.orgId), eq(meetings.docId, docId), isNull(meetings.deletedAt), meetingVisibleTo(deps, actor))).get();
   return m ? { id: m.id, title: m.title, startsAt: m.startsAt.toISOString() } : null;
 }
 
@@ -168,7 +171,7 @@ const DUE = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
  */
 export async function createActionItems(deps: Deps, actor: SuiteActor, meetingId: string, input: { items?: ActionItemInput[]; projectId?: string | null } = {}, opts: { ids?: string[]; retry?: boolean } = {}) {
   assertWritable(actor);
-  const m = await meetingRow(deps, actor.orgId, meetingId);
+  const m = await meetingRow(deps, actor, meetingId);
   if ((input.items?.length ?? 0) > MAX_CREATE) throw new HttpError(422, "validation_failed", `Up to ${MAX_CREATE} action items at a time.`);
   const people = await actionPeople(deps, actor.orgId);
   const tz = await zoneOf(deps, actor, m);

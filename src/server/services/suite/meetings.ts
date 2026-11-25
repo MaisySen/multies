@@ -18,6 +18,7 @@ import { vtimezone } from "./vtimezone";
 import { closedReason, shownStatus } from "./meeting-open-meet";
 import { assertZone, describeRecurrence, expandWeekly, normaliseRecurrence, parseRrule, toRrule, weekdayIn, type Recurrence, type RecurrenceInput } from "./meeting-recurrence";
 import { parseAddressList } from "../mail/address-list"; // Wave 3 (M4)
+import { assertMeetingVisible, meetingVisibleTo } from "./meeting-visibility"; // Review Z1
 
 type MeetingRow = typeof meetings.$inferSelect;
 export type MeetingSource = { type: "thread" | "task" | "contact"; id: string };
@@ -85,6 +86,8 @@ export async function listMeetings(deps: Deps, actor: SuiteActor, q: { upcoming?
   const cutoff = new Date(deps.now().getTime() - 3 * 3600_000);
   const rows = await deps.db.select().from(meetings).where(and(
     eq(meetings.orgId, actor.orgId), isNull(meetings.deletedAt),
+    // Review Z1: a DM's or private channel's call is listed only for the people in that chat.
+    meetingVisibleTo(deps, actor),
     // A series whose first meeting is past still has upcoming occurrences.
     q.upcoming ? or(gte(meetings.startsAt, cutoff), isNotNull(meetings.recurrence)) : undefined,
     q.sourceType ? eq(meetings.sourceType, q.sourceType as "thread") : undefined, q.sourceId ? eq(meetings.sourceId, q.sourceId) : undefined,
@@ -127,8 +130,9 @@ export async function getMeeting(deps: Deps, actor: SuiteActor, id: string) {
  * a member of that workspace is told; anyone else still gets a plain not found.
  */
 async function meetingHere(deps: Deps, actor: SuiteActor, id: string) {
+  let found;
   try {
-    return await meetingRow(deps, actor.orgId, id);
+    found = await meetingRow(deps, actor.orgId, id);
   } catch (err) {
     if (!actor.userId || actor.agentId || actor.apiKeyId) throw err;
     const other = await deps.db.select({ orgId: meetings.orgId, name: organizations.name }).from(meetings)
@@ -138,6 +142,15 @@ async function meetingHere(deps: Deps, actor: SuiteActor, id: string) {
     if (!other || other.orgId === actor.orgId) throw err;
     throw new HttpError(404, "meeting_in_other_workspace", `This meeting is in your other workspace, ${other.name}. Switch to it to open the meeting.`, { workspace: { id: other.orgId, name: other.name } });
   }
+  await assertMeetingVisible(deps, actor, found);
+  return found;
+}
+
+/** Review Z1: a meeting this actor may see (a DM's or private channel's call only for the people in it), else 404. */
+async function visibleRow(deps: Deps, actor: SuiteActor, id: string) {
+  const m = await meetingRow(deps, actor.orgId, id);
+  await assertMeetingVisible(deps, actor, m);
+  return m;
 }
 
 /** Title, guests and the sending mailbox suggested by what the meeting was started from. */
@@ -205,7 +218,7 @@ export async function createMeeting(deps: Deps, actor: SuiteActor, input: Meetin
 /** Edits apply to the whole series: a series is one row. */
 export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; startsAt?: string; durationMin?: number; status?: "scheduled" | "ended" | "cancelled"; invitees?: string[]; recurrence?: MeetingRecurrenceInput }) {
   assertWritable(actor);
-  const m = await meetingRow(deps, actor.orgId, id);
+  const m = await visibleRow(deps, actor, id);
   const set: Partial<MeetingRow> = { updatedAt: deps.now(), version: m.version + 1 };
   if (patch.title !== undefined) set.title = patch.title.trim().slice(0, 200) || m.title;
   if (patch.startsAt !== undefined) {
@@ -259,7 +272,7 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
  */
 export async function deleteMeeting(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
-  const m = await meetingRow(deps, actor.orgId, id);
+  const m = await visibleRow(deps, actor, id);
   const { db } = deps;
   await runBatch(db, [
     db.delete(meetingActionItems).where(and(eq(meetingActionItems.orgId, actor.orgId), eq(meetingActionItems.meetingId, m.id))),
@@ -311,7 +324,7 @@ export function buildIcs(m: { id: string; title: string; startsAt: Date; duratio
 
 /** The meeting (or whole series) as an .ics file, for a download link. */
 export async function meetingIcs(deps: Deps, actor: SuiteActor, id: string) {
-  const m = await meetingRow(deps, actor.orgId, id);
+  const m = await visibleRow(deps, actor, id);
   const box = m.mailboxId ? await deps.db.select({ address: mailboxes.address, name: mailboxes.displayName }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), eq(mailboxes.id, m.mailboxId))).get() : undefined;
   const organizer = box ?? { address: `meetings@${new URL(deps.config.appUrl).hostname}`, name: "Multies" };
   return buildIcs(m, { organizer, invitees: JSON.parse(m.invitees) as string[], guestUrl: `${deps.config.appUrl}/m/${m.guestToken}`, now: deps.now(), sequence: m.version - 1, method: m.status === "cancelled" ? "CANCEL" : "REQUEST" });
@@ -327,7 +340,7 @@ function inviteText(title: string, when: string, guestUrl: string, host: string)
  */
 export async function sendInvites(deps: Deps, actor: SuiteActor, id: string, opts: { mailboxId?: string } = {}) {
   assertWritable(actor);
-  const m = await meetingRow(deps, actor.orgId, id);
+  const m = await visibleRow(deps, actor, id);
   const invitees = JSON.parse(m.invitees) as string[];
   if (!invitees.length) throw new HttpError(422, "no_guests", "Add at least one guest email first.");
   const org = await deps.db.select({ name: organizations.name, timezone: organizations.timezone }).from(organizations).where(eq(organizations.id, actor.orgId)).get();
@@ -389,9 +402,8 @@ export async function livekitToken(deps: Deps, room: string, who: { identity: st
 /** A workspace member (or agent key) joining: their own name, host rights. */
 export async function joinMeeting(deps: Deps, actor: SuiteActor, id: string, opts: { name?: string } = {}) {
   const m = await meetingHere(deps, actor, id);
-  // Wave 3 review Y8 (f): a call from a DM or private channel is joined only by people who can open that chat (as
-  // visibleMeeting checks for every other read); anyone else, an agent key included, gets a plain not found.
-  if (m.channelId) await (await import("./chat")).visibleChannel(deps, actor, m.channelId).catch(() => { throw notFound("Meeting"); });
+  // Wave 3 review Y8 (f), Z1: a call from a DM or private channel is joined only by people who can open that chat
+  // (meetingHere checks it); anyone else, an agent key included, gets a plain not found.
   if (m.status === "cancelled") throw new HttpError(409, "meeting_cancelled", "This meeting was cancelled.");
   // MEET fixes (12 Nov 2026): an ended meeting stays ended for members too, as it already did for guests (Bidur, 10 Nov).
   if (closedReason(m, deps.now())) throw new HttpError(409, "meeting_ended", "This meeting has ended.");

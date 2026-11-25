@@ -16,6 +16,7 @@ import { roomParticipants } from "./calls";
 import { assertWritable, type SuiteActor } from "./common";
 import { hereText } from "@/shared/meeting-lobby";
 import { closedReason, shownStatus, type OpenCheck } from "./meeting-open-meet";
+import { assertMeetingVisible } from "./meeting-visibility"; // Review Z1
 
 /** A request older than this drops off the host's list and the guest asks again. */
 export const LOBBY_TTL_MS = 15 * 60_000;
@@ -86,9 +87,11 @@ function assertOpen(m: OpenCheck, now: Date) {
 }
 
 async function memberMeeting(deps: Deps, actor: SuiteActor, id: string) {
-  const m = await deps.db.select({ id: meetings.id, orgId: meetings.orgId, guestLobby: meetings.guestLobby, title: meetings.title, deletedAt: meetings.deletedAt })
+  const m = await deps.db.select({ id: meetings.id, orgId: meetings.orgId, guestLobby: meetings.guestLobby, title: meetings.title, deletedAt: meetings.deletedAt, channelId: meetings.channelId })
     .from(meetings).where(and(eq(meetings.id, id), eq(meetings.orgId, actor.orgId))).get();
   if (!m || m.deletedAt) throw notFound("Meeting");
+  // Review Z1: a DM's or private channel's call: only the people in that chat run its waiting room.
+  await assertMeetingVisible(deps, actor, m);
   return m;
 }
 
