@@ -15,7 +15,11 @@ import { liveMinutes, meetingMinutes, minutesState, participantMinutes, recordMe
 
 export interface CallParticipant { identity: string; name: string; joinedAt: number | null }
 /** Lists the people connected to a video room. Injectable (Deps.callRooms) so tests fake it. */
-export interface CallRooms { list(room: string): Promise<CallParticipant[]> }
+export interface CallRooms {
+  list(room: string): Promise<CallParticipant[]>;
+  /** Review Z8: disconnects one person from a room (nothing when they are not in it). */
+  remove?(room: string, identity: string): Promise<void>;
+}
 
 /** How long one room's participant list is reused before asking the video service again. */
 export const CALL_CACHE_MS = 10_000;
@@ -51,6 +55,15 @@ export function livekitRooms(cfg: { url: string; apiKey: string; apiSecret: stri
         throw err;
       }
     },
+    async remove(room, identity) {
+      client ??= import("livekit-server-sdk").then(({ RoomServiceClient }) => new RoomServiceClient(cfg.url.replace(/^ws(s?):\/\//, "http$1://"), cfg.apiKey, cfg.apiSecret));
+      try {
+        await (await client).removeParticipant(room, identity);
+      } catch (err) {
+        if (/not.?found|does not exist/i.test(String((err as Error)?.message ?? err))) return;
+        throw err;
+      }
+    },
   };
 }
 
@@ -60,7 +73,10 @@ export function livekitRooms(cfg: { url: string; apiKey: string; apiSecret: stri
  */
 export const testRooms = (() => {
   const rooms = new Map<string, CallParticipant[]>();
-  return { list: async (room: string) => rooms.get(room) ?? [], set: (room: string, ps: CallParticipant[]) => void rooms.set(room, ps) };
+  return {
+    list: async (room: string) => rooms.get(room) ?? [], set: (room: string, ps: CallParticipant[]) => void rooms.set(room, ps),
+    remove: async (room: string, identity: string) => void rooms.set(room, (rooms.get(room) ?? []).filter((p) => p.identity !== identity)),
+  };
 })();
 
 const livekitByUrl = new Map<string, CallRooms>();
@@ -240,6 +256,13 @@ export async function visibleMeeting(deps: Deps, a: SuiteActor, meetingId: strin
   // A call from a DM or private channel is visible only to the people who can open that chat.
   if (m.channelId) await visibleChannel(deps, a, m.channelId).catch(() => { throw notFound("Meeting"); });
   return m;
+}
+
+/** Review Z8: disconnects one person from a meeting's room, best effort (a failure is reported, never thrown). */
+export async function removeFromRoom(deps: Deps, room: string, identity: string): Promise<boolean> {
+  const r = roomsFor(deps);
+  if (!r?.remove) return false;
+  try { await r.remove(room, identity); return true; } catch (err) { deps.reportError?.(err, { where: "calls.removeFromRoom" }); return false; }
 }
 
 /** One meeting's live status (any meeting, not only chat calls). */

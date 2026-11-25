@@ -43,7 +43,7 @@ import "@/web/i18n/w2/en-meetings"; // R104B
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
-  source: { type: "thread" | "task" | "contact"; id: string } | null; invitees: string[]; invitesSentAt: string | null; joinUrl: string; guestUrl: string; videoEnabled: boolean; guestsWait?: boolean;
+  source: { type: "thread" | "task" | "contact"; id: string } | null; invitees: string[]; invitesSentAt: string | null; joinUrl: string; guestUrl: string; videoEnabled: boolean; guestsWait?: boolean; /** Review Z8 */ canReopen?: boolean;
   /** A weekly series. In the upcoming list each occurrence is its own entry with the series' id. */
   recurrence: Series | null;
   seriesStartsAt: string | null;
@@ -341,7 +341,8 @@ export function MeetingPage() {
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><IconEdit className="h-4 w-4" />{m.recurrence ? tr("meetings.edit_series") : tr("meetings.edit")}</Button>
         <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><IconDownload className="h-4 w-4" />{tr("meetings.calendar_file")}</a>
         {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>{tr("meetings.mark_as_ended")}</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? tr("meetings.cancel_series") : tr("meetings.cancel_meeting")}</Button></>}
-        {m.status !== "scheduled" && (me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin") && <Button size="sm" variant="ghost" data-testid="meeting-reopen" onClick={() => void setStatus("scheduled")}>{tr("meetings.reopen")}</Button>}
+        {/* Review Z8: canReopen is false for a series between its meetings (it opens again on its own). */}
+        {(m.canReopen ?? m.status !== "scheduled") && (me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin") && <Button size="sm" variant="ghost" data-testid="meeting-reopen" onClick={() => void setStatus("scheduled")}>{tr("meetings.reopen")}</Button>}
       </div>
       <MeetingNotes meetingId={m.id} />
       {meetTd3 && <MeetingSuggestions meetingId={m.id} />}

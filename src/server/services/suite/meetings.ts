@@ -7,13 +7,13 @@
  */
 import { and, desc, eq, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
-import { bookings, contacts, entityLinks, mailboxes, meetingActionItems, meetingRecordings, meetings, members, messages, organizations, tasks } from "../../db/schema";
+import { bookings, contacts, entityLinks, mailboxes, meetingActionItems, meetingLobby, meetingRecordings, meetings, members, messages, organizations, tasks } from "../../db/schema";
 import { runBatch } from "../../db";
 import { randomToken, toB64 } from "../../lib/crypto";
 import { forbidden, HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, type SuiteActor } from "./common";
 import { link, resolveTaskId } from "./tasks";
-import { admittedGuest, cleanGuestName } from "./meeting-lobby-r32";
+import { admittedGuest, cleanGuestName, guestIdentity } from "./meeting-lobby-r32";
 import { vtimezone } from "./vtimezone";
 import { closedReason, shownStatus } from "./meeting-open-meet";
 import { assertZone, describeRecurrence, expandWeekly, normaliseRecurrence, parseRrule, toRrule, weekdayIn, type Recurrence, type RecurrenceInput } from "./meeting-recurrence";
@@ -39,7 +39,7 @@ function seriesOf(m: MeetingRow): (Recurrence & { rrule: string; timezone: strin
   }
 }
 
-function present(m: MeetingRow, origin: string, enabled: boolean) {
+function present(m: MeetingRow, origin: string, enabled: boolean, rawStatus: MeetingRow["status"] = m.status) {
   return {
     id: m.id, title: m.title, room: m.room, startsAt: m.startsAt.toISOString(), durationMin: m.durationMin,
     endsAt: new Date(m.startsAt.getTime() + m.durationMin * 60_000).toISOString(), status: m.status,
@@ -55,6 +55,8 @@ function present(m: MeetingRow, origin: string, enabled: boolean) {
     docId: m.docId ?? null,
     /** Round 32: guests from the link wait until a member lets them in. */
     guestsWait: m.guestLobby,
+    /** Review Z8: an owner or admin can reopen it (ended or cancelled; a series between its meetings is not). */
+    canReopen: rawStatus === "ended" || rawStatus === "cancelled",
   };
 }
 export type Meeting = ReturnType<typeof present>;
@@ -65,7 +67,7 @@ async function meetingRow(deps: Deps, orgId: string, id: string) {
   return m;
 }
 
-const out = (deps: Deps, m: MeetingRow) => present({ ...m, status: shownStatus(m, deps.now()) }, deps.config.appUrl, meetingsEnabled(deps));
+const out = (deps: Deps, m: MeetingRow) => present({ ...m, status: shownStatus(m, deps.now()) }, deps.config.appUrl, meetingsEnabled(deps), m.status);
 
 /** How far ahead an upcoming list expands a weekly series, and how many of each it shows. */
 export const SERIES_WINDOW_DAYS = 60;
@@ -220,6 +222,7 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
   assertWritable(actor);
   const m = await visibleRow(deps, actor, id);
   const set: Partial<MeetingRow> = { updatedAt: deps.now(), version: m.version + 1 };
+  let reopened = false;
   if (patch.title !== undefined) set.title = patch.title.trim().slice(0, 200) || m.title;
   if (patch.startsAt !== undefined) {
     // PRIV1b (P64): an empty start is refused, never written into the required column.
@@ -229,11 +232,15 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
   }
   if (patch.durationMin !== undefined) { if (patch.durationMin < 5 || patch.durationMin > 480) throw new HttpError(422, "validation_failed", "A meeting runs between 5 minutes and 8 hours."); set.durationMin = Math.round(patch.durationMin); }
   if (patch.status !== undefined) {
-    // Wave 3 review Y4: an owner or admin can reopen an ended or cancelled meeting (its link works again).
-    if (patch.status === "scheduled" && m.status !== "scheduled") {
+    // Wave 3 review Y4: an owner or admin can reopen an ended or cancelled meeting (its link works again). Review Z8:
+    // a series between its meetings shows as ended but has nothing to reopen (it opens again before its next meeting).
+    const shown = shownStatus(m, deps.now());
+    if (patch.status === "scheduled" && shown !== "scheduled") {
       if (!actor.system && actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only an owner or admin can reopen a meeting.");
+      if (m.status === "scheduled") throw new HttpError(409, "nothing_to_reopen", "This series opens again 15 minutes before its next meeting.");
       set.endedAt = null;
       set.emptySince = null;
+      reopened = true;
     }
     set.status = patch.status;
     if (patch.status === "ended") set.endedAt = deps.now();
@@ -257,6 +264,8 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
     Object.assign(set, await recurrenceColumns(deps, actor.orgId, keep, set.startsAt ?? m.startsAt, m.recurrenceTz));
   }
   await deps.db.update(meetings).set(set).where(eq(meetings.id, id));
+  // Review Z8: admissions given before it ended stay over once it is reopened (the end no longer marks them).
+  if (reopened) await deps.db.update(meetingLobby).set({ status: "denied", decidedBy: "system:reopened", decidedAt: deps.now() }).where(and(eq(meetingLobby.meetingId, id), eq(meetingLobby.status, "admitted")));
   await recordWrite(deps, actor, { entityType: "meeting", entityId: id, op: "update", version: m.version + 1, verb: "meeting.updated", data: { status: patch.status },
     event: "meeting.updated", eventData: { id, status: set.status ?? m.status } });
   // R24.4: meeting_ended rules, once when a meeting is marked ended.
@@ -439,7 +448,9 @@ export async function guestJoin(deps: Deps, token: string, name: string, lobbyId
   await minutesLeftForRoom(deps, m);
   // R114: in a webinar a guest from the meeting link watches only.
   const stage = deps.config.webinar ? await (await import("./webinar-r114")).stageRole(deps, null, m) : null;
-  return { title: m.title, ...(await livekitToken(deps, m.room, { identity: `guest-${urlToken(6)}`, name: clean, host: false, publish: stage ? stage.publish : true })) };
+  // Review Z8: a guest let in through the waiting room joins under their request's id, so Remove can disconnect them.
+  const identity = admitted && lobbyId ? guestIdentity(lobbyId) : `guest-${urlToken(6)}`;
+  return { title: m.title, ...(await livekitToken(deps, m.room, { identity, name: clean, host: false, publish: stage ? stage.publish : true })) };
 }
 
 /** R114: the same minutes check for a webinar attendee joining. */

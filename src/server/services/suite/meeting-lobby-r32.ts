@@ -87,13 +87,16 @@ function assertOpen(m: OpenCheck, now: Date) {
 }
 
 async function memberMeeting(deps: Deps, actor: SuiteActor, id: string) {
-  const m = await deps.db.select({ id: meetings.id, orgId: meetings.orgId, guestLobby: meetings.guestLobby, title: meetings.title, deletedAt: meetings.deletedAt, channelId: meetings.channelId })
+  const m = await deps.db.select({ id: meetings.id, orgId: meetings.orgId, guestLobby: meetings.guestLobby, title: meetings.title, deletedAt: meetings.deletedAt, channelId: meetings.channelId, room: meetings.room })
     .from(meetings).where(and(eq(meetings.id, id), eq(meetings.orgId, actor.orgId))).get();
   if (!m || m.deletedAt) throw notFound("Meeting");
   // Review Z1: a DM's or private channel's call: only the people in that chat run its waiting room.
   await assertMeetingVisible(deps, actor, m);
   return m;
 }
+
+/** Review Z8: the room identity of a guest let in through the waiting room, so Remove can find them in the call. */
+export const guestIdentity = (lobbyId: string) => `guest-${lobbyId}`;
 
 const who = (a: SuiteActor) => (a.agentId ? `agent:${a.agentId}` : `member:${a.userId}`);
 
@@ -212,6 +215,8 @@ export async function decideLobby(deps: Deps, actor: SuiteActor, meetingId: stri
         orgId: actor.orgId, actorUserId: actor.agentId ? null : actor.userId, actorEmail: actor.email ?? null, agentId: actor.agentId ?? null,
         action: "meeting.lobby_revoked", targetType: "meeting", targetId: m.id, metadata: { lobbyId: r.id }, ip: ip ?? null,
       });
+      // Review Z8: and out of the call now (a guest let in through the waiting room joins as guest-<request id>).
+      await (await import("./calls")).removeFromRoom(deps, m.room, guestIdentity(r.id));
       return { decided: 1, status, ids: [r.id] };
     }
     if (r.status !== "pending") return { decided: 0, status: r.status, ids: [] as string[] };
