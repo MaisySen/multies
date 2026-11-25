@@ -58,6 +58,9 @@ export function livekitRooms(cfg: { url: string; apiKey: string; apiSecret: stri
     async remove(room, identity) {
       client ??= import("livekit-server-sdk").then(({ RoomServiceClient }) => new RoomServiceClient(cfg.url.replace(/^ws(s?):\/\//, "http$1://"), cfg.apiKey, cfg.apiSecret));
       try {
+        // Final review F3: rights first (a token the service refreshes in between carries none), then out of the room.
+        await (await client).updateParticipant(room, identity, { permission: { canSubscribe: false, canPublish: false, canPublishData: false, canPublishSources: [] } })
+          .catch(() => undefined); // best effort: the disconnect below is what must happen
         await (await client).removeParticipant(room, identity);
       } catch (err) {
         if (/not.?found|does not exist/i.test(String((err as Error)?.message ?? err))) return;

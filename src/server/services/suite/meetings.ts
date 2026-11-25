@@ -397,11 +397,19 @@ async function minutesLeftForRoom(deps: Deps, m: { orgId: string; room: string }
   await assertCanStartCall(deps, m.orgId, async () => (await roomParticipants(deps, m.room)).length > 0);
 }
 
+/**
+ * Final review F3: how long a room token lasts. A token is only used to connect: a removed guest (Z8) or member (Z9)
+ * could otherwise rejoin with a kept token for hours. People already in the call do not drop at expiry: the video
+ * service sends connected clients a fresh token (the signal's refreshToken, "to prevent an active client from using
+ * an expired token"), and livekit-client 2.23 uses it for its own reconnects. A rejoin through us is checked again.
+ */
+export const ROOM_TOKEN_TTL_S = 600;
+
 export async function livekitToken(deps: Deps, room: string, who: { identity: string; name: string; host: boolean; /** R114: false for webinar attendees (watch only). */ publish?: boolean }) {
   const cfg = deps.config.meetings;
   if (!cfg) throw new HttpError(503, "meetings_off", "Video calls aren't switched on for this workspace yet. The guest link and invite still work once they are.");
   const { AccessToken, TrackSource } = await import("livekit-server-sdk");
-  const at = new AccessToken(cfg.apiKey, cfg.apiSecret, { identity: who.identity, name: who.name, ttl: "6h" });
+  const at = new AccessToken(cfg.apiKey, cfg.apiSecret, { identity: who.identity, name: who.name, ttl: ROOM_TOKEN_TTL_S });
   // Round 23: screen share (with its audio) is allowed for everyone in the room, guests included.
   const publish = who.publish !== false;
   at.addGrant({ room, roomJoin: true, canPublish: publish, canSubscribe: true, canPublishData: publish, roomAdmin: who.host, canPublishSources: publish ? [TrackSource.CAMERA, TrackSource.MICROPHONE, TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO] : [] });
