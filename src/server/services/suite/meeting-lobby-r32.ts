@@ -5,7 +5,7 @@
  * (Admit, Deny, Admit all). One write per request and one per decision; the lobby screen and the
  * host's list only read. Also the guest's "Maya and 2 others are here" line before joining.
  */
-import { and, asc, eq, gte } from "drizzle-orm";
+import { and, asc, eq, gte, isNull } from "drizzle-orm";
 import { inIds } from "../../lib/sql-chunks";
 import type { Deps } from "../../context";
 import { meetingLobby, meetings } from "../../db/schema";
@@ -95,8 +95,16 @@ async function memberMeeting(deps: Deps, actor: SuiteActor, id: string) {
   return m;
 }
 
-/** Review Z8: the room identity of a guest let in through the waiting room, so Remove can find them in the call. */
-export const guestIdentity = (lobbyId: string) => `guest-${lobbyId}`;
+/**
+ * Final review F2: the room identities of a guest let in through the waiting room. Everyone in a call sees identities,
+ * so they never hold the request id (the secret the guest joins with): each request has its own random room key, and
+ * each join adds a random suffix, so a second tab doesn't push the first one out and Remove finds every tab.
+ */
+export const newRoomKey = () => randomToken(12).replace(/[^A-Za-z0-9]/g, "x").slice(0, 16);
+export const guestIdentityPrefix = (roomKey: string) => `guest-${roomKey}-`;
+export const guestJoinIdentity = (roomKey: string) => `${guestIdentityPrefix(roomKey)}${randomToken(6).replace(/[^A-Za-z0-9]/g, "x").slice(0, 8)}`;
+/** Review Z8: the identity guests admitted before F2 joined under (still disconnected by Remove). */
+const legacyGuestIdentity = (lobbyId: string) => `guest-${lobbyId}`;
 
 const who = (a: SuiteActor) => (a.agentId ? `agent:${a.agentId}` : `member:${a.userId}`);
 
@@ -132,7 +140,7 @@ export async function askToJoin(deps: Deps, token: string, rawName: unknown, ip:
     .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, new Date(now.getTime() - LOBBY_TTL_MS)))).limit(LOBBY_MAX_PENDING).all();
   if (pending.length >= LOBBY_MAX_PENDING) throw new HttpError(429, "lobby_full", "The waiting room is full. Try again in a few minutes.");
   const id = `lby_${randomToken(18).replace(/[^A-Za-z0-9]/g, "").slice(0, 24)}`;
-  await deps.db.insert(meetingLobby).values({ id, meetingId: m.id, orgId: m.orgId, guestName: name, status: "pending", createdAt: now });
+  await deps.db.insert(meetingLobby).values({ id, meetingId: m.id, orgId: m.orgId, guestName: name, status: "pending", createdAt: now, roomKey: newRoomKey() });
   // The guest's earlier request, still open: closed now so the host doesn't see the same person twice.
   if (prev?.status === "pending") {
     await deps.db.update(meetingLobby).set({ status: "denied", decidedBy: "guest:asked_again", decidedAt: now }).where(and(eq(meetingLobby.id, prev.id), eq(meetingLobby.status, "pending")));
@@ -154,16 +162,23 @@ export async function lobbyStatus(deps: Deps, token: string, lobbyId: string) {
  * For guestJoin: the name to use, or a refusal when the waiting room is on and this request was not
  * admitted. With the room off it returns null and the guest's own name stands.
  */
-export async function admittedGuest(deps: Deps, m: { id: string; guestLobby: boolean; endedAt: Date | null }, lobbyId: string | undefined): Promise<string | null> {
+export async function admittedGuest(deps: Deps, m: { id: string; guestLobby: boolean; endedAt: Date | null }, lobbyId: string | undefined): Promise<{ name: string; roomKey: string } | null> {
   if (!m.guestLobby) return null;
   if (!lobbyId) throw new HttpError(403, "lobby_required", "Ask to join first. Someone in the meeting lets you in.");
-  const r = await deps.db.select({ status: meetingLobby.status, name: meetingLobby.guestName, decidedAt: meetingLobby.decidedAt }).from(meetingLobby).where(and(eq(meetingLobby.id, lobbyId), eq(meetingLobby.meetingId, m.id))).get();
+  const r = await deps.db.select({ status: meetingLobby.status, name: meetingLobby.guestName, decidedAt: meetingLobby.decidedAt, roomKey: meetingLobby.roomKey }).from(meetingLobby).where(and(eq(meetingLobby.id, lobbyId), eq(meetingLobby.meetingId, m.id))).get();
   if (!r) throw new HttpError(403, "lobby_required", "Ask to join first. Someone in the meeting lets you in.");
   if (r.status === "denied") throw new HttpError(403, "lobby_denied", "The host didn't let you in to this meeting.");
   if (r.status !== "admitted") throw new HttpError(403, "lobby_waiting", "Waiting for the host to let you in.");
   // Y3: admitted for an earlier meeting in the series (or too long ago): ask again.
   if (!admissionCurrent(r, m, deps.now())) throw new HttpError(403, "lobby_required", "Ask to join again. Someone in the meeting lets you in.");
-  return r.name;
+  return { name: r.name, roomKey: r.roomKey ?? (await ensureRoomKey(deps, lobbyId)) };
+}
+
+/** F2: a request made before 0185 gets its room key on its first join (one conditional write, then the stored one). */
+async function ensureRoomKey(deps: Deps, lobbyId: string) {
+  await deps.db.update(meetingLobby).set({ roomKey: newRoomKey() }).where(and(eq(meetingLobby.id, lobbyId), isNull(meetingLobby.roomKey)));
+  const row = await deps.db.select({ roomKey: meetingLobby.roomKey }).from(meetingLobby).where(eq(meetingLobby.id, lobbyId)).get();
+  return row?.roomKey ?? newRoomKey();
 }
 
 /** Who is in the call, for the guest's pre-join line: first names only, and the count. */
@@ -206,7 +221,7 @@ export async function decideLobby(deps: Deps, actor: SuiteActor, meetingId: stri
       .where(and(eq(meetingLobby.meetingId, m.id), eq(meetingLobby.status, "pending"), gte(meetingLobby.createdAt, since))).limit(LOBBY_MAX_PENDING).all()).map((r) => r.id);
   } else {
     if (!input.lobbyId) throw new HttpError(422, "validation_failed", "Say which guest, or all.");
-    const r = await deps.db.select({ id: meetingLobby.id, status: meetingLobby.status }).from(meetingLobby).where(and(eq(meetingLobby.id, input.lobbyId), eq(meetingLobby.meetingId, m.id))).get();
+    const r = await deps.db.select({ id: meetingLobby.id, status: meetingLobby.status, roomKey: meetingLobby.roomKey }).from(meetingLobby).where(and(eq(meetingLobby.id, input.lobbyId), eq(meetingLobby.meetingId, m.id))).get();
     if (!r) throw notFound("Request");
     if (input.decision === "remove") {
       if (r.status !== "admitted") return { decided: 0, status: r.status, ids: [] as string[] };
@@ -215,8 +230,12 @@ export async function decideLobby(deps: Deps, actor: SuiteActor, meetingId: stri
         orgId: actor.orgId, actorUserId: actor.agentId ? null : actor.userId, actorEmail: actor.email ?? null, agentId: actor.agentId ?? null,
         action: "meeting.lobby_revoked", targetType: "meeting", targetId: m.id, metadata: { lobbyId: r.id }, ip: ip ?? null,
       });
-      // Review Z8: and out of the call now (a guest let in through the waiting room joins as guest-<request id>).
-      await (await import("./calls")).removeFromRoom(deps, m.room, guestIdentity(r.id));
+      // Review Z8, F2: and out of the call now: every tab of this guest (guest-<room key>-*), and the identity guests
+      // admitted before 0185 joined under.
+      const calls = await import("./calls");
+      const prefix = r.roomKey ? guestIdentityPrefix(r.roomKey) : null;
+      const legacy = legacyGuestIdentity(r.id);
+      await calls.removeFromRoomWhere(deps, m.room, (id) => id === legacy || (!!prefix && id.startsWith(prefix)));
       return { decided: 1, status, ids: [r.id] };
     }
     if (r.status !== "pending") return { decided: 0, status: r.status, ids: [] as string[] };

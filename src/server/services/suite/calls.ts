@@ -266,6 +266,22 @@ export async function removeFromRoom(deps: Deps, room: string, identity: string)
 }
 
 /**
+ * Final review F2: disconnects everyone in a room whose identity matches (all tabs of one guest). Reads the room fresh
+ * from the video service. Best effort: a failure is reported, never thrown. Returns how many were disconnected.
+ */
+export async function removeFromRoomWhere(deps: Deps, room: string, match: (identity: string) => boolean): Promise<number> {
+  const r = roomsFor(deps);
+  if (!r?.remove) return 0;
+  cache.delete(room);
+  let ps: CallParticipant[];
+  try { ps = await r.list(room); } catch (err) { deps.reportError?.(err, { where: "calls.removeFromRoomWhere" }); return 0; }
+  let n = 0;
+  for (const p of ps) if (match(p.identity) && (await removeFromRoom(deps, room, p.identity))) n++;
+  cache.delete(room);
+  return n;
+}
+
+/**
  * Review Z9: a member removed from a workspace, or whose sessions were revoked, leaves every call that may be live there
  * at once (their room token would otherwise last until it expires). Calls that may be live: meetings not ended or
  * cancelled that started in the last CALL_WINDOW_MS or repeat. Best effort, at most 50 rooms.

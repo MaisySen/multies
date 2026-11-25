@@ -1558,6 +1558,8 @@ export const meetingLobby = sqliteTable("meeting_lobby", {
   /** The member (or agent) who decided, as "member:<id>" or "agent:<id>". */
   decidedBy: text("decided_by"),
   decidedAt: ts("decided_at"),
+  /** Final review F2 (0185): random, never the id. Each join's room identity is guest-<roomKey>-<random>. */
+  roomKey: text("room_key"),
 }, (t) => [index("meeting_lobby_meeting_idx").on(t.meetingId, t.status)]);
 
 /**

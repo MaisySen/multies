@@ -1969,5 +1969,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- Wave 3 review Y4: when the meeting's room first read empty after people were in it. Each Worker isolate kept its own\n-- first empty read, so an isolate holding an old one ended a live meeting on one momentary empty read. Kept here, any\n-- read that sees people clears it, so the grace always runs from a real empty start. Null on existing rows.\nALTER TABLE `meetings` ADD `empty_since` integer;"
     ]
+  },
+  {
+    "name": "0185_meeting_lobby_room_key",
+    "statements": [
+      "-- Final review F2: a guest let in through the waiting room joined the call as guest-<request id>, and the request id\n-- is the secret the guest joins with, shown to everyone in the room. Each request now has its own random room key,\n-- and each join's room identity is guest-<room key>-<random>, so Remove finds all of that guest's tabs. Null on\n-- existing rows: a request without one gets it on its next join.\nALTER TABLE `meeting_lobby` ADD `room_key` text;"
+    ]
   }
 ];

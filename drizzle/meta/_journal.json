@@ -1128,6 +1128,13 @@
       "when": 1794300184000,
       "tag": "0184_meeting_empty_since",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "6",
+      "when": 1794300185000,
+      "tag": "0185_meeting_lobby_room_key",
+      "breakpoints": true
     }
   ]
 }

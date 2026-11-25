@@ -13,7 +13,7 @@ import { randomToken, toB64 } from "../../lib/crypto";
 import { forbidden, HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, type SuiteActor } from "./common";
 import { link, resolveTaskId } from "./tasks";
-import { admittedGuest, cleanGuestName, guestIdentity } from "./meeting-lobby-r32";
+import { admittedGuest, cleanGuestName, guestJoinIdentity } from "./meeting-lobby-r32";
 import { vtimezone } from "./vtimezone";
 import { closedReason, shownStatus } from "./meeting-open-meet";
 import { assertZone, describeRecurrence, expandWeekly, normaliseRecurrence, parseRrule, toRrule, weekdayIn, type Recurrence, type RecurrenceInput } from "./meeting-recurrence";
@@ -443,13 +443,14 @@ export async function guestJoin(deps: Deps, token: string, name: string, lobbyId
   if (closed) throw new HttpError(409, closed === "cancelled" ? "meeting_cancelled" : "meeting_ended", closed === "cancelled" ? "This meeting was cancelled." : "This meeting has ended.");
   // Round 32: with the waiting room on, only an admitted request gets a token, under the name it asked with.
   const admitted = deps.config.meetings ? await admittedGuest(deps, m, lobbyId) : null;
-  const clean = admitted ?? name.trim().slice(0, 60);
+  const clean = admitted?.name ?? name.trim().slice(0, 60);
   if (!clean) throw new HttpError(422, "validation_failed", "Tell the others your name.");
   await minutesLeftForRoom(deps, m);
   // R114: in a webinar a guest from the meeting link watches only.
   const stage = deps.config.webinar ? await (await import("./webinar-r114")).stageRole(deps, null, m) : null;
-  // Review Z8: a guest let in through the waiting room joins under their request's id, so Remove can disconnect them.
-  const identity = admitted && lobbyId ? guestIdentity(lobbyId) : `guest-${urlToken(6)}`;
+  // Review Z8, F2: a guest let in through the waiting room joins under their request's room key (never its id, which
+  // everyone in the call would see) plus a suffix per join, so Remove disconnects every tab of theirs and only theirs.
+  const identity = admitted ? guestJoinIdentity(admitted.roomKey) : `guest-${urlToken(6)}`;
   return { title: m.title, ...(await livekitToken(deps, m.room, { identity, name: clean, host: false, publish: stage ? stage.publish : true })) };
 }
 

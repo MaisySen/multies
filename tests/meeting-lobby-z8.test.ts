@@ -1,6 +1,6 @@
 /**
  * Review Z8: (a) the waiting room's Remove took back an admission but left the guest in the call; now the guest's room
- * identity is tied to their request and Remove disconnects it through the room service. (b) Reopening an ended
+ * identity is tied to their request (by its room key since F2) and Remove disconnects it through the room service. (b) Reopening an ended
  * meeting made admissions given before the end count again. (c) A series between meetings showed Reopen (its raw
  * status is scheduled) and the reopen did nothing; now the meeting says canReopen, and a reopen with nothing to reopen
  * is a 409 (after the owner or admin check).
@@ -44,10 +44,14 @@ describe("Z8: waiting room and reopen", () => {
     const { guest, token, lobbyId } = await admitted(m);
     const join = await guest.post(`/api/public/meetings/${token}/join`, { name: "Grace", lobbyId });
     expect(join.status).toBe(200);
-    expect(claims(join.body.token).sub).toBe(`guest-${lobbyId}`);
+    // Final review F2: the identity is tied to the request through its room key, never the request id itself.
+    const identity = claims(join.body.token).sub as string;
+    expect(identity).toMatch(/^guest-/);
+    expect(identity).not.toContain(lobbyId);
     const room = (await ctx.db.select({ room: meetings.room }).from(meetings).where(eq(meetings.id, m.id)).get())!.room;
+    rooms.set(room, [{ identity, name: "Grace", joinedAt: clock }]);
     expect((await c.post(`/api/meeting-lobby/${m.id}/decide`, { lobbyId, decision: "remove" })).body.decided).toBe(1);
-    expect(removed).toEqual([[room, `guest-${lobbyId}`]]);
+    expect(removed).toEqual([[room, identity]]);
     expect((await guest.post(`/api/public/meetings/${token}/join`, { name: "Grace", lobbyId })).status).toBe(403);
   });
 
