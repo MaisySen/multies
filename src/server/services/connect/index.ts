@@ -186,7 +186,10 @@ const DAY_MS = 24 * 3_600_000;
  * or anything else is written. Wave 2 review X4: the address cap was global, so an attacker in another workspace could
  * lock the real owner out every day. Now it counts per (address, workspace) and per (address, person). Wave 3 review
  * Y7: and at most WORKSPACES_PER_ADDRESS_DAY distinct workspaces a day get a place for an address; a workspace with a
- * place gets its CODES_PER_ADDRESS_WORKSPACE_DAY codes (resends included) whatever other workspaces do.
+ * place gets its CODES_PER_ADDRESS_WORKSPACE_DAY codes (resends included) whatever other workspaces do. Review Z4: a
+ * workspace's first code of the day needs no place (so the places can't lock the owner out); the places are for its
+ * further codes, taken only after the person and connection caps pass and given back if the request is refused. The
+ * flood bound is then CODES_PER_ADDRESS_PERSON_DAY codes per person a day, one per workspace without a place.
  */
 export async function claimCodeSend(deps: Deps, who: { email: string; orgId: string; userId?: string | null; connectionId: string | null }) {
   const now = deps.now().getTime();
@@ -202,17 +205,33 @@ export async function claimCodeSend(deps: Deps, who: { email: string; orgId: str
   const email = who.email.trim().toLowerCase();
   const addr = await sha256Hex(email);
   const tooMany = () => new HttpError(429, "rate_limited", `We have sent ${who.email} as many codes as we will today. Try again tomorrow.`);
-  // Y7: this workspace's place for the address today (a row in its window), or one of the day's few new places.
-  const placeKey = `connect-code-addr-ws-in:${addr}:${who.orgId}`;
-  const place = await deps.db.select({ resetAt: apiRateLimits.resetAt }).from(apiRateLimits).where(eq(apiRateLimits.key, placeKey)).get();
-  if (!place || place.resetAt <= now) {
-    if (await take(`connect-code-addr-wss:${addr}`) > WORKSPACES_PER_ADDRESS_DAY) throw tooMany();
-    await take(placeKey);
-  }
-  if (await take(`connect-code-addr-ws:${addr}:${who.orgId}`) > CODES_PER_ADDRESS_WORKSPACE_DAY) throw tooMany();
+  // Review Z4: the per person and per connection caps first, so a request they refuse never takes a place.
   if (who.userId && await take(`connect-code-addr-user:${addr}:${who.userId}`) > CODES_PER_ADDRESS_PERSON_DAY) throw tooMany();
   if (who.connectionId && await take(`connect-code-conn:${who.connectionId}`) > CODES_PER_CONNECTION) {
     throw new HttpError(429, "rate_limited", "This connection has had as many codes as it can. Remove it and connect the mailbox again.");
+  }
+  // Review Z4: a workspace's first code for the address today always goes out and takes no place (five other
+  // workspaces using every place can't lock the owner out). Y7: further codes need one of the day's few places.
+  const wsKey = `connect-code-addr-ws:${addr}:${who.orgId}`;
+  const placesKey = `connect-code-addr-wss:${addr}`;
+  const placeKey = `connect-code-addr-ws-in:${addr}:${who.orgId}`;
+  const live = async (key: string) => { const r = await deps.db.select({ resetAt: apiRateLimits.resetAt }).from(apiRateLimits).where(eq(apiRateLimits.key, key)).get(); return !!r && r.resetAt > now; };
+  const giveBack = async () => {
+    await deps.db.update(apiRateLimits).set({ hits: sql`max(${apiRateLimits.hits} - 1, 0)` }).where(eq(apiRateLimits.key, placesKey));
+    await deps.db.delete(apiRateLimits).where(eq(apiRateLimits.key, placeKey));
+  };
+  let tookPlace = false;
+  if (await live(wsKey) && !(await live(placeKey))) {
+    if (await take(placesKey) > WORKSPACES_PER_ADDRESS_DAY) {
+      await deps.db.update(apiRateLimits).set({ hits: sql`max(${apiRateLimits.hits} - 1, 0)` }).where(eq(apiRateLimits.key, placesKey));
+      throw tooMany();
+    }
+    await take(placeKey);
+    tookPlace = true;
+  }
+  if (await take(wsKey) > CODES_PER_ADDRESS_WORKSPACE_DAY) {
+    if (tookPlace) await giveBack();
+    throw tooMany();
   }
 }
 

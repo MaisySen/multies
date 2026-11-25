@@ -11,11 +11,13 @@ import { CODES_PER_ADDRESS_WORKSPACE_DAY, WORKSPACES_PER_ADDRESS_DAY, claimCodeS
 const ADDR = "owner@victim.example";
 
 describe("Y7: connect code caps", () => {
-  it("at most 5 distinct workspaces a day per address; a 6th is refused, and a new day starts again", async () => {
+  it("at most 5 distinct workspaces a day get a place (for resends) per address; a 6th is refused, and a new day starts again", async () => {
+    // Review Z4: a workspace's first code needs no place, so each workspace here asks twice (its resend takes a place).
     expect([WORKSPACES_PER_ADDRESS_DAY, CODES_PER_ADDRESS_WORKSPACE_DAY]).toEqual([5, 5]);
     const { deps } = await makeTestApp();
-    for (let w = 0; w < 5; w++) await claimCodeSend(deps, { email: ADDR, orgId: `org_${w}`, userId: `usr_${w}`, connectionId: null });
-    await expect(claimCodeSend(deps, { email: ADDR.toUpperCase(), orgId: "org_6", userId: "usr_6", connectionId: null })).rejects.toMatchObject({ status: 429 });
+    for (let w = 0; w < 5; w++) for (let i = 0; i < 2; i++) await claimCodeSend(deps, { email: ADDR, orgId: `org_${w}`, userId: `usr_${w}_${i}`, connectionId: null });
+    await claimCodeSend(deps, { email: ADDR.toUpperCase(), orgId: "org_6", userId: "usr_6", connectionId: null });
+    await expect(claimCodeSend(deps, { email: ADDR.toUpperCase(), orgId: "org_6", userId: "usr_6a", connectionId: null })).rejects.toMatchObject({ status: 429 });
     // Refused again: a refused workspace never gets a place by asking twice.
     await expect(claimCodeSend(deps, { email: ADDR, orgId: "org_6", userId: "usr_6b", connectionId: null })).rejects.toMatchObject({ status: 429 });
     const real = deps.now;
