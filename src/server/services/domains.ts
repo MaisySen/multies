@@ -3,7 +3,7 @@ import { audit } from "./audit";
 import { and, asc, count, eq, isNotNull, like, lt, ne, or, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import { runBatch, type DB } from "../db";
-import { agentMailboxAccess, aliases, authEmailHooks, domains, mailboxAccess, mailboxDelegations, mailboxes, mailConnections, mailRules, messages, organizations } from "../db/schema";
+import { agentMailboxAccess, aliases, authEmailHooks, domains, mailboxAccess, mailboxDelegations, mailboxes, mailConnections, mailLegalHolds, mailRules, messages, organizations } from "../db/schema";
 import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { conflict, HttpError, notFound } from "../lib/errors";
 import { assertDomainAllowed, isOperatorDomainRow } from "./suite/operator-inbox";
@@ -250,7 +250,8 @@ export const DOMAIN_CLAIM_HARD_DAYS = 45;
 /**
  * Wave 2 review X7: what keeps a claim (a mailbox on it that is in use), and so is never deleted with it: an AI agent's
  * inbox, received or imported mail (not a draft or anything the workspace wrote itself, which a squatter makes at will),
- * a connected mailbox, a grant or share, a mail rule, a sign-up email hook, or an AI agent's access.
+ * a connected mailbox, a grant or share, a mail rule, a sign-up email hook, or an AI agent's access. Review Z7: or an
+ * active legal hold, on the mailbox or on a person who owns it or sent mail from it (a grant already keeps it).
  */
 const mailboxKept = (m: unknown) => sql`(${m}.kind = 'agent'
   or exists (select 1 from ${messages} x where x.mailbox_id = ${m}.id and x.folder <> 'drafts' and x.sent_by_user_id is null)
@@ -259,7 +260,11 @@ const mailboxKept = (m: unknown) => sql`(${m}.kind = 'agent'
   or exists (select 1 from ${mailboxDelegations} s where s.mailbox_id = ${m}.id)
   or exists (select 1 from ${mailRules} r where r.mailbox_id = ${m}.id)
   or exists (select 1 from ${authEmailHooks} h where h.mailbox_id = ${m}.id)
-  or exists (select 1 from ${agentMailboxAccess} a where a.mailbox_id = ${m}.id))`;
+  or exists (select 1 from ${agentMailboxAccess} a where a.mailbox_id = ${m}.id)
+  or exists (select 1 from ${mailLegalHolds} lh where lh.org_id = ${m}.org_id and lh.released_at is null and (
+    (lh.kind = 'mailbox' and lh.target_id = ${m}.id)
+    or (lh.kind = 'person' and (${m}.owner_user_id = lh.target_id
+      or exists (select 1 from ${messages} lx where lx.mailbox_id = ${m}.id and lx.sent_by_user_id = lh.target_id))))))`;
 const claimKept = (domainId: unknown) => sql`exists (select 1 from ${mailboxes} m where m.domain_id = ${domainId} and ${mailboxKept(sql.raw("m"))})`;
 
 /**
