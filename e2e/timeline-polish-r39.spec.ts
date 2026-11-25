@@ -138,6 +138,7 @@ test("timeline polish: label flips at the right edge, lag drawn on arrows, days 
   await page.keyboard.press("Escape");
   await expect(picker).toBeHidden();
   await page.reload();
+  await page.getByTestId("timeline-settings").click(); // the Schedule settings popover is closed again after a reload
   await page.getByTestId("days-off-button").click();
   await expect(page.getByTestId("days-off-picker").getByRole("checkbox", { name: "Friday" })).toBeChecked();
 
