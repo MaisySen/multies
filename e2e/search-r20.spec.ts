@@ -100,8 +100,8 @@ test("Cmd+K finds a word in a doc, a task and a chat message and opens each; My 
   await expect(dialog.getByText(/Nothing matches|No results for/).first()).toBeVisible(); // R98 copy when SEARCH_R98 is on
   await page.keyboard.press("Escape");
 
-  // My Work: first in the nav, my task due today is there and opens.
-  await page.getByRole("link", { name: "My Work" }).first().click();
+  // My Work: first in the nav (named Home there since the R121 menu), my task due today is there and opens.
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: /^Home/ }).click();
   await expect(page).toHaveURL(/\/app\/my-work/);
   await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
   await expect(page.getByText("My Work", { exact: true }).last()).toBeVisible();
