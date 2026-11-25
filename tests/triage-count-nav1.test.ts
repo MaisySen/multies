@@ -57,13 +57,14 @@ describe("triage count for one project (MPT-11)", () => {
     expect((await c.get(`/api/triage/count?projectId=${a.id}`)).body.count).toBe(0);
   });
 
-  it("gives 0 for a project of another workspace, and 400 for a projectId that is too long", async () => {
+  it("gives 0 for a project of another workspace, and 422 for a projectId that is too long (like every query check)", async () => {
     const a = await triageProject("Support");
     await waiting(a.id, "Private to acme");
     const other = new Client(ctx.app);
     await other.signup("owner@globex.io");
     expect((await other.get(`/api/triage/count?projectId=${a.id}`)).body.count).toBe(0);
-    expect((await c.get(`/api/triage/count?projectId=${"x".repeat(65)}`)).status).toBe(400);
+    expect((await c.get(`/api/triage/count?projectId=${"x".repeat(65)}`)).status).toBe(422);
+    expect((await c.get(`/api/triage?projectId=${"x".repeat(65)}`)).status).toBe(422);
   });
 
   it("needs a workspace session", async () => {

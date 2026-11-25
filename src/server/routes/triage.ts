@@ -16,6 +16,8 @@ export const TriageQuery = z.object({
   view: z.enum(["pending", "snoozed"]).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
+/** MPT-11 (NAV1 slice 2): the count for one project, or for the whole workspace without projectId. */
+export const TriageCountQuery = z.object({ projectId: z.string().min(1).max(64).optional() });
 export const TriageCreate = z.object({
   title: z.string().trim().min(1).max(300),
   notes: z.string().max(20_000).optional(),
@@ -64,7 +66,7 @@ export function triageRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => c.json(await listTriage(c.var.deps, c.var.auth, parseQuery(c, TriageQuery))))
-    .get("/count", async (c) => c.json({ count: await triageCount(c.var.deps, c.var.auth) }))
+    .get("/count", async (c) => c.json({ count: await triageCount(c.var.deps, c.var.auth, parseQuery(c, TriageCountQuery).projectId) }))
     .post("/", async (c) => c.json({ item: await createTriageItem(c.var.deps, c.var.auth, await parseBody(c, TriageCreate)) }, 201))
     .post("/bulk", async (c) => {
       const b = await parseBody(c, TriageBulk);
