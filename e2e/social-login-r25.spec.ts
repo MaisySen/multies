@@ -32,6 +32,12 @@ async function freshAddress(page: Page) {
   await page.setExtraHTTPHeaders({ "x-forwarded-for": `10.25.${Math.floor(Math.random() * 200)}.${ip}` });
 }
 
+/** R34: /login and /signup arrive drawn (data-prerendered="auth") and React draws them again once its code is in;
+ *  a click before that lands on markup that is about to be replaced. Wait for the live page. */
+async function live(page: Page) {
+  await expect(page.locator("#root:not([data-prerendered])")).toBeAttached({ timeout: 15_000 });
+}
+
 async function myId(page: Page) {
   const me = await page.request.get(`${BASE}/api/account/me`);
   expect(me.status()).toBe(200);
@@ -44,6 +50,7 @@ test("Continue with Google signs in and lands on My Work; the same email later i
   await answerAs(page, seen, (connection) => ({ sub: `${connection ?? "auth0"}|${email}`, email, name: "Gwen Park" }));
 
   await page.goto(`${BASE}/login`);
+  await live(page);
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Microsoft" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Multies" })).toBeVisible();
@@ -58,6 +65,7 @@ test("Continue with Google signs in and lands on My Work; the same email later i
   // Sign out, then Google again: same person.
   await context.clearCookies();
   await page.goto(`${BASE}/login`);
+  await live(page);
   await freshAddress(page);
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await page.waitForURL(/\/app\/my-work/, { timeout: 20_000 });
@@ -66,6 +74,7 @@ test("Continue with Google signs in and lands on My Work; the same email later i
   // Microsoft with the same verified address, then the plain provider sign in: still the same person.
   await context.clearCookies();
   await page.goto(`${BASE}/signup`);
+  await live(page);
   await freshAddress(page);
   await page.getByTestId("other-signup").locator("summary").click(); // R40 (MB-213): folded under "Other ways to sign up"
   await page.getByRole("button", { name: "Continue with Microsoft" }).click();
@@ -73,6 +82,7 @@ test("Continue with Google signs in and lands on My Work; the same email later i
   expect(await myId(page)).toBe(first);
   await context.clearCookies();
   await page.goto(`${BASE}/login`);
+  await live(page);
   await freshAddress(page);
   await page.getByRole("button", { name: "Continue with Multies" }).click();
   await page.waitForURL(/\/app/, { timeout: 20_000 });
@@ -85,6 +95,7 @@ test("an unverified Microsoft email for an existing account does not sign in and
   const seen: string[] = [];
   await answerAs(page, seen, (connection) => ({ sub: `${connection ?? "auth0"}|${email}`, email, name: "Uma Reed" }));
   await page.goto(`${BASE}/login`);
+  await live(page);
   await freshAddress(page);
   await page.getByRole("button", { name: "Continue with Multies" }).click();
   await page.waitForURL(/\/app/, { timeout: 20_000 });
@@ -92,6 +103,7 @@ test("an unverified Microsoft email for an existing account does not sign in and
 
   await answerAs(page, seen, (connection) => ({ sub: `${connection}|${email}`, email, name: "Someone Else", email_verified: false }));
   await page.goto(`${BASE}/login`);
+  await live(page);
   await freshAddress(page);
   await page.getByRole("button", { name: "Continue with Microsoft" }).click();
   await expect(page.getByTestId("social-not-linked")).toBeVisible({ timeout: 20_000 });

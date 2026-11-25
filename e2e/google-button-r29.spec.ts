@@ -13,6 +13,9 @@ for (const scheme of ["light", "dark"] as const) {
     const page = await ctx.newPage();
     for (const path of ["/signup", "/login"]) {
       await page.goto(`${BASE}${path}`);
+      // R34: the page arrives drawn (data-prerendered="auth") and React draws it again once its code is in; a click
+      // before that (the summary below) lands on markup that is about to be replaced.
+      await expect(page.locator("#root:not([data-prerendered])")).toBeAttached({ timeout: 15_000 });
       // R40 (MB-213): on sign up the social buttons fold under "Other ways to sign up".
       if (path === "/signup") await page.getByTestId("other-signup").locator("summary").click();
       const google = page.getByRole("button", { name: "Continue with Google" });
