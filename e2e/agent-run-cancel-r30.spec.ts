@@ -47,6 +47,9 @@ test("a person cancels a queued run in the run detail and it shows Cancelled", a
   // W4: since R79 the task sits in the side panel on a desktop and over the page on a phone, so a resize opens it
   // afresh: the phone check asks there, and the desktop asks again after.
   await page.setViewportSize({ width: 390, height: 844 });
+  // The panel opened afresh over the page, with the run's detail closed: open it again.
+  await expect(page.getByRole("dialog", { name: "Task" })).toBeVisible();
+  if (!(await row.getByRole("button", { name: "Cancel run" }).isVisible())) await row.getByRole("button", { name: /Builder run, Queued/ }).click();
   await row.getByRole("button", { name: "Cancel run" }).click();
   await expect(confirm).toBeVisible();
   const keep = (await confirm.getByRole("button", { name: "Keep running" }).boundingBox())!;
@@ -56,7 +59,10 @@ test("a person cancels a queued run in the run detail and it shows Cancelled", a
   expect(Math.max(keep.height, stop.height)).toBeLessThan(50);
   await page.setViewportSize({ width: 1280, height: 900 });
   await runs.scrollIntoViewIfNeeded();
-  if (!(await confirm.isVisible())) await row.getByRole("button", { name: "Cancel run" }).click();
+  if (!(await confirm.isVisible())) {
+    if (!(await row.getByRole("button", { name: "Cancel run" }).isVisible())) await row.getByRole("button", { name: /Builder run, Queued/ }).click();
+    await row.getByRole("button", { name: "Cancel run" }).click();
+  }
   await expect(confirm).toBeVisible();
   if (process.env.R30_SHOT_CONFIRM) await page.screenshot({ path: process.env.R30_SHOT_CONFIRM });
   await confirm.getByRole("button", { name: "Cancel run" }).click();
