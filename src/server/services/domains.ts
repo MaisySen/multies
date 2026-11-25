@@ -1,8 +1,8 @@
 import { emitEvent } from "./developer/webhooks";
 import { audit } from "./audit";
-import { and, asc, count, eq, like, lt, ne, or, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, like, lt, ne, or, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../context";
-import type { DB } from "../db";
+import { runBatch, type DB } from "../db";
 import { agentMailboxAccess, aliases, authEmailHooks, domains, mailboxAccess, mailboxDelegations, mailboxes, mailConnections, mailRules, messages, organizations } from "../db/schema";
 import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { conflict, HttpError, notFound } from "../lib/errors";
@@ -142,9 +142,11 @@ export async function verifyDomain(deps: Deps, d: DomainRow) {
   else if (report.verified) status = "verified";
   else if (!hadLookupErrors) status = d.status === "verified" ? "failed" : "pending";
   const verifiedAt = status === "verified" ? d.verifiedAt ?? now : d.verifiedAt;
-  await deps.db.update(domains)
+  // Review Z6: never written back once released (the row moved to a non-routable name since it was read).
+  const wrote = await deps.db.update(domains)
     .set({ lastCheck: JSON.stringify(report), lastCheckedAt: now, status, verifiedAt })
-    .where(eq(domains.id, d.id));
+    .where(and(eq(domains.id, d.id), eq(domains.name, d.name), isNull(domains.releasedAt))).returning({ id: domains.id });
+  if (!wrote.length) return { report, status: d.status, changed: false };
   const changed = status !== d.status;
   if (changed && (status === "verified" || status === "failed")) {
     await emitEvent(deps, d.orgId, status === "verified" ? "domain.verified" : "domain.failed", { id: d.id, name: d.name, status });
@@ -302,6 +304,7 @@ export async function releaseStaleDomainClaims(deps: Deps, limit = 25): Promise<
       deps.config.operatorInbox.domain ? ne(domains.name, deps.config.operatorInbox.domain) : undefined,
     ))
     .orderBy(asc(domains.createdAt)).limit(limit).all();
+  await repairReleasedClaims(deps, limit);
   const released: string[] = [];
   for (const { d } of rows) {
     // Review Z2: one claim that fails to release is reported and the pass goes on to the next (it sorted first, so a
@@ -347,30 +350,54 @@ async function releaseOneClaim(deps: Deps, d: DomainRow, releasable: ClaimCheck,
  * addresses can be added by another workspace. Mail server accounts go first. Audited. Returns whether it released.
  */
 async function releaseKeptClaim(deps: Deps, d: DomainRow, still: ReturnType<typeof and>): Promise<boolean> {
-  // Checked before any account goes: a claim kept and younger than the cap is left alone (it was read as soft releasable).
+  // Checked before anything changes: a claim kept and younger than the cap is left alone (it was read as soft releasable).
   if (!(await deps.db.select({ id: domains.id }).from(domains).where(still).get())) return false;
-  const all = await deps.db.select({ id: mailboxes.id, localPart: mailboxes.localPart }).from(mailboxes).where(eq(mailboxes.domainId, d.id)).all();
+  const all = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.domainId, d.id)).all();
   const keptIds = new Set((await deps.db.select({ id: sql<string>`m.id` }).from(sql`${mailboxes} m`).where(sql`m.domain_id = ${d.id} and ${mailboxKept(sql.raw("m"))}`).all()).map((r) => r.id));
-  if (all.length) {
-    const { deprovisionMailbox } = await import("./mailserver");
-    for (const m of all) await deprovisionMailbox(deps, d.orgId, m.id).catch((err: unknown) => deps.reportError?.(err, { where: "domains.releaseClaim.mailbox" }));
-  }
   const name = releasedDomainName(d.id);
   const now = deps.now();
-  const moved = await deps.db.update(domains).set({ name, releasedName: d.name, releasedAt: now, catchAllMailboxId: null, providerDomainId: null, providerStatus: null, providerRecords: null })
-    .where(still).returning({ id: domains.id });
-  if (!moved.length) return false;
+  // Review Z6: the conditional rename and every mailbox's move off the name are one batch (a transaction on D1): each
+  // move and the alias delete apply only if the rename did, and nothing is half done if the process stops.
+  const renamed = sql`exists (select 1 from ${domains} r where r.id = ${d.id} and r.name = ${name})`;
+  await runBatch(deps.db, [
+    deps.db.update(domains).set({ name, releasedName: d.name, releasedAt: now, catchAllMailboxId: null, providerDomainId: null, providerStatus: null, providerRecords: null }).where(still),
+    deps.db.update(mailboxes).set({ status: "suspended", address: sql`${mailboxes.localPart} || '@' || ${name}` }).where(and(eq(mailboxes.domainId, d.id), renamed)),
+    deps.db.delete(aliases).where(and(eq(aliases.domainId, d.id), renamed)),
+  ]);
+  if ((await deps.db.select({ name: domains.name }).from(domains).where(eq(domains.id, d.id)).get())?.name !== name) return false;
+  // Only now, with nothing left on the name, the mail server accounts go; then the empty mailboxes (kept ones stay, suspended).
+  await deprovisionAll(deps, d.orgId, all.map((m) => m.id));
   const empty = all.filter((m) => !keptIds.has(m.id));
   for (const m of empty) await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, m.id), sql`not ${mailboxKept(mailboxes)}`));
-  for (const m of all.filter((x) => keptIds.has(x.id))) await deps.db.update(mailboxes).set({ status: "suspended", address: `${m.localPart}@${name}` }).where(eq(mailboxes.id, m.id));
-  // Something kept since the read (mail arrived between the reads): still off the name, as a suspended mailbox.
-  for (const m of await deps.db.select({ id: mailboxes.id, localPart: mailboxes.localPart, address: mailboxes.address }).from(mailboxes).where(eq(mailboxes.domainId, d.id)).all()) {
-    if (!m.address.endsWith(`@${name}`)) await deps.db.update(mailboxes).set({ status: "suspended", address: `${m.localPart}@${name}` }).where(eq(mailboxes.id, m.id));
-  }
-  await deps.db.delete(aliases).where(eq(aliases.domainId, d.id));
   if (d.providerDomainId) await removeProviderDomain(deps, d.providerDomainId).catch((err) => deps.reportError?.(err, { where: "domains.releaseClaim" }));
   await audit(deps.db, { orgId: d.orgId, actorUserId: null, action: "domain.claim_released", targetType: "domain", targetId: d.id, metadata: { name: d.name, days: DOMAIN_CLAIM_HARD_DAYS, hardCap: true, keptMailboxes: keptIds.size, emptyMailboxes: empty.length, renamedTo: name } }).catch(() => undefined);
   return true;
+}
+
+async function deprovisionAll(deps: Deps, orgId: string, ids: string[]) {
+  if (!ids.length) return;
+  const { deprovisionMailbox } = await import("./mailserver");
+  for (const id of ids) await deprovisionMailbox(deps, orgId, id).catch((err: unknown) => deps.reportError?.(err, { where: "domains.releaseClaim.mailbox" }));
+}
+
+/**
+ * Review Z6: a released row whose mailboxes still carry another address (a release cut short before the batch above
+ * existed, or a mailbox added to the row since) has them moved under its released name, suspended, and their mail
+ * server accounts removed. A few rows a pass; nothing to read when there is nothing to repair.
+ */
+async function repairReleasedClaims(deps: Deps, limit: number) {
+  const stray = sql`exists (select 1 from ${mailboxes} m where m.domain_id = ${domains.id} and m.address <> m.local_part || '@' || ${domains.name})`;
+  const rows = await deps.db.select({ id: domains.id, orgId: domains.orgId, name: domains.name }).from(domains).where(and(isNotNull(domains.releasedAt), stray)).limit(limit).all();
+  for (const r of rows) {
+    try {
+      const moved = await deps.db.update(mailboxes).set({ status: "suspended", address: sql`${mailboxes.localPart} || '@' || ${r.name}` })
+        .where(and(eq(mailboxes.domainId, r.id), sql`${mailboxes.address} <> ${mailboxes.localPart} || '@' || ${r.name}`)).returning({ id: mailboxes.id });
+      await deps.db.delete(aliases).where(eq(aliases.domainId, r.id));
+      await deprovisionAll(deps, r.orgId, moved.map((m) => m.id));
+    } catch (err) {
+      deps.reportError?.(err, { where: "domains.repairReleased", domainId: r.id });
+    }
+  }
 }
 
 export async function setCatchAll(db: DB, orgId: string, id: string, mailboxId: string | null) {
