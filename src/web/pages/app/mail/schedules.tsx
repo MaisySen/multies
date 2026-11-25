@@ -89,7 +89,9 @@ export function SnoozeMenu({ messageId, onDone }: { messageId: string; onDone?: 
   });
   return (
     <>
-      <Menu label="Snooze" trigger={<button type="button" className="grid place-items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" title="Snooze" data-testid="snooze-menu"><IconSnooze className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>}>
+      {/* The Snooze button leads the thread toolbar, so its menu opens to the right: opened to the left it sat under
+          the message list and could not be clicked. */}
+      <Menu label="Snooze" align="start" trigger={<button type="button" className="grid place-items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" title="Snooze" data-testid="snooze-menu"><IconSnooze className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>}>
         <MenuLabel>Snooze until</MenuLabel>
         {PRESETS.map((p) => (
           <MenuItem key={p.id} icon={<p.icon />} onSelect={() => snooze.mutate({ preset: p.id })}>
