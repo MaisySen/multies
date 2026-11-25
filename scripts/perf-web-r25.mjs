@@ -16,7 +16,7 @@ const profiles = [
 const browser = await chromium.launch();
 // One signed-in account, reused through its cookies; every measured load starts with an empty cache.
 const setup = await browser.newContext({ baseURL: base, extraHTTPHeaders: { "x-forwarded-for": "10.250.0.1" } });
-const tag = Math.random().toString(36).slice(2, 8);
+const tag = Math.random().toString(36).slice(2, 8); // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator (a tag for a throwaway test account in a local measuring script)
 const headers = { origin: new URL(base).origin };
 const res = await setup.request.post("/api/auth/sign-up/email", { data: { name: "Perf Person", email: `perf-${tag}@example.com`, password: "a-strong-password" }, headers });
 if (res.status() !== 200) throw new Error(`sign up failed: ${res.status()}`);

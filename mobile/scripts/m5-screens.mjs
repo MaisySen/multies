@@ -78,7 +78,7 @@ try {
     const pin = async (digits, id = "setup-pin") => { for (const d of digits) await tid(`${id}-${d}`).click(); await page.waitForTimeout(400); };
     await fixture(BIG);
     await step("today big", async () => { await go("/today", "today-hero"); await heroCheck("today big"); await shot("01-today-big"); });
-    await step("today big scrolled", async () => { await page.getByTestId("today").first().evaluate((e) => { const s = e.querySelector("div") ? e : e; s.scrollTop = 99999; }); await page.mouse.wheel(0, 2000); await shot("02-today-big-scrolled"); });
+    await step("today big scrolled", async () => { await page.getByTestId("today").first().evaluate((e) => { e.scrollTop = 99999; }); await page.mouse.wheel(0, 2000); await shot("02-today-big-scrolled"); });
     await step("inbox big", async () => { await wait("/inbox"); await shot("04-inbox"); });
     await step("chat", async () => { await wait("/chat"); await shot("05-chat"); });
     await step("tasks", async () => { await wait("/tasks"); await shot("06-tasks"); });

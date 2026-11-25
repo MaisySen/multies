@@ -68,7 +68,7 @@ async function startServer() {
 /** A fresh local account with a project, a few tasks, a doc and a shared inbox, so the app pages have content. */
 async function signIn() {
   const headers = { origin: BASE, "content-type": "application/json" };
-  const tag = Math.random().toString(36).slice(2, 8);
+  const tag = Math.random().toString(36).slice(2, 8); // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator (a tag for a throwaway test account in a local measuring script)
   const r = await fetch(`${BASE}/api/auth/sign-up/email`, { method: "POST", headers, body: JSON.stringify({ name: "Petra Perf", email: `petra-${tag}@example.com`, password: "a-strong-password" }) });
   if (!r.ok) throw new Error(`sign up ${r.status}`);
   const cookie = r.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");

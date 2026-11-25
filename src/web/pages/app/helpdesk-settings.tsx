@@ -229,7 +229,7 @@ function MacroDialog({ initial, onClose, people, snippets }: { initial: MacroOut
     onError: (e) => toast.error(errorMessage(e)),
   });
   const set = (i: number, st: MacroStep) => setSteps(steps.map((x, j) => (j === i ? st : x)));
-  const blank = (type: MacroStep["type"]): MacroStep => type === "status" ? { type, status: "pending" } : type === "priority" ? { type, priority: "high" } : type === "assign" ? { type, to: "me" } : type === "note" ? { type, text: "" } : { type, text: "" };
+  const blank = (type: MacroStep["type"]): MacroStep => type === "status" ? { type, status: "pending" } : type === "priority" ? { type, priority: "high" } : type === "assign" ? { type, to: "me" } : { type, text: "" };
   const valid = name.trim() && steps.length && steps.every((st) => st.type !== "note" || st.text.trim()) && steps.every((st) => st.type !== "reply" || st.text?.trim() || st.snippetId);
   return (
     <Dialog open onClose={onClose} title={initial ? "Edit macro" : "New macro"} footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => save.mutate()} loading={save.isPending} disabled={!valid}>Save macro</Button></>}>

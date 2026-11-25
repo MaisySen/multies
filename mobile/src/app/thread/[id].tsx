@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar, Badge, Banner, Button, EmptyState, Icon, IconButton, Loading } from "@/components/ui";
@@ -221,7 +221,7 @@ const t = StyleSheet.create({
   attachment: { flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radius.md, backgroundColor: colors.neutralSoft },
   fileTile: { width: 36, height: 36, borderRadius: 8, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" },
   bar: { position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 64, paddingTop: space.sm, paddingHorizontal: space.md, flexDirection: "row", justifyContent: "space-around",
-    backgroundColor: Platform.OS === "ios" ? colors.surface : colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.lineStrong },
+    backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.lineStrong },
   barBtn: { minWidth: 64, minHeight: 44, alignItems: "center", gap: 3 },
   barFill: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.neutralSoft },
   barLabel: { color: colors.muted, fontSize: 11, fontWeight: "500" },

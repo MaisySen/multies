@@ -1072,7 +1072,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       ? { endpoint: env.BODY_STORE_ENDPOINT, bucket: env.BODY_STORE_BUCKET, region: env.BODY_STORE_REGION ?? "auto", accessKeyId: env.BODY_STORE_ACCESS_KEY_ID, secretAccessKey: env.BODY_STORE_SECRET_ACCESS_KEY }
       : undefined,
     meetings: (() => {
-      if (env.LIVEKIT_URL?.startsWith("ws://") && mode === "production") throw new ConfigError("LIVEKIT_URL must be wss:// or https:// in production (ws://localhost is for local tests only).");
+      if (env.LIVEKIT_URL?.startsWith("ws://") && mode === "production") throw new ConfigError("LIVEKIT_URL must be wss:// or https:// in production (ws://localhost is for local tests only)."); // nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket (this line refuses ws:// in production)
       return undefined;
     })() ?? (env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET ? { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET } : undefined),
     callsTestHook: (() => {

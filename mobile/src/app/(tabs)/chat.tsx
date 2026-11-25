@@ -60,7 +60,7 @@ function ChannelRow({ c }: { c: ChatChannel }) {
       )}
       <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm }}>
-          <Text style={{ flex: 1, color: unread ? colors.fg : colors.muted, fontSize: 16, fontWeight: unread ? "700" : "500" }} numberOfLines={1}>{c.kind === "dm" ? c.name : c.name}</Text>
+          <Text style={{ flex: 1, color: unread ? colors.fg : colors.muted, fontSize: 16, fontWeight: unread ? "700" : "500" }} numberOfLines={1}>{c.name}</Text>
           {c.lastMessageAt ? <Text style={font.tiny}>{messageTime(c.lastMessageAt)}</Text> : null}
         </View>
         {c.lastMessage ? (

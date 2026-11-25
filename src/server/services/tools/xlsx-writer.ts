@@ -52,7 +52,7 @@ export function writeXlsx(sheets: Sheet[]): Uint8Array {
 export function writeCsv(rows: Cell[][]): string {
   const field = (v: Cell) => {
     if (v === null || v === undefined) return "";
-    let s = typeof v === "number" ? String(v) : String(v);
+    let s = String(v);
     if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };

@@ -17,7 +17,7 @@ const canEdit = (auth: AuthContext, r: Pick<Row, "createdBy">) => auth.role !== 
 function present(r: Row, auth: AuthContext, names: Map<string, string>): GoLinkInfo {
   return {
     id: r.id, name: r.name, targetKind: r.targetKind, targetId: r.targetId, url: r.url, label: r.label, description: r.description,
-    href: r.targetKind === "url" ? r.url ?? "/app" : r.url ?? "/app", clicks: r.clicks, createdByName: r.createdBy ? names.get(r.createdBy) ?? null : null, canEdit: canEdit(auth, r),
+    href: r.url ?? "/app", clicks: r.clicks, createdByName: r.createdBy ? names.get(r.createdBy) ?? null : null, canEdit: canEdit(auth, r),
   };
 }
 

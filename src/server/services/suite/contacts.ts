@@ -81,7 +81,6 @@ export async function upsertFromMail(deps: Deps, orgId: string, people: { addres
           lastContactAt: !existing.lastContactAt || existing.lastContactAt < at ? at : existing.lastContactAt,
           firstContactAt: !existing.firstContactAt || existing.firstContactAt > at ? at : existing.firstContactAt,
           ...(name && !existing.name ? { name } : {}),
-          ...(existing.deletedAt ? {} : {}),
           updatedAt: deps.now(),
         }).where(eq(contacts.id, existing.id));
         out.push(existing.id);

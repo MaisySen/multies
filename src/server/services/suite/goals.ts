@@ -239,7 +239,7 @@ export async function addKeyResult(deps: Deps, a: SuiteActor, goalId: string, in
   const id = opts.id ?? sortableId("kr", now.getTime());
   // A key result created with a current value and no start counts from that value, so a countdown
   // ("10 open bugs down to 0") starts at 0 percent and rises as the number falls (dogfood F5).
-  const start = input.start ?? input.current ?? 0, target = input.target ?? (kind === "percent" ? 100 : 100);
+  const start = input.start ?? input.current ?? 0, target = input.target ?? 100;
   await deps.db.insert(keyResults).values({ id, orgId: a.orgId, goalId, name: name.slice(0, 200), kind, startValue: start, targetValue: target, currentValue: input.current ?? start, unit: (input.unit ?? "").slice(0, 20), projectId: input.projectId ?? null, position: now.getTime(), createdAt: now, updatedAt: now, ...createdBy(a) });
   if (kind === "tasks" && input.taskIds?.length) await setTaskLinks(deps, a.orgId, id, input.taskIds);
   if (!opts.quiet) await changed(deps, a, goalId, ["keyResults"]);

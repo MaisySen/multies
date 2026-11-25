@@ -1,6 +1,6 @@
 import type { AppConfig } from "../../config";
 import type { DnsCheckReport, ExpectedRecord, RecordCheck } from "@/shared/dns";
-import { DnsLookupError, type DnsResolver } from "./resolver";
+import { type DnsResolver } from "./resolver";
 import { classifyProviderRecords, parseProviderRecords, type ProviderRecord } from "../mail/provider-domains";
 
 export interface DomainDnsInput {
@@ -254,7 +254,7 @@ async function checkReturnPath(dns: DnsResolver, d: DomainDnsInput, r: ProviderR
 /** Runs every lookup live and decides whether the domain is verified. */
 export async function runDnsChecks(dns: DnsResolver, d: DomainDnsInput, config: AppConfig, now: Date): Promise<DnsCheckReport> {
   const guard = (id: RecordCheck["id"], p: Promise<RecordCheck>) =>
-    p.catch((err) => (err instanceof DnsLookupError ? lookupError(id, err) : lookupError(id, err)));
+    p.catch((err) => lookupError(id, err));
   const records = await Promise.all([
     guard("ownership", checkOwnership(dns, d)),
     guard("mx", checkMx(dns, d, config)),

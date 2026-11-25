@@ -35,7 +35,7 @@ export function SendSecurelyButton({ bodyRef, text, files, onText, onRemoveFile 
   const made = (m: MadeSecret) => {
     const line = `Secure link (opens ${m.info.maxViews === 1 ? "once" : `${m.info.maxViews} times`}): ${m.link}`;
     const at = picked ? sel.end : sel.start;
-    const before = text.slice(0, at), after = text.slice(picked ? sel.end : sel.end);
+    const before = text.slice(0, at), after = text.slice(sel.end);
     const pad = before && !/\s$/.test(before) ? " " : "";
     const next = `${before}${pad}${line}${after && !/^\s/.test(after) ? " " : ""}${after}`;
     onText(next, (before + pad + line).length);

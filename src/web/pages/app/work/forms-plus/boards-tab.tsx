@@ -20,7 +20,7 @@ import { PUBLIC_STATUSES, ROADMAP_COLUMNS, SETTABLE_STATUSES, STATUS_LABELS, typ
 export interface BoardRow { id: string; name: string; description: string; slug: string; url: string; isPublic: boolean; allowIdeas: boolean; moderate: boolean; posts: number; pending: number }
 export interface PostRow { id: string; title: string; body: string; status: PostStatus; statusLabel: string; author: string; votes: number; voted: boolean; createdAt: string; authorEmail?: string | null }
 
-export const statusTone = (s: PostStatus) => (s === "done" ? "ok" : s === "progress" || s === "planned" ? "brand" : s === "pending" ? "warn" : s === "closed" ? "neutral" : "neutral") as "ok" | "brand" | "warn" | "neutral";
+export const statusTone = (s: PostStatus) => (s === "done" ? "ok" : s === "progress" || s === "planned" ? "brand" : s === "pending" ? "warn" : "neutral") as "ok" | "brand" | "warn" | "neutral";
 
 export function VoteButton({ votes, voted, onClick, busy, label }: { votes: number; voted: boolean; onClick: () => void; busy?: boolean; label: string }) {
   return (

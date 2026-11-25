@@ -52,7 +52,7 @@
       '<div class="skeleton mt-2 mb-6 h-9 w-56"></div>';
   } else head = '<div class="skeleton mb-6 h-7 w-48"></div>';
   // The shell's few words use the system font, so the web font (50 KB) does not start before the code on a slow link.
-  root.innerHTML = '<div class="flex min-h-dvh" aria-busy="true" aria-label="Loading" data-boot-shell="" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">' +
+  root.innerHTML = '<div class="flex min-h-dvh" aria-busy="true" aria-label="Loading" data-boot-shell="" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">' + // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method, javascript.browser.security.insecure-innerhtml.insecure-innerhtml (fixed skeleton markup; the only value in it is the browser's own date string)
     '<div class="hidden w-60 border-r border-line bg-surface p-4 lg:block"><div class="skeleton mb-8 h-7 w-28"></div>' + rows + "</div>" +
     '<div class="min-w-0 flex-1 px-4 pt-6 sm:p-8">' + head + '<div class="grid grid-cols-2 gap-3 md:grid-cols-4">' + cards + "</div>" +
     '<div class="skeleton mt-5 h-48"></div></div></div>';

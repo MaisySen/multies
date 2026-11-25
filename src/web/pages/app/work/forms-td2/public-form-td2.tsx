@@ -65,7 +65,7 @@ function FileField({ slug, field, items, setItems, labelId, errId, disabled }: {
   const add = (files: FileList | null) => {
     if (!files) return;
     for (const file of Array.from(files).slice(0, Math.max(0, most - live.length))) {
-      const key = Date.now() + Math.random();
+      const key = Date.now() + Math.random(); // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator (a key for an upload row on screen)
       const base: UploadItem = { key, name: file.name, size: file.size, pct: 0 };
       if (file.size > max) { setItems((p) => [...p, { ...base, error: `Too big. Files can be up to ${formatBytes(max)} here.` }]); continue; }
       if (!extOk(field, file)) { setItems((p) => [...p, { ...base, error: `This file type isn't accepted here. You can send: ${kinds}.` }]); continue; }

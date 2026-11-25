@@ -109,7 +109,7 @@
     chatView();
   }
   function field(id, label, type, req2, auto) {
-    return [el("label", { "for": id, text: label }), el(type === "area" ? "textarea" : "input", type === "area" ? { id: id, rows: "4", maxlength: "2000" } : { id: id, type: type, autocomplete: auto || "off", maxlength: type === "email" ? "254" : "80" })].concat(req2 ? [] : []);
+    return [el("label", { "for": id, text: label }), el(type === "area" ? "textarea" : "input", type === "area" ? { id: id, rows: "4", maxlength: "2000" } : { id: id, type: type, autocomplete: auto || "off", maxlength: type === "email" ? "254" : "80" })];
   }
   function offlineForm(chosen) {
     st.mode = "offline";

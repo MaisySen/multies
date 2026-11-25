@@ -30,8 +30,8 @@ export function registerDocVersionR39Tools(server: McpServer, deps: Deps, actor:
     inputSchema: { docId: z.string().min(1), versionId: z.string().min(1), diff: z.boolean().optional(), content: z.boolean().optional() },
   }, tool(async (x: { docId: string; versionId: string; diff?: boolean; content?: boolean }) => {
     const r = await getDocVersion(deps, a, x.docId, x.versionId, { diff: x.diff });
-    const { content, ...v } = r.version;
-    return { version: x.content ? r.version : v, current: r.current, sinceThen: r.sinceThen, ...(x.diff ? { diff: r.diff, truncated: r.truncated } : {}), ...(content === undefined ? {} : {}) };
+    const { content: _content, ...v } = r.version;
+    return { version: x.content ? r.version : v, current: r.current, sinceThen: r.sinceThen, ...(x.diff ? { diff: r.diff, truncated: r.truncated } : {}) };
   }) as never);
 
   server.registerTool("save_doc_version", {
