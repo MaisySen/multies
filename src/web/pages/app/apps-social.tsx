@@ -515,9 +515,10 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
       if (r.deleted) toast.success(done.length ? `Post deleted from ${andList(done)}` : tr("social.post_deleted"));
       else toast.error(`${done.length ? `Deleted from ${andList(done)}. ` : ""}${andList(failed)} didn't delete it. Try again in a minute.`);
       setToDelete(null);
-      void qc.invalidateQueries({ queryKey: postsKey });
-      // The row that held focus may be gone: land on the list heading, not the page body.
-      if (r.deleted) requestAnimationFrame(() => document.getElementById("posts-title")?.focus());
+      // The row that held focus may be gone: land on the list heading, not the page body. Only once the list has its
+      // new rows: earlier, the confirm closing could put focus back on the deleted row's button after this (on a busy
+      // device the close came later), and the row then went away with it.
+      void qc.invalidateQueries({ queryKey: postsKey }).finally(() => { if (r.deleted) requestAnimationFrame(() => document.getElementById("posts-title")?.focus()); });
     },
     onError: (e) => toast.error(errorMessage(e, "Couldn't delete the post. Try again.")),
   });
