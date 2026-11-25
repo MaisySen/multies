@@ -7,6 +7,7 @@ import { announceTaskChange } from "@/web/lib/task-sync-r40"; // R40 (MB-204)
 import { showError } from "@/web/lib/show-error";
 import { formatDateIn } from "@/web/i18n/intl";
 import { tl, uiLocale } from "@/web/i18n"; // POL4 (HQ MB-356)
+import { inOrder } from "@/web/lib/key-queue"; // suite-r10: task edits in order
 
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
@@ -101,7 +102,8 @@ export function useTaskMutations() {
   // Round 21: the Sprints view and its counts follow task edits.
   const refreshSprints = () => { for (const k of ["sprint", "sprints", "sprint-backlog"]) void qc.invalidateQueries({ queryKey: [k] }); };
   const update = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Record<string, unknown> }) => api.patch<{ task: Task }>(`/tasks/${id}`, patch),
+    // One edit at a time per task, in order: Repeat then Mark as done must reach the server in that order.
+    mutationFn: ({ id, patch }: { id: string; patch: Record<string, unknown> }) => inOrder(`task:${id}`, () => api.patch<{ task: Task }>(`/tasks/${id}`, patch)),
     // Optimistic: lists show the change at once; the server's answer replaces it.
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
