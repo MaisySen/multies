@@ -22,7 +22,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     container:
-      image: semgrep/semgrep
+      # Review Z10: a version tag (the one the W4 scans ran), so a new Semgrep release cannot change what blocks a push.
+      image: semgrep/semgrep:1.187.0
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # W4: ERROR findings block the push. Weak randomness that matters uses src/shared/random.ts; deliberate
