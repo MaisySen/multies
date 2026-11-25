@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
+// W4: since R79 a task opens in the side panel ("Task details") on a wide screen, over the page ("Task") otherwise.
 
 /**
  * Round 10 end to end: team chat (post, link a task, turn a message into a task, thread reply),
@@ -61,12 +62,12 @@ test("chat: post with a task link, reply in a thread and turn a message into a t
   // opens the task docked beside the board on a desktop, and over the page on a phone or with "Over the page".
   const docked = page.getByRole("complementary", { name: "Task details" });
   await expect(docked.getByLabel("Title")).toHaveValue(/Can someone pick up/);
-  await expect(page.getByRole("dialog", { name: "Task" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }))).toHaveCount(0);
   // The same deep link at phone width opens the task over the page.
   const url = page.url();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(url);
-  await expect(page.getByRole("dialog", { name: "Task" }).getByLabel("Title")).toHaveValue(/Can someone pick up/);
+  await expect(page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" })).getByLabel("Title")).toHaveValue(/Can someone pick up/);
 });
 
 test("notifications inbox lists, filters and marks read; settings save", async () => {
@@ -114,9 +115,9 @@ test("a task set to repeat weekly makes the next one when done", async () => {
   const tasks = demoTasks;
   const t = tasks[0];
   await page.goto(`/app/tasks?task=${t.id}`);
-  const panel = page.getByRole("dialog", { name: "Task" });
+  const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }));
   await panel.getByRole("combobox", { name: "Repeat" }).selectOption("weekly");
-  await expect(panel.getByText(/Every week/)).toBeVisible();
+  await expect(panel.getByTestId("repeat-preview")).toContainText(/^Every week/); // W4: "Every weekday" is an option in the same panel
   const before = ((await (await page.request.get(`/api/tasks?projectId=${t.projectId}`)).json()).tasks as { title: string }[]).filter((x) => x.title === t.title).length;
   await panel.getByRole("button", { name: "Mark as done" }).click();
   await expect.poll(async () => ((await (await page.request.get(`/api/tasks?projectId=${t.projectId}`)).json()).tasks as { title: string }[]).filter((x) => x.title === t.title).length).toBe(before + 1);

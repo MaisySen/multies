@@ -64,12 +64,15 @@ test("gap per link, clash badges on list and board, Today line, project rules", 
   await page.goto(`/app/tasks?view=timeline&project=${project.id}`);
   await expect(page.getByTestId("timeline-today")).toBeAttached({ timeout: 15_000 });
   await expect(page.getByTestId("timeline-today")).toContainText("Today");
+  // W4: the project rules now sit in the Schedule settings popover on the timeline bar.
+  await page.getByTestId("timeline-settings").click();
   const wd = page.getByRole("switch", { name: "Working days only" });
   await expect(wd).toHaveAttribute("aria-checked", "false");
   await wd.click();
   await page.getByTestId("move-mode-same").click();
   await expect.poll(async () => (await (await page.request.get(`/api/projects/${project.id}/schedule`)).json()).schedule).toMatchObject({ workingDaysOnly: true, strict: true });
   await page.reload();
+  await page.getByTestId("timeline-settings").click();
   await expect(page.getByRole("switch", { name: "Working days only" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("move-mode-same")).toHaveAttribute("aria-checked", "true");
 });

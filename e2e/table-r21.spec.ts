@@ -38,22 +38,25 @@ test("edits cells in place and changes three tasks at once from the bulk bar", a
   await expect(table).toBeVisible();
   const row = (ref: string) => table.locator(`tr[data-task="${ref}"]`);
   await expect(row(refs[0])).toContainText("Draft the homepage copy");
-  for (const h of ["Key", "Title", "Status", "Assignee", "Priority", "Due", "Labels", "Start"]) await expect(table.getByRole("columnheader", { name: h })).toBeVisible();
+  // W4: labels are called Tags now, and grid cells are named by what they hold, so a cell is found by its column.
+  for (const h of ["Key", "Title", "Status", "Assignee", "Priority", "Due", "Tags", "Start"]) await expect(table.getByRole("columnheader", { name: h })).toBeVisible();
+  const heads = (await table.getByRole("columnheader").allInnerTexts()).map((h) => h.trim());
+  const cell = (ref: string, header: string) => row(ref).getByRole("gridcell").nth(heads.indexOf(header));
 
   // Title, in place: click, type, Enter.
-  await row(refs[0]).getByRole("gridcell", { name: "Title" }).click();
+  await cell(refs[0], "Title").click();
   const title = row(refs[0]).getByRole("textbox", { name: "Title" });
   await title.fill("Write the homepage copy");
   await title.press("Enter");
   await expect(row(refs[0])).toContainText("Write the homepage copy");
 
   // Status, from the cell menu.
-  await row(refs[1]).getByRole("gridcell", { name: "Status" }).click();
+  await cell(refs[1], "Status").click();
   await page.getByRole("listbox", { name: "Status" }).getByRole("option", { name: "In progress" }).click();
-  await expect(row(refs[1]).getByRole("gridcell", { name: "Status" })).toContainText("In progress");
+  await expect(cell(refs[1], "Status")).toContainText("In progress");
 
   // Escape cancels an edit.
-  await row(refs[4]).getByRole("gridcell", { name: "Title" }).click();
+  await cell(refs[4], "Title").click();
   await row(refs[4]).getByRole("textbox", { name: "Title" }).fill("Nope");
   await row(refs[4]).getByRole("textbox", { name: "Title" }).press("Escape");
   await expect(row(refs[4])).toContainText("Check the pricing page on phones");
@@ -66,20 +69,20 @@ test("edits cells in place and changes three tasks at once from the bulk bar", a
   const bar = page.getByTestId("bulk-bar");
   await expect(bar).toContainText("3 selected");
 
-  // Bulk: assign to me, then add a label. One request each.
+  // Bulk: assign to me, then add a tag. One request each.
   const bulkCalls: string[] = [];
   page.on("request", (r) => { if (r.url().endsWith("/api/tasks/bulk") && r.method() === "POST") bulkCalls.push(r.postData() ?? ""); });
   await bar.getByRole("button", { name: "Assign to" }).click();
   await bar.getByRole("menuitem", { name: me.user.name }).click();
-  await expect(row(refs[2]).getByRole("gridcell", { name: "Assignee" })).toContainText(me.user.name);
-  await bar.getByRole("button", { name: "Labels" }).click();
-  await bar.getByRole("textbox", { name: "Label" }).fill("launch");
-  await bar.getByRole("button", { name: "Add label" }).click();
-  for (const r of refs.slice(0, 3)) await expect(row(r).getByRole("gridcell", { name: "Labels" })).toContainText("launch");
+  await expect(cell(refs[2], "Assignee")).toContainText(me.user.name);
+  await bar.getByRole("button", { name: "Tags" }).click();
+  await bar.getByRole("textbox", { name: "Tag" }).fill("launch");
+  await bar.getByRole("button", { name: "Add tag" }).click();
+  for (const r of refs.slice(0, 3)) await expect(cell(r, "Tags")).toContainText("launch");
   // Round 21 follow-up: set the type on all three in one call.
   await bar.getByRole("button", { name: "Type" }).click();
   await bar.getByRole("menuitem", { name: "Bug" }).click();
-  for (const r of refs.slice(0, 3)) await expect(row(r).getByRole("gridcell", { name: "Type" })).toContainText("Bug");
+  for (const r of refs.slice(0, 3)) await expect(cell(r, "Type")).toContainText("Bug");
   expect(bulkCalls).toHaveLength(3);
 
   mkdirSync(`${SHOTS_ROOT}/multies-r21`, { recursive: true });
@@ -89,12 +92,12 @@ test("edits cells in place and changes three tasks at once from the bulk bar", a
   // After a reload the server has it all.
   await page.reload();
   await expect(row(refs[0])).toContainText("Write the homepage copy");
-  await expect(row(refs[1]).getByRole("gridcell", { name: "Status" })).toContainText("In progress");
+  await expect(cell(refs[1], "Status")).toContainText("In progress");
   for (const r of refs.slice(0, 3)) {
-    await expect(row(r).getByRole("gridcell", { name: "Assignee" })).toContainText(me.user.name);
-    await expect(row(r).getByRole("gridcell", { name: "Labels" })).toContainText("launch");
+    await expect(cell(r, "Assignee")).toContainText(me.user.name);
+    await expect(cell(r, "Tags")).toContainText("launch");
   }
-  await expect(row(refs[3]).getByRole("gridcell", { name: "Labels" })).not.toContainText("launch");
+  await expect(cell(refs[3], "Tags")).not.toContainText("launch");
 
   // Cmd or Ctrl+A picks every visible row; Escape clears.
   await table.focus();

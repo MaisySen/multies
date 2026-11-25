@@ -1,4 +1,7 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, expect, type Page } from "@playwright/test";
+// W4: since R79 a task opens in the side panel ("Task details") on a wide screen, over the page ("Task") otherwise.
 
 
 
@@ -30,7 +33,8 @@ test("add a custom field, set it on a task and filter the list by it", async ({ 
   await page.goto(`/app/tasks?project=${project.id}&view=list`);
   // The demo's fields show as columns.
   await expect(page.getByTestId("task-table").getByRole("columnheader", { name: "Budget" })).toBeVisible();
-  await page.getByRole("button", { name: "Fields" }).click();
+  await page.getByRole("button", { name: "Project actions" }).click(); // R75: project actions are one menu
+  await page.getByRole("menuitem", { name: "Fields", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Custom fields" });
   await dialog.getByLabel("New field name").fill("Region");
   await dialog.getByLabel("New field type").selectOption("select");
@@ -42,7 +46,7 @@ test("add a custom field, set it on a task and filter the list by it", async ({ 
   const tasks = (await (await page.request.get(`/api/tasks?projectId=${project.id}`)).json()).tasks as { id: string; title: string }[];
   const target = tasks.find((t) => t.title.startsWith("Check SPF"))!;
   await page.goto(`/app/tasks?project=${project.id}&view=list&task=${target.id}`);
-  const panel = page.getByRole("dialog", { name: "Task" });
+  const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }));
   await panel.getByRole("combobox", { name: "Region" }).selectOption({ label: "VIC" });
   await expect.poll(async () => {
     const d = await (await page.request.get(`/api/tasks/${target.id}`)).json();
@@ -67,7 +71,8 @@ test("add a custom field, set it on a task and filter the list by it", async ({ 
 test("invite a guest who sees only that project, and can comment", async ({ page, browser }) => {
   const project = await demo(page);
   await page.goto(`/app/tasks?project=${project.id}&view=list`);
-  await page.getByRole("button", { name: "Guests" }).click();
+  await page.getByRole("button", { name: "Project actions" }).click(); // R75: project actions are one menu
+  await page.getByRole("menuitem", { name: "Guests", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: /Guests on/ });
   await dialog.getByLabel("Guest email").fill("maria.guest@example.com");
   await dialog.getByLabel("Guest name").fill("Maria");
@@ -115,7 +120,10 @@ test("the portfolio shows every project with progress and health", async ({ page
   await expect.poll(async () => ((await (await page.request.get("/api/portfolio")).json()).projects as { name: string; health: string }[]).find((p) => p.name === "Blue Harbor move")?.health).toBe("on_track");
 });
 
-test("an agent's guest invite waits in the approval queue until a person approves it", async ({ page, request, browser }) => {
+// W4 (Wave 2 B1, intended): an agent's guest invite no longer goes out as mail from its inbox through the approval
+// queue (the agent held a working link). It waits in the project's Guests, unsent and with no link, until a person
+// presses Send invite, which mails a fresh link from Multies' own account mail.
+test("an agent's guest invite waits in Guests until a person sends it", async ({ page, request, browser }) => {
   const project = await demo(page);
   await page.goto("/app/settings/developers");
   await page.getByRole("button", { name: "Create API key" }).click();
@@ -133,32 +141,37 @@ test("an agent's guest invite waits in the approval queue until a person approve
   });
   expect(res.status()).toBe(200);
   const out = JSON.parse((await res.json()).result.content[0].text);
-  expect(out.delivery.status).toBe("pending_approval");
+  expect(out.delivery.status).toBe("awaiting_confirmation");
   expect(out.inviteUrl).toBeUndefined();
 
   await page.goto(`/app/tasks?project=${project.id}&view=list`);
-  await page.getByRole("button", { name: "Guests" }).click();
+  await page.getByRole("button", { name: "Project actions" }).click(); // R75: project actions are one menu
+  await page.getByRole("menuitem", { name: "Guests", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: /Guests on/ });
-  await expect(dialog.getByRole("listitem").filter({ hasText: email })).toContainText("Waiting for approval");
+  const row = dialog.getByRole("listitem").filter({ hasText: email });
+  await expect(row).toContainText("Needs you");
+  // Nothing was sent, and nothing the agent holds opens the project.
+  expect(findInvite(email)).toBeUndefined();
+  await row.getByRole("button", { name: `Send the invite to ${email}` }).click();
+  await expect(row).toContainText("Invited");
   await page.keyboard.press("Escape");
 
-  await page.goto("/app/approvals");
-  const card = page.getByRole("article", { name: /You're invited to Blue Harbor move/ }).filter({ hasText: email });
-  await expect(card).toBeVisible();
-  // The link is in the email the agent wrote. Before a person approves it, it opens nothing.
-  const link = (await card.textContent())!.match(/\/g\/[A-Za-z0-9_-]{20,100}/)![0];
+  if (process.env.E2E_BASE_URL) return; // the invite link is read from the local outbox
+  await expect.poll(() => !!findInvite(email), { timeout: 15_000 }).toBe(true);
+  const link = new URL(findInvite(email)!.text.match(/https?:\/\/\S+\/g\/[A-Za-z0-9_-]{20,100}/)![0]).pathname;
   const guestCtx = await browser.newContext();
   const guest = await guestCtx.newPage();
-  expect((await guest.request.post("/api/guest/accept", { data: { token: link.slice(3) } })).status()).toBe(404);
-
-  await card.getByRole("button", { name: "Approve and send" }).click();
-  await expect(page.getByText("Approved and sent").first()).toBeVisible();
-
-  await page.goto(`/app/tasks?project=${project.id}&view=list`);
-  await page.getByRole("button", { name: "Guests" }).click();
-  await expect(page.getByRole("dialog", { name: /Guests on/ }).getByRole("listitem").filter({ hasText: email })).toContainText("Invited");
-
   await guest.goto(link);
   await expect(guest.getByTestId("guest-project")).toHaveText("Blue Harbor move");
   await guestCtx.close();
 });
+
+/** The guest invite in the local outbox (OUTBOX_DIR, .data/e2e-outbox), if it went out. */
+function findInvite(address: string, outbox = ".data/e2e-outbox") {
+  if (!existsSync(outbox)) return undefined;
+  for (const f of readdirSync(outbox).sort().reverse()) {
+    const m = JSON.parse(readFileSync(join(outbox, f), "utf8")) as { to: string[]; subject: string; text: string };
+    if (m.to.includes(address) && /invited/i.test(m.subject)) return m;
+  }
+  return undefined;
+}

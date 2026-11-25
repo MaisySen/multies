@@ -21,7 +21,10 @@ test("a workspace key brands the auth emails and previews them in English and Ne
     const key = await post("/api/developer/keys", { name: "Haajir HQ" });
     const ro = await post("/api/developer/keys", { name: "Reader", scope: "read" });
     const boxes = await fetch("/api/mailboxes").then((r) => r.json());
-    return { key: key.secret as string, ro: ro.secret as string, from: (boxes.mailboxes ?? boxes)[0].address as string };
+    // W4: a team mailbox. The demo's first mailbox is now Alex's personal sample (connected mail), and since PRIV1b (W1) and
+    // AIS1 (row 44) only a team mailbox on a verified domain may send sign-up emails.
+    const team = ((boxes.mailboxes ?? boxes) as { address: string; personal?: boolean; kind?: string }[]).find((m) => !m.personal && m.kind !== "agent")!;
+    return { key: key.secret as string, ro: ro.secret as string, from: team.address };
   });
   expect(session.key).toMatch(/^mm_live_/);
   const api = (k: string) => ({ authorization: `Bearer ${k}`, "content-type": "application/json" });

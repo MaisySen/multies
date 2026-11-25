@@ -39,11 +39,11 @@ test("every branding action works and shows at once", async ({ page }) => {
   await expect.poll(() => brandVar(page)).toBe(start);
   await expect(bar).toContainText("All changes saved");
 
-  // Colours, corners, density and font all change the draft; Ctrl S saves.
+  // Colours, corners and font all change the draft; Ctrl S saves. (Density left Branding in R82F, MB-285: each
+  // person picks it in the View menu, so it is not here.)
   await page.getByLabel("Brand colour hex").fill("#0f726b");
   await expect.poll(() => brandVar(page)).toBe("#0f726b");
   await page.getByRole("radio", { name: "Round", exact: true }).click();
-  await page.getByRole("radio", { name: "Compact", exact: true }).click();
   await page.getByRole("radio", { name: /Serif/ }).click();
   await page.keyboard.press("Control+s");
   await expect(bar).toContainText("Saved for everyone");

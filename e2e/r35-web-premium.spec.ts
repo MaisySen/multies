@@ -28,7 +28,7 @@ test("Today home: cards, Focus and icons from the one set", async ({ browser }) 
   await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
   await expect(page.getByTestId("today-cards").getByTestId("today-mail")).toBeVisible();
   await expect(page.getByTestId("today-approvals")).toContainText("Approvals waiting");
-  await expect(page.getByTestId("today-quick").getByRole("link", { name: "New task" })).toBeVisible();
+  await expect(page.getByTestId("today-quick").getByRole("button", { name: "New task" })).toBeVisible(); // W4: F13b (MB-306) New task stays on My Work, a button
   // Every glyph in the sidebar is from the one icon set, and the active row's glyph is filled.
   expect(await page.locator('[data-testid="icon-rail"] svg[data-icon], aside[aria-label="Sidebar"] svg[data-icon]').count()).toBeGreaterThan(10); // R79: rail plus section sidebar
   expect(await page.locator('svg.lucide').count()).toBe(0);

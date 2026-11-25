@@ -48,6 +48,8 @@ for (const [name, path] of PAGES) {
     }
     await expect(page.getByTestId("load-error")).toHaveCount(0, { timeout: 15_000 });
     await expect(page.getByTestId("load-error-strip")).toHaveCount(0, { timeout: 15_000 });
+    // W4: Home widgets below the fold read only once scrolled near (Time to bill, TD4, is now the last one): bring each into view.
+    for (const w of await page.locator('main [data-testid^="widget-"]').all()) await w.scrollIntoViewIfNeeded().catch(() => undefined);
     await expect(page.locator("main .skeleton")).toHaveCount(0, { timeout: 15_000 });
   });
 }

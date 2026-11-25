@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+// W4: since R79 a task opens in the side panel ("Task details") on a wide screen, over the page ("Task") otherwise.
 
 /**
  * R84: saved views as pinned tabs, list grouping, several people on a task, the full task page, workspace tags and
@@ -72,7 +73,7 @@ test.describe("R84 tasks", () => {
   test("tags: create in the picker, colours in the list, manage and bulk add", async ({ page }) => {
     await demo(page);
     await page.locator("[data-task-id]").first().locator("td").nth(1).click();
-    const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByTestId("task-inspector"));
+    const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" })).or(page.getByTestId("task-inspector"));
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: "Tags" }).click();
     await page.getByLabel("Find or create a tag").fill("urgent client");

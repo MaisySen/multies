@@ -13,6 +13,8 @@ for (const scheme of ["light", "dark"] as const) {
     const page = await ctx.newPage();
     for (const path of ["/signup", "/login"]) {
       await page.goto(`${BASE}${path}`);
+      // R40 (MB-213): on sign up the social buttons fold under "Other ways to sign up".
+      if (path === "/signup") await page.getByTestId("other-signup").locator("summary").click();
       const google = page.getByRole("button", { name: "Continue with Google" });
       await expect(google).toBeVisible();
       // R30: Google's own downloadable G asset, loaded and drawn at 20 px.

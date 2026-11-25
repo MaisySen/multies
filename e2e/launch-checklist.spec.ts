@@ -107,14 +107,31 @@ test("8. Open Graph image and social tags", async ({ page, request }) => {
   expect(await metaContent(page, 'meta[property="og:description"]')).toBe(PUBLIC_META["/pricing"].description);
   expect(await metaContent(page, 'meta[property="og:url"]')).toBe(`${SITE_URL}/pricing`);
   expect(await metaContent(page, 'meta[name="twitter:card"]')).toBe("summary_large_image");
+  // W4: each public page has its own Open Graph card now (a 1200 x 630 JPEG under /og/, seo-meta.ts); the shared
+  // /og-image.png stays for pages without one.
   const image = await metaContent(page, 'meta[property="og:image"]');
-  expect(image).toBe(`${SITE_URL}/og-image.png`);
-  const r = await request.get("/og-image.png");
+  expect(image).toBe(PUBLIC_META["/pricing"].image);
+  expect(image!.startsWith(`${SITE_URL}/og/`)).toBe(true);
+  const r = await request.get(new URL(image!).pathname);
   expect(r.status()).toBe(200);
-  expect(r.headers()["content-type"]).toContain("image/png");
-  const png = await r.body();
+  expect(r.headers()["content-type"]).toContain("image/jpeg");
+  expect(jpegSize(await r.body())).toEqual([1200, 630]);
+  const shared = await request.get("/og-image.png");
+  expect(shared.status()).toBe(200);
+  const png = await shared.body();
   expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630]);
 });
+
+/** Width and height from a JPEG's start of frame marker. */
+function jpegSize(b: Buffer): [number, number] | null {
+  for (let i = 2; i + 9 < b.length;) {
+    const marker = b[i + 1]!;
+    const len = b.readUInt16BE(i + 2);
+    if (marker >= 0xc0 && marker <= 0xc3) return [b.readUInt16BE(i + 7), b.readUInt16BE(i + 5)];
+    i += 2 + len;
+  }
+  return null;
+}
 
 test("9 and 20. images have alt text, modern formats, sizes and lazy loading below the fold", async ({ page }) => {
   for (const p of PAGES) {

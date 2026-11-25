@@ -23,7 +23,8 @@ test("an invite that was not emailed can be shared by link, now or later", async
   const project = (await (await page.request.post("/api/projects", { data: { name: `Harbour ${tag}` }, headers })).json()).project as { id: string };
 
   await page.goto(`/app/tasks?project=${project.id}&view=list`);
-  await page.getByRole("button", { name: "Guests" }).click();
+  await page.getByRole("button", { name: "Project actions" }).click(); // R75: project actions are one menu
+  await page.getByRole("menuitem", { name: "Guests", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: /Guests on/ });
   await dialog.getByLabel("Guest email").fill(`mia-${tag}@example.com`);
   const [res] = await Promise.all([

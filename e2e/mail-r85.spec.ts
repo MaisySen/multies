@@ -26,6 +26,7 @@ async function list(page: Page, mailboxId: string, q: string) {
 test("tab style, move to tab with Undo, and labels", async ({ page, baseURL }) => {
   test.setTimeout(150_000);
   await demo(page);
+  await page.request.put("/api/mail/splits/style", { headers: { origin: new URL(page.url()).origin }, data: { style: "classic" } }); // W4: accounts made since 31 Oct open on Primary, Updates and Promotions; this flow starts from Important and Other, as an older account does
   const mb = await busiest(page);
   await page.setViewportSize({ width: 1280, height: 860 });
   await page.goto(`/app/mail?mailbox=${mb.id}`);

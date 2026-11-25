@@ -6,6 +6,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 const OUT = process.env.R133_OUT ?? "/tmp/r133";
 const SHOTS = process.env.R133_SHOTS ?? "";
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
+mkdirSync(OUT, { recursive: true }); // W4: the report folder may not exist yet on a fresh machine
 let n = 0;
 const ip = () => `10.133.${Math.floor(Math.random() * 200)}.${++n}`;
 

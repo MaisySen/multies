@@ -28,7 +28,8 @@ test("a taken key is refused under the field; a free key saves and old refs stil
   expect(task.ref).toBe("SALX-1");
 
   await page.goto(`/app/tasks?project=${project.id}`);
-  await page.getByRole("button", { name: "Project settings" }).click();
+  await page.getByRole("button", { name: "Project actions" }).click(); // R75: project actions are one menu
+  await page.getByRole("menuitem", { name: "Project settings", exact: true }).click();
   const key = page.getByTestId("project-key");
   await expect(key).toHaveValue("SALX");
   await key.fill("opsx");

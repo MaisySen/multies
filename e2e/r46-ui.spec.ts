@@ -53,6 +53,7 @@ test.describe("Archive older on an empty Inbox tab", () => {
       test.skip(!!SHOTS, "behaviour, not shots");
       await page.setViewportSize({ width: w, height: h });
       await demo(page);
+      await page.request.put("/api/mail/splits/style", { headers: { origin: new URL(page.url()).origin }, data: { style: "classic" } }); // W4: accounts made since 31 Oct open on Primary, Updates and Promotions; these flows use Important and Other
       const mailboxId = await seedOld(page, `r46empty${kind}`, 4);
       await emptyImportant(page);
       await page.goto(`/app/mail?mailbox=${mailboxId}`);
@@ -167,8 +168,9 @@ for (const width of [390, 360] as const) {
     expect((await header.boundingBox())!.height).toBeLessThanOrEqual(110);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
     await page.getByRole("button", { name: "Project actions" }).click();
-    for (const name of ["Project settings", "Fields", "Guests", "Epics", "New project"]) await expect(page.getByRole("menuitem", { name })).toBeVisible();
-    await page.getByRole("menuitem", { name: "Fields" }).click();
+    // W4: exact names ("Fields" is also part of "Workspace fields" in the same menu).
+    for (const name of ["Project settings", "Fields", "Guests", "Epics", "New project"]) await expect(page.getByRole("menuitem", { name, exact: true })).toBeVisible();
+    await page.getByRole("menuitem", { name: "Fields", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
   });
 }

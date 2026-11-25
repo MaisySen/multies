@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+// W4: since R79 a task opens in the side panel ("Task details") on a wide screen, over the page ("Task") otherwise.
 import { mkdirSync } from "node:fs";
 import { SHOTS_ROOT } from "./support/shots";
 
@@ -44,7 +45,7 @@ test("plan, fill, start and complete a sprint, carrying the unfinished task over
 
   // Finish one task from the task panel.
   await page.getByRole("list", { name: "Sprint tasks" }).getByRole("button", { name: "Design the new pricing page" }).click();
-  const panel = page.getByRole("dialog", { name: "Task" });
+  const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }));
   await expect(panel.getByLabel("Move to sprint")).toHaveValue(/spr_/);
   await expect(panel.getByLabel("Estimate")).toHaveValue("5");
   await panel.getByRole("button", { name: "Mark as done" }).click();

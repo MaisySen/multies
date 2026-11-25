@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+// W4: since R79 a task opens in the side panel ("Task details") on a wide screen, over the page ("Task") otherwise.
 import { SHOTS_ROOT } from "./support/shots";
 
 /**
@@ -108,8 +109,8 @@ test("(c) two pages on one task: live update and a clear conflict", async ({ pag
   const b = await context.newPage();
   await page.goto(`/app/tasks?task=${task.id}`);
   await b.goto(`/app/tasks?task=${task.id}`);
-  const titleA = page.getByRole("dialog", { name: "Task" }).getByLabel("Title");
-  const titleB = b.getByRole("dialog", { name: "Task" }).getByLabel("Title");
+  const titleA = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" })).getByLabel("Title");
+  const titleB = b.getByRole("dialog", { name: "Task" }).or(b.getByRole("complementary", { name: "Task details" })).getByLabel("Title");
   await expect(titleA).toHaveValue("Two tab task", { timeout: 20_000 });
   await expect(titleB).toHaveValue("Two tab task", { timeout: 20_000 });
 

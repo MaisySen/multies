@@ -28,6 +28,7 @@ async function busiest(page: Page) {
 test("Important and Other split the demo inbox, and a custom split by domain takes its mail", async ({ page }) => {
   test.setTimeout(150_000);
   await demo(page);
+  await page.request.put("/api/mail/splits/style", { headers: { origin: new URL(page.url()).origin }, data: { style: "classic" } }); // W4: accounts made since 31 Oct open on Primary, Updates and Promotions; these flows use Important and Other
   const mb = await busiest(page);
   const all = await list(page, mb.id, "folder=inbox");
   const important = await list(page, mb.id, "folder=inbox&split=important");

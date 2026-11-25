@@ -67,6 +67,7 @@ test("Continue with Google signs in and lands on My Work; the same email later i
   await context.clearCookies();
   await page.goto(`${BASE}/signup`);
   await freshAddress(page);
+  await page.getByTestId("other-signup").locator("summary").click(); // R40 (MB-213): folded under "Other ways to sign up"
   await page.getByRole("button", { name: "Continue with Microsoft" }).click();
   await page.waitForURL(/\/app\/my-work/, { timeout: 20_000 });
   expect(await myId(page)).toBe(first);

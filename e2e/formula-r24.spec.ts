@@ -28,7 +28,8 @@ test("formula and rollup columns in the table, live preview, rollup of subtasks,
   }
 
   await page.goto(`/app/tasks?view=list&project=${project.id}`);
-  await page.getByRole("button", { name: "Fields" }).click();
+  await page.getByRole("button", { name: "Project actions" }).click(); // R75: project actions are one menu
+  await page.getByRole("menuitem", { name: "Fields", exact: true }).click();
   const dialog = page.getByRole("dialog");
   // A number field.
   await dialog.getByLabel("New field name").fill("Budget");

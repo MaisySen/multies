@@ -113,6 +113,7 @@ test("timeline polish: label flips at the right edge, lag drawn on arrows, days 
   await expect(gaps.filter({ hasText: "+3d" })).toHaveAttribute("title", /Waits 3 days after [A-Z]+-\d+ ends/);
 
   // 3. Days off picker: Saturday and Sunday are off by default; turn on working days, add Friday, and it is saved.
+  await page.getByTestId("timeline-settings").click(); // W4: the project rules sit in the Schedule settings popover
   await page.getByRole("switch", { name: "Working days only" }).click();
   await page.getByTestId("days-off-button").click();
   const picker = page.getByTestId("days-off-picker");

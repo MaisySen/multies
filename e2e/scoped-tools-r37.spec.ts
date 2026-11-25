@@ -75,7 +75,7 @@ test("a key made with picked areas shows only its tools, and the docs preview fi
   await expect(sheet.getByTestId("tool-list-toggle")).toContainText(/Agents see \d+ of \d+ tools/);
   await sheet.getByRole("button", { name: "Create" }).click();
   const secret = (await page.getByRole("dialog", { name: "Copy your API key" }).locator("code").first().textContent())!.trim();
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   const row = page.getByTestId("api-key-row").filter({ hasText: "Standup bot" });
   await expect(row.getByTestId("tool-list-chip")).toHaveText("Shows only its tools");
   // The key's own view: only tasks and chat tools.
@@ -90,8 +90,11 @@ test("a key made with picked areas shows only its tools, and the docs preview fi
 
   await page.goto("/developers/mcp");
   await expect(page.getByRole("heading", { name: "All tools" })).toBeVisible({ timeout: 30_000 });
+  // W4: the count fills in once the tool list has loaded; read it then (an empty count read as 0).
+  await expect(page.getByTestId("scope-preview-count")).toHaveText(/^[1-9]\d*$/);
   const total = Number(await page.getByTestId("scope-preview-count").textContent());
   await page.getByTestId("scope-preview").getByRole("button", { name: "Read only" }).click();
+  await expect(page.getByTestId("scope-preview-count")).not.toHaveText(String(total));
   const readOnly = Number(await page.getByTestId("scope-preview-count").textContent());
   expect(readOnly).toBeLessThan(total);
   await expect(page.locator("article#create_task")).toHaveCount(0);

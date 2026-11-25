@@ -84,7 +84,7 @@ test("5,000 task desktop list: DOM size, scroll frames, keyboard and sticky head
 
   expect(rows).toBeLessThan(120);
   expect(domNodes).toBeLessThan(6000);
-  await expect(grid).toHaveAttribute("aria-rowcount", String(N + 1));
+  await expect(grid.getByRole("grid")).toHaveAttribute("aria-rowcount", String(N + 1)); // W4: the count is on the table inside the scroll region
   // Scrolled to the bottom, the last task is rendered and the header is still pinned.
   await expect(grid.locator("tr[data-task-id]").last()).toContainText(`Long list task ${N}`);
   await expect(grid.locator("thead th").nth(1)).toBeInViewport();

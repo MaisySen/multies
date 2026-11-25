@@ -30,7 +30,7 @@ test("inline title edit on a task row and on a board card: Enter saves, Escape c
   // Task row (list view): click the title cell, type, Enter saves.
   await page.goto(`/app/tasks?view=list&project=${project.id}`);
   const row = page.getByRole("row").filter({ hasText: "Draft the brief" });
-  await row.getByRole("gridcell", { name: "Title" }).click();
+  await row.getByRole("gridcell", { name: "Draft the brief", exact: true }).click(); // W4: grid cells are named by what they hold
   // While editing, the title lives in the field's value, so find the field by its label.
   const input = page.getByRole("textbox", { name: "Title" });
   await input.fill("Draft the launch brief");
@@ -38,7 +38,7 @@ test("inline title edit on a task row and on a board card: Enter saves, Escape c
   await expect(page.getByRole("row").filter({ hasText: "Draft the launch brief" })).toBeVisible();
   await expect.poll(titleOf).toBe("Draft the launch brief");
   // Escape cancels.
-  await page.getByRole("row").filter({ hasText: "Draft the launch brief" }).getByRole("gridcell", { name: "Title" }).click();
+  await page.getByRole("row").filter({ hasText: "Draft the launch brief" }).getByRole("gridcell", { name: "Draft the launch brief", exact: true }).click();
   const again = page.getByRole("textbox", { name: "Title" });
   await again.fill("Should not stick");
   await again.press("Escape");

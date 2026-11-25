@@ -124,7 +124,10 @@ test("P1 desktop: rail, Social pages, Create and P, one Settings sidebar, redire
   await side.getByRole("link", { name: "Accounts", exact: true }).click();
   await expect(page.getByTestId("accounts-list")).toBeVisible();
   for (const app of ["linkedin", "facebook", "instagram", "reddit"]) await expect(page.getByTestId(`social-account-${app}`)).toBeVisible();
-  await expect(page.getByTestId("accounts-add").getByRole("button", { name: /^Connect / })).toHaveCount(5);
+  // W4: with SOCIAL_P3_R132 on (the E2E default) YouTube joins the five networks to connect.
+  const p3 = !!(await (await page.request.get("/api/config")).json()).socialP3R132;
+  const connectNames = await page.getByTestId("accounts-add").getByRole("button", { name: /^Connect / }).evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  expect(connectNames).toEqual(["Connect Facebook Pages", "Connect Instagram", "Connect LinkedIn", "Connect Pinterest", "Connect Reddit", ...(p3 ? ["Connect YouTube"] : [])]);
   await expect(page.getByTestId("direct-accounts")).toBeVisible();
   await shot(page, "p1-accounts-1280-light");
   expect(await axe(page, "accounts")).toEqual([]);

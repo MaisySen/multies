@@ -48,7 +48,7 @@ test("task list after a status rename and a formula change, and a 304 for an unc
 
   await page.goto(`/app/tasks?view=list&project=${project.id}`);
   await expect(page.getByText("Design the new pricing page").first()).toBeVisible();
-  await expect(page.getByRole("gridcell", { name: "Status" }).filter({ hasText: /^To do$/ }).first()).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: "To do", exact: true }).first()).toBeVisible(); // W4: grid cells are named by what they hold
 
   // Rename "To do" to "Up next": the next list shows it at once.
   const statuses = project.statuses.map((s) => (s.name === "To do" ? { ...s, name: "Up next" } : s));
@@ -59,7 +59,7 @@ test("task list after a status rename and a formula change, and a 304 for an unc
   expect((await listed()).find((t) => t.id === ids[0])!.fields[field.id]).toBe(15);
 
   await page.reload();
-  await expect(page.getByRole("gridcell", { name: "Status" }).filter({ hasText: /^Up next$/ }).first()).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: "Up next", exact: true }).first()).toBeVisible();
   await expect(page.getByText("Refresh product screenshots").first()).toBeVisible();
   mkdirSync(`${SHOTS_ROOT}/multies-r25`, { recursive: true });
   await page.screenshot({ path: `${SHOTS_ROOT}/multies-r25/r25-perf.png` });

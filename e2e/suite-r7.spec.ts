@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+// W4: since R79 a task opens in the side panel ("Task details") on a wide screen, over the page ("Task") otherwise.
 
 /**
  * Round 7 end to end: a timer entry on a task, a public form submission that makes a task,
@@ -25,7 +26,7 @@ test("start and stop a timer on a task, and see it on the timesheet", async ({ p
   await demo(page);
   const tasks = (await (await page.request.get("/api/tasks?q=Point MX")).json()).tasks;
   await page.goto(`/app/tasks?view=list&task=${tasks[0].id}`);
-  const panel = page.getByRole("dialog", { name: "Task" });
+  const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }));
   await panel.getByTestId("timer-start").click();
   await expect(panel.getByTestId("timer-stop")).toBeVisible();
   await expect(page.getByTestId("timer-chip")).toBeVisible();
@@ -79,7 +80,7 @@ test("start a meeting from a task, with video switched off", async ({ page }) =>
   await demo(page);
   const tasks = (await (await page.request.get("/api/tasks?q=Confirm cutover")).json()).tasks;
   await page.goto(`/app/tasks?view=list&task=${tasks[0].id}`);
-  const panel = page.getByRole("dialog", { name: "Task" });
+  const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }));
   await panel.getByRole("button", { name: "More" }).click();
   await page.getByRole("menuitem", { name: "Start a meeting" }).click();
   await expect(page).toHaveURL(/\/app\/meetings\/mtg_/);

@@ -40,7 +40,8 @@ test("an epic with two tasks shows 50 percent once one is done; a bug shows its 
   await expect(page.getByTestId("board")).toBeVisible({ timeout: 15_000 });
 
   // Make an epic from the Epics panel.
-  await page.getByRole("button", { name: "Epics" }).click();
+  await page.getByRole("button", { name: "Project actions" }).click(); // R75: project actions are one menu
+  await page.getByRole("menuitem", { name: "Epics" }).click();
   const panel = page.getByTestId("epics-panel");
   await panel.getByRole("textbox", { name: "New epic" }).fill("Launch 1.0");
   await panel.getByRole("button", { name: "Add epic" }).click();
@@ -78,7 +79,8 @@ test("an epic with two tasks shows 50 percent once one is done; a bug shows its 
   await expect(page.getByTestId("board-card").filter({ hasText: "Offline mode" }).getByTestId("type-icon-epic")).toBeVisible();
 
   // The Epics panel shows the progress too.
-  await page.getByRole("button", { name: "Epics" }).click();
+  await page.getByRole("button", { name: "Project actions" }).click(); // R75: project actions are one menu
+  await page.getByRole("menuitem", { name: "Epics" }).click();
   await expect(page.getByTestId("epic-row").filter({ hasText: "Launch 1.0" }).getByTestId("epic-progress")).toHaveText("1 of 2 done, 50%");
   await page.keyboard.press("Escape");
 

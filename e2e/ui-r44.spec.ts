@@ -205,7 +205,7 @@ test("5,000 row backlog: windowed rows, full points total, drag into the sprint"
 
   expect(rows).toBeLessThan(120);
   expect(domNodes).toBeLessThan(4000);
-  await expect(panel).toContainText(`5000 tasks, ${FULL_POINTS} pt`);
+  await expect(panel).toContainText(`5,000 tasks, ${FULL_POINTS} pt`); // W4: counts show a thousands separator
   await expect.poll(async () => {
     if (box) await box.evaluate((el) => { el.scrollTop = el.scrollHeight; }); else await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     return panel.getByText(`Backlog task ${N}`, { exact: true }).isVisible();

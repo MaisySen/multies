@@ -46,11 +46,14 @@ test("creates an incoming webhook and turns a post into a task", async () => {
   await dialog.getByRole("button", { name: "Create" }).click();
   const url = (await page.getByTestId("hook-url").textContent())!.trim();
   expect(url).toContain("/api/hooks/in/mih_");
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   const res = await page.request.post(new URL(url).pathname, { data: { title: "E2E enquiry from the website", message: "Two rooms, next week" } });
   expect(res.status()).toBe(201);
+  // W4 (Wave 2 A4, intended): a task from a hook with no project waits in Triage until a person accepts it.
   const tasks = (await (await page.request.get("/api/tasks")).json()).tasks as { title: string }[];
-  expect(tasks.some((t) => t.title === "E2E enquiry from the website")).toBe(true);
+  expect(tasks.some((t) => t.title === "E2E enquiry from the website")).toBe(false);
+  const waiting = (await (await page.request.get("/api/triage")).json()).items as { title: string }[];
+  expect(waiting.some((t) => t.title === "E2E enquiry from the website")).toBe(true);
   await page.reload();
   await expect(page.getByText("Working")).toBeVisible();
   await page.getByRole("button", { name: "Recent calls" }).click();
