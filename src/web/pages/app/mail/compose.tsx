@@ -282,7 +282,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           <AlsoReplying people={presence.people} />
           <div data-testid="compose-foot" className="flex items-center justify-between gap-2 border-t border-line px-4 py-3 max-sm:px-1.5 max-sm:py-1 max-sm:pb-[max(0.25rem,env(safe-area-inset-bottom))]">
             {/* R48 mobile: on a phone Send is in the header, so this row is one line of 44 px controls even at 360 px. */}
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 max-sm:flex-nowrap max-sm:gap-x-0.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 max-sm:flex-nowrap max-sm:gap-x-0.5 max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&>*]:shrink-0">
               <Button type="submit" disabled={!d.to.trim() || !d.mailboxId || !!unverified} className="max-sm:hidden"><IconSend className="h-4 w-4" />{tr("common.send")}</Button>
               {saveState && <span className="text-[12px] text-subtle" role="status" data-testid="draft-autosave">{saveState === "saving" ? tr("compose.saving") : saveState === "saved" ? tr("common.saved") : tr("compose.not_saved_yet")}</span>}
               {/* Tools P2: attachments go now, not later (Tools results are kept for an hour; scheduled sends carry no files yet). */}
@@ -292,10 +292,11 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <SendSecurelyButton bodyRef={bodyRef} text={d.text} files={att.items} onRemoveFile={att.remove}
                 onText={(text, cursor) => { setD((x) => ({ ...x, text })); requestAnimationFrame(() => { bodyRef.current?.focus(); bodyRef.current?.setSelectionRange(cursor, cursor); }); }} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
-              <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title={tr("compose.how_long_you_have_to_undo_after_pressing_send")}>
-                <IconUndo className="h-3.5 w-3.5" aria-hidden />
+              {/* On a phone the undo window and the reminder are 44 px icons that open their sheet, so the row keeps one line. */}
+              <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:relative max-sm:ml-0 max-sm:h-11 max-sm:w-11 max-sm:shrink-0 max-sm:justify-center max-sm:p-0" title={tr("compose.how_long_you_have_to_undo_after_pressing_send")}>
+                <IconUndo className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" aria-hidden />
                 <Select bare value={undoSeconds} onChange={(e) => setUndoSeconds(parseUndoSeconds(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label={tr("compose.undo_send_window")}
-                  phoneClassName="inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap bg-transparent text-left text-[13px]">
+                  phoneClassName="absolute inset-0 h-11 w-11 overflow-hidden rounded-md bg-transparent text-transparent">
                   {UNDO_SEND_CHOICES.map((n) => <option key={n} value={n}>{n} s</option>)}
                 </Select>
               </label>

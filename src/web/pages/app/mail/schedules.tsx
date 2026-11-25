@@ -143,10 +143,11 @@ export const REMIND_CHOICES = [0, 1, 2, 3, 5, 7, 14] as const;
 /** "Remind me if no reply" in Compose. 0 means off. */
 export function RemindSelect({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
-    <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover max-sm:min-h-11 max-sm:min-w-0 max-sm:px-2", value ? "text-brand-hover" : "text-muted")} title="Bring this thread back if nobody replies">
-      <IconBellRing className="h-3.5 w-3.5" aria-hidden />
+    <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover max-sm:relative max-sm:h-11 max-sm:w-11 max-sm:shrink-0 max-sm:justify-center max-sm:p-0", value ? "text-brand-hover" : "text-muted")} title="Bring this thread back if nobody replies">
+      {/* On a phone this is a 44 px bell (brand coloured while a reminder is set) that opens the choices as a sheet. */}
+      <IconBellRing className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" aria-hidden />
       <Select bare value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Remind me if no reply"
-        phoneClassName="inline-flex min-h-11 min-w-0 max-w-[7.5rem] items-center truncate whitespace-nowrap bg-transparent text-left text-[13px]">
+        phoneClassName="absolute inset-0 h-11 w-11 overflow-hidden rounded-md bg-transparent text-transparent">
         {REMIND_CHOICES.map((n) => <option key={n} value={n}>{n === 0 ? tr("compose.no_reminder") : tr("compose.remind_in_days", { count: n })}</option>)}
       </Select>
     </label>
