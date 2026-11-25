@@ -170,6 +170,8 @@ export function AppLayout() {
   const sidebarHidden = sidebarHiddenOn(layout, loc.pathname);
   const desktop = useMediaQuery("(min-width: 1024px)");
   const mainHost = useStableHost("flex h-full min-h-0 min-w-0 flex-1 flex-col");
+  // R40: the desktop sidebar renders into its own host, placed by the resizable panes (shell-panes.tsx) when they load.
+  const sidebarHost = useStableHost("h-full");
   useSidebarShortcut();
   const projectParam = loc.pathname === "/app/tasks" ? new URLSearchParams(loc.search).get("project") : null;
   const projectList = useQuery({ queryKey: ["projects"], enabled: !!projectParam && !!me.data?.organization, staleTime: 30_000,
@@ -402,11 +404,13 @@ export function AppLayout() {
     </aside>
   );
   const mainSlot = <HostSlot host={mainHost} className="flex h-full min-w-0 flex-1 flex-col" />;
+  const sidebarSlot = <HostSlot host={sidebarHost} className="h-full" />;
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
       <BrandTokens orgId={organization?.id} />
       {createPortal(content, mainHost)}
+      {desktop && !sidebarHidden && createPortal(desktopSidebar, sidebarHost)}
       {/* R79 (MB-278): the first Tab stop jumps past the navigation to the page. */}
       <a href="#main" data-testid="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">{tr("shell.skip_to_content")}</a>
@@ -415,12 +419,11 @@ export function AppLayout() {
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">{tr("shell.create_something")}</a>}
       {desktop ? (<>
         <IconRail sections={sections} active={section.id} counts={navCounts} footer={accountButton} />
-        {/* R40: the resizable panes load only on a computer; until they arrive the page sits beside a fixed sidebar. */}
-        <Suspense fallback={<div className="flex min-w-0 flex-1">
-          {!sidebarHidden && <div className="glass-sidebar w-[248px] shrink-0">{desktopSidebar}</div>}
-          {mainSlot}
-        </div>}>
-          <ShellPanes layoutGen={layoutGen} sidebarHidden={sidebarHidden} inspectorOpen={inspectorOpen} sidebar={desktopSidebar} main={mainSlot} />
+        {/* R40: the resizable panes load only on a computer (started with this file). Until they arrive the sidebar and
+            the page render into their hosts off screen and are placed once, so nothing is moved later (a move would
+            close an open menu or take focus away). */}
+        <Suspense fallback={<div className="flex min-w-0 flex-1" aria-busy="true" />}>
+          <ShellPanes layoutGen={layoutGen} sidebarHidden={sidebarHidden} inspectorOpen={inspectorOpen} sidebar={sidebarSlot} main={mainSlot} />
         </Suspense>
       </>) : (<>
         <aside aria-label={tr("common.sidebar")} className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
