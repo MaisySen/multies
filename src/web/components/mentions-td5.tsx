@@ -109,7 +109,7 @@ export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaE
   const open = !!at && (items.length > 0 || loading || failed);
   const list = open ? (
     <div className={cn("absolute left-0 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-elevated p-1 shadow-pop", opts.above === false ? "top-full mt-1" : "bottom-full mb-1")} data-testid={opts.testId ?? "mention-picker-td5"}>
-      <ul role="listbox" aria-label="Mention a person or a record" className="max-h-72 overflow-y-auto">
+      <ul role="listbox" aria-label="Mention a person or a record" aria-busy={loading || undefined} className="max-h-72 overflow-y-auto">
         {items.map((it, i) => (
           <li key={it.kind === "person" ? `p:${it.p.key}` : `r:${it.r.type}:${it.r.id}`} role="option" aria-selected={i === active} id={`mention-opt-${i}`}
             onMouseDown={(e) => { e.preventDefault(); pick(i); }} onMouseEnter={() => setActive(i)}
@@ -119,9 +119,10 @@ export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaE
               : <><span className="shrink-0 rounded bg-fill px-1.5 py-0.5 text-[11px] font-medium text-muted">{REF_LABELS[it.r.type as RefType] ?? "Item"}</span><span className="truncate">{it.r.title}</span><span className="ml-auto max-w-[40%] shrink-0 truncate text-[11.5px] text-subtle">{it.r.subtitle.replace(/^(Task|Project|Doc|Contact|Deal|Meeting|Form|Invoice)( · )?/, "")}</span></>}
           </li>
         ))}
-        {loading && <li className="px-2 py-1.5" aria-busy="true"><Skeleton className="h-4 w-40" /></li>}
-        {failed && !items.length && <li className="flex items-center justify-between gap-2 px-2 py-1.5 text-[12.5px] text-muted" role="alert">{LOAD_ERROR_TITLE}.<button type="button" className="rounded px-2 py-1 text-brand-hover hover:bg-hover" onMouseDown={(e) => { e.preventDefault(); void search.refetch(); }}>Retry</button></li>}
       </ul>
+      {/* Outside the listbox: a listbox holds only options (axe aria-required-children; a bare li there is a stray listitem). */}
+      {loading && <div className="px-2 py-1.5" aria-busy="true"><Skeleton className="h-4 w-40" /></div>}
+      {failed && !items.length && <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[12.5px] text-muted" role="alert">{LOAD_ERROR_TITLE}.<button type="button" className="rounded px-2 py-1 text-brand-hover hover:bg-hover" onMouseDown={(e) => { e.preventDefault(); void search.refetch(); }}>Retry</button></div>}
     </div>
   ) : null;
   const toTokens = (text: string) => labelsToTokens(text, map.current);
