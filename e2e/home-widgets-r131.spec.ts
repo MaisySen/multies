@@ -116,11 +116,15 @@ test.describe("R131 home widgets", () => {
     await page.getByTestId("down-tasks").click();
     await expect.poll(() => order(page)).toEqual(["calendar", "tasks", "inbox", "links", "overview", ...BILL]);
     // keyboard: space picks up, arrow moves, space drops
+    const startPlace = (await order(page)).indexOf("overview") + 1; // its place before the move
     await page.getByTestId("drag-overview").focus();
     await page.keyboard.press("Space");
     await expect(page.getByTestId("drag-overview")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText(/^(Picked up .+|.+ is over place \d+ of \d+\.)$/)).toBeAttached(); // the keyboard move is listening
     await page.keyboard.press("ArrowUp");
-    await page.waitForTimeout(400);
+    // Drop only once the move has landed: the widget's own live announcement says which place it is over now (the
+    // keyboard sensor measures on the next frames, which a busy machine delays past a fixed wait).
+    await expect(page.getByText(new RegExp(`is over place [1-${startPlace - 1}] of \\d+\\.`))).toBeAttached({ timeout: 10_000 });
     await page.keyboard.press("Space");
     // the drop is done when nothing is held any more
     await expect(page.getByTestId("widget-grid").locator('[aria-pressed="true"]')).toHaveCount(0);
