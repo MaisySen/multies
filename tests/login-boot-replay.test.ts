@@ -21,7 +21,7 @@ class El {
   removeAttribute(n: string) { this.attrs.delete(n); }
   append(...els: El[]) { for (const e of els) { e.parent = this; this.children.push(e); } }
   contains(e: El | null): boolean { for (let p = e; p; p = p.parent) if (p === this) return true; return false; }
-  closest(sel: string) { const tags = sel.split(",").map((x) => x.trim().toUpperCase()); for (let p: El | null = this; p; p = p.parent) if (tags.includes(p.tagName)) return p; return null; }
+  closest(sel: string): El | null { const tags = sel.split(",").map((x) => x.trim().toUpperCase()); return tags.includes(this.tagName) ? this : this.parent?.closest(sel) ?? null; }
   querySelectorAll(sel: string): El[] { const tag = sel.toUpperCase(); const out: El[] = []; const walk = (e: El) => { for (const c of e.children) { if (c.tagName === tag) out.push(c); walk(c); } }; walk(this); return out; }
   click() { this.clicks++; }
 }
