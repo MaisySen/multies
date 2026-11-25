@@ -6,6 +6,13 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## MPT-10 Every app page has a menu home (a check in CI) (2026-11-25)
+
+- Tests and test data only. No product behaviour changed. No file under `src/web/pages` changed.
+- `tests/nav-homes-nav1.test.ts` reads every `/app` route in `src/web/router.tsx`. It skips detail routes and redirects. It fails when a page has no rail entry, Settings pane, Tools tile or declared parent, and it names each such page.
+- `src/shared/nav-parents.ts` lists 11 pages that open from a parent page, each with the file that links to it. It lists 3 pages with no home yet (Analyses, Staff and Automation rules), each with the NAV1 slice that will give it a home.
+- `docs/testing.md` has a new rule: every new app page gets a menu home or a declared parent.
+
 ## VID2 Call videos: pause, speaker or gallery view, crash safe, chat and transcript files (2026-11-03)
 
 - Pause and resume while recording (flag VIDEO_REC_VID2, needs VIDEO_REC_VID1; no migration, no new binding, nothing uploaded): MediaRecorder pause keeps paused time out of the file, the banner, a dot on every tile and a pill in the call header switch to Paused for everyone, and the transcript mix goes silent while paused.
