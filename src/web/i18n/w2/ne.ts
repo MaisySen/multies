@@ -1197,6 +1197,7 @@ export const ne: Bundle = {
   "meetings.waiting_to_join": "जोडिन पर्खँदै",
   "meetings.waiting_to_join_length": "जोडिन पर्खँदै ({length})",
   "meetings.wants_to_join": "जोडिन चाहनुहुन्छ",
+  "meetings.your_request_code": "तपाईंको कोड: {code}. होस्टले कुन अनुरोध तपाईंको हो भनेर सोधे भने भन्नुहोस्।",
   "meetings.watch_now": "अहिल्यै हेर्नुहोस्",
   "meetings.watching": "हेर्दै",
   "meetings.watching_now": "अहिले हेर्दै)",

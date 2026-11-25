@@ -1197,6 +1197,7 @@ export const hi: Bundle = {
   "meetings.waiting_to_join": "जुड़ने का इंतज़ार",
   "meetings.waiting_to_join_length": "जुड़ने का इंतज़ार ({length})",
   "meetings.wants_to_join": "जुड़ना चाहते हैं",
+  "meetings.your_request_code": "आपका कोड: {code}. अगर होस्ट पूछे कि आपका अनुरोध कौन सा है, तो उन्हें बताएँ।",
   "meetings.watch_now": "अभी देखें",
   "meetings.watching": "देख रहे हैं",
   "meetings.watching_now": "अभी देख रहे हैं)",

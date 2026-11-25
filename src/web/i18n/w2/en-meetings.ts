@@ -367,6 +367,7 @@ export const enMeetings = {
   "meetings.waiting_to_join": "Waiting to join",
   "meetings.waiting_to_join_length": "Waiting to join ({length})",
   "meetings.wants_to_join": "wants to join",
+  "meetings.your_request_code": "Your code: {code}. Tell the host if they ask which request is yours.",
   "meetings.watch_now": "Watch now",
   "meetings.watching": "Watching",
   "meetings.watching_now": "watching now)",

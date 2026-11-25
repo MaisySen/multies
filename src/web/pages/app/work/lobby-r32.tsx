@@ -23,6 +23,10 @@ import "@/web/i18n/w2/en-meetings"; // R104B
 export interface LobbyAsk { lobbyId: string | null; status: "pending" | "admitted"; waitingRoom: boolean }
 type GuestStatus = "pending" | "admitted" | "denied" | "expired";
 export interface Waiting { id: string; name: string; status: "pending"; askedAt: string }
+/** Review Z10: a short code per request (the end of its id), shown to the guest and on the host's row, so two people
+ * asking under the same name can be told apart. */
+export const requestCode = (lobbyId: string) => lobbyId.replace(/[^A-Za-z0-9]/g, "").slice(-4).toUpperCase();
+const askedTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 interface LobbyList { meetingId: string; guestsWait: boolean; waiting: Waiting[] }
 
 /** Page-local keys on a focused request row (listed in the command registry as local). */
@@ -95,6 +99,7 @@ export function GuestLobby({ token, lobbyId, name, prefs, title, onAdmitted, onL
         <h2 id="lobby-heading" className="text-lg font-semibold tracking-tight" data-testid="lobby-state" data-state={status}>{heading}</h2>
         <p className="text-[13px] text-muted">{body}</p>
         <p className="text-[12.5px] text-subtle">{title}</p>
+        {status === "pending" && <p className="text-[12.5px] text-subtle" data-testid="lobby-code">{tr("meetings.your_request_code", { code: requestCode(lobbyId) })}</p>}
         <div className="mt-1 flex gap-2">
           {status === "expired" && <Button onClick={onAskAgain} data-testid="lobby-ask-again">{tr("meetings.ask_again")}</Button>}
           <Button variant={status === "pending" ? "ghost" : "secondary"} onClick={onLeave} data-testid="lobby-leave">{status === "pending" ? tr("meetings.leave") : tr("common.back")}</Button>
@@ -158,7 +163,8 @@ export function LobbyRequests({ meetingId, className }: { meetingId?: string; cl
         {waiting.map((w) => (
           <li key={w.id} tabIndex={0} onKeyDown={(e) => onKey(e, w.id)} aria-label={tr("meetings.name_wants_to_join_press_a_to_admit_or_d_to_deny", { name: w.name })}
             className="flex items-center gap-2 rounded-xl px-2 py-1.5 outline-none transition-colors duration-150 hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none" data-testid="lobby-row">
-            <span className="min-w-0 flex-1 truncate text-[13px]"><span className="font-medium">{w.name}</span> <span className="text-muted">{tr("meetings.wants_to_join")}</span></span>
+            <span className="min-w-0 flex-1 truncate text-[13px]"><span className="font-medium">{w.name}</span> <span className="text-muted">{tr("meetings.wants_to_join")}</span>
+              <span className="ml-1 text-[12px] text-subtle" data-testid="lobby-row-meta"><time dateTime={w.askedAt}>{askedTime(w.askedAt)}</time> · <span className="font-mono">{requestCode(w.id)}</span></span></span>
             <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "deny" })} aria-label={tr("meetings.deny_name", { name: w.name })} title={tr("meetings.deny_d")}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="lobby-deny"><IconUserX className="h-4 w-4" aria-hidden /></button>
             <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "admit" })} aria-label={tr("meetings.admit_name", { name: w.name })} title={tr("meetings.admit_a")}
