@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import type { BulkCall } from "@/web/lib/mail-selection";
 import { startToast, toastReduce, toastView, UNDONE_MS, type ToastEvent, type ToastState } from "@/web/lib/bulk-toast-r33";
+import { randomId } from "@/shared/random";
 
 export interface JobBody {
   client_job_id: string; action: "read" | "unread" | "star" | "unstar" | "archive" | "inbox" | "spam" | "trash" | "snooze" | "move";
@@ -28,7 +29,7 @@ export type BulkOp =
 interface Live { key: string; state: ToastState; op: BulkOp; jobId?: string; timer?: ReturnType<typeof setTimeout> }
 
 /** A client job id: letters and digits, made here so a retried request continues the same job. */
-export const newJobId = () => `job_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+export const newJobId = () => `job_${Date.now().toString(36)}_${randomId(8)}`;
 
 export function useBulkOps(undoMs: number) {
   const live = useRef<Live | null>(null);

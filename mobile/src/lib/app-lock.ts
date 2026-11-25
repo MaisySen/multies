@@ -51,9 +51,12 @@ const sha256: Digest = async (s) => {
   if (!C) throw new Error("crypto unavailable");
   return C.digestStringAsync(C.CryptoDigestAlgorithm.SHA256, s);
 };
+/** A 16 byte salt from a cryptographic source. With none it throws, so no PIN is ever saved with a guessable salt. */
 export function newSalt(): string {
   const C = crypto();
-  const bytes = C?.getRandomBytes ? C.getRandomBytes(16) : Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+  const web = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto;
+  const bytes = C?.getRandomBytes ? C.getRandomBytes(16) : web?.getRandomValues ? web.getRandomValues(new Uint8Array(16)) : null;
+  if (!bytes) throw new Error("This phone cannot make a secure PIN right now.");
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 

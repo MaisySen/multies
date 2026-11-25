@@ -7,6 +7,7 @@
  * them all (lib/sw-client.ts clearOfflineData). Files over 50 MB are not kept. Every call fails quietly: private mode or
  * a full disk only means no restore.
  */
+import { randomId } from "@/shared/random";
 const DB = "multies-kept-files";
 const STORE = "files";
 const TAB_KEY = "multies-tab-id";
@@ -20,7 +21,7 @@ export function tabId(store: Pick<Storage, "getItem" | "setItem"> | null = safeS
   try {
     const have = store?.getItem(TAB_KEY);
     if (have) return have;
-    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    const id = `${Date.now().toString(36)}${randomId(8)}`;
     store?.setItem(TAB_KEY, id);
     return id;
   } catch { return "none"; }

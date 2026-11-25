@@ -60,7 +60,7 @@ Mutating REST API calls accept an `Idempotency-Key` header (Stripe semantics): a
 ## Dependency and code scanning
 
 - Dependabot opens weekly grouped updates for npm, GitHub Actions and Docker images, and security updates as soon as an advisory exists (`.github/dependabot.yml`).
-- Semgrep (community edition, no account) runs the OWASP Top 10, TypeScript, React, Node and secrets rulesets on every push and fails CI on a finding (`.github/workflows/security.yml`). CodeQL is free only for public repositories, so it switches on when this one is public or has GitHub Advanced Security.
+- Semgrep (community edition, no account) runs the OWASP Top 10, TypeScript, React, Node and secrets rulesets on every push (`.github/workflows/security.yml`). An ERROR finding fails CI; the full report (warnings too) is printed and kept as a SARIF artifact for 14 days. `.semgrepignore` leaves out tests (`tests/`, `e2e/`, `mobile/__tests__/`), `load/` and generated files. Randomness anyone could guess at (ids in links, request ids, salts) comes from `src/shared/random.ts` (`crypto.getRandomValues`); a deliberate exception (jitter, sampling, a user's own regex that is already checked) carries `// nosemgrep: <rule id> (reason)`. CodeQL is free only for public repositories, so it switches on when this one is public or has GitHub Advanced Security.
 - CI fails when `npm audit` finds a high or critical issue in shipped dependencies, or a critical one anywhere.
 - The OWASP ZAP baseline scan runs weekly against the preview and production (`.github/workflows/zap.yml`). Accepted findings and the reason for each are in `.zap/rules.tsv`. The latest results are in [security/zap-baseline.md](security/zap-baseline.md).
 

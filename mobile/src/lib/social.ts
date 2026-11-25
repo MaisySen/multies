@@ -213,7 +213,7 @@ export const PHONE_CONNECT_APPS = ["facebook", "instagram", "linkedin", "pintere
 
 /** One key per post being written, so a retried request never makes the post twice. */
 export function newPostKey(): string {
-  return `sp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `sp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator (an idempotency key that only has to differ between this phone's posts; not a secret)
 }
 
 /* ---------------------------------------------------------------- 1.10.6: results, sync with the networks, delete */

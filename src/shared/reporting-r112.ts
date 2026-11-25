@@ -2,6 +2,7 @@
  * R112 Anonymous reporting channel and data requests (REPORTING_R112): shared rules, labels and deadline math.
  * Used by the server (services/suite/reporting-r112.ts, data-requests-r112.ts) and the web pages.
  */
+import { randomBytes } from "./random";
 
 export const REPORT_STATUSES = ["new", "acknowledged", "investigating", "closed"] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
@@ -78,7 +79,7 @@ export function normalisePassphrase(v: string): string {
 
 /** What a trapped bot is shown: looks like a real answer, matches nothing. */
 export function randomPreview(): { caseNo: string; passphrase: string } {
-  const r = (n: number) => Uint8Array.from({ length: n }, () => Math.floor(Math.random() * 256));
+  const r = (n: number) => randomBytes(n);
   return { caseNo: formatCaseNo(r(8)), passphrase: formatPassphrase(r(20)) };
 }
 

@@ -20,6 +20,7 @@ import { actorOf, assertWritable, recordWrite, sortableId, type SuiteActor } fro
 import { evaluate, FormulaError, parse, references, type FValue, type Node } from "./suite/formula";
 import { renameReferences } from "./suite/formula-rename";
 import { getDetail } from "./suite/drive-r101";
+import { randomId } from "@/shared/random";
 import {
   cellText, coerceCell, convertValue, FIELD_TYPES, isComputed, LIMITS, newOptionLabels, OPTION_COLOURS, opsFor, searchTextOf, TEMPLATES, toCsv,
   type LinkLabel, type TCell, type TField, type TFieldConfig, type TFieldType, type TFilter, type TSort, type ViewConfig, type ViewType,
@@ -123,7 +124,7 @@ export async function listTables(deps: Deps, actor: SuiteActor) {
 // ---------------------------------------------------------------- creating a table
 
 function optionList(labels: string[]): { id: string; label: string; color: string }[] {
-  return labels.slice(0, LIMITS.options).map((label, i) => ({ id: `o${i + 1}${Math.random().toString(36).slice(2, 6)}`, label: label.slice(0, LIMITS.name), color: OPTION_COLOURS[i % OPTION_COLOURS.length] }));
+  return labels.slice(0, LIMITS.options).map((label, i) => ({ id: `o${i + 1}${randomId(4)}`, label: label.slice(0, LIMITS.name), color: OPTION_COLOURS[i % OPTION_COLOURS.length] }));
 }
 async function insertField(deps: Deps, orgId: string, docId: string, f: { name: string; type: TFieldType; config: TFieldConfig; position: number; width?: number | null }) {
   const id = sortableId("fld", deps.now().getTime());

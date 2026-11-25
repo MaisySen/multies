@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconPenLine } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
+import { randomId } from "@/shared/random";
 
 /**
  * Round 22 (R22.3): live presence in a shared inbox thread. The open thread (or a reply to it in
@@ -18,7 +19,7 @@ const EMPTY: PresenceView = { people: [], notes: [] };
 /** PRIV1b (P15, review M1): mailboxId is the copy on screen, so the room is that copy's and nobody on another copy sees us. */
 export function useThreadPresence(threadId: string | null | undefined, state: PresenceState, mailboxId?: string | null): PresenceView {
   const [view, setView] = useState<PresenceView>(EMPTY);
-  const clientId = useMemo(() => Math.random().toString(36).slice(2) + Date.now().toString(36), []);
+  const clientId = useMemo(() => randomId(11) + Date.now().toString(36), []);
   const stateRef = useRef(state);
   const beatRef = useRef<() => void>(() => {});
   stateRef.current = state;

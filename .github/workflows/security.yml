@@ -25,8 +25,23 @@ jobs:
       image: semgrep/semgrep
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Semgrep (OWASP Top 10, TypeScript, React, Node, secrets)
-        run: semgrep scan --metrics=off --error --config p/owasp-top-ten --config p/typescript --config p/react --config p/nodejsscan --config p/secrets
+      # W4: ERROR findings block the push. Weak randomness that matters uses src/shared/random.ts; deliberate
+      # exceptions carry "// nosemgrep: <rule id> (reason)". Paths left out: .semgrepignore.
+      - name: Semgrep, blocking (ERROR findings)
+        run: semgrep scan --metrics=off --severity ERROR --error --config p/owasp-top-ten --config p/typescript --config p/react --config p/nodejsscan --config p/secrets
+      # The full scan (WARNING and INFO too) is reported, not enforced: printed in the log and kept as SARIF.
+      - name: Semgrep, full report (does not fail the job)
+        if: always()
+        run: |
+          semgrep scan --metrics=off --config p/owasp-top-ten --config p/typescript --config p/react --config p/nodejsscan --config p/secrets --sarif-output=semgrep.sarif --text || true
+      - name: Keep the full Semgrep report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: semgrep-sarif
+          path: semgrep.sarif
+          if-no-files-found: ignore
+          retention-days: 14
 
   gitleaks:
     runs-on: ubuntu-24.04

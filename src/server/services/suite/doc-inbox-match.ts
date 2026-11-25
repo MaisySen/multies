@@ -175,7 +175,7 @@ export function patternProblem(match: DocMatch, pattern: string): string | null 
     if (/[*+}]/.test(g[1]) || g[1].includes("|")) return "This pattern repeats a group that repeats. Simplify it.";
   }
   if (/\([^()]*\([^()]*[*+][^()]*\)[^()]*\)\s*[*+{]/.test(stripped)) return "This pattern repeats a group that repeats. Simplify it.";
-  try { new RegExp(p, "u"); } catch { return "This pattern is not valid."; }
+  try { new RegExp(p, "u"); } catch { return "This pattern is not valid."; } // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (compiling the pattern patternProblem just checked: length, no back references, no nested repeats)
   return null;
 }
 
@@ -226,7 +226,7 @@ export function ruleMatches(rule: MatchRule, ctx: MatchCtx): boolean {
       });
     }
     case "regex": {
-      const re = new RegExp(p, cs ? "u" : "iu");
+      const re = new RegExp(p, cs ? "u" : "iu"); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (a pattern patternProblem accepted when the rule was saved; run in chunks with a time budget)
       const now = ctx.now ?? (() => Date.now());
       const started = now();
       const step = DOC_LIMITS.regexChunk;

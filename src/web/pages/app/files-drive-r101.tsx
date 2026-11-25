@@ -160,7 +160,7 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
   const upload = useCallback(async (files: File[], into?: string | null) => {
     if (!canAdd && !into) { toast.error(view === "brand" ? tr("files.only_admins_can_add_to_the_brand_library") : tr("files.you_can_t_add_files_here")); return; }
     for (const file of files) {
-      const id = Date.now() + Math.random();
+      const id = Date.now() + Math.random(); // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator (a key for an upload row on screen)
       if (file.size > DRIVE_LIMITS.fileBytes) { setUploads((u) => [...u, { id, name: file.name, pct: 0, error: `Bigger than ${Math.round(DRIVE_LIMITS.fileBytes / (1024 * 1024))} MB` }]); continue; }
       setUploads((u) => [...u, { id, name: file.name, pct: 0 }]);
       const qs = new URLSearchParams({ space: SPACE_FOR[view as DriveView] ?? "team", name: file.name });

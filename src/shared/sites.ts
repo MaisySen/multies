@@ -2,6 +2,7 @@
  * R123: Sites. Typed blocks (never HTML from people), their checks and the one renderer used by the public page and the
  * editor's live preview, so the preview is exactly what visitors get. Pure functions, no server or browser APIs.
  */
+import { randomId } from "./random";
 
 export type BlockType = "hero" | "heading" | "text" | "image" | "button" | "quote" | "features" | "divider" | "form" | "booking";
 export interface FeatureItem { title: string; text: string }
@@ -78,7 +79,7 @@ export const safeImageUrl = (raw: string): string | null => {
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v : "").replace(/\r\n?/g, "\n").slice(0, max);
 const oneLine = (v: unknown, max: number) => str(v, max).replace(/\s+/g, " ").trim();
-const idOf = (v: unknown, i: number) => (typeof v === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(v) ? v : `b${i}${Math.random().toString(36).slice(2, 8)}`);
+const idOf = (v: unknown, i: number) => (typeof v === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(v) ? v : `b${i}${randomId(6)}`);
 
 export class BlockError extends Error {}
 

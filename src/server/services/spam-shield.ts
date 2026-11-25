@@ -55,5 +55,5 @@ export async function requireShield(deps: Deps, form: string, a: ShieldAnswer | 
   const now = deps.now().getTime();
   const spent = await deps.db.insert(shieldSpent).values({ id: `${form}:${a!.challenge.id}`, expiresAt: a!.challenge.expiresAt }).onConflictDoNothing().returning({ id: shieldSpent.id });
   if (!spent.length) throw new HttpError(422, "spam_check_failed", SHIELD_MESSAGE, { reason: "reused" });
-  if (Math.random() < 0.02) await deps.db.delete(shieldSpent).where(lt(shieldSpent.expiresAt, now)).catch(() => undefined);
+  if (Math.random() < 0.02) await deps.db.delete(shieldSpent).where(lt(shieldSpent.expiresAt, now)).catch(() => undefined); // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator (sampling: an occasional sweep of expired rows; nothing secret)
 }

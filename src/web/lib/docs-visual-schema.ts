@@ -11,6 +11,7 @@
  */
 import { Node, mergeAttributes } from "@tiptap/core";
 import { boardTextOf } from "../../shared/docs-visual";
+import { randomId } from "@/shared/random";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -21,7 +22,7 @@ declare module "@tiptap/core" {
   }
 }
 
-export const newBoardId = () => `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+export const newBoardId = () => `b${Date.now().toString(36)}${randomId(6)}`;
 
 export const Whiteboard = Node.create({
   name: "whiteboard",

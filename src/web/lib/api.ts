@@ -1,6 +1,7 @@
 import { markReadOnly, markWorkspaceBudget } from "./read-only";
 import { workspaceTabs } from "./workspace-tabs-r58"; // R58 (MB-245)
 import { tl } from "@/web/i18n"; // R104
+import { randomUuid } from "@/shared/random";
 
 /** Thin typed client for the Multies API. Cookies carry the session. */
 export class ApiError extends Error {
@@ -48,8 +49,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A new Idempotency-Key for one user action. Reuse it when the same action is retried. */
 export function newIdempotencyKey(prefix = "web"): string {
-  const rnd = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
-  return `${prefix}-${rnd}`;
+  return `${prefix}-${randomUuid()}`;
 }
 
 /**

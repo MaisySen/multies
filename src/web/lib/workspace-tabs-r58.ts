@@ -5,6 +5,7 @@
  * event as the fallback); a tab showing a different workspace becomes "behind": it shows a calm banner with Reload and
  * stops its own writes before they are sent, so nothing can go to the wrong workspace. No server request is added.
  */
+import { randomId } from "@/shared/random";
 
 export interface WorkspaceNote { orgId: string; name: string; tab: string; at: number }
 export interface Behind { orgId: string; name: string }
@@ -43,7 +44,7 @@ export function parseNote(raw: unknown): WorkspaceNote | null {
 }
 
 export function createWorkspaceTabs(env: WorkspaceTabsEnv = {}) {
-  const tab = env.tabId ?? Math.random().toString(36).slice(2, 10);
+  const tab = env.tabId ?? randomId(8);
   const now = env.now ?? Date.now;
   let shown: { orgId: string; name: string } | null = null;
   let behind: Behind | null = null;

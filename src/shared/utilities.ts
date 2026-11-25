@@ -336,7 +336,7 @@ export function testRegex(pattern: string, flags: string, text: string): { match
   if (!pattern) fail("Type a pattern.");
   if (/[^dgimsuyv]/.test(flags) || new Set(flags).size !== flags.length) fail("Flags can be any of g, i, m, s, u and y, once each.");
   let re: RegExp;
-  try { re = new RegExp(pattern, flags.includes("g") ? flags : flags + "g"); } catch (e) { return fail(`The pattern has a mistake: ${String((e as Error).message).replace(/^Invalid regular expression: /, "").replace(/[.]$/, "")}.`); }
+  try { re = new RegExp(pattern, flags.includes("g") ? flags : flags + "g"); } catch (e) { return fail(`The pattern has a mistake: ${String((e as Error).message).replace(/^Invalid regular expression: /, "").replace(/[.]$/, "")}.`); } // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (the person's own pattern in the Tools regex tester, run in their own browser tab with a time stop)
   const matches: RegexMatch[] = [];
   let m: RegExpExecArray | null;
   const started = Date.now();
@@ -351,5 +351,5 @@ export function testRegex(pattern: string, flags: string, text: string): { match
 
 export function replaceRegex(pattern: string, flags: string, text: string, replacement: string): string {
   testRegex(pattern, flags, "");
-  return text.replace(new RegExp(pattern, flags), replacement);
+  return text.replace(new RegExp(pattern, flags), replacement); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (the person's own pattern, in their own browser tab, already compiled by testRegex)
 }

@@ -14,6 +14,7 @@ import { assertWritable, sortableId, type SuiteActor } from "../suite/common";
 import { validTimezone } from "../suite/scheduling";
 import { assertBookingPlus } from "./resources";
 import { EVENT_MAX_CAPACITY, csvCell, formatTicketCode, makeTicketCode, normaliseTicketCode } from "@/shared/booking-plus";
+import { randomId } from "@/shared/random";
 
 type EventRow = typeof bookingEvents.$inferSelect;
 type TicketRow = typeof eventTickets.$inferSelect;
@@ -87,12 +88,12 @@ export async function saveEvent(deps: Deps, actor: SuiteActor, input: EventInput
     if (prev.capacity != null && (capacity == null || capacity > prev.capacity)) await promoteWaitlist(deps, prev.id);
     return { event: presentEvent(await eventRow(deps, actor, prev.id), deps.config.appUrl) };
   }
-  let slug = input.slug ? input.slug.trim().toLowerCase() : `${slugify(title)}-${Math.random().toString(36).slice(2, 7)}`;
+  let slug = input.slug ? input.slug.trim().toLowerCase() : `${slugify(title)}-${randomId(5)}`;
   if (!SLUG.test(slug)) throw new HttpError(422, "validation_failed", "Use 3 to 48 lowercase letters, numbers and hyphens for the link.");
   const taken = await deps.db.select({ id: bookingEvents.id }).from(bookingEvents).where(eq(bookingEvents.slug, slug)).get();
   if (taken) {
     if (input.slug) throw new HttpError(409, "slug_taken", "That link is taken. Try another.");
-    slug = `${slug.slice(0, 40)}-${Math.random().toString(36).slice(2, 6)}`;
+    slug = `${slug.slice(0, 40)}-${randomId(4)}`;
   }
   const newId = sortableId("evt", now.getTime());
   await deps.db.insert(bookingEvents).values({ id: newId, orgId: actor.orgId, createdBy: actor.userId, slug, createdAt: now, ...values });

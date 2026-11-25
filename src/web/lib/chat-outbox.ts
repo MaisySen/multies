@@ -13,6 +13,7 @@
  *
  * Pure logic with an injected sender and clock, so the tests drive it without a browser.
  */
+import { randomFloat } from "@/shared/random";
 export const HOLD_MAX_MS = 4_000;
 export const SEND_TIMEOUT_MS = 12_000;
 /** Automatic tries per client id: the first send and exactly one retry after a reconnect. */
@@ -40,11 +41,11 @@ const realClock: OutboxClock = {
   now: () => Date.now(),
   setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms),
   clearTimeout: (id) => globalThis.clearTimeout(id as never),
-  random: () => Math.random(),
+  random: randomFloat,
 };
 
 /** A client id: send time in base 36 (9 characters) and 12 random base 36 characters. */
-export function newClientMsgId(now = Date.now(), random: () => number = Math.random) {
+export function newClientMsgId(now = Date.now(), random: () => number = randomFloat) {
   let rand = "";
   for (let i = 0; i < 12; i++) rand += Math.floor(random() * 36).toString(36);
   return now.toString(36).padStart(9, "0") + rand;

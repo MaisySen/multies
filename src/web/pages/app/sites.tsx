@@ -26,6 +26,7 @@ import {
   type Block, type BlockType, type CommentInfo, type PageDetail, type PageSummary, type SiteInfo, type StatsOut, type VersionInfo,
 } from "@/shared/sites";
 import { BlogTab, useBlogOn } from "./blog-r124"; // R124
+import { randomId } from "@/shared/random";
 
 interface SiteOut { site: SiteInfo | null; canStart: boolean; suggestedSlug: string; orgName: string }
 interface Linkables { forms: { slug: string; title: string }[]; booking: { slug: string; title: string }[]; people: { id: string; name: string; role: string }[] }
@@ -313,7 +314,7 @@ function Editor({ page, site, brandColor }: { page: PageDetail; site: SiteInfo; 
   const set = (patch: Partial<Draft>) => { setD((x) => ({ ...x, ...patch })); setDirty(true); };
   const setBlock = (i: number, patch: Partial<Block>) => set({ blocks: d.blocks.map((b, j) => (j === i ? ({ ...b, ...patch } as Block) : b)) });
   const move = (i: number, dir: -1 | 1) => { const b = [...d.blocks]; const j = i + dir; if (j < 0 || j >= b.length) return; [b[i], b[j]] = [b[j], b[i]]; set({ blocks: b }); };
-  const add = (t: BlockType) => set({ blocks: [...d.blocks, newBlock(t, `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`)] });
+  const add = (t: BlockType) => set({ blocks: [...d.blocks, newBlock(t, `b${Date.now().toString(36)}${randomId(3)}`)] });
   const refresh = (p: PageDetail) => { qc.setQueryData([...KEY, "page", page.id], { page: p, site, look: { brandColor } }); qc.invalidateQueries({ queryKey: [...KEY, "pages"] }); };
 
   const save = useMutation({

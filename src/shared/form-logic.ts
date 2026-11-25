@@ -195,7 +195,7 @@ export function checkLogic(fields: LogicField[]): LogicProblem[] {
 export function safePattern(p: string): boolean {
   if (typeof p !== "string" || !p || p.length > 200) return false;
   if (/\\\d/.test(p) || /\([^)]*[+*][^)]*\)[+*{]/.test(p)) return false;
-  try { new RegExp(`^(?:${p})$`); return true; } catch { return false; }
+  try { new RegExp(`^(?:${p})$`); return true; } catch { return false; } // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (checked here: up to 200 characters, no back references or nested repeats)
 }
 
 /** Keeps only the rule keys that make sense for the type, as numbers. */
@@ -383,7 +383,7 @@ export function fieldError(f: LogicField, text: string, required: boolean = f.re
   }
   if (r.minLength !== undefined && text.length < r.minLength) return `"${f.label}" needs at least ${r.minLength} characters.`;
   if (r.maxLength !== undefined && text.length > r.maxLength) return `"${f.label}" can be up to ${r.maxLength} characters.`;
-  if (r.pattern && safePattern(r.pattern) && !new RegExp(`^(?:${r.pattern})$`).test(text)) return r.patternMessage || `"${f.label}" isn't in the expected format.`;
+  if (r.pattern && safePattern(r.pattern) && !new RegExp(`^(?:${r.pattern})$`).test(text)) return r.patternMessage || `"${f.label}" isn't in the expected format.`; // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (only a pattern safePattern accepted)
   return null;
 }
 

@@ -18,6 +18,7 @@ import { RecordSettings } from "./video-vid2-ui";
 import { iosTooOld, partFileName, pickPhoneVideoType, readyVideos } from "@/web/lib/video-phone-vid3";
 import { t as tt, tr } from "@/web/i18n";
 import "@/web/i18n/w2/en-meetings"; // R104B
+import { randomId } from "@/shared/random";
 
 export const VIDEO_INTRO = "A video of the whole call is saved to this device when you stop. Nothing is uploaded.";
 export const VIDEO_TRANSCRIPT_ON = "A transcript and summary are made too, as with every recording.";
@@ -167,7 +168,7 @@ export function useVideoRecording(room: Room) {
       // VID2: every piece is kept on this device as it comes, so a crash or a closed tab loses nothing.
       const [{ PieceStore }, { idbBackend, keepStorage }] = await Promise.all([import("@/web/lib/video-rec-vid2"), import("@/web/lib/video-store-vid2")]);
       void keepStorage();
-      keep.current = new PieceStore(idbBackend, { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, meetingId: a.vid2.meetingId, title: a.vid2.title, fileName: a.fileName, mime: a.mime, startedAt: Date.now() });
+      keep.current = new PieceStore(idbBackend, { id: `${Date.now().toString(36)}${randomId(6)}`, meetingId: a.vid2.meetingId, title: a.vid2.title, fileName: a.fileName, mime: a.mime, startedAt: Date.now() });
       keep.current.onFail = (reason) => toast.warning(tr("meetings.this_video_isn_t_being_kept_safe_on_this_device"), { description: `It still records and saves when you stop. The browser said: ${reason}`, duration: 15_000 });
       await keep.current.begin();
       const q = a.vid2.quality;
@@ -242,7 +243,7 @@ export function useVideoRecording(room: Room) {
     try {
       if (m.vid2 && oldKeep) {
         const [{ PieceStore: Store }, { idbBackend }] = await Promise.all([import("@/web/lib/video-rec-vid2"), import("@/web/lib/video-store-vid2")]);
-        nextKeep = new Store(idbBackend, { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, meetingId: m.vid2.meetingId, title: m.vid2.title, fileName: partFileName(m.fileName, m.part + 1), mime: m.mime, startedAt: Date.now() });
+        nextKeep = new Store(idbBackend, { id: `${Date.now().toString(36)}${randomId(6)}`, meetingId: m.vid2.meetingId, title: m.vid2.title, fileName: partFileName(m.fileName, m.part + 1), mime: m.mime, startedAt: Date.now() });
         await nextKeep.begin();
       }
       const out = await s.rollover({ keep: nextKeep ?? undefined });

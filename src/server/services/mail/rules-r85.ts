@@ -352,7 +352,7 @@ export async function runRuleOn(deps: Deps, rule: Row, msg: typeof messages.$inf
   await deps.db.insert(mailRuleRuns).values({ id: newId("mrr"), orgId: rule.orgId, ruleId: rule.id, messageId: msg.id, fromAddress: msg.fromAddress.toLowerCase(), subject: msg.subject.slice(0, 200), status, steps: JSON.stringify(steps), createdAt: now });
   await deps.db.update(mailRules).set({ runCount: sql`${mailRules.runCount} + 1`, lastRunAt: now, lastError: status === "ok" ? null : firstError }).where(eq(mailRules.id, rule.id));
   // Keep the log to 30 days: about one run in twenty trims this rule's older rows.
-  if (Math.random() < 0.05) await deps.db.delete(mailRuleRuns).where(and(eq(mailRuleRuns.ruleId, rule.id), lt(mailRuleRuns.createdAt, new Date(now.getTime() - RUN_LOG_DAYS * DAY))));
+  if (Math.random() < 0.05) await deps.db.delete(mailRuleRuns).where(and(eq(mailRuleRuns.ruleId, rule.id), lt(mailRuleRuns.createdAt, new Date(now.getTime() - RUN_LOG_DAYS * DAY)))); // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator (sampling: about one run in twenty trims old log rows; nothing secret)
   return status;
 }
 

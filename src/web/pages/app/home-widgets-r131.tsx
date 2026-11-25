@@ -32,6 +32,7 @@ import { hoursText } from "@/shared/bill-time-td4";
 import { ApiError } from "@/web/lib/api";
 import { tr } from "@/web/i18n"; // R104B
 import "@/web/i18n/w2/en-home"; // R104B
+import { randomId } from "@/shared/random";
 
 export const homeWidgetsKey = ["home-widgets"] as const;
 const CACHE = "home-widgets-r131";
@@ -331,7 +332,7 @@ function LinkDialog({ open, onClose, onSave }: { open: boolean; onClose: () => v
     if (u && !/^[a-z][a-z0-9+.-]*:/i.test(u)) u = `https://${u}`;
     if (!t) return setErr("Give the link a name.");
     if (!isSafeLinkUrl(u)) return setErr("Use a web address that starts with http or https.");
-    onSave({ id: `l${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, title: t.slice(0, 60), url: u });
+    onSave({ id: `l${Date.now().toString(36)}${randomId(4)}`, title: t.slice(0, 60), url: u });
   };
   return (
     <Dialog open={open} onClose={onClose} title={tr("home.add_a_quick_link")} footer={<><Button variant="secondary" onClick={onClose}>{tr("common.cancel")}</Button><Button onClick={save} data-testid="link-save">{tr("home.add_link")}</Button></>}>

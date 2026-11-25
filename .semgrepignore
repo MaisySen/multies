@@ -1,0 +1,28 @@
+# Semgrep's own defaults (a .semgrepignore replaces them, so they are repeated here).
+:include .gitignore
+.git/
+node_modules/
+build/
+dist/
+vendor/
+.env/
+.venv/
+.tox/
+*.min.js
+.npm/
+.yarn/
+test/
+tests/
+*_test.go
+.semgrep
+.semgrep_logs/
+
+# W4: test and load code, not shipped. Playwright specs, the phone app's Jest tests and the k6 load scripts use
+# throwaway passwords, random test data and patterns that are fine in a test.
+e2e/
+mobile/__tests__/
+load/
+
+# Generated from files Semgrep already reads (migrations, the docs bundle).
+src/server/db/*.generated.ts
+src/server/generated/

@@ -62,7 +62,7 @@ const realClock: Clock = {
   clearTimeout: (id) => globalThis.clearTimeout(id as never),
   setInterval: (fn, ms) => globalThis.setInterval(fn, ms),
   clearInterval: (id) => globalThis.clearInterval(id as never),
-  random: () => Math.random(),
+  random: () => Math.random(), // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator (reconnect jitter only)
 };
 
 /** Delay before reconnect attempt n (0 based): doubling from 1 s up to 30 s, each with plus or minus 30% jitter. */
