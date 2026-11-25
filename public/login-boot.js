@@ -33,7 +33,9 @@
     if (!b || !root.contains(b)) return;
     e.preventDefault();
     e.stopPropagation();
-    pending = { tag: b.tagName, id: b.getAttribute("data-testid"), text: (b.textContent || "").trim() };
+    // The drawn card stays in the page until React's first commit replaces it: remember it, so the replay never
+    // presses the drawn button again (nothing listens to it any more).
+    pending = { tag: b.tagName, id: b.getAttribute("data-testid"), text: (b.textContent || "").trim(), drawn: root.firstElementChild };
     b.setAttribute("aria-busy", "true");
   }, true);
   // The marker comes off just before React renders, and on a busy phone its first commit can take a while: look for
@@ -45,6 +47,7 @@
     var list = root ? root.querySelectorAll(pending.tag === "SUMMARY" ? "summary" : "button") : [];
     for (var i = 0; i < list.length && !found; i++) {
       var c = list[i];
+      if (pending.drawn && pending.drawn.contains(c)) continue;
       if ((pending.id && c.getAttribute("data-testid") === pending.id) || (!pending.id && (c.textContent || "").trim() === pending.text)) found = c;
     }
     if (!found && tries < 100) { setTimeout(function () { replay(tries + 1); }, 50); return; }
