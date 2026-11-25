@@ -64,7 +64,7 @@ test("add a custom field, set it on a task and filter the list by it", async ({ 
   await picker.getByRole("button", { name: "Apply" }).click();
   await expect(page).toHaveURL(/field\./);
   await expect(page.getByText("Region is VIC")).toBeVisible();
-  const rows = page.getByTestId("task-table").locator("tbody tr");
+  const rows = page.getByTestId("task-table").locator("tbody tr[data-task]"); // W4: the table ends with an Add task row
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText("Check SPF");
 });

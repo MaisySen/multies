@@ -42,8 +42,12 @@ describe("team invitations", () => {
     expect(denied.status).toBe(404);
     expect((await max.post("/api/domains", { name: "nope.io" })).status).toBe(403);
 
-    // Used links can't be replayed.
-    expect((await max.post(`/api/invites/${tokenOf(inv.body.link)}/accept`)).status).toBe(410);
+    // Used links can't be replayed. W4 (intended change): opened again by the member it made, the link opens the
+    // workspace (200) and changes nothing (still two members, same role and grants below); anyone else still gets 410
+    // (tests/invite-accept-member-w4.test.ts).
+    const again = await max.post(`/api/invites/${tokenOf(inv.body.link)}/accept`);
+    expect(again.status).toBe(200);
+    expect(again.body).toMatchObject({ role: "member" });
     const team = await owner.get("/api/team");
     expect(team.body.members).toHaveLength(2);
     expect(team.body.invites).toHaveLength(0);
