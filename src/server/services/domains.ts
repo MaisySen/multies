@@ -258,8 +258,11 @@ const mailboxKept = (m: unknown) => sql`(${m}.kind = 'agent'
   or exists (select 1 from ${agentMailboxAccess} a where a.mailbox_id = ${m}.id))`;
 const claimKept = (domainId: unknown) => sql`exists (select 1 from ${mailboxes} m where m.domain_id = ${domainId} and ${mailboxKept(sql.raw("m"))})`;
 
-/** Wave 3 review Y1: the non-routable name a released claim's row (and its kept mailboxes) move to. */
-export const releasedDomainName = (id: string) => `${id.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.released.invalid`;
+/**
+ * Wave 3 review Y1: the non-routable name a released claim's row (and its kept mailboxes) move to. Review Z2: under
+ * .invalid with an underscore label, so no workspace can add it first (domainNameSchema refuses both), and unique by id.
+ */
+export const releasedDomainName = (id: string) => `${id.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}._released.invalid`;
 
 /**
  * PRIV1b (pending claims): a domain name is unique across every workspace, so the first workspace to add a name holds
@@ -299,30 +302,40 @@ export async function releaseStaleDomainClaims(deps: Deps, limit = 25): Promise<
     .orderBy(asc(domains.createdAt)).limit(limit).all();
   const released: string[] = [];
   for (const { d } of rows) {
-    if (d.releasedAt === null && !(await deps.db.select({ id: domains.id }).from(domains).where(releasable(d.id)).get())) {
-      if (await releaseKeptClaim(deps, d, hardReleasable(d.id))) released.push(d.name);
-      continue;
+    // Review Z2: one claim that fails to release is reported and the pass goes on to the next (it sorted first, so a
+    // throw here used to stop every later pass).
+    try {
+      if (await releaseOneClaim(deps, d, releasable, hardReleasable)) released.push(d.name);
+    } catch (err) {
+      deps.reportError?.(err, { where: "domains.releaseClaim", domainId: d.id });
     }
-    // Wave 2 review X7: checked again right before the mail server accounts go (mail, a check or a grant that came in
-    // since the read keeps the claim and its accounts), and once more in the delete.
-    if (!(await deps.db.select({ id: domains.id }).from(domains).where(releasable(d.id)).get())) continue;
-    const empty = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.domainId, d.id)).all();
-    // Their mail server accounts go first (the account row cascades with the mailbox, so after the delete it is lost).
-    if (empty.length) {
-      const { deprovisionMailbox } = await import("./mailserver");
-      for (const m of empty) await deprovisionMailbox(deps, d.orgId, m.id).catch((err: unknown) => deps.reportError?.(err, { where: "domains.releaseClaim.mailbox" }));
-    }
-    const gone = await deps.db.delete(domains).where(releasable(d.id)).returning({ id: domains.id });
-    if (!gone.length) continue;
-    released.push(d.name);
-    if (d.providerDomainId) await removeProviderDomain(deps, d.providerDomainId).catch((err) => deps.reportError?.(err, { where: "domains.releaseClaim" }));
-    await audit(deps.db, { orgId: d.orgId, actorUserId: null, action: "domain.claim_released", targetType: "domain", targetId: d.id, metadata: { name: d.name, days: DOMAIN_CLAIM_DAYS, ...(empty.length ? { emptyMailboxes: empty.length } : {}) } }).catch(() => undefined);
   }
   if (released.length) {
     deps.log?.info("domains.claims_released", { count: released.length });
     if (rows.some((r) => r.d.providerDomainId)) await retryQueuedProviderDomains(deps).catch((err) => deps.reportError?.(err, { where: "domains.retryQueued" }));
   }
   return released;
+}
+
+type ClaimCheck = (id?: string) => ReturnType<typeof and>;
+async function releaseOneClaim(deps: Deps, d: DomainRow, releasable: ClaimCheck, hardReleasable: ClaimCheck): Promise<boolean> {
+  if (d.releasedAt === null && !(await deps.db.select({ id: domains.id }).from(domains).where(releasable(d.id)).get())) {
+    return releaseKeptClaim(deps, d, hardReleasable(d.id));
+  }
+  // Wave 2 review X7: checked again right before the mail server accounts go (mail, a check or a grant that came in
+  // since the read keeps the claim and its accounts), and once more in the delete.
+  if (!(await deps.db.select({ id: domains.id }).from(domains).where(releasable(d.id)).get())) return false;
+  const empty = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.domainId, d.id)).all();
+  // Their mail server accounts go first (the account row cascades with the mailbox, so after the delete it is lost).
+  if (empty.length) {
+    const { deprovisionMailbox } = await import("./mailserver");
+    for (const m of empty) await deprovisionMailbox(deps, d.orgId, m.id).catch((err: unknown) => deps.reportError?.(err, { where: "domains.releaseClaim.mailbox" }));
+  }
+  const gone = await deps.db.delete(domains).where(releasable(d.id)).returning({ id: domains.id });
+  if (!gone.length) return false;
+  if (d.providerDomainId) await removeProviderDomain(deps, d.providerDomainId).catch((err) => deps.reportError?.(err, { where: "domains.releaseClaim" }));
+  await audit(deps.db, { orgId: d.orgId, actorUserId: null, action: "domain.claim_released", targetType: "domain", targetId: d.id, metadata: { name: d.name, days: DOMAIN_CLAIM_DAYS, ...(empty.length ? { emptyMailboxes: empty.length } : {}) } }).catch(() => undefined);
+  return true;
 }
 
 /**

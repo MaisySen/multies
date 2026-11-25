@@ -22,7 +22,9 @@ export const domainNameSchema = z
   .pipe(
     z.string()
       .max(253)
-      .regex(/^(?=.{1,253}$)(?!-)([a-z0-9-]{1,63}(?<!-)\.)+[a-z]{2,63}$/, "Enter a domain like example.com"),
+      .regex(/^(?=.{1,253}$)(?!-)([a-z0-9-]{1,63}(?<!-)\.)+[a-z]{2,63}$/, "Enter a domain like example.com")
+      // Review Z2: names that can never be on the internet (RFC 6761); released claims move under .invalid.
+      .refine((s) => !/\.(invalid|localhost)$/.test(s), "Enter a real domain, like example.com"),
   );
 
 export const localPartSchema = z
