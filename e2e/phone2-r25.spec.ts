@@ -221,7 +221,13 @@ test("walk: nav drawer, compose, task panel, meeting, docs toolbar and Settings 
   expect(barBox.x + barBox.width).toBeLessThanOrEqual(390);
   expect(await bar.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   for (const b of await bar.getByRole("button").all()) await atLeast40Settled(`toolbar ${await b.getAttribute("aria-label")}`, b);
-  await atLeast40Settled("Delete doc", page.getByRole("button", { name: "Delete doc" }));
+  // PAR1 moved Delete doc (and Save as template) off the phone bar into its More sheet: both are 40 px targets there.
+  const more = page.getByRole("button", { name: "More doc actions" });
+  await atLeast40Settled("More doc actions", more);
+  await more.tap();
+  await atLeast40Settled("Delete doc", page.getByRole("menu").getByRole("menuitem", { name: "Delete doc" }));
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
   await bar.getByRole("button", { name: "Link a page or task" }).tap();
   await noSidewaysScroll("docs link picker");
   await page.keyboard.press("Escape");
