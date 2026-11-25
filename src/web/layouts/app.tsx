@@ -170,7 +170,8 @@ export function AppLayout() {
   const sidebarHidden = sidebarHiddenOn(layout, loc.pathname);
   const desktop = useMediaQuery("(min-width: 1024px)");
   const mainHost = useStableHost("flex h-full min-h-0 min-w-0 flex-1 flex-col");
-  // R40: the desktop sidebar renders into its own host, placed by the resizable panes (shell-panes.tsx) when they load.
+  // R40: the desktop sidebar renders into its own host, so the resizable panes arriving after the first render move it
+  // instead of drawing it again (an open menu would close).
   const sidebarHost = useStableHost("h-full");
   useSidebarShortcut();
   const projectParam = loc.pathname === "/app/tasks" ? new URLSearchParams(loc.search).get("project") : null;
@@ -419,10 +420,12 @@ export function AppLayout() {
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">{tr("shell.create_something")}</a>}
       {desktop ? (<>
         <IconRail sections={sections} active={section.id} counts={navCounts} footer={accountButton} />
-        {/* R40: the resizable panes load only on a computer (started with this file). Until they arrive the sidebar and
-            the page render into their hosts off screen and are placed once, so nothing is moved later (a move would
-            close an open menu or take focus away). */}
-        <Suspense fallback={<div className="flex min-w-0 flex-1" aria-busy="true" />}>
+        {/* R40: the resizable panes load only on a computer (started with this file). Until they arrive the page sits
+            beside a fixed sidebar; both render into stable hosts, so the panes only move them (no redraw, focus kept). */}
+        <Suspense fallback={<div className="flex min-w-0 flex-1">
+          {!sidebarHidden && <div className="glass-sidebar w-[248px] shrink-0">{sidebarSlot}</div>}
+          {mainSlot}
+        </div>}>
           <ShellPanes layoutGen={layoutGen} sidebarHidden={sidebarHidden} inspectorOpen={inspectorOpen} sidebar={sidebarSlot} main={mainSlot} />
         </Suspense>
       </>) : (<>

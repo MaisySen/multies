@@ -17,14 +17,28 @@ export function useStableHost(className: string): HTMLDivElement {
   return host;
 }
 
-/** Where the host sits in the current layout. Unmounting the slot only takes the node out; the page stays mounted. */
+/** What had focus inside a host when its slot let it go, so the next slot can give it back. */
+const focusInHost = new WeakMap<HTMLElement, HTMLElement>();
+
+/**
+ * Where the host sits in the current layout. Unmounting the slot only takes the node out; the page stays mounted.
+ * Taking a node out of the document drops its focus, so focus inside the host is put back once the next slot holds
+ * it (the desktop panes arriving after the first render, R40, or crossing the 1024 px breakpoint).
+ */
 export function HostSlot({ host, className }: { host: HTMLElement; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const slot = ref.current;
     if (!slot) return;
     slot.appendChild(host);
-    return () => { if (host.parentNode === slot) slot.removeChild(host); };
+    const back = focusInHost.get(host);
+    focusInHost.delete(host);
+    if (back && host.contains(back) && document.activeElement !== back) back.focus({ preventScroll: true });
+    return () => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && host.contains(active)) focusInHost.set(host, active);
+      if (host.parentNode === slot) slot.removeChild(host);
+    };
   }, [host]);
   return <div ref={ref} className={className} data-shell-slot="" />;
 }
