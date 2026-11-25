@@ -67,8 +67,12 @@ test("every branding action works and shows at once", async ({ page }) => {
   await row.getByRole("button", { name: "Try again" }).click();
   await expect(row).toHaveAttribute("data-state", "saved");
   await expect(row.locator("img")).toHaveCount(1);
-  // The square logo shows at the top of the sidebar right away.
-  await expect(page.getByTestId("workspace-mark-logo")).toBeVisible();
+  // The square logo shows at the top of the sidebar right away. P1 layout: Settings keeps its own list in place of the
+  // shell sidebar, so the check is on the next page (reached in the app, no reload), then back to Branding.
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: /^Home/ }).click();
+  await expect(page.getByTestId("sidebar-logo").getByTestId("workspace-mark-logo")).toBeVisible();
+  await page.goBack();
+  await expect(page.getByTestId("branding-settings")).toBeVisible();
 
   // A wrong file type is refused with plain words.
   await page.getByTestId("logo-wide_light").locator("input[type=file]").setInputFiles({ name: "x.gif", mimeType: "image/gif", buffer: Buffer.from("GIF89a") });
