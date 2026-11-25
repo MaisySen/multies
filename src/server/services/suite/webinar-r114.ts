@@ -20,6 +20,7 @@ import {
 import { randomToken, sha256Hex } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
+import { assertMeetingVisible } from "./meeting-visibility";
 import { cloudWords, isOpenPoll } from "../../../shared/chat-plus";
 
 export const ROOM_PEOPLE_LIMIT = 100;
@@ -118,7 +119,14 @@ const panelistsOf = (w: WebinarRow): Panelist[] => { try { return JSON.parse(w.p
 async function meetingFor(deps: Deps, a: SuiteActor, meetingId: string) {
   const m = await deps.db.select().from(meetings).where(and(eq(meetings.orgId, a.orgId), eq(meetings.id, meetingId), isNull(meetings.deletedAt))).get();
   if (!m) throw notFound("Meeting");
+  // Final review F1: a DM or private channel's call is a plain 404 to anyone outside that chat (the Z1 rule).
+  await assertMeetingVisible(deps, a, m);
   return m;
+}
+/** Final review F1: a call started from a chat stays with that chat; it never gets a public registration page. */
+const chatCall = (m: Pick<MeetingRow, "channelId">) => !!m.channelId;
+function assertNotChatCall(m: MeetingRow) {
+  if (chatCall(m)) throw new HttpError(409, "chat_call", "Calls started from a chat can't be webinars. Schedule a meeting for the webinar instead.");
 }
 async function webinarRow(deps: Deps, meetingId: string) {
   return deps.db.select().from(webinars).where(eq(webinars.meetingId, meetingId)).get();
@@ -136,7 +144,7 @@ const isMemberPanelist = (w: WebinarRow, a: SuiteActor) => !!a.userId && panelis
 
 /** Used when someone joins the room: who may speak. Null when the meeting is not a webinar. */
 export async function stageRole(deps: Deps, a: SuiteActor | null, m: MeetingRow): Promise<{ host: boolean; publish: boolean } | null> {
-  if (!webinarOn(deps)) return null;
+  if (!webinarOn(deps) || chatCall(m)) return null;
   const w = await webinarRow(deps, m.id);
   if (!w || !w.enabled) return null;
   if (!a) return { host: false, publish: false };
@@ -184,6 +192,7 @@ export async function updateWebinar(deps: Deps, a: SuiteActor, meetingId: string
   assertManage(a, m);
   const w = await webinarRow(deps, m.id);
   const now = deps.now();
+  if (patch.enabled) assertNotChatCall(m);
   if (!w) {
     if (patch.enabled === false) return getWebinar(deps, a, meetingId);
     if (m.status === "cancelled") throw new HttpError(409, "meeting_cancelled", "This meeting was cancelled.");
@@ -432,7 +441,7 @@ async function publicRow(deps: Deps, slug: string) {
   const w = await deps.db.select().from(webinars).where(eq(webinars.slug, slug)).get();
   if (!w || !w.enabled) throw notFound("Webinar");
   const m = await deps.db.select().from(meetings).where(and(eq(meetings.id, w.meetingId), isNull(meetings.deletedAt))).get();
-  if (!m) throw notFound("Webinar");
+  if (!m || chatCall(m)) throw notFound("Webinar");
   return { w, m };
 }
 
@@ -526,7 +535,7 @@ async function viewer(deps: Deps, token: string): Promise<Viewer> {
   if (!reg || reg.status !== "registered") throw notFound("Registration");
   const w = await webinarRow(deps, reg.meetingId);
   const m = await deps.db.select().from(meetings).where(and(eq(meetings.id, reg.meetingId), isNull(meetings.deletedAt))).get();
-  if (!w || !w.enabled || !m) throw notFound("Webinar");
+  if (!w || !w.enabled || !m || chatCall(m)) throw notFound("Webinar");
   const v = { reg, w, m };
   tokenCache.set(token, { at: now, v });
   if (tokenCache.size > 2000) tokenCache.clear();
