@@ -342,7 +342,9 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
         </div>
       )}
       {e && !isBoard && mode === "doc" && (
-        <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:-mx-1 max-sm:mt-3 max-sm:flex-nowrap max-sm:justify-between max-sm:gap-0 max-sm:rounded-xl max-sm:p-0.5" role="toolbar" aria-label={tr("docs.formatting")} data-testid="doc-toolbar">
+        <div className={cn("sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:mt-3 max-sm:flex-nowrap max-sm:justify-between max-sm:gap-0 max-sm:p-0.5",
+          // On a phone the doc page's toolbar runs edge to edge, so eight 44 px buttons fit a 360 px screen with nothing to scroll.
+          embed ? "max-sm:-mx-1 max-sm:rounded-xl" : "max-sm:-mx-4 max-sm:rounded-none max-sm:border-x-0")} role="toolbar" aria-label={tr("docs.formatting")} data-testid="doc-toolbar">
           <ToolButton label={tr("docs.bold")} active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}><IconBold /></ToolButton>
           <ToolButton label={tr("docs.italic")} active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}><IconItalic /></ToolButton>
           <ToolButton label={tr("docs.heading")} active={e.isActive("heading", { level: 2 })} on={() => e.chain().focus().toggleHeading({ level: 2 }).run()}><IconHeading2 /></ToolButton>
