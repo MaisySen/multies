@@ -356,4 +356,280 @@ export function TasksPage() {
           <Popover label={tr("tasks.more_filters")} testId="tasks-more-filters" className="w-[22rem]" button={({ open }) => (
             <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] transition-colors", open || moreFilterCount ? "bg-brand-soft text-brand-hover" : "text-muted hover:bg-hover hover:text-fg")}>
               <IconSliders className="h-3.5 w-3.5" />{tr("tasks.filters")}{moreFilterCount ? <span className="ml-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-white">{moreFilterCount}</span> : null}
-            
+            </span>
+          )}>
+            <div className="grid gap-3">
+              <Field label={tr("common.priority")}>{(p) => (
+                <Select {...p} value={filters.priority ?? ""} onChange={(e) => set({ priority: e.target.value || null })} className="h-9 text-[13px]">
+                  <option value="">{tr("tasks.any_priority")}</option>
+                  {(["urgent", "high", "medium", "low"] as Priority[]).map((x) => <option key={x} value={x}>{PRIORITY_LABEL[x]}</option>)}
+                </Select>
+              )}</Field>
+              <Field label={tr("tasks.type")}>{(p) => (
+                <Select {...p} value={filters.type ?? ""} onChange={(e) => set({ type: e.target.value || null })} className="h-9 text-[13px]">
+                  <option value="">{tr("tasks.any_type")}</option>
+                  {TASK_TYPES.map((k) => <option key={k} value={k}>{TYPE_META[k].label}</option>)}
+                </Select>
+              )}</Field>
+              {listFields.length > 0 && <div className="[&_[role=group]]:flex-wrap"><FieldFilterPicker fields={listFields.filter((f) => !isComputed(f))} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} /></div>}
+            </div>
+          </Popover>
+        </div>
+        {fieldFilters.map(([k, v]) => (
+          <span key={k} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-elevated px-2 text-[12.5px]">
+            {describeFilter(listFields.find((f) => f.id === k.slice(6)), v, people.data ?? [])}
+            <button aria-label={tr("tasks.remove_this_filter")} onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><IconClose className="h-3 w-3" /></button>
+          </span>
+        ))}
+        {view === "board" && project && (
+          <ChipSelect label={tr("tasks.group")} aria-label={tr("tasks.group_board_by")} active={!!(groupEpic || groupField)} value={groupEpic ? "epic" : groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })}>
+            <option value="">{tr("common.status")}</option>
+            <option value="epic">{tr("tasks.epic")}</option>
+            {fields.filter((f) => f.type === "select").map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </ChipSelect>
+        )}
+        {view === "board" && project && !groupField && !groupEpic && (
+          <ChipSelect label={tr("tasks.lanes")} aria-label={tr("tasks.swimlanes")} data-testid="swimlanes-select" active={lanes !== "none"} value={lanes} onChange={(e) => setLanes(e.target.value as Swimlanes)}>
+            {SWIMLANES.map((s) => <option key={s} value={s}>{s === "none" ? "None" : SWIMLANE_LABEL[s]}</option>)}
+          </ChipSelect>
+        )}
+        {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><IconClose className="h-3.5 w-3.5" />{tr("common.clear")}</Button>}
+        <div className="sm:ml-auto"><Menu align="end" trigger={<Button variant="ghost" size="sm" aria-label={tr("tasks.saved_views")} title={tr("tasks.saved_views")}><IconBookmark className="h-3.5 w-3.5" /><span className="max-xl:sr-only">{tr("tasks.saved_views")}</span><IconChevronDown className="h-3.5 w-3.5" /></Button>}>
+          <MenuLabel>{tr("tasks.saved_views")}</MenuLabel>
+          {(views.data ?? []).map((v) => (
+            <MenuItem key={v.id} checked={v.id === activeViewId} onSelect={() => applyView(v)} hint={v.pinned ? "Pinned" : v.shared ? undefined : "Only you"}>{v.name}</MenuItem>
+          ))}
+          {!views.data?.length && <p className="px-2.5 py-1.5 text-[12.5px] text-subtle">{tr("tasks.none_yet_set_filters_sort_or_grouping_then_save")}</p>}
+          <div className="my-1 border-t border-line" />
+          {activeView && activeView.canEdit !== false && <MenuItem icon={<IconBookmark />} onSelect={() => void updateActiveView()}>Update {activeView.name}</MenuItem>}
+          <MenuItem icon={<IconPlus />} onSelect={() => setSaveOpen(true)}>{saving ? "Saving" : "Save as new view"}</MenuItem>
+        </Menu></div>
+      </div>
+
+      <SaveViewDialog open={saveOpen} onClose={() => setSaveOpen(false)} onSave={saveView} summary={viewSummary()} />
+      <TagsDialog open={manage === "tags"} onClose={() => set({ manage: null })} />
+      <WorkspaceFieldsDialog open={manage === "fields"} onClose={() => set({ manage: null })} />
+      {project && fieldsOpen && <FieldsDialog projectId={project.id} fields={allFields} open onClose={() => setFieldsOpen(false)} />}
+      {project && guestsOpen && <GuestsDialog project={project} onClose={() => setGuestsOpen(false)} />}
+      {project && epicsOpen && <EpicsDialog project={project} onClose={() => setEpicsOpen(false)} onOpen={(id) => { setEpicsOpen(false); open(id); }} />}
+      <div className="min-h-0 flex-1">
+        <ClashScope projectId={projectId || undefined} enabled={view === "list" || view === "board"}>{/* R38: one date clash check for the list or board */}
+        {!list.length ? (
+          <EmptyState icon={<IconBoard />} title={tr("tasks.no_projects_yet")} body={tr("tasks.make_a_task_from_any_email_or_start_a_project_yo")} action={<Button onClick={() => setNewTask({})}>{tr("tasks.new_task")}</Button>} />
+        ) : tasks.isError && !tasks.data ? (
+          <LoadError onRetry={() => Promise.all([tasks.refetch(), retryFailedLoads(qc)])} className="rounded-xl border border-line bg-surface" />
+        ) : tasks.isPending ? (
+          view === "board" && project ? <BoardSkeleton columns={Math.min(project.statuses.length || 4, 5)} /> : <SkeletonRows rows={8} rowHeight={41} label={tr("tasks.loading_tasks")} className="rounded-xl border border-line bg-surface" />
+        ) : !(tasks.data ?? []).length && view !== "workload" && view !== "sprints" && (filtered || view === "list" || (view === "board" && !project)) ? (
+          <TasksEmpty copy={emptyTasksCopy("list", filtered)} onClear={clearFilters} onNew={() => setNewTask({})} board={view === "board"} />
+        ) : lanesOn && project ? (
+          <LaneBoard project={project} tasks={tasks.data ?? []} mode={lanes as Exclude<Swimlanes, "none">} projects={list} people={people.data ?? []}
+            limits={board.settings.limits} onSetLimit={setLimit} onOpen={open} collapseSignal={laneCollapse}
+            onMove={(id, to, position) => void moveInLane(id, to, position)} />
+        ) : view === "board" && project ? (
+          <Board project={project} limits={board.settings.limits} onSetLimit={setLimit} tasks={tasks.data ?? []} onOpen={open} groupBy={groupField} byEpic={groupEpic} onAdd={(col) => setNewTask(groupField || groupEpic ? {} : { statusId: col })}
+            onQuickAdd={async (col, title) => { await create.mutateAsync({ title, projectId: project.id, statusId: col }); await qc.invalidateQueries({ queryKey: ["tasks"] }); }}
+            onMove={(id, col, position) => groupEpic
+              ? void moveToEpic(id, col, position)
+              : groupField
+              ? update.mutate({ id, patch: { position, fields: { [groupField.id]: col === NO_VALUE ? null : col } } })
+              : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
+        ) : view === "workload" ? (
+          <Suspense fallback={<PanelListSkeleton label={tr("tasks.loading_workload")} />}><WorkloadView projectId={projectId || undefined} onOpen={open} /></Suspense>
+        ) : view === "mindmap" ? (
+          project ? <Suspense fallback={<PanelListSkeleton label={tr("tasks.loading_the_mind_map")} />}><MindMapView project={project} onOpen={open} /></Suspense>
+            : <EmptyState icon={<IconListTree />} title={tr("tasks.pick_a_project")} body={tr("tasks.the_mind_map_shows_one_project_s_tasks_and_subta")} />
+        ) : view === "sprints" && project ? (
+          <Suspense fallback={<PanelListSkeleton label={tr("tasks.loading_sprints")} />}><SprintsView project={project} onOpen={open} /></Suspense>
+        ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
+          <>
+            {phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} groupBy={listGroup} fields={listFields} people={people.data ?? []} sort={listSort} /> /* R41 (MB-226) */
+              : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={listFields} people={people.data ?? []} projectId={projectId || undefined} onAdd={() => setNewTask({})}
+                groupBy={listGroup} sort={listSort} onSort={(next) => set({ sort: next?.id ?? null, dir: next ? (next.desc ? "desc" : "asc") : null })} />}
+            {/* R42: the board's rapid add at the foot of the list; into the picked project, else the first one. */}
+            {(project ?? list[0]) && <ColumnComposer variant="list" title={(project ?? list[0])!.name}
+              onQuickAdd={async (title) => { await create.mutateAsync({ title, projectId: (project ?? list[0])!.id }); await qc.invalidateQueries({ queryKey: ["tasks"] }); }} />}
+          </>
+        ) : (
+          <Suspense fallback={view === "calendar" ? <CalendarSkeleton label={tr("tasks.loading_the_task_calendar")} /> : <TimelineSkeleton />}>
+            {view === "calendar"
+              ? <TaskCalendar tasks={tasks.data ?? []} onOpen={open} onDue={(id, due) => update.mutate({ id, patch: { due } })} />
+              : <PlannedTimeline tasks={tasks.data ?? []} projectId={projectId || undefined} onOpen={open} onAdd={() => setNewTask({})} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
+          </Suspense>
+        )}
+        </ClashScope>
+      </div>
+
+      {openId && <TaskPanel id={openId} onClose={() => set({ task: null })} docked={dockTask} />}
+      {newTask && <NewTaskDialog projects={list} projectId={projectId || list[0]?.id} statusId={newTask.statusId} onClose={() => setNewTask(null)}
+        onCreate={async (body, more) => { const r = await create.mutateAsync(body); if (more) { toast.success(`Added ${r.task.ref}`); return; } setNewTask(null); open(r.task.id); }} />}
+      {editing && <ProjectDialog project={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(p) => { setEditing(null); set({ project: p.id }); }} />}
+    </div>
+  );
+}
+
+// F13b (MB-306): My Work opens the same dialog in place.
+export function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { projects: Project[]; projectId?: string; statusId?: string; onClose: () => void; onCreate: (b: Record<string, unknown>, more: boolean) => Promise<void> }) {
+  const people = useAssignees();
+  const [title, setTitle] = useState("");
+  const [pid, setPid] = useState(projectId ?? "");
+  const [sid, setSid] = useState(statusId ?? "");
+  const [assignee, setAssignee] = useState("");
+  const [due, setDue] = useState("");
+  const [priority, setPriority] = useState<Priority>("none");
+  const [type, setType] = useState<TaskType>("task");
+  const [busy, setBusy] = useState(false);
+  const p = projects.find((x) => x.id === pid);
+  const titleRef = useRef<HTMLInputElement>(null);
+  // R40 (MB-208): "Add another" keeps the dialog open with the same project, column and fields, clears the title and
+  // puts the cursor back, so five tasks in a row is type, Enter, type, Enter. Plain Create task opens the new task.
+  const [keepGoing, setKeepGoing] = useState(!!statusId);
+  const submit = async (more = keepGoing) => {
+    if (!title.trim()) return;
+    setBusy(true);
+    try {
+      await onCreate({ title, projectId: pid || undefined, statusId: sid || undefined, assignee: assignee || null, due: due || null, priority, type }, more);
+      if (more) { setTitle(""); requestAnimationFrame(() => titleRef.current?.focus()); }
+    } catch (e) { showError(e as Error); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={tr("tasks.new_task")} footer={<>
+      <label className="mr-auto inline-flex min-h-10 cursor-pointer items-center gap-2 text-[13px] text-muted"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={keepGoing} onChange={(e) => setKeepGoing(e.target.checked)} />{tr("tasks.add_another")}</label>
+      <Button variant="secondary" onClick={onClose}>{keepGoing ? "Done" : "Cancel"}</Button><Button loading={busy} disabled={!title.trim()} onClick={() => void submit()}>{keepGoing ? "Add task" : "Create task"}</Button></>}>
+      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <Field label={tr("common.title")}>{(f) => <Input {...f} ref={titleRef} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("tasks.what_needs_doing")} />}</Field>
+        <TypePicker value={type} onChange={setType} />
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={tr("tasks.project")}>{(f) => <Select {...f} value={pid} onChange={(e) => { setPid(e.target.value); setSid(""); }}>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>
+          <Field label={tr("common.status")}>{(f) => <Select {...f} value={sid} onChange={(e) => setSid(e.target.value)}><option value="">{p?.statuses[0]?.name ?? "First status"}</option>{p?.statuses.slice(1).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>}</Field>
+          <Field label={tr("common.assignee")}>{(f) => <Select {...f} value={assignee} onChange={(e) => setAssignee(e.target.value)}><option value="">{tr("tasks.nobody")}</option>{people.data?.map((x) => <option key={x.id} value={x.id}>{x.name}{x.type === "agent" ? " (agent)" : ""}</option>)}</Select>}</Field>
+          <Field label={tr("tasks.due")}>{(f) => <Input {...f} type="date" value={due} onChange={(e) => setDue(e.target.value)} />}</Field>
+          <Field label={tr("common.priority")}>{(f) => <Select {...f} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{(Object.keys(PRIORITY_LABEL) as Priority[]).map((x) => <option key={x} value={x}>{PRIORITY_LABEL[x]}</option>)}</Select>}</Field>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+type ProjectTemplate = "simple" | "kanban" | "sprint";
+const PROJECT_TEMPLATES: { id: ProjectTemplate; label: string; hint: string; icon: React.ReactNode }[] = [
+  { id: "simple", label: "Simple", hint: "To do and Done", icon: <IconList className="h-4 w-4" /> },
+  { id: "kanban", label: "Kanban", hint: "A board in three columns", icon: <IconBoard className="h-4 w-4" /> },
+  { id: "sprint", label: "Sprint", hint: "Backlog to review", icon: <IconSprint className="h-4 w-4" /> },
+];
+export function templateStatuses(t: ProjectTemplate): { id: string; name: string; category: Category; color: string; position: number }[] {
+  const rows: [string, Category, string][] = t === "simple"
+    ? [["To do", "todo", "#8a8f98"], ["Done", "done", "#22c55e"]]
+    : t === "sprint"
+      ? [["Backlog", "todo", "#6e6e73"], ["To do", "todo", "#8a8f98"], ["In progress", "doing", "#3b82f6"], ["In review", "doing", "#a855f7"], ["Done", "done", "#22c55e"]]
+      : [["To do", "todo", "#8a8f98"], ["In progress", "doing", "#3b82f6"], ["Done", "done", "#22c55e"]];
+  return rows.map(([name, category, color], position) => ({ id: "", name, category, color, position }));
+}
+
+const SWATCHES = ["#8e8e93", "#5b7fa6", "#4f8a8b", "#5e8c61", "#a3824a", "#a65e5e", "#7d6b9e", "#6e6e73"];
+
+function ProjectDialog({ project, onClose, onSaved }: { project: Project | null; onClose: () => void; onSaved: (p: Project) => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(project?.name ?? "");
+  // R33: the key is editable; a key another project uses (any case) is refused inline under the field.
+  const [key, setKey] = useState(project?.key ?? "");
+  const [keyError, setKeyError] = useState<string | null>(null);
+  // R40 (MB-211): a new project starts from a template (name plus one choice); statuses, key and triage sit under
+  // Customize. Project settings for an existing project show everything, as before.
+  const [template, setTemplate] = useState<ProjectTemplate>("kanban");
+  const [customize, setCustomize] = useState(!!project);
+  const [statuses, setStatuses] = useState(project?.statuses.map((s) => ({ ...s })) ?? templateStatuses("kanban"));
+  const pickTemplate = (t: ProjectTemplate) => { setTemplate(t); setStatuses(templateStatuses(t)); };
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // R21: tasks from mail rules, forms, the API and AI apps wait in Triage for this project.
+  // R32: on by default for a new project (existing projects keep what they have). AIS1: the server defaults it too.
+  const [triage, setTriage] = useState(project ? !!(project as Project & { triage?: boolean }).triage : true);
+  const move = (i: number, d: number) => setStatuses((s) => { const n = [...s]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); return n; });
+  const valid = useMemo(() => name.trim() && statuses.length && statuses.some((s) => s.category === "done") && statuses.every((s) => s.name.trim()), [name, statuses]);
+  const [failure, setFailure] = useState<unknown>(null);
+  const save = async () => {
+    setBusy(true); setError(null); setKeyError(null); setFailure(null);
+    const k = key.trim().toUpperCase();
+    const body = { name, ...(k && k !== project?.key ? { key: k } : {}), statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
+    try {
+      const r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.create<{ project: Project }>("/projects", { ...body, triage });
+      await qc.invalidateQueries({ queryKey: sk.projects }); await qc.invalidateQueries({ queryKey: ["tasks"] });
+      onSaved(r.project);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "key_taken") setKeyError(e.message);
+      else if (isTransientError(e)) setFailure(e); // R40 (MB-205): not a field error, a calm line with Retry
+      else setError((e as Error).message);
+    } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={project ? "Project settings" : "New project"} description={project || customize ? "Statuses are the board's columns. Each belongs to a group: to do, doing or done." : "Pick how work moves. You can change it any time."}
+      footer={<><Button variant="secondary" onClick={onClose}>{tr("common.cancel")}</Button><Button loading={busy} disabled={!valid} onClick={save}>{project ? "Save" : "Create project"}</Button></>}>
+      <div className="space-y-4">
+        <Field label={tr("common.name")} error={error ?? undefined}>{(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client onboarding" autoFocus />}</Field>
+        <ErrorRetry error={failure} onRetry={save} retrying={busy} />
+        {!project && (
+          <div role="radiogroup" aria-label={tr("tasks.template")} className="grid grid-cols-3 gap-2">
+            {PROJECT_TEMPLATES.map((t) => (
+              <button key={t.id} type="button" role="radio" aria-checked={template === t.id} onClick={() => pickTemplate(t.id)} data-testid={`template-${t.id}`}
+                className={cn("flex min-h-[88px] flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-[border-color,box-shadow,background-color] duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                  template === t.id ? "border-brand bg-brand/5 shadow-[0_0_0_1px_var(--color-brand,#0071E3)]" : "border-line bg-surface hover:border-line-strong")}>
+                <span className={cn("grid h-7 w-7 place-items-center rounded-lg", template === t.id ? "bg-brand text-white" : "bg-elevated text-muted")}>{t.icon}</span>
+                <span className="text-[13px] font-semibold leading-tight">{t.label}</span>
+                <span className="text-[11.5px] leading-snug text-muted">{t.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {!project && (
+          <button type="button" onClick={() => setCustomize((v) => !v)} aria-expanded={customize} className="inline-flex min-h-9 items-center gap-1.5 text-[13px] font-medium text-brand-hover hover:underline">
+            {customize ? <IconChevronUp className="h-4 w-4" /> : <IconChevronDown className="h-4 w-4" />}Customize
+          </button>
+        )}
+        {customize && <>
+        <Field label="Key" hint={keyError ? undefined : "Shown before task numbers, like OPS-12. Letters and digits, up to 6."} error={keyError ?? undefined}>{(f) => <Input {...f} value={key} maxLength={6} onChange={(e) => { setKey(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase()); setKeyError(null); }} placeholder={project ? "" : "Made from the name"} className="w-32 font-mono uppercase" data-testid="project-key" />}</Field>
+        <div>
+          <p className="mb-2 text-[13px] font-medium">{tr("tasks.statuses")}</p>
+          <ul className="space-y-2">
+            {statuses.map((s, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <Menu align="start" trigger={<button className="h-5 w-5 shrink-0 rounded-full border border-line-strong" style={{ background: tone(s.color) }} aria-label={`Colour for ${s.name}`} />}>
+                  <div className="flex gap-1 p-2">{SWATCHES.map((c) => <button key={c} className="h-5 w-5 rounded-full" style={{ background: c }} aria-label={c} onClick={() => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, color: c } : y)))} />)}</div>
+                </Menu>
+                <Input aria-label={tr("tasks.status_name")} value={s.name} onChange={(e) => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, name: e.target.value } : y)))} className="h-8 text-[13px]" />
+                <Select aria-label={tr("tasks.status_group")} value={s.category} onChange={(e) => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, category: e.target.value as Category } : y)))} className="h-8 w-28! text-[13px]">
+                  <option value="todo">{tr("tasks.to_do")}</option><option value="doing">{tr("tasks.doing")}</option><option value="done">{tr("common.done")}</option>
+                </Select>
+                <button disabled={i === 0} onClick={() => move(i, -1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label={tr("tasks.move_up")}><IconChevronUp className="h-4 w-4" /></button>
+                <button disabled={i === statuses.length - 1} onClick={() => move(i, 1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label={tr("tasks.move_down")}><IconChevronDown className="h-4 w-4" /></button>
+                <button disabled={statuses.length <= 1} onClick={() => setStatuses((x) => x.filter((_, j) => j !== i))} className="rounded p-1 text-subtle hover:text-bad disabled:opacity-30" aria-label={`Remove ${s.name}`}><IconTrash className="h-4 w-4" /></button>
+              </li>
+            ))}
+          </ul>
+          <Button variant="ghost" size="sm" className="mt-2" onClick={() => setStatuses((x) => [...x.slice(0, -1), { id: "", name: "", category: "doing", color: "#a855f7", position: x.length }, ...x.slice(-1)])}><IconPlus className="h-3.5 w-3.5" />{tr("tasks.add_status")}</Button>
+          {project && <p className="mt-2 text-[12px] text-subtle">{tr("tasks.removing_a_status_moves_its_tasks_to_the_first_s")}</p>}
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">
+          <div><div className="text-[13px] font-medium">{tr("tasks.send_to_triage")}</div><div className="text-[12px] text-muted">{tr("tasks.triage_switch_hint")}</div></div>
+          <Switch checked={triage} onChange={setTriage} label={tr("tasks.send_to_triage")} />
+        </div>
+        </>}
+      </div>
+      {/* POL2 (HANDOVER item 6): what mentions this project and what it mentions, read with the same TD5 rules (a
+          record the viewer cannot open shows no title). Existing projects only. */}
+      {project && <ReferencesPanel type="project" id={project.id} className="mt-5" />}
+    </Dialog>
+  );
+}
+
+/** R84: the full task page (/app/tasks/OPS-12): the same task view as the side panel, in two columns, with a link back. */
+export function TaskPageRoute() {
+  const { ref = "" } = useParams();
+  const navigate = useNavigate();
+  return (
+    <div className="mx-auto w-full max-w-[1200px]">
+      <h1 className="sr-only">Task {ref.toUpperCase()}</h1>
+      <TaskPanel id={ref} page onClose={() => navigate("/app/tasks")} />
+    </div>
+  );
+}
