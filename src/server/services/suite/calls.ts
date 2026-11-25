@@ -3,9 +3,9 @@
  * notifications. No D1 write per poll: participant lists are cached in memory per isolate for
  * CALL_CACHE_MS, and the only write is marking a call ended, at most once per call.
  */
-import { and, desc, eq, gte, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { chatMembers, meetings } from "../../db/schema";
+import { chatMembers, meetings, members } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { guestChannel, visibleChannel, type GuestViewer } from "./chat";
@@ -17,7 +17,7 @@ export interface CallParticipant { identity: string; name: string; joinedAt: num
 /** Lists the people connected to a video room. Injectable (Deps.callRooms) so tests fake it. */
 export interface CallRooms {
   list(room: string): Promise<CallParticipant[]>;
-  /** Review Z8: disconnects one person from a room (nothing when they are not in it). */
+  /** Review Z8, Z9: disconnects one person from a room (nothing when they are not in it). */
   remove?(room: string, identity: string): Promise<void>;
 }
 
@@ -265,6 +265,22 @@ export async function removeFromRoom(deps: Deps, room: string, identity: string)
   try { await r.remove(room, identity); return true; } catch (err) { deps.reportError?.(err, { where: "calls.removeFromRoom" }); return false; }
 }
 
+/**
+ * Review Z9: a member removed from a workspace, or whose sessions were revoked, leaves every call that may be live there
+ * at once (their room token would otherwise last until it expires). Calls that may be live: meetings not ended or
+ * cancelled that started in the last CALL_WINDOW_MS or repeat. Best effort, at most 50 rooms.
+ */
+export async function disconnectFromCalls(deps: Deps, orgId: string, identity: string) {
+  if (!roomsFor(deps)?.remove) return 0;
+  const since = new Date(deps.now().getTime() - CALL_WINDOW_MS);
+  const live = await deps.db.select({ room: meetings.room }).from(meetings)
+    .where(and(eq(meetings.orgId, orgId), isNull(meetings.deletedAt), eq(meetings.status, "scheduled"), or(gte(meetings.startsAt, since), isNotNull(meetings.recurrence)), lt(meetings.startsAt, new Date(deps.now().getTime() + CALL_WINDOW_MS))))
+    .limit(50).all();
+  let n = 0;
+  for (const m of live) if (await removeFromRoom(deps, m.room, identity)) n++;
+  return n;
+}
+
 /** One meeting's live status (any meeting, not only chat calls). */
 export async function meetingCallStatus(deps: Deps, a: SuiteActor, meetingId: string) {
   const m = await visibleMeeting(deps, a, meetingId);
@@ -316,4 +332,10 @@ export async function notifyCallStarted(deps: Deps, a: SuiteActor, c: { id: stri
     n++;
   }
   return n;
+}
+
+/** Review Z9: the same for every workspace a person is in (their sessions were revoked). */
+export async function disconnectUserFromCalls(deps: Deps, userId: string) {
+  const orgs = await deps.db.select({ orgId: members.organizationId }).from(members).where(eq(members.userId, userId)).limit(50).all();
+  for (const o of orgs) await disconnectFromCalls(deps, o.orgId, `member-${userId}`).catch((err) => deps.reportError?.(err, { where: "calls.disconnectUser" }));
 }

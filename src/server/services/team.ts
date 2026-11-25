@@ -408,6 +408,8 @@ export async function removeMember(deps: Deps, auth: AuthContext, headers: Heade
   await db.delete(mailboxAccess).where(and(eq(mailboxAccess.orgId, auth.orgId), eq(mailboxAccess.userId, userId)));
   await endPersonalMail(deps, auth.orgId, userId, { userId: auth.userId || null, email: auth.email ?? null });
   await (await import("../realtime/publish")).closeUserSockets(deps, userId, [auth.orgId]); // PRIV1b (P65): live chat stops at once
+  // Review Z9: and they leave the workspace's live calls at once (their room token would last until it expires).
+  await (await import("./suite/calls")).disconnectFromCalls(deps, auth.orgId, `member-${userId}`).catch((err: unknown) => deps.reportError?.(err, { where: "member_left.calls" }));
   return target;
 }
 

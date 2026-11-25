@@ -211,6 +211,7 @@ export function authOptions(deps: Deps) {
           if (userId && !(returned instanceof Error)) {
             if (ENDS_APP_GRANTS.has(ctx.path)) await endAppGrants(deps, userId);
             if (ENDS_APP_GRANTS.has(ctx.path)) await (await import("../realtime/publish")).closeUserSockets(deps, userId); // PRIV1b (P65)
+            if (ENDS_APP_GRANTS.has(ctx.path)) await (await import("../services/suite/calls")).disconnectUserFromCalls(deps, userId).catch((err: unknown) => deps.reportError?.(err, { where: "sessions_revoked.calls" })); // Review Z9
             const m = await db.select().from(schema.members).where(eq(schema.members.userId, userId)).get();
             const email = ctx.context.session?.user?.email ?? ctx.context.newSession?.user?.email ?? null;
             if (m) await audit(db, { orgId: m.organizationId, actorUserId: userId, actorEmail: email, action: securityAction }).catch(() => undefined);
