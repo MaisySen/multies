@@ -13,6 +13,8 @@ import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
 export interface FilterGroup {
   key: string;
   label: string;
+  /** PAR1: the name the same control has on a computer ("Status filter"), so it reads the same on both. */
+  ariaLabel?: string;
   value: string;
   /** The first option is the "any" choice (value ""). */
   options: { value: string; label: string }[];
@@ -42,7 +44,7 @@ export function PhoneFilters({ groups, className }: { groups: FilterGroup[]; cla
           {groups.map((g) => (
             <fieldset key={g.key}>
               <legend className="mb-2 text-[13px] font-semibold">{g.label}</legend>
-              <div role="radiogroup" aria-label={g.label} className="flex flex-wrap gap-2">
+              <div role="radiogroup" aria-label={g.ariaLabel ?? g.label} className="flex flex-wrap gap-2">
                 {g.options.map((o) => (
                   <button key={o.value || "any"} type="button" role="radio" aria-checked={g.value === o.value} onClick={() => g.onChange(o.value)}
                     className={cn("min-h-10 rounded-full border px-3.5 text-[13.5px] transition-colors duration-150 motion-reduce:transition-none",
