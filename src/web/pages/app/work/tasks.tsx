@@ -210,6 +210,13 @@ export function TasksPage() {
     setParams((p) => { const n = new URLSearchParams(p); for (const [k, v] of Object.entries(patch)) { if (v) n.set(k, v); else n.delete(k); } return n; }, { replace: true });
   }, [setParams]);
   const open = useCallback((id: string) => set({ task: id }), [set]);
+  // W4: the sidebar's New project (and "Start one") link here with ?newProject=1; open the New project dialog once.
+  const wantsNewProject = params.get("newProject") === "1";
+  useEffect(() => {
+    if (!wantsNewProject) return;
+    setEditing("new");
+    set({ newProject: null });
+  }, [wantsNewProject, set]);
   // R31: J/K focus on the visible tasks; S, A, P, L and D act on the focused or open task (lib/commands).
   useTaskListFocus(useMemo(() => (tasks.data ?? []).map((t) => t.id), [tasks.data]), openId);
   const activeFilters = FILTER_KEYS.filter((k) => filters[k]);
