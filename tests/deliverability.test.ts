@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from "vitest";
 import { Webhook } from "standardwebhooks";
 import { gzipSync, zipSync, strToU8 } from "fflate";
 import { generateKeyPairSync } from "node:crypto";
@@ -148,6 +148,24 @@ describe("domain health score", () => {
     expect(after.score).toBeLessThan(before);
     expect(after.stats.bounceRate).toBe(50);
     expect(after.stats.dmarcPassRate).toBe(80);
+  });
+});
+
+// MB-7: the app counts DMARC reports from the last 30 days only. This suite moves the test clock
+// 400 days forward before the sign up in beforeEach. Then it runs the same assertions again.
+// If the test data has fixed dates, the report is outside the window and these assertions fail.
+describe("DMARC test data on a later date (MB-7)", () => {
+  beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 400 * 86_400_000 }); });
+  afterAll(() => { vi.useRealTimers(); });
+
+  it("still summarizes and scores a report uploaded 400 days from now", async () => {
+    const up = await c.post("/api/deliverability/dmarc/reports", { contentB64: Buffer.from(dmarcXml("acme.io")).toString("base64") });
+    expect(up.status).toBe(201);
+    const sum = await c.get("/api/deliverability/dmarc");
+    expect(sum.body.reports[0]).toMatchObject({ domain: "acme.io", messages: 50, passed: 40 });
+    expect(sum.body.sources[0]).toMatchObject({ sourceIp: "209.85.220.41", messages: 40, passed: 40 });
+    const h = (await c.get("/api/deliverability/health")).body.domains[0];
+    expect(h.stats.dmarcPassRate).toBe(80);
   });
 });
 
