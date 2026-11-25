@@ -94,5 +94,6 @@ test("timeline on a phone: labels sit beside short bars, none cut", async ({ pag
   await demo(page, 390);
   const project = await seed(page);
   await page.goto(`/app/tasks?view=timeline&project=${project.id}`);
+  await page.getByTestId("timeline-show-chart").click(); // W4: a phone opens the timeline as a list by week; the chart is a tap away
   await checkLabels(page);
 });

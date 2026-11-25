@@ -136,7 +136,7 @@ test("flows: template to canvas, approval to done, run log, phone list", async (
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByLabel("What they are asked")).toHaveValue("OK to tell the team?");
   await shot(page, "r90-editor-sheet-390-light");
-  await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Done", exact: true }).click();
 
   if (DIR) {
     for (const scheme of ["dark", "light"] as const) {

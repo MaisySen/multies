@@ -55,7 +55,7 @@ test("assign a shared inbox thread to me, see it in Mine and My Work, mark it do
   await views.getByRole("button", { name: "Mine" }).click();
   await expect(page.getByRole("button", { name: /Can we move our team over this week/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Password reset not arriving.*Kai|Kai Morgan/ })).toHaveCount(0);
-  await views.getByRole("button", { name: "Done" }).click();
+  await views.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("button", { name: /Kai Morgan/ })).toBeVisible();
 
   // Reply times: the support mailbox has an answered thread, so a median shows.

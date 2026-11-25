@@ -63,6 +63,8 @@ for (const size of [{ name: "desktop", width: 1280, height: 800 }, { name: "phon
         await link(write.id, design.id, 3);
         await link(press.id, design.id, -1);
         await page.goto(`/app/tasks?view=timeline&project=${project.id}`);
+        // W4: a phone opens the timeline as a list by week; the chart is a tap away.
+        if (size.width === 390) await page.getByTestId("timeline-show-chart").click();
         await expect(page.getByTestId("timeline-bar-label").first()).toBeVisible({ timeout: 15_000 });
         await page.waitForTimeout(900);
         await page.locator(".mm-gantt .wx-chart").first().evaluate((el) => { el.scrollLeft = 0; });

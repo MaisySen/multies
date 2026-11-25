@@ -62,12 +62,12 @@ test("chat: post with a task link, reply in a thread and turn a message into a t
   // opens the task docked beside the board on a desktop, and over the page on a phone or with "Over the page".
   const docked = page.getByRole("complementary", { name: "Task details" });
   await expect(docked.getByLabel("Title")).toHaveValue(/Can someone pick up/);
-  await expect(page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }))).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Task" })).toHaveCount(0);
   // The same deep link at phone width opens the task over the page.
   const url = page.url();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(url);
-  await expect(page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" })).getByLabel("Title")).toHaveValue(/Can someone pick up/);
+  await expect(page.getByRole("dialog", { name: "Task" }).getByLabel("Title")).toHaveValue(/Can someone pick up/);
 });
 
 test("notifications inbox lists, filters and marks read; settings save", async () => {

@@ -71,7 +71,10 @@ test("formula and rollup columns in the table, live preview, rollup of subtasks,
   await page.reload();
   const table = page.getByTestId("task-table");
   const row = (title: string) => table.locator("tr", { hasText: title }).first();
-  const cell = (title: string, col: string) => row(title).locator(`td[aria-label="${col}"]`);
+  // W4: grid cells no longer carry their column's name; a cell is found by its column header.
+  await expect(table.getByRole("columnheader", { name: "With GST" })).toBeVisible();
+  const heads = (await table.getByRole("columnheader").allInnerTexts()).map((h) => h.trim());
+  const cell = (title: string, col: string) => row(title).getByRole("gridcell").nth(heads.indexOf(col));
   await expect(cell("Launch campaign", "With GST")).toHaveText("13,200");
   await expect(cell("Design the pricing page", "With GST")).toHaveText("4,950");
   await expect(cell("Set up analytics", "With GST")).toHaveText("-");

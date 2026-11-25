@@ -56,6 +56,7 @@ test("add a custom field, set it on a task and filter the list by it", async ({ 
   await page.keyboard.press("Escape");
   await page.goto(`/app/tasks?project=${project.id}&view=list`);
 
+  await page.getByTestId("tasks-more-filters").click(); // R75: field filters sit in the Filters popover
   await page.getByRole("button", { name: "Field filter" }).click();
   const picker = page.getByRole("group", { name: "Field filter" });
   await picker.getByLabel("Filter field").selectOption({ label: "Region" });
@@ -152,13 +153,20 @@ test("an agent's guest invite waits in Guests until a person sends it", async ({
   await expect(row).toContainText("Needs you");
   // Nothing was sent, and nothing the agent holds opens the project.
   expect(findInvite(email)).toBeUndefined();
+  const confirmed = page.waitForResponse((r) => /\/api\/guests\/[^/]+\/confirm$/.test(new URL(r.url()).pathname) && r.request().method() === "POST");
   await row.getByRole("button", { name: `Send the invite to ${email}` }).click();
+  const sent = await (await confirmed).json() as { delivery: { status: string }; inviteUrl?: string };
   await expect(row).toContainText("Invited");
   await page.keyboard.press("Escape");
 
-  if (process.env.E2E_BASE_URL) return; // the invite link is read from the local outbox
-  await expect.poll(() => !!findInvite(email), { timeout: 15_000 }).toBe(true);
-  const link = new URL(findInvite(email)!.text.match(/https?:\/\/\S+\/g\/[A-Za-z0-9_-]{20,100}/)![0]).pathname;
+  // A demo workspace sends no mail, so the person gets the link to pass on (inviteUrl); otherwise it is in the email.
+  let link: string;
+  if (sent.delivery.status === "not_sent") link = new URL(sent.inviteUrl!).pathname;
+  else {
+    if (process.env.E2E_BASE_URL) return; // the invite link is read from the local outbox
+    await expect.poll(() => !!findInvite(email), { timeout: 15_000 }).toBe(true);
+    link = new URL(findInvite(email)!.text.match(/https?:\/\/\S+\/g\/[A-Za-z0-9_-]{20,100}/)![0]).pathname;
+  }
   const guestCtx = await browser.newContext();
   const guest = await guestCtx.newPage();
   await guest.goto(link);

@@ -87,7 +87,9 @@ test("Cmd+K finds a word in a doc, a task and a chat message and opens each; My 
   dialog = await openSearch(page, "harbor cutover went");
   const chat = dialog.getByTestId("search-group-chat").getByTestId("search-result").first();
   await expect(chat).toBeVisible();
-  for (let i = 0; i < 12 && (await chat.getAttribute("data-selected")) !== "true"; i++) await page.keyboard.press("ArrowDown");
+  // W4: the arrows can pass every result (R98 lists more groups than when this was written), so up to that many presses.
+  const results = await dialog.getByTestId("search-result").count();
+  for (let i = 0; i <= results && (await chat.getAttribute("data-selected")) !== "true"; i++) await page.keyboard.press("ArrowDown");
   await expect(chat).toHaveAttribute("data-selected", "true");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/app/chat/${general.id}\\?thread=`));

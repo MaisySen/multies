@@ -53,7 +53,7 @@ test("Important and Other split the demo inbox, and a custom split by domain tak
   await expect(page.getByTestId("split-preview-count")).toContainText(/thread/);
   await page.getByTestId("split-save").click();
   await expect(page.getByText("Tab added")).toBeVisible();
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
 
   const custom = tabs.getByRole("tab", { name: /^From that domain/ });
   await expect(custom).toBeVisible();

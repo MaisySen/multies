@@ -73,5 +73,5 @@ test("admin adds schedule and webhook triggers for an agent; a signed webhook qu
   // Turn the morning trigger off: no next run.
   await morning.getByRole("switch", { name: "Morning triage on" }).click();
   await expect(morning.getByTestId("trigger-times")).toContainText("Off");
-  await dialog.getByRole("button", { name: "Done" }).click();
+  await dialog.getByRole("button", { name: "Done", exact: true }).click();
 });

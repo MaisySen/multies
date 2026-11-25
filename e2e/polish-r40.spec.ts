@@ -60,7 +60,7 @@ test("New project starts from a template, statuses under Customize; Add another 
     await expect(nt.getByLabel("Title")).toHaveValue("");
   }
   await expect(nt).toBeVisible();
-  await nt.getByRole("button", { name: "Done" }).click();
+  await nt.getByRole("button", { name: "Done", exact: true }).click();
   await ctx.close();
 });
 
@@ -75,7 +75,7 @@ test("390 px: column add button visible, Filter sheet with chips, no sideways sc
   await page.getByTestId("phone-filter-button").click();
   const sheet = page.getByRole("dialog", { name: "Filter" });
   await sheet.getByRole("radiogroup", { name: "Priority" }).getByRole("radio", { name: "High" }).click();
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByTestId("filter-chip")).toHaveText(/High/);
   await expect(page).toHaveURL(/priority=high/);
   await page.getByRole("button", { name: "Clear priority filter" }).click();

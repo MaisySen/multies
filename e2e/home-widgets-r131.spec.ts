@@ -37,7 +37,7 @@ async function inviteAndJoin(browser: Browser) {
 
 const SHOTS = process.env.R131_SHOTS || "";
 async function shot(page: Page, name: string) { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false }); }
-// W4: with time billing on (BILL_TD4, on by default in E2E) owners and admins also get the Time to bill widget at the end.
+// W4: with time billing on (BILL_TD4, on by default in E2E) owners and admins also get the Time to bill widget, kept last.
 const BILL = process.env.E2E_BILL_TD4 === "off" ? [] : ["billing"];
 async function order(page: Page) {
   return page.locator('[data-testid="widget-grid"] > section').evaluateAll((els) => els.map((e) => (e.getAttribute("data-testid") || "").replace("widget-", "")));
@@ -95,7 +95,7 @@ test.describe("R131 home widgets", () => {
     expect(await axe(page), "axe customize").toEqual([]);
     await page.getByTestId("done-home").click();
     await expect(page.getByTestId("home-note")).toHaveText("Home saved.");
-    expect(await order(page)).toEqual(["tasks", "inbox", "links", "overview", ...BILL, "dashboards"]);
+    expect(await order(page)).toEqual(["tasks", "inbox", "links", "overview", "dashboards", ...BILL]);
     await page.getByTestId("widget-dashboards").scrollIntoViewIfNeeded(); // below the fold: it reads when scrolled near
     await expect(page.getByTestId("widget-dashboards").getByText(/No dashboards yet/)).toBeVisible();
     // reset brings the default back
@@ -179,7 +179,7 @@ test.describe("R131 home widgets", () => {
     await page.getByTestId("sheet-show-dashboards").check();
     await page.getByTestId("sheet-done").click();
     await expect(page.getByTestId("home-note")).toHaveText("Home saved.");
-    expect(await order(page)).toEqual(["calendar", "tasks", "inbox", "links", "overview", ...BILL, "dashboards"]);
+    expect(await order(page)).toEqual(["calendar", "tasks", "inbox", "links", "overview", "dashboards", ...BILL]);
   });
 
   test("an admin sets the workspace default; a member sees it and cannot set one", async ({ browser }) => {

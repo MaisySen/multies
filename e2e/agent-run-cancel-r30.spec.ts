@@ -43,10 +43,12 @@ test("a person cancels a queued run in the run detail and it shows Cancelled", a
   await expect(confirm).toBeHidden();
   await expect(row.getByText("Queued", { exact: true })).toBeVisible();
 
+  // R31: on a phone width panel the two confirm buttons stay together on one line, each on one line.
+  // W4: since R79 the task sits in the side panel on a desktop and over the page on a phone, so a resize opens it
+  // afresh: the phone check asks there, and the desktop asks again after.
+  await page.setViewportSize({ width: 390, height: 844 });
   await row.getByRole("button", { name: "Cancel run" }).click();
   await expect(confirm).toBeVisible();
-  // R31: on a phone width panel the two confirm buttons stay together on one line, each on one line.
-  await page.setViewportSize({ width: 390, height: 844 });
   const keep = (await confirm.getByRole("button", { name: "Keep running" }).boundingBox())!;
   const stop = (await confirm.getByRole("button", { name: "Cancel run" }).boundingBox())!;
   expect(Math.abs(keep.y - stop.y)).toBeLessThan(2);
@@ -54,6 +56,8 @@ test("a person cancels a queued run in the run detail and it shows Cancelled", a
   expect(Math.max(keep.height, stop.height)).toBeLessThan(50);
   await page.setViewportSize({ width: 1280, height: 900 });
   await runs.scrollIntoViewIfNeeded();
+  if (!(await confirm.isVisible())) await row.getByRole("button", { name: "Cancel run" }).click();
+  await expect(confirm).toBeVisible();
   if (process.env.R30_SHOT_CONFIRM) await page.screenshot({ path: process.env.R30_SHOT_CONFIRM });
   await confirm.getByRole("button", { name: "Cancel run" }).click();
   await expect(row.getByText("Cancelled", { exact: true })).toBeVisible();

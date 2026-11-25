@@ -74,5 +74,5 @@ test("admin edits a trigger, runs it and sees its history", async () => {
 
   mkdirSync(`${SHOTS_ROOT}/multies-r29`, { recursive: true });
   await dialog.screenshot({ path: `${SHOTS_ROOT}/multies-r29/agent-trigger-history.png` });
-  await dialog.getByRole("button", { name: "Done" }).click();
+  await dialog.getByRole("button", { name: "Done", exact: true }).click();
 });

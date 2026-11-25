@@ -30,7 +30,8 @@ async function visit(page: Page, path: string, ready?: () => Promise<void>) {
   const res = await page.goto(path);
   expect(res?.headers()["content-security-policy"], `CSP on ${path}`).toBeTruthy();
   if (ready) await ready();
-  await page.waitForLoadState("networkidle").catch(() => undefined);
+  // W4: pages that poll (presence, counts) never go network idle; wait a bounded while, then look (the CSP events stay collected).
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
   await page.waitForTimeout(400);
 }
 
