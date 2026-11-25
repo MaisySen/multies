@@ -28,22 +28,26 @@
     var root = document.getElementById("root");
     if (!root || !root.hasAttribute("data-prerendered")) return;
     var t = e.target;
-    var b = t && t.closest ? t.closest("button") : null;
+    // A button, or the summary of a fold ("Other ways to sign up").
+    var b = t && t.closest ? t.closest("button, summary") : null;
     if (!b || !root.contains(b)) return;
     e.preventDefault();
     e.stopPropagation();
-    pending = { id: b.getAttribute("data-testid"), text: (b.textContent || "").trim() };
+    pending = { tag: b.tagName, id: b.getAttribute("data-testid"), text: (b.textContent || "").trim() };
     b.setAttribute("aria-busy", "true");
   }, true);
-  function replay() {
+  // The marker comes off just before React renders, and on a busy phone its first commit can take a while: look for
+  // the live control again every 50 ms for up to 5 s, so the tap is not lost when the card is drawn late.
+  function replay(tries) {
     if (!pending) return;
     var root = document.getElementById("root");
     var found = null;
-    var list = root ? root.querySelectorAll("button") : [];
+    var list = root ? root.querySelectorAll(pending.tag === "SUMMARY" ? "summary" : "button") : [];
     for (var i = 0; i < list.length && !found; i++) {
       var c = list[i];
       if ((pending.id && c.getAttribute("data-testid") === pending.id) || (!pending.id && (c.textContent || "").trim() === pending.text)) found = c;
     }
+    if (!found && tries < 100) { setTimeout(function () { replay(tries + 1); }, 50); return; }
     pending = null;
     if (found) found.click();
   }
@@ -54,7 +58,7 @@
         if (rootEl.hasAttribute("data-prerendered")) return;
         mo.disconnect();
         // Give React its commit, then press the live button.
-        setTimeout(replay, 50);
+        setTimeout(function () { replay(0); }, 50);
       });
       mo.observe(rootEl, { attributes: true, attributeFilter: ["data-prerendered"] });
     }
