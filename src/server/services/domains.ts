@@ -169,6 +169,8 @@ export async function recheckStaleDomains(deps: Deps, staleMs = 60 * 60_000, lim
       ne(domains.orgId, "org_platform"),
       // R26: nor is the company domain (support@ and security@), held by the operator workspace.
       deps.config.operatorInbox.domain ? ne(domains.name, deps.config.operatorInbox.domain) : undefined,
+      // Review Z5: a released claim sits under a non-routable name; there is nothing to check.
+      isNull(domains.releasedAt),
       or(
         isNull(domains.lastCheckedAt),
         and(ne(domains.status, "verified"), lt(domains.lastCheckedAt, cutoff)),
