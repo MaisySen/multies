@@ -136,7 +136,8 @@ export function DocTreeSidebar({ currentId }: { currentId?: string }) {
     <nav aria-label={tr("docs.pages")} className="w-60 shrink-0 max-lg:hidden" data-testid="doc-tree">
       <div className="mb-2 flex items-center justify-between px-2">
         <span className="text-[12px] font-semibold uppercase tracking-wide text-subtle">{tr("docs.pages")}</span>
-        <button type="button" aria-label={tr("docs.new_page")} title={tr("docs.new_page")} onClick={() => void addPage(null)} className="rounded-md p-1 text-muted hover:bg-hover hover:text-fg"><IconPlus className="h-4 w-4" /></button>
+        {/* PAR1: the same words as the Docs page's own button (a top level page is a new doc), so it reads the same on a phone. */}
+        <button type="button" aria-label={tr("mywork.new_doc")} title={tr("mywork.new_doc")} onClick={() => void addPage(null)} className="rounded-md p-1 text-muted hover:bg-hover hover:text-fg"><IconPlus className="h-4 w-4" /></button>
       </div>
       {q.isPending ? <div className="space-y-2 px-2">{[0, 1, 2].map((i) => <div key={i} className="h-5 animate-pulse rounded bg-elevated" />)}</div> : !tree.length ? (
         <p className="px-2 text-[13px] text-muted">{tr("docs.no_pages_yet")}</p>
