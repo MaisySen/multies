@@ -40,9 +40,9 @@ export const DOC_LIMITS = {
   rules: 50,
   ruleName: 80,
   pattern: 200,
-  /** Time a regex rule may spend on one document, in ms, checked between 2,000 character chunks. */
+  /** Time a regex rule may spend on one document, in ms, checked before each chunk (Review Z3: 1,000 characters). */
   regexBudgetMs: 50,
-  regexChunk: 2_000,
+  regexChunk: 1_000,
   page: 50,
   sender: 120,
   maxTries: 2,

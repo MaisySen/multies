@@ -7,6 +7,7 @@
  *   person corrected are never changed.
  */
 import { DOC_LIMITS, type DocField, type DocFields, type DocMatch, type DocType } from "@/shared/doc-inbox";
+import { regexProblem } from "@/shared/safe-regex"; // Review Z3
 
 // ---------------------------------------------------------------- dates
 
@@ -168,15 +169,9 @@ export function patternProblem(match: DocMatch, pattern: string): string | null 
   if (!p) return "Add the words to look for.";
   if (p.length > DOC_LIMITS.pattern) return `Keep it under ${DOC_LIMITS.pattern} characters.`;
   if (match !== "regex") return patternWords(p, false).length ? null : "Add at least one word with letters or numbers.";
-  if (/\\[1-9]|\\k</.test(p)) return "Patterns cannot refer back to an earlier group.";
-  // A repeated group that itself repeats or has choices inside ("(a+)+", "(a|ab)*") can take forever on some text.
-  const stripped = p.replace(/\\./g, "x").replace(/\[[^\]]*\]/g, "x");
-  for (const g of stripped.matchAll(/\(([^()]*)\)\s*([*+]|\{\d*,?\d*\})/g)) {
-    if (/[*+}]/.test(g[1]) || g[1].includes("|")) return "This pattern repeats a group that repeats. Simplify it.";
-  }
-  if (/\([^()]*\([^()]*[*+][^()]*\)[^()]*\)\s*[*+{]/.test(stripped)) return "This pattern repeats a group that repeats. Simplify it.";
-  try { new RegExp(p, "u"); } catch { return "This pattern is not valid."; } // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (compiling the pattern patternProblem just checked: length, no back references, no nested repeats)
-  return null;
+  // Review Z3: the shared check (src/shared/safe-regex.ts): no back references or lookarounds, no repeated group with a
+  // repeat or a choice inside, no two repeats that can take the same characters. Checked case blind (the wider case).
+  return regexProblem(p, "iu");
 }
 
 const typoBudget = (w: string) => (w.length >= 8 ? 2 : w.length >= 4 ? 1 : 0);
@@ -226,14 +221,14 @@ export function ruleMatches(rule: MatchRule, ctx: MatchCtx): boolean {
       });
     }
     case "regex": {
-      const re = new RegExp(p, cs ? "u" : "iu"); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (a pattern patternProblem accepted when the rule was saved; run in chunks with a time budget)
+      const re = new RegExp(p, cs ? "u" : "iu"); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (patternProblem just passed it through regexProblem, src/shared/safe-regex.ts; each test sees at most regexChunk characters plus the overlap, inside a time budget)
       const now = ctx.now ?? (() => Date.now());
       const started = now();
       const step = DOC_LIMITS.regexChunk;
       const overlap = Math.min(DOC_LIMITS.pattern, step / 2);
       for (let i = 0; i < text.length || i === 0; i += step) {
-        if (re.test(text.slice(Math.max(0, i - overlap), i + step))) return true;
         if (now() - started > DOC_LIMITS.regexBudgetMs) return false;
+        if (re.test(text.slice(Math.max(0, i - overlap), i + step))) return true;
         if (i + step >= text.length) break;
       }
       return false;

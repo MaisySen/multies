@@ -7,6 +7,7 @@
  * only look at an EARLIER question, so a form reads top to bottom and can never loop. A
  * question that is hidden is skipped: never required, never checked, and its answer is dropped.
  */
+import { regexProblem } from "./safe-regex"; // Review Z3
 
 /** R93: "rating" is a 0 to 10 or 1 to 5 scale (NPS and CSAT), its range in rules.min and rules.max. */
 export type FormFieldType = "text" | "email" | "textarea" | "phone" | "select" | "multiselect" | "number" | "date" | "rating"
@@ -191,12 +192,17 @@ export function checkLogic(fields: LogicField[]): LogicProblem[] {
   return problems;
 }
 
-/** A pattern we accept: compiles, up to 200 characters, no back references or nested quantifiers. */
+/**
+ * A pattern we accept: up to 200 characters and passes the shared check (src/shared/safe-regex.ts, Review Z3: no back
+ * references or lookarounds, no repeated group with a repeat or a choice inside, no overlapping repeats).
+ */
 export function safePattern(p: string): boolean {
   if (typeof p !== "string" || !p || p.length > 200) return false;
-  if (/\\\d/.test(p) || /\([^)]*[+*][^)]*\)[+*{]/.test(p)) return false;
-  try { new RegExp(`^(?:${p})$`); return true; } catch { return false; } // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (checked here: up to 200 characters, no back references or nested repeats)
+  if (regexProblem(p, "") !== null) return false;
+  try { new RegExp(`^(?:${p})$`); return true; } catch { return false; } // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (compiled only, after regexProblem accepted it)
 }
+/** Review Z3: the longest answer a pattern is run on (a pattern is for codes, ids and numbers). */
+export const PATTERN_TEXT_MAX = 200;
 
 /** Keeps only the rule keys that make sense for the type, as numbers. */
 export function normaliseRules(type: FormFieldType, raw: unknown): FieldRules | null {
@@ -383,7 +389,7 @@ export function fieldError(f: LogicField, text: string, required: boolean = f.re
   }
   if (r.minLength !== undefined && text.length < r.minLength) return `"${f.label}" needs at least ${r.minLength} characters.`;
   if (r.maxLength !== undefined && text.length > r.maxLength) return `"${f.label}" can be up to ${r.maxLength} characters.`;
-  if (r.pattern && safePattern(r.pattern) && !new RegExp(`^(?:${r.pattern})$`).test(text)) return r.patternMessage || `"${f.label}" isn't in the expected format.`; // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (only a pattern safePattern accepted)
+  if (r.pattern && safePattern(r.pattern) && (text.length > PATTERN_TEXT_MAX || !new RegExp(`^(?:${r.pattern})$`).test(text))) return r.patternMessage || `"${f.label}" isn't in the expected format.`; // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp (only a pattern safePattern, so regexProblem, accepted, run on at most PATTERN_TEXT_MAX characters)
   return null;
 }
 
