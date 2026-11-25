@@ -2,9 +2,11 @@ import { test, expect } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
 import { SHOTS_ROOT } from "./support/shots";
+import { receiveMail, teamInbox } from "./support/team-inbox";
 
 /**
- * Round 22 (R22.5) end to end: on a demo workspace, an admin makes a mail rule in Automations that hands
+ * Round 22 (R22.5) end to end: in a team workspace (invites are off in the demo, MB-220, so the spec makes its own:
+ * e2e/support/team-inbox.ts), an admin makes a mail rule in Automations that hands
  * new support threads out round robin between two people, two emails arrive at support, each lands with a
  * different person in the shared inbox, and one is set to Waiting and shows under the Waiting view.
  */
@@ -15,18 +17,11 @@ test("a round robin mail rule assigns new support threads to two people in turn;
   test.setTimeout(90_000);
   if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": ip() });
   const base = test.info().project.use.baseURL!;
-  const headers = { origin: new URL(base).origin };
-  await page.goto("/login");
-  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
-  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
-
-  const mailboxes = (await (await page.request.get("/api/mailboxes")).json()).mailboxes as { id: string; address: string; localPart: string }[];
-  const support = mailboxes.find((m) => m.localPart === "support")!;
-  const founders = mailboxes.find((m) => m.localPart === "founders")!;
-  expect(support && founders).toBeTruthy();
+  const team = await teamInbox(page, { ownerName: "Alex Rivera", mailboxes: ["support"] });
+  const headers = team.headers;
+  const support = team.mailboxes.support;
 
   // A second person who can open support.
-  await page.request.post("/api/org/plan", { data: { plan: "pro" }, headers });
   const tag = Math.random().toString(36).slice(2, 8);
   const email = `priya-${tag}@example.com`;
   const inv = await page.request.post("/api/team/invites", { data: { email, role: "member", mailboxIds: [support.id] }, headers });
@@ -54,10 +49,9 @@ test("a round robin mail rule assigns new support threads to two people in turn;
   await expect(page.getByText("Share out support mail")).toBeVisible();
   await expect(page.getByText(/assign the thread in turn to Alex Rivera, Priya Shah/)).toBeVisible();
 
-  // Two new emails arrive at support (sent from the founders mailbox, delivered inside the workspace).
+  // Two new emails arrive at support from customers.
   for (const subject of ["Order 1182 arrived damaged", "Can I move my billing date"]) {
-    const r = await page.request.post("/api/mail/send", { data: { mailboxId: founders.id, to: [support.address], subject, text: "Hi team, can you help with this?" }, headers });
-    expect(r.status()).toBe(201);
+    await receiveMail(page, team, support.address, { from: "maria@customer.example", fromName: "Maria Gonzalez", subject, text: "Hi team, can you help with this?" });
   }
 
   // The shared inbox: each one is with a different person.

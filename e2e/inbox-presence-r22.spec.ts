@@ -2,9 +2,11 @@ import { test, expect, type Browser } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
 import { SHOTS_ROOT } from "./support/shots";
+import { receiveMail, teamInbox } from "./support/team-inbox";
 
 /**
- * Round 22 (R22.3 and R22.4) end to end: two people in one workspace open the same shared inbox
+ * Round 22 (R22.3 and R22.4) end to end: two people in one team workspace (invites are off in the demo, MB-220, so
+ * the spec makes its own: e2e/support/team-inbox.ts) open the same shared inbox
  * thread. The second sees the first viewing, then replying once the first opens a reply; a draft
  * the first saves shows in the thread for the second, who takes it over into their own Compose.
  */
@@ -21,12 +23,11 @@ async function browserFor(browser: Browser) {
 test("a teammate sees viewing, then replying, then takes over the saved draft", async ({ browser }) => {
   test.setTimeout(150_000);
   const a = await browserFor(browser);
-  await a.page.goto("/login");
-  await a.page.getByRole("button", { name: "Explore a demo workspace" }).click();
-  await expect(a.page).toHaveURL(/\/app/, { timeout: 20_000 });
+  const team = await teamInbox(a.page, { ownerName: "Ada Owner", mailboxes: ["support"] });
+  await receiveMail(a.page, team, team.mailboxes.support.address, { from: "kai@customer.example", fromName: "Kai Morgan", subject: "Password reset not arriving", text: "Hi, I've asked for a password reset three times and nothing arrives." });
   const adaName = (await (await a.page.request.get("/api/account/me")).json()).user.name as string;
 
-  // Ben joins the demo workspace as an admin (every mailbox).
+  // Ben joins the workspace as an admin (every mailbox).
   const tag = Math.random().toString(36).slice(2, 8);
   const inv = await a.page.request.post("/api/team/invites", { data: { email: `ben-${tag}@example.com`, role: "admin" }, headers: a.headers });
   expect(inv.status()).toBe(201);
@@ -35,8 +36,9 @@ test("a teammate sees viewing, then replying, then takes over the saved draft", 
   await confirmEmail(b.page.request, `ben-${tag}@example.com`);
   expect((await b.page.request.post(`/api/invites/${(await inv.json()).link.split("/invite/")[1]}/accept`, { headers: b.headers })).status()).toBe(200);
 
-  const threads = (await (await a.page.request.get("/api/agents/threads")).json()).data as { id?: string; threadId?: string; subject: string }[];
-  const row = threads.find((t) => /Password reset not arriving/.test(t.subject)) ?? threads[0];
+  const findRow = async () => ((await (await a.page.request.get("/api/agents/threads")).json()).data as { id?: string; threadId?: string; subject: string }[]).find((t) => /Password reset not arriving/.test(t.subject));
+  await expect.poll(async () => !!(await findRow()), { timeout: 15_000 }).toBe(true);
+  const row = (await findRow())!;
   const threadId = (row.threadId ?? row.id)!;
   const thread = await (await a.page.request.get(`/api/agents/threads/${threadId}`)).json();
   const last = thread.messages[thread.messages.length - 1] as { id: string; mailboxId?: string };
