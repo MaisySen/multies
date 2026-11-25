@@ -3,9 +3,10 @@ import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { THEME_SCRIPT } from "@/server/lib/security-headers";
 import {
-  BrandPatchSchema, DEFAULT_BRAND, PRESETS, brandCss, checkBrand, colourTokens, contrast, ensureContrast, paletteFromPixels,
-  logoScheme, pickLogo, readBrand, readableOn, sidebarTokens, sniffImage, type Brand,
+  DEFAULT_BRAND, PRESETS, brandCss, checkBrand, colourTokens, contrast, ensureContrast, paletteFromPixels,
+  logoScheme, pickLogo, readableOn, sidebarTokens, sniffImage, type Brand,
 } from "@/shared/branding";
+import { BrandPatchSchema, readBrand } from "@/shared/branding-schemas";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82]);
 

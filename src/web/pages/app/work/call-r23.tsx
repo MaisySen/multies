@@ -3,7 +3,7 @@
  * call window's state. The window itself and the room extras load with LiveKit (call-dock-r23.tsx),
  * only when a call is open, so chat and the app shell stay light.
  */
-import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { IconPhoneOff, IconVideo } from "@/web/components/ui/icon";
@@ -13,6 +13,7 @@ import { useConfig } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { lazyPage } from "@/web/components/lazy-page";
 import { sessionFor, useCallSession } from "@/web/lib/call-session-meet";
+import { openCallDock, useCallDock } from "./call-dock-store";
 import { tr } from "@/web/i18n"; // R104B
 import "@/web/i18n/w2/en-meetings"; // R104B
 
@@ -95,14 +96,8 @@ export function CallHeaderStatus({ channelId }: { channelId: string }) {
 
 // ---------------------------------------------------------------- docked call window
 
-export interface DockCall { meetingId: string; title: string; path: string }
-let docked: DockCall | null = null;
-const listeners = new Set<() => void>();
-const emit = () => listeners.forEach((f) => f());
-export function openCallDock(c: DockCall) { docked = c; emit(); }
-export function closeCallDock() { docked = null; emit(); }
-const subscribe = (f: () => void) => { listeners.add(f); return () => listeners.delete(f); };
-export const useCallDock = () => useSyncExternalStore(subscribe, () => docked, () => null);
+// The docked call's store is in ./call-dock-store, so the app frame can watch it without loading this file.
+export { closeCallDock, openCallDock, useCallDock, type DockCall } from "./call-dock-store";
 
 const CallDock = lazyPage(() => import("./call-dock-r23"), "CallDock", { quiet: true });
 /** In the app shell: the docked call window, loaded only while a call is open. */

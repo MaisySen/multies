@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
-import { ProgressInput, TourInput, TourPatch } from "@/shared/tours-r130";
+import { ProgressInput, TourInput, TourPatch } from "@/shared/tours-r130-schemas";
 import { createTour, deleteTour, getTour, listTours, recordProgress, resetProgress, toursMe, updateChecklist, updateTour } from "../services/tours-r130";
 
 const ChecklistBody = z.object({ action: z.enum(["mark", "dismiss", "resume", "celebrated"]), step: z.string().max(40).optional() });

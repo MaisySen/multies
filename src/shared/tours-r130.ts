@@ -3,7 +3,6 @@
  * tours, builder). Tours point at elements by their stable data-tour or data-testid id, never by CSS paths.
  * Text is plain text everywhere (rendered as text, never as HTML).
  */
-import { z } from "zod";
 
 export type Role = "owner" | "admin" | "member";
 export const isManagerRole = (r: Role | string | null | undefined) => r === "owner" || r === "admin";
@@ -57,28 +56,12 @@ export const checklistVisible = (v: ChecklistView | null | undefined) => !!v && 
 /* ------------------------------------------------------------------ tours */
 
 export const TARGET_RE = /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,79}$/;
-export const Target = z.string().trim().regex(TARGET_RE, "Pick an element on the page.");
-/** Plain text only: control characters (other than tab and new line) are dropped. */
-const stripControl = (s: string) => [...s].filter((ch) => { const c = ch.charCodeAt(0); return c === 9 || c === 10 || c === 13 || (c >= 32 && c !== 127); }).join("");
-const plain = (max: number) => z.string().trim().max(max).transform(stripControl);
-export const TourStep = z.object({ target: Target, title: plain(80).pipe(z.string().min(1, "Give each step a title.")), body: plain(400) });
-export type TourStep = z.infer<typeof TourStep>;
+/** A tour step as stored and sent (validated by TourStep in ./tours-r130-schemas). */
+export interface TourStep { target: string; title: string; body: string }
 export const AUDIENCES = ["all", "admins", "members"] as const;
 export type Audience = (typeof AUDIENCES)[number];
-export const PagePath = z.string().trim().max(120).regex(/^\/app(\/[A-Za-z0-9_-]+)*$/, "Pick a page in the app.");
+export const PAGE_PATH_RE = /^\/app(\/[A-Za-z0-9_-]+)*$/;
 export const MAX_STEPS = 10;
-const tourFields = {
-  name: plain(80).pipe(z.string().min(1, "Give the tour a name.")),
-  page: PagePath,
-  audience: z.enum(AUDIENCES),
-  newDays: z.number().int().min(1).max(365).nullable(),
-  steps: z.array(TourStep).max(MAX_STEPS, `Up to ${MAX_STEPS} steps.`),
-};
-export const TourInput = z.object({ ...tourFields, audience: tourFields.audience.default("all"), newDays: tourFields.newDays.default(null), steps: tourFields.steps.default([]) });
-export type TourInput = z.infer<typeof TourInput>;
-/** A change: only the fields sent are touched (no defaults, so a publish never resets the audience). */
-export const TourPatch = z.object({ ...tourFields, status: z.enum(["draft", "published"]) }).partial();
-export type TourPatch = z.infer<typeof TourPatch>;
 
 export interface TourDef { id: string; name: string; page: string; steps: TourStep[]; builtin?: boolean; phoneOnly?: boolean; desktopOnly?: boolean }
 export interface AdminTour extends TourDef { audience: Audience; newDays: number | null; status: "draft" | "published"; updatedAt: number }
@@ -100,7 +83,6 @@ export function pageMatches(page: string, pathname: string): boolean {
 export const inApp = (pathname: string) => pathname === "/app" || pathname.startsWith("/app/");
 
 export const PROGRESS_KEY_RE = /^(checklist|builtin:[a-z_-]{1,40}|tour_[A-Za-z0-9_-]{1,60})$/;
-export const ProgressInput = z.object({ key: z.string().regex(PROGRESS_KEY_RE), state: z.enum(["done", "skipped"]), step: z.number().int().min(0).max(50).default(0) });
 
 /** Built in tours: they follow the R121 navigation (Contacts, Settings Mail setup, Docs with Files, the phone More sheet). */
 export const BUILTIN_TOURS: TourDef[] = [

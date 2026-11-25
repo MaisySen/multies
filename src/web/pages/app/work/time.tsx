@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconBack, IconChevronRight, IconClock, IconPause, IconPlay, IconPlus, IconTimer, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -10,61 +10,17 @@ import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc
 import { cn } from "@/web/lib/cn";
 import { useProjects, useTasks } from "./data";
 import { tone } from "@/web/components/app-bits";
-import { ApprovalQueue, DayTimeline, EntryExtras, ExportLink, IdlePrompt, useTasksPlus, WeekStatus } from "./time-plus-r95"; // R95
+import { ApprovalQueue, DayTimeline, EntryExtras, ExportLink, useTasksPlus, WeekStatus } from "./time-plus-r95"; // R95
 import { useMe } from "@/web/lib/queries";
 import { cleanTags } from "@/shared/tasks-plus-r95";
 import { LoadError } from "@/web/components/load-error-t1g";
+import { clockText, hoursText, useElapsed, useRunningTimer, useTimerActions, type TimeEntry } from "./time-core";
 
-export interface TimeEntry {
-  id: string; taskId: string | null; task: { id: string; ref: string; title: string } | null; projectId: string | null;
-  project: { id: string; name: string; key: string; color: string } | null; person: { type: "member" | "agent"; id: string; name: string }; personId: string;
-  startedAt: string; endedAt: string | null; running: boolean; seconds: number; note: string; billable: boolean; billed?: boolean; source: "timer" | "manual";
-  /** R95 */ tags?: string[];
-}
 interface Sheet { from: string; to: string; days: string[]; rows: { person: TimeEntry["person"]; project: TimeEntry["project"]; days: Record<string, number>; total: number; billable: number }[]; dayTotals: Record<string, number>; total: number; entries: TimeEntry[] }
 
-/** 1:05:09 for a running timer, 2h 05m for totals. */
-export const clockText = (s: number) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`; };
-export const hoursText = (s: number) => { if (!s) return "0m"; const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`; };
+// The timer helpers live in ./time-core so the app frame's timer chip does not load this page.
+export { clockText, hoursText, useElapsed, useRunningTimer, useTimerActions, type TimeEntry } from "./time-core";
 const today = () => new Date().toLocaleDateString("en-CA");
-
-export function useRunningTimer() {
-  return useQuery({ queryKey: ["time-running"], queryFn: async () => (await api.get<{ entry: TimeEntry | null }>("/time/running")).entry, refetchInterval: 60_000, staleTime: 10_000 });
-}
-
-/** Seconds on a running entry, ticking every second. */
-export function useElapsed(entry: TimeEntry | null | undefined) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { if (!entry?.running) return; const i = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(i); }, [entry?.running, entry?.id]);
-  if (!entry) return 0;
-  return entry.running ? Math.max(0, Math.round((now - new Date(entry.startedAt).getTime()) / 1000)) : entry.seconds;
-}
-
-export function useTimerActions() {
-  const qc = useQueryClient();
-  const done = () => { void qc.invalidateQueries({ queryKey: ["time-running"] }); void qc.invalidateQueries({ queryKey: ["timesheet"] }); void qc.invalidateQueries({ queryKey: ["task"] }); };
-  const start = useMutation({ mutationFn: (taskId: string) => api.post<{ entry: TimeEntry }>("/time/start", { taskId }), onSuccess: done, onError: (e) => showError(e as Error) });
-  const stop = useMutation({ mutationFn: () => api.post<{ entry: TimeEntry | null }>("/time/stop", {}), onSuccess: done, onError: (e) => showError(e as Error) });
-  return { start, stop, refresh: done };
-}
-
-/** The running timer, shown in the app header on every page. */
-export function TimerChip() {
-  const running = useRunningTimer();
-  const { stop, refresh } = useTimerActions();
-  const secs = useElapsed(running.data);
-  const plus = useTasksPlus();
-  if (!running.data) return null;
-  return (
-    <div className="flex items-center gap-1.5 rounded-full border border-brand/40 bg-brand/10 py-0.5 pl-2.5 pr-1 text-[12.5px]" data-testid="timer-chip">
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" aria-hidden />
-      <span className="max-w-[140px] truncate text-muted">{running.data.task?.ref}</span>
-      <span className="font-mono tabular-nums">{clockText(secs)}</span>
-      <button className="rounded-full p-1 text-muted hover:bg-elevated hover:text-fg" aria-label="Stop timer" onClick={() => stop.mutate()}><IconPause className="h-3.5 w-3.5" /></button>
-      {plus && <IdlePrompt entry={running.data} onDone={refresh} />}
-    </div>
-  );
-}
 
 /** Time on one task, in the task panel: start or stop the timer, log time by hand, see who logged what. */
 export function TaskTime({ taskId, total, entries, onChange }: { taskId: string; total: number; entries: TimeEntry[]; onChange: () => void }) {

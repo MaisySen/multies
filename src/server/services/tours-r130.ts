@@ -9,9 +9,10 @@ import { docs, invitations, mailboxes, members, organizations, sites, tasks, tou
 import { badRequest, forbidden, notFound } from "../lib/errors";
 import { newId } from "../lib/crypto";
 import {
-  audienceMatches, BUILTIN_TOURS, checklistFor, checklistView, isManagerRole, isMarkable, MAX_STEPS, parseChecklist, TourStep,
-  type AdminTour, type Audience, type ChecklistState, type ChecklistStepId, type TourDef, type TourInput, type TourPatch, type ToursMe,
+  audienceMatches, BUILTIN_TOURS, checklistFor, checklistView, isManagerRole, isMarkable, MAX_STEPS, parseChecklist,
+  type AdminTour, type Audience, type ChecklistState, type ChecklistStepId, type TourDef, type ToursMe,
 } from "@/shared/tours-r130";
+import { TourStep, type TourInput, type TourPatch } from "@/shared/tours-r130-schemas";
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "role">;
 const CHECKLIST = "checklist";

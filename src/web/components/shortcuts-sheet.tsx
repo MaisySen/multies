@@ -89,11 +89,11 @@ function SingleKeysSwitch() {
 }
 
 /** Mounted once in the app layout: every single key and sequence from the command registry, and the open event from menus. */
-export function ShortcutsHost() {
+export function ShortcutsHost({ initialOpen = false }: { /** R40: the sheet was asked for before this loaded. */ initialOpen?: boolean } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const appearance = useAppearance();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [hint, setHint] = useState<string[] | null>(null);
   const state = useRef<KeyState>(idleKeys());
   const path = useRef(location.pathname);

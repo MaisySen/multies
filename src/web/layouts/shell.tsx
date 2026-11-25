@@ -21,7 +21,7 @@ import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { Kbd } from "@/web/components/ui/misc";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
-import { openPalette } from "@/web/lib/shortcuts";
+import { openPalette } from "@/web/lib/shortcut-events";
 import { isFavourite, ownsSidebar, resetLayout, setLayout, sidebarHiddenOn, toggleFavourite, toggleSidebar, useLayout, type Favourite } from "@/web/lib/layout-prefs";
 import { breadcrumbs, createItems, isNavP2, pageFor, SOCIAL_NEW, type CreateKind, type IconKey, type NavFlags, type Section, type SectionId } from "./shell-nav";
 import { sectionBadge, withoutHidden } from "@/shared/nav-menu"; // R121

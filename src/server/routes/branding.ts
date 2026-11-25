@@ -13,9 +13,10 @@ import { audit } from "../services/audit";
 import { HttpError, notFound } from "../lib/errors";
 import { fromB64, toB64, toHex } from "../lib/crypto";
 import {
-  BrandPatchSchema, DEFAULT_PERSONAL, LOGO_KINDS, LOGO_MAX_BYTES, PersonalSchema, brandCss, checkBrand, readBrand, sniffImage,
+  DEFAULT_PERSONAL, LOGO_KINDS, LOGO_MAX_BYTES, brandCss, checkBrand, sniffImage,
   type Brand, type LogoKind, type Personal,
 } from "@/shared/branding";
+import { BrandPatchSchema, PersonalSchema, readBrand } from "@/shared/branding-schemas";
 
 const isKind = (k: string): k is LogoKind => (LOGO_KINDS as string[]).includes(k);
 

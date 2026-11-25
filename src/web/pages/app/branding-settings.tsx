@@ -21,8 +21,9 @@ import { useConfig, useMe } from "@/web/lib/queries";
 import { LanguagePanel, WordingPanel } from "@/web/components/language-r104"; // R104
 import {
   FONTS, LOGO_MAX_BYTES, PRESETS, brandCss, checkBrand, logoUrl, paletteFromPixels, parseHex, pickLogo, previewTokens,
-  type Appearance, type Brand, type BrandPatch, type FontId, type LogoKind, type Personal, type Radius,
+  type Appearance, type Brand, type FontId, type LogoKind, type Personal, type Radius,
 } from "@/shared/branding";
+import type { BrandPatch } from "@/shared/branding-schemas";
 import { LoadFailure } from "@/web/components/load-error-t1g";
 import { tr, tl } from "@/web/i18n"; // R104
 import "@/web/i18n/w2/en-home"; // R104B

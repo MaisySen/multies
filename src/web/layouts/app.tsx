@@ -14,13 +14,19 @@ import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { UpdatePill } from "@/web/components/update-pill"; // R32
 import { PaletteHost } from "@/web/components/palette-host"; // R31: the menu itself loads on demand
 import { ChecklistRing, ToursHost, openGetStarted, openToursList, toursKey, useToursMe } from "@/web/components/tours-r130"; // R130
-import { ShortcutsHost } from "@/web/components/shortcuts-sheet"; // R30
-import { openPalette, openShortcutsSheet } from "@/web/lib/shortcuts";
-import { TimerChip } from "@/web/pages/app/work/time";
+import { OPEN_SHORTCUTS_EVENT, openPalette, openShortcutsSheet } from "@/web/lib/shortcut-events";
+import { TimerChip } from "@/web/pages/app/work/timer-chip";
 import { PhoneTabBar } from "@/web/components/phone-tab-bar"; // R46 mobile web
 import { watchKeyboardInset } from "@/web/lib/keyboard-inset"; // R49 mobile web
 // R31: the call dock and onboarding load on demand (their code is not on the first paint path).
 const CallDockHost = lazyPage(() => import("@/web/pages/app/work/call-r23"), "CallDockHost", { quiet: true });
+// R40: the desktop's resizable panes (react-resizable-panels) load only on a computer, and start at once there.
+const loadShellPanes = () => import("./shell-panes");
+if (typeof window !== "undefined" && window.matchMedia?.("(min-width: 1024px)").matches) void loadShellPanes().catch(() => undefined);
+const ShellPanes = lazyPage(loadShellPanes, "ShellPanes", { quiet: true });
+// R30: keyboard shortcuts. R40: a touch-only phone loads them at its first key press (or when the sheet is asked
+// for), not on its first screen; anything with a mouse or trackpad loads them at once.
+const ShortcutsHost = lazyPage(() => import("@/web/components/shortcuts-sheet"), "ShortcutsHost", { quiet: true });
 const Onboarding = lazyPage(() => import("@/web/pages/app/onboarding"), "Onboarding");
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useWhatsNew } from "@/web/lib/whats-new"; // R53 (MB-133)
@@ -43,7 +49,8 @@ import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"
 import { PrivateInboxNotice } from "@/web/components/mailbox-privacy-priv1a"; // PRIV1a (MB-366)
 import { JoinInvitePrompt } from "@/web/components/join-invite-prompt-r41"; // R41 (MB-221)
 import { api } from "@/web/lib/api";
-import { endCallForAccountChange } from "@/web/lib/call-session-meet";
+import { endCallForAccountChange, useCallSession } from "@/web/lib/call-session-meet";
+import { useCallDock } from "@/web/pages/app/work/call-dock-store"; // R40
 
 /** Wave 3 review Y5: the tab's call ends (and the server hears the person left) before the account or workspace changes. */
 const leaveCallForAccountChange = () => endCallForAccountChange((id) => api.post(`/chat/calls/${id}/left`, {}));
@@ -60,9 +67,8 @@ import { useCollapsingTitle } from "@/web/lib/large-title";
 import { badgeTotal, useCounts, useTitleCount } from "@/web/lib/counts"; // R34: one counts query for every badge
 import { useOpenReportCount } from "@/web/lib/open-report-count"; // R35 (R45: its own module, not the moderation page)
 import { lazyPage } from "@/web/components/lazy-page";
-import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels"; // R79 (MIT): resizable shell panes
-import { panelStorage, setLayoutUser, sidebarHiddenOn, useLayout, useLayoutGeneration } from "@/web/lib/layout-prefs"; // R79
-import { setInspectorEl, useInspectorOpen } from "@/web/lib/inspector"; // R79
+import { setLayoutUser, sidebarHiddenOn, useLayout, useLayoutGeneration } from "@/web/lib/layout-prefs"; // R79
+import { useInspectorOpen } from "@/web/lib/inspector"; // R79
 import { useMediaQuery } from "@/web/lib/use-compact";
 import { Breadcrumbs, ContextSidebar, CreateMenu, IconRail, SearchEntry, ViewMenu, useSidebarShortcut, type NavCounts } from "./shell"; // R79
 import { pageTitle, sectionFor, setNavModel, visibleSections } from "./shell-nav"; // R79; R82F (MB-283) titles; R121 model
@@ -165,7 +171,6 @@ export function AppLayout() {
   const desktop = useMediaQuery("(min-width: 1024px)");
   const mainHost = useStableHost("flex h-full min-h-0 min-w-0 flex-1 flex-col");
   useSidebarShortcut();
-  const shellLayout = useDefaultLayout({ id: "shell", storage: panelStorage, panelIds: [...(sidebarHidden ? [] : ["shell-sidebar"]), "shell-main", ...(inspectorOpen ? ["shell-inspector"] : [])] });
   const projectParam = loc.pathname === "/app/tasks" ? new URLSearchParams(loc.search).get("project") : null;
   const projectList = useQuery({ queryKey: ["projects"], enabled: !!projectParam && !!me.data?.organization, staleTime: 30_000,
     queryFn: async () => (await api.get<{ projects: { id: string; name: string }[] }>("/projects")).projects });
@@ -384,12 +389,19 @@ export function AppLayout() {
         <PaletteHost onSignOut={signOut} />
         <ToursHost />
         <UpdatePill />{/* R32: new version prompt */}
-        <ShortcutsHost />
+        <ShortcutsGate />
         {config.data?.navP2 && <CustomiseMenuHost sections={sections} />}{/* R121 */}
         <div className="pointer-events-none fixed bottom-[calc(1rem+var(--tabbar-h,0px))] right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
-        <Suspense fallback={null}><CallDockHost /></Suspense>
+        <CallDockGate />
     </div>
   );
+
+  const desktopSidebar = (
+    <aside aria-label={tr("common.sidebar")} className="h-full">
+      <ContextSidebar section={section} counts={navCounts} logo={<Link to="/app" aria-label={`${me.data?.organization?.name || "Multies"} overview`}><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
+    </aside>
+  );
+  const mainSlot = <HostSlot host={mainHost} className="flex h-full min-w-0 flex-1 flex-col" />;
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
@@ -403,24 +415,13 @@ export function AppLayout() {
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">{tr("shell.create_something")}</a>}
       {desktop ? (<>
         <IconRail sections={sections} active={section.id} counts={navCounts} footer={accountButton} />
-        <Group key={layoutGen} id="shell" orientation="horizontal" className="min-w-0 flex-1" defaultLayout={shellLayout.defaultLayout} onLayoutChanged={shellLayout.onLayoutChanged}>
-          {!sidebarHidden && <>
-            <Panel id="shell-sidebar" defaultSize="248px" minSize="200px" maxSize="420px" className="glass-sidebar">
-              <aside aria-label={tr("common.sidebar")} className="h-full">
-                <ContextSidebar section={section} counts={navCounts} logo={<Link to="/app" aria-label={`${me.data?.organization?.name || "Multies"} overview`}><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
-              </aside>
-            </Panel>
-            {/* R82F: named by title (still read out), so axe does not count the handle as page content outside a landmark. */}
-            <Separator className="shell-separator" title={tr("shell.resize_sidebar")} />
-          </>}
-          <Panel id="shell-main" minSize="480px"><HostSlot host={mainHost} className="flex h-full min-w-0 flex-col" /></Panel>
-          {inspectorOpen && <>
-            <Separator className="shell-separator" title={tr("shell.resize_details_panel")} />
-            <Panel id="shell-inspector" defaultSize="420px" minSize="340px" maxSize="760px">
-              <div ref={setInspectorEl} className="h-full min-w-0 overflow-hidden" />
-            </Panel>
-          </>}
-        </Group>
+        {/* R40: the resizable panes load only on a computer; until they arrive the page sits beside a fixed sidebar. */}
+        <Suspense fallback={<div className="flex min-w-0 flex-1">
+          {!sidebarHidden && <div className="glass-sidebar w-[248px] shrink-0">{desktopSidebar}</div>}
+          {mainSlot}
+        </div>}>
+          <ShellPanes layoutGen={layoutGen} sidebarHidden={sidebarHidden} inspectorOpen={inspectorOpen} sidebar={desktopSidebar} main={mainSlot} />
+        </Suspense>
       </>) : (<>
         <aside aria-label={tr("common.sidebar")} className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
         <HostSlot host={mainHost} className="flex h-full min-w-0 flex-1 flex-col" />
@@ -501,4 +502,25 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
       </Dialog>
     </>
   );
+}
+
+/** R40: the docked call window (and the meetings wording it brings) loads only once a call is open in this tab. */
+function CallDockGate() {
+  const call = useCallDock();
+  const session = useCallSession();
+  if (!call && session?.view !== "dock") return null;
+  return <Suspense fallback={null}><CallDockHost /></Suspense>;
+}
+
+function ShortcutsGate() {
+  const [on, setOn] = useState<false | "keys" | "sheet">(() => (window.matchMedia?.("(hover: none) and (pointer: coarse)").matches ? false : "keys"));
+  useEffect(() => {
+    if (on) return;
+    const keys = () => setOn((o) => o || "keys");
+    const sheet = () => setOn((o) => o || "sheet");
+    window.addEventListener("keydown", keys);
+    window.addEventListener(OPEN_SHORTCUTS_EVENT, sheet);
+    return () => { window.removeEventListener("keydown", keys); window.removeEventListener(OPEN_SHORTCUTS_EVENT, sheet); };
+  }, [on]);
+  return on ? <Suspense fallback={null}><ShortcutsHost initialOpen={on === "sheet"} /></Suspense> : null;
 }

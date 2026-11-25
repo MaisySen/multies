@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client } from "./helpers";
 import {
   audienceMatches, BUILTIN_TOURS, checklistFor, checklistView, checklistVisible, inApp, isMarkable, navTourId, pageMatches, parseChecklist,
-  ProgressInput, TourInput, TourStep,
 } from "@/shared/tours-r130";
+import { ProgressInput, TourInput, TourStep } from "@/shared/tours-r130-schemas";
 import { isToursExcluded } from "@/server/services/tours-r130";
 
 describe("R130 tours: rules", () => {

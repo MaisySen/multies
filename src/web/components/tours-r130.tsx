@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { useConfig, useMe } from "@/web/lib/queries";
-import { openPalette } from "@/web/lib/shortcuts";
+import { openPalette } from "@/web/lib/shortcut-events";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Card } from "@/web/components/ui/misc";

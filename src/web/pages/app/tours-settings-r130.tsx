@@ -17,7 +17,8 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { IconArrowDown, IconArrowUp, IconTrash } from "@/web/components/ui/icons";
 import { SECTIONS_P2 } from "@/shared/nav-menu";
 import { LoadError } from "@/web/components/load-error-t1g";
-import { AUDIENCES, BUILTIN_TOURS, MAX_STEPS, PagePath, desktopOnlySteps, hiddenOnPhone, stepsLabel, type AdminTour, type Audience, type TourStep } from "@/shared/tours-r130";
+import { PagePath } from "@/shared/tours-r130-schemas";
+import { AUDIENCES, BUILTIN_TOURS, MAX_STEPS, desktopOnlySteps, hiddenOnPhone, stepsLabel, type AdminTour, type Audience, type TourStep } from "@/shared/tours-r130";
 import { beginPick, beginPreview, startTour } from "@/web/components/tours-r130";
 
 const adminKey = ["tours-r130", "admin"] as const;

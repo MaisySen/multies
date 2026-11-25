@@ -4,7 +4,7 @@
  * opens as soon as its code arrives.
  */
 import { Suspense, useEffect, useState } from "react";
-import { OPEN_PALETTE_EVENT } from "@/web/lib/shortcuts";
+import { OPEN_PALETTE_EVENT } from "@/web/lib/shortcut-events";
 import { lazyPage } from "@/web/components/lazy-page";
 import { shouldHoldBack } from "@/web/lib/prefetch";
 

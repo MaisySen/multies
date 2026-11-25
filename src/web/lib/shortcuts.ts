@@ -76,14 +76,4 @@ export function isTypingTarget(el: EventTarget | null): boolean {
   return ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || !!t.isContentEditable;
 }
 
-/** The sheet opens from anywhere (the command menu, the account menu) through this one event. */
-export const OPEN_SHORTCUTS_EVENT = "multies:shortcuts";
-export function openShortcutsSheet() {
-  window.dispatchEvent(new CustomEvent(OPEN_SHORTCUTS_EVENT));
-}
-
-/** R31: the command menu opens from anywhere (a single key, a button) through this event; `page` opens a nested picker. */
-export const OPEN_PALETTE_EVENT = "multies:palette";
-export function openPalette(page?: string) {
-  window.dispatchEvent(new CustomEvent(OPEN_PALETTE_EVENT, { detail: { page } }));
-}
+export { OPEN_PALETTE_EVENT, OPEN_SHORTCUTS_EVENT, openPalette, openShortcutsSheet } from "./shortcut-events";

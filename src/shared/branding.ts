@@ -3,8 +3,6 @@
  * (design tokens). A brand is a few choices; everything the UI paints is derived here so every colour pair
  * stays readable (WCAG AA, 4.5:1 for text) whatever colour a workspace picks.
  */
-import { z } from "zod";
-
 export const HEX = /^#[0-9a-fA-F]{6}$/;
 export type Radius = "sharp" | "default" | "round";
 export type Density = "comfortable" | "compact";
@@ -74,34 +72,9 @@ export const PRESETS: Preset[] = [
   { id: "crimson", name: "Crimson", primary: "#b91c1c", accent: "#f43f5e", sidebar: "#1c1917" },
 ];
 
-const hex = z.string().trim().regex(HEX, "Pick a colour as #rrggbb.").transform((s) => s.toLowerCase());
-export const BrandPatchSchema = z.object({
-  primary: hex.nullable().optional(),
-  accent: hex.nullable().optional(),
-  sidebar: hex.nullable().optional(),
-  radius: z.enum(["sharp", "default", "round"]).optional(),
-  density: z.enum(["comfortable", "compact"]).optional(),
-  font: z.enum(["system", "humanist", "geometric", "rounded", "serif", "mono"]).optional(),
-  appearance: z.enum(["system", "light", "dark"]).optional(),
-  locked: z.boolean().optional(),
-  preset: z.string().trim().max(32).nullable().optional(),
-}).strict();
-export type BrandPatch = z.infer<typeof BrandPatchSchema>;
-
-export const PersonalSchema = z.object({ followBrand: z.boolean(), accent: hex.nullable() }).strict();
-export type Personal = z.infer<typeof PersonalSchema>;
+/** A person's own theme: follow the workspace brand, or their own accent (validated by PersonalSchema in ./branding-schemas). */
+export interface Personal { followBrand: boolean; accent: string | null }
 export const DEFAULT_PERSONAL: Personal = { followBrand: true, accent: null };
-
-/** A stored JSON brand, read leniently: anything unknown or invalid falls back to the default. */
-export function readBrand(json: string | null | undefined, logos: Partial<Record<LogoKind, string>> = {}): Brand {
-  let raw: unknown;
-  try { raw = json ? JSON.parse(json) : null; } catch { raw = null; }
-  const p = BrandPatchSchema.safeParse(raw && typeof raw === "object" ? raw : {});
-  return { ...DEFAULT_BRAND, ...(p.success ? stripUndef(p.data) : {}), logos };
-}
-function stripUndef<T extends object>(o: T): Partial<T> {
-  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
-}
 
 // ------------------------------------------------------------------ colour maths (sRGB, WCAG 2.x)
 
