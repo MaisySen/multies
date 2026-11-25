@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+// W4: since R79 a task opens in the side panel ("Task details") on a wide screen, over the page ("Task") otherwise.
 
 /**
  * The work suite end to end: a task from an email, a drag on the board, a contact made from
@@ -30,7 +31,7 @@ test("make a task from an email, and see the thread on the task", async ({ page 
   const chip = page.getByTestId("linked-task").filter({ hasText: "To do" });
   await expect(chip).toBeVisible();
   await chip.click();
-  const panel = page.getByRole("dialog", { name: "Task" });
+  const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }));
   await expect(panel.getByLabel("Title")).toHaveValue("Launch checklist for Friday");
   const thread = panel.getByRole("region", { name: "Email thread" });
   await expect(thread.getByText("Quick checklist before Friday's launch", { exact: false })).toBeVisible();
@@ -75,7 +76,8 @@ test("a contact is made automatically from mail, with the thread on their timeli
   const row = page.getByTestId("contact-list").getByRole("link", { name: /lena@harbourfresh\.com\.au/ });
   await expect(row).toContainText("Harbourfresh");
   await row.click();
-  await expect(page.getByTestId("contact-timeline").getByText(subject)).toBeVisible();
+  // W4: with CRM_TIMELINE on (the E2E server) the contact page shows the CRM timeline (R94) in place of the plain one.
+  await expect(page.getByTestId("contact-timeline").or(page.getByTestId("crm-timeline")).getByText(subject)).toBeVisible();
   // Mail that arrived before the suite existed is in contacts too.
   await page.goto("/app/contacts");
   await page.getByLabel("Search contacts").fill("maria");
@@ -102,10 +104,17 @@ test("an agent makes and finishes a task with MCP tool calls, and the team sees 
   const made = await call("create_task", { title: "Chase the Blue Harbor DNS change", priority: "high", due: "2026-12-01" });
   expect(made.task.ref).toMatch(/^TSK-\d+$/);
   await call("comment_on_task", { id: made.task.ref, body: "Asked Maria's IT contact for access." });
+  // W4 (Wave 2 A4, intended): a key's task with no project waits in Triage, out of the task lists, until a person accepts it.
+  expect(made.task.triage?.state).toBe("pending");
+  const refs = (r: { tasks?: { ref: string }[]; items?: { ref: string }[] }) => (r.tasks ?? r.items ?? []).map((t) => t.ref);
+  expect(refs(await call("list_tasks", { q: "Blue Harbor DNS" }))).not.toContain(made.task.ref);
+  expect(refs(await call("task_triage_list", {}))).toContain(made.task.ref);
+  const accepted = await page.request.post(`/api/triage/${made.task.id}/accept`, { headers: { origin: new URL(page.url()).origin }, data: {} });
+  expect(accepted.status(), await accepted.text()).toBe(200);
   const listed = await call("list_tasks", { q: "Blue Harbor DNS" });
   expect(listed.tasks.map((t: { ref: string }) => t.ref)).toContain(made.task.ref);
   await page.goto(`/app/tasks?view=list&task=${made.task.id}`);
-  const panel = page.getByRole("dialog", { name: "Task" });
+  const panel = page.getByRole("dialog", { name: "Task" }).or(page.getByRole("complementary", { name: "Task details" }));
   await expect(panel.getByLabel("Title")).toHaveValue("Chase the Blue Harbor DNS change");
   await expect(panel.getByRole("region", { name: "Comments" })).toContainText("Asked Maria's IT contact for access.");
 });

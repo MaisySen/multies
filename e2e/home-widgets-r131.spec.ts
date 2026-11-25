@@ -37,6 +37,8 @@ async function inviteAndJoin(browser: Browser) {
 
 const SHOTS = process.env.R131_SHOTS || "";
 async function shot(page: Page, name: string) { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false }); }
+// W4: with time billing on (BILL_TD4, on by default in E2E) owners and admins also get the Time to bill widget at the end.
+const BILL = process.env.E2E_BILL_TD4 === "off" ? [] : ["billing"];
 async function order(page: Page) {
   return page.locator('[data-testid="widget-grid"] > section').evaluateAll((els) => els.map((e) => (e.getAttribute("data-testid") || "").replace("widget-", "")));
 }
@@ -62,7 +64,7 @@ test.describe("R131 home widgets", () => {
     const page = await signUp(browser);
     await page.goto("/app");
     await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
-    expect(await order(page)).toEqual(["tasks", "calendar", "inbox", "links", "overview"]);
+    expect(await order(page)).toEqual(["tasks", "calendar", "inbox", "links", "overview", ...BILL]);
     await expect(page.getByTestId("widget-calendar").getByText("No meetings today.")).toBeVisible();
     await expect(page.getByTestId("widget-links").getByText("Add the links you open every day.")).toBeVisible();
     // quick link: a bad address is refused, a good one is saved and survives a reload
@@ -93,32 +95,36 @@ test.describe("R131 home widgets", () => {
     expect(await axe(page), "axe customize").toEqual([]);
     await page.getByTestId("done-home").click();
     await expect(page.getByTestId("home-note")).toHaveText("Home saved.");
-    expect(await order(page)).toEqual(["tasks", "inbox", "links", "overview", "dashboards"]);
+    expect(await order(page)).toEqual(["tasks", "inbox", "links", "overview", ...BILL, "dashboards"]);
     await page.getByTestId("widget-dashboards").scrollIntoViewIfNeeded(); // below the fold: it reads when scrolled near
     await expect(page.getByTestId("widget-dashboards").getByText(/No dashboards yet/)).toBeVisible();
     // reset brings the default back
     await page.getByTestId("customize-home").click();
     await page.getByTestId("reset-home").click();
     await expect(page.getByTestId("home-note")).toHaveText("Home is back to the default.");
-    expect(await order(page)).toEqual(["tasks", "calendar", "inbox", "links", "overview"]);
+    expect(await order(page)).toEqual(["tasks", "calendar", "inbox", "links", "overview", ...BILL]);
   });
 
   test("arrange by keyboard, by the arrow buttons and by drag at 1280", async ({ browser }) => {
     const page = await signUp(browser);
     await page.goto("/app");
+    // W4: wait for the grid in edit mode (all five placeholders) before arranging.
+    await expect(page.getByTestId("widget-grid").locator(":scope > section")).toHaveCount(5 + BILL.length);
     await page.getByTestId("customize-home").click();
+    await expect(page.getByTestId("placeholder-overview")).toBeVisible();
     // arrow button
     await page.getByTestId("down-tasks").click();
-    expect(await order(page)).toEqual(["calendar", "tasks", "inbox", "links", "overview"]);
+    await expect.poll(() => order(page)).toEqual(["calendar", "tasks", "inbox", "links", "overview", ...BILL]);
     // keyboard: space picks up, arrow moves, space drops
     await page.getByTestId("drag-overview").focus();
     await page.keyboard.press("Space");
-    await page.waitForTimeout(250);
+    await expect(page.getByTestId("drag-overview")).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("ArrowUp");
     await page.waitForTimeout(400);
     await page.keyboard.press("Space");
-    await page.waitForTimeout(400);
-    await expect.poll(() => order(page)).not.toEqual(["calendar", "tasks", "inbox", "links", "overview"]);
+    // the drop is done when nothing is held any more
+    await expect(page.getByTestId("widget-grid").locator('[aria-pressed="true"]')).toHaveCount(0);
+    await expect.poll(() => order(page)).not.toEqual(["calendar", "tasks", "inbox", "links", "overview", ...BILL]);
     const afterKeys = await order(page);
     expect(afterKeys.indexOf("overview")).toBeLessThan(4);
     // mouse drag: links onto the first place
@@ -129,6 +135,7 @@ test.describe("R131 home widgets", () => {
     await page.mouse.move(from!.x + 20, from!.y + 20, { steps: 4 });
     await page.mouse.move(to!.x + 30, to!.y + 20, { steps: 12 });
     await page.mouse.up();
+    await expect(page.getByTestId("widget-grid").locator('[aria-pressed="true"]')).toHaveCount(0);
     await expect.poll(async () => (await order(page))[0]).toBe("links");
     const final = await order(page);
     await page.waitForTimeout(500);
@@ -172,7 +179,7 @@ test.describe("R131 home widgets", () => {
     await page.getByTestId("sheet-show-dashboards").check();
     await page.getByTestId("sheet-done").click();
     await expect(page.getByTestId("home-note")).toHaveText("Home saved.");
-    expect(await order(page)).toEqual(["calendar", "tasks", "inbox", "links", "overview", "dashboards"]);
+    expect(await order(page)).toEqual(["calendar", "tasks", "inbox", "links", "overview", ...BILL, "dashboards"]);
   });
 
   test("an admin sets the workspace default; a member sees it and cannot set one", async ({ browser }) => {

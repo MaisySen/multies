@@ -11,7 +11,7 @@ import AxeBuilder from "@axe-core/playwright";
 const sitemap = readFileSync("public/sitemap.xml", "utf8");
 const PAGES = [...sitemap.matchAll(/<loc>https:\/\/multies\.si([^<]*)<\/loc>/g)].map((m) => m[1] || "/").filter((p) => p !== "/signup" && p !== "/login");
 const KEY = ["/", "/support", "/privacy", "/contact", "/delete-account", "/whats-new", "/pricing", "/switch/trello"];
-const EXTERNAL_OK = /^(mailto:contact@fintex\.au|https:\/\/fintex\.au\/?|https:\/\/[a-z0-9]+\.ingest\.us\.sentry\.io\/?|https:\/\/testflight\.apple\.com\/join\/RncpPJ1t)$/; // PAR1: the iPhone beta
+const EXTERNAL_OK = /^(mailto:contact@fintex\.au|https:\/\/fintex\.au\/?|https:\/\/[a-z0-9]+\.ingest\.us\.sentry\.io\/?|https:\/\/testflight\.apple\.com\/join\/RncpPJ1t|https:\/\/github\.com\/m-afham\/AirCursor)$/; // PAR1: the iPhone beta; W4: the MIT credit for AirCursor on /mousy
 const SHOTS = process.env.WEB1_SHOTS;
 
 test("WEB1 every sitemap page: one h1, meta, social tags, same policy, links answer", async ({ page, request }) => {
