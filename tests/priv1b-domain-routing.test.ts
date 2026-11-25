@@ -123,11 +123,15 @@ describe("P50: platform shared domains are reserved and never adopted", () => {
   it("no workspace can add the free-mail, agent, connected or company names; the operator keeps the company domain", async () => {
     const ctx = await makeTestApp({ FREE_MAIL_DOMAIN: "free.example", AGENT_MAIL_DOMAIN: "agents.example", APP_URL: "https://app.multies.test" });
     const B = new Client(ctx.app); await B.signup("boss@evil.io", "Eve", "Evil");
-    for (const name of ["free.example", "agents.example", "x.free.example", "connected.multies.invalid", "multies.si", "mail.multies.si"]) {
+    for (const name of ["free.example", "agents.example", "x.free.example", "multies.si", "mail.multies.si"]) {
       const r = await B.post("/api/domains", { name });
       expect(r.status, name).toBe(409);
       expect(r.body.error.message).toMatch(/reserved/);
     }
+    // Review Z2: an .invalid name (the connected mailboxes' shared row is one) is refused by the name check itself.
+    const connected = await B.post("/api/domains", { name: "connected.multies.invalid" });
+    expect(connected.status).toBe(422);
+    expect(JSON.stringify(connected.body)).toMatch(/Enter a real domain/);
     expect(await ctx.db.select().from(domains).where(eq(domains.name, "free.example")).get()).toBeUndefined();
     const cfg = { operatorInbox: { orgId: "org_hq", domain: "multies.si", addresses: [] }, freeMail: { domain: "mail.multies.si" } };
     expect(() => assertDomainAllowed(cfg, "org_hq", "multies.si")).not.toThrow();
