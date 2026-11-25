@@ -39,7 +39,8 @@
     b.setAttribute("aria-busy", "true");
   }, true);
   // The marker comes off just before React renders, and on a busy phone its first commit can take a while: look for
-  // the live control again every 50 ms for up to 5 s, so the tap is not lost when the card is drawn late.
+  // the live control again every 50 ms for up to 20 s (the sign in page's own code can arrive late on a slow or busy
+  // device), so the tap is not lost when the card is drawn late.
   function replay(tries) {
     if (!pending) return;
     var root = document.getElementById("root");
@@ -50,7 +51,7 @@
       if (pending.drawn && pending.drawn.contains(c)) continue;
       if ((pending.id && c.getAttribute("data-testid") === pending.id) || (!pending.id && (c.textContent || "").trim() === pending.text)) found = c;
     }
-    if (!found && tries < 100) { setTimeout(function () { replay(tries + 1); }, 50); return; }
+    if (!found && tries < 400) { setTimeout(function () { replay(tries + 1); }, 50); return; }
     pending = null;
     if (found) found.click();
   }

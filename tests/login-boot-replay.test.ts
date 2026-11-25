@@ -4,7 +4,7 @@
  * lost: the replay looked once, 50 ms after the marker came off, and React had not drawn the button yet; a tap on the
  * "Other ways to sign up" fold was never kept at all, and a replay could press the drawn button again (it stays in the
  * page until React's first commit). Now it keeps buttons and summaries, skips the drawn card, and looks again for up to
- * 5 s.
+ * 20 s.
  * The script runs here in a small stand in for the page.
  */
 import { describe, it, expect } from "vitest";
