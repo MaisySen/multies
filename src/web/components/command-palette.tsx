@@ -226,14 +226,23 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   // opens the top result, so it never opens a row left over from the previous words.
   const heldEnter = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // The highlighted row, held here so it can move when results arrive: cmdk highlights the first row when the words
+  // change, which is Ask AI while the search is still on its way, and kept it there after the results came, so Enter
+  // asked the AI and the arrows (Ask AI being last) could not go down to the results.
+  const [selected, setSelected] = useState("");
+  const topRow = () => listRef.current?.querySelector<HTMLElement>("[cmdk-item]:not([aria-disabled=true])") ?? null;
   useEffect(() => {
-    if (!heldEnter.current || content.loading) return;
-    heldEnter.current = false;
-    requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>("[cmdk-item][data-selected=true], [cmdk-item]")?.click());
+    if (content.loading) return;
+    requestAnimationFrame(() => {
+      const top = topRow();
+      const v = top?.getAttribute("data-value");
+      if (v && !v.endsWith("|ask-ai")) setSelected((cur) => (!cur || cur.endsWith("|ask-ai") ? v : cur));
+      if (heldEnter.current) { heldEnter.current = false; top?.click(); }
+    });
   }, [content.loading, content.data]);
   useEffect(() => { heldEnter.current = false; }, [open]);
   return (
-    <Command.Dialog open={open} onOpenChange={(v) => { if (!v && filterMenuState.open) return; /* R98: Esc closes the filter list first */ if (!v) close(); else onOpenChange(v); }} label="Command menu" filter={paletteScore}
+    <Command.Dialog open={open} onOpenChange={(v) => { if (!v && filterMenuState.open) return; /* R98: Esc closes the filter list first */ if (!v) close(); else onOpenChange(v); }} label="Command menu" filter={paletteScore} value={selected} onValueChange={setSelected}
       onKeyDown={(e) => {
         if (e.key === "Backspace" && !search && page) { e.preventDefault(); onPage(null); }
         // R98: Alt and a number picks a type; Backspace in an empty box takes off the last filter.
