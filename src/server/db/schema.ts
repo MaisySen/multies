@@ -4879,6 +4879,7 @@ export const mnetDevices = sqliteTable("mnet_devices", {
  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
  sessionId: text("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
  workspaceId: text("workspace_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+ membershipId: text("membership_id").references(() => members.id, { onDelete: "set null" }),
  deviceKey: text("device_key").notNull(), challenge: text("challenge").notNull(), state: text("state").notNull(), platform: text("platform").notNull(),
   redirectUri: text("redirect_uri").notNull(),
  status: text("status", { enum: ["pending", "approved", "declined", "active", "revoked"] }).notNull(),

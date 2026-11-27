@@ -1874,5 +1874,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE UNIQUE INDEX mnet_credential_uq ON mnet_devices(credential_hash);",
       "CREATE INDEX mnet_owner_idx ON mnet_devices(user_id,workspace_id);"
     ]
+  },
+  {
+    "name": "0172_mnet_membership_binding",
+    "statements": [
+      "ALTER TABLE mnet_devices ADD COLUMN membership_id text REFERENCES members(id) ON DELETE SET NULL;"
+    ]
   }
 ];
