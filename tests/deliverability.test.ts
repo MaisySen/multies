@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from "vitest";
 import { Webhook } from "standardwebhooks";
 import { gzipSync, zipSync, strToU8 } from "fflate";
 import { generateKeyPairSync } from "node:crypto";
@@ -11,16 +11,23 @@ import { mailauthAuthenticator } from "@/server/services/mail/mailauth";
 
 const RESEND_SECRET = `whsec_${Buffer.from("resend-test-secret-0123456789ab").toString("base64")}`;
 
-const dmarcXml = (domain: string, id = "rep-1") => `<?xml version="1.0" encoding="UTF-8" ?>
+// MB-7: the app counts DMARC reports from the last 30 days only (deps.now()). The report dates come from
+// the test clock: the report ends 1 hour before now and starts 1 day before that. Fixed dates are
+// outside the window 30 days after the report ends, and then the tests fail.
+const dmarcXml = (domain: string, id = "rep-1") => {
+  const end = Math.floor(Date.now() / 1000) - 3600;
+  const begin = end - 86399;
+  return `<?xml version="1.0" encoding="UTF-8" ?>
 <feedback>
   <report_metadata><org_name>google.com</org_name><email>noreply-dmarc-support@google.com</email><report_id>${id}</report_id>
-    <date_range><begin>1792627200</begin><end>1792713599</end></date_range></report_metadata>
+    <date_range><begin>${begin}</begin><end>${end}</end></date_range></report_metadata>
   <policy_published><domain>${domain}</domain><adkim>r</adkim><aspf>r</aspf><p>none</p><sp>none</sp><pct>100</pct></policy_published>
   <record><row><source_ip>209.85.220.41</source_ip><count>40</count><policy_evaluated><disposition>none</disposition><dkim>pass</dkim><spf>pass</spf></policy_evaluated></row>
     <identifiers><header_from>${domain}</header_from></identifiers><auth_results><dkim><domain>${domain}</domain><result>pass</result></dkim><spf><domain>${domain}</domain><result>pass</result></spf></auth_results></record>
   <record><row><source_ip>45.83.12.9</source_ip><count>10</count><policy_evaluated><disposition>none</disposition><dkim>fail</dkim><spf>fail</spf></policy_evaluated></row>
     <identifiers><header_from>${domain}</header_from></identifiers><auth_results><spf><domain>spoof.example</domain><result>fail</result></spf></auth_results></record>
 </feedback>`;
+};
 
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
 let c: Client;
@@ -148,6 +155,24 @@ describe("domain health score", () => {
     expect(after.score).toBeLessThan(before);
     expect(after.stats.bounceRate).toBe(50);
     expect(after.stats.dmarcPassRate).toBe(80);
+  });
+});
+
+// MB-7: the app counts DMARC reports from the last 30 days only. This suite moves the test clock
+// 400 days forward before the sign up in beforeEach. Then it runs the same assertions again.
+// If the test data has fixed dates, the report is outside the window and these assertions fail.
+describe("DMARC test data on a later date (MB-7)", () => {
+  beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 400 * 86_400_000 }); });
+  afterAll(() => { vi.useRealTimers(); });
+
+  it("still summarizes and scores a report uploaded 400 days from now", async () => {
+    const up = await c.post("/api/deliverability/dmarc/reports", { contentB64: Buffer.from(dmarcXml("acme.io")).toString("base64") });
+    expect(up.status).toBe(201);
+    const sum = await c.get("/api/deliverability/dmarc");
+    expect(sum.body.reports[0]).toMatchObject({ domain: "acme.io", messages: 50, passed: 40 });
+    expect(sum.body.sources[0]).toMatchObject({ sourceIp: "209.85.220.41", messages: 40, passed: 40 });
+    const h = (await c.get("/api/deliverability/health")).body.domains[0];
+    expect(h.stats.dmarcPassRate).toBe(80);
   });
 });
 
