@@ -96,8 +96,11 @@ describe("isolated Mnet device bridge",()=>{
   const me=await ctx.app.request("/api/account/me",{headers:{host:"localhost",authorization:`Bearer ${r.body.credential}`}});expect(me.status).toBe(401);
   const real=ctx.deps.now;ctx.deps.now=()=>new Date(real().getTime()+601_000);expect((await devices(r.body.credential)).status).toBe(403);
  });
- it("is off by default without altering existing login",async()=>{
-  const off=await makeTestApp();const r=await off.app.request("/api/mnet/devices",{headers:{host:"localhost"}});expect(r.status).toBe(404);
+ it("keeps both the bridge API and the settings entry disabled by default", async () => {
+  const off = new Client((await makeTestApp()).app);
+  expect((await off.get("/api/mnet/devices")).status).toBe(404);
+  expect((await off.get("/api/config")).body.mnetDeviceBridge).toBe(false);
+  expect((await c.get("/api/config")).body.mnetDeviceBridge).toBe(true);
  });
  it("uses real session approval, one-use S256 exchange, scoped device list and revocation",async()=>{
   const {id,code}=await approved();const r=await exchange(code);expect(r.status).toBe(200);expect(r.body).toMatchObject({audience:"mnet",workspaceId:request.workspaceId,deviceKey:request.deviceKey,capabilities:["list"],inputAuthorized:false});expect(r.headers.get("set-cookie")).toBeNull();

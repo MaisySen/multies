@@ -528,6 +528,7 @@ export function createApp(deps: Deps) {
       sites: !!deps.config.sites, // R123
       blog: !!deps.config.blogR124, // R124: the blog in Sites
       navP2: !!deps.config.navP2R121, // R121: layout plan P2 navigation
+      mnetDeviceBridge: !!deps.config.mnetDeviceBridge,
       davSync: !!deps.config.davSync,
       // R103: Docs plus (DOCS_PLUS_R103=on).
       docsPlus: !!deps.config.docsPlus,

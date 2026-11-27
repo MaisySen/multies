@@ -36,7 +36,8 @@ ephemeral unprivileged port, never a caller-chosen external origin or path.
 5. `/api/mnet/check` checks a single List operation live and returns evidence
    lasting at most 30 seconds. It refuses enrollment and remote-session actions.
    `/api/mnet/devices` returns the person's own currently eligible records.
-6. `/mnet/devices` lists current approvals and lets their owner revoke them.
+6. In Multies, open Settings, Account and security, then Manage Mnet approvals.
+   `/mnet/devices` lists current approvals and lets their owner revoke them.
    Live account/session/membership checks also remove eligibility after changes.
 
 ## Bounds and concurrency
@@ -75,6 +76,12 @@ normal installed GUI journey or a deployed production flow.
 
 No merge, release, production/staging migration, deployment, signing, TestFlight,
 account change or paid infrastructure is covered by these local checks.
+
+The local D1 rehearsal starts with migrations through 0171 and an existing
+approval, applies 0172, then checks fresh approval, exchange, listing and
+membership removal. The new column allows the previous schema's writes. Turn
+the bridge off before rolling back to a server version that does not check
+membership binding.
 
 The signed-out browser journey also goes through the real local Multies login
 form, then returns to the exact approval request. Only `/mnet/authorize?` and

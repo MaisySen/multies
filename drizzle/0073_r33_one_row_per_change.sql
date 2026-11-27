@@ -24,7 +24,7 @@ CREATE TABLE `project_counters` (
   `project_id` text PRIMARY KEY NOT NULL REFERENCES `projects`(`id`) ON DELETE CASCADE,
   `next_number` integer NOT NULL
 ) WITHOUT ROWID;--> statement-breakpoint
-INSERT OR IGNORE INTO `project_counters` (`project_id`, `next_number`) SELECT `id`, `next_number` FROM `projects` WHERE `next_number` > 1;;--> statement-breakpoint
+INSERT OR IGNORE INTO `project_counters` (`project_id`, `next_number`) SELECT `id`, `next_number` FROM `projects` WHERE `next_number` > 1;--> statement-breakpoint
 -- 3. Old project keys keep working. When a project's key changes (OPS to OPR), the old key is kept here so OPS-12 still
 --    opens the task (1 row written per key edit, WITHOUT ROWID, no other index), and no other project can take it.
 CREATE TABLE `project_key_aliases` (

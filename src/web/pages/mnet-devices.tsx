@@ -37,7 +37,7 @@ export function MnetDevicesPage() {
     {revoke.isSuccess && <p role="status" className="mt-4 text-sm">Device approval revoked.</p>}
     <div className="mt-5 flex flex-wrap gap-2">
       <Button variant="secondary" disabled={devices.fetchStatus !== "idle" || revoke.isPending} onClick={() => void devices.refetch()}>Check again</Button>
-      <ButtonLink to="/app" variant="ghost">Back to Multies</ButtonLink>
+      <ButtonLink to="/app/settings/account" variant="ghost">Back to account settings</ButtonLink>
     </div>
   </section>;
 }
