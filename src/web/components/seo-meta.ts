@@ -49,6 +49,8 @@ export const PUBLIC_META: Record<string, PageMeta> = {
   "/forgot-password": { title: "Reset your password | Multies", description: "Get a link to set a new Multies password.", noindex: true },
   "/reset-password": { title: "Choose a new password | Multies", description: "Set a new password for your Multies account.", noindex: true },
   "/email-verified": { title: "Email verified | Multies", description: "Your email address is confirmed.", noindex: true },
+  "/mnet/authorize": { title: "Connect Mnet | Multies", description: "Review a device approval request from Mnet.", noindex: true },
+  "/mnet/devices": { title: "Mnet device approvals | Multies", description: "Manage your Mnet device approvals.", noindex: true },
   "/contact": { title: "Contact us | Multies", description: "Send the Multies team a message: questions, a demo for your team, or help moving your mail. We reply within one business day." },
   "/thank-you": { title: "Thank you | Multies", description: "Thanks for getting in touch with Multies. We reply within one business day.", noindex: true },
   "/thanks": { title: "Thank you | Multies", description: "Thanks for getting in touch with Multies.", noindex: true },
