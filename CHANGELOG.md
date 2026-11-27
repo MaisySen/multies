@@ -9,7 +9,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 ## MB-7 DMARC test data uses the test clock (2026-11-25)
 
 - Tests only. No product code changed. The DMARC report in `tests/deliverability.test.ts` gets its dates from the test clock. The report ends 1 hour before the test time.
-- Before this fix, the report had fixed dates that ended on 22 Oct 2026. The app counts reports from the last 30 days only, so 3 tests failed on and after 21 Nov 2026.
+- Before this fix, the report had fixed dates that ended on 22 Oct 2026. The app counts reports from the last 30 days only, so 3 tests failed from 22 Nov 2026 (UTC).
 - A new test runs the same DMARC assertions with the test clock 400 days ahead. `docs/testing.md` has a new rule for test data in a time window.
 
 ## VID2 Call videos: pause, speaker or gallery view, crash safe, chat and transcript files (2026-11-03)

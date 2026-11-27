@@ -59,6 +59,7 @@ Run the whole suite locally, and only the smoke, store pages, launch checklist a
 - Every bug fix gets a regression test that fails before the fix.
 - If the app counts data only in a time window (for example the last 30 days), do not use fixed dates in
   the test data. Calculate the dates from the test clock (`Date.now()`). Add a test that moves the clock
-  forward with `vi.useFakeTimers({ toFake: ["Date"] })` before the sign up, and runs the same assertions (MB-7).
+  forward with `vi.useFakeTimers({ toFake: ["Date"] })` before the test app setup and the test data, and runs
+  the same assertions (MB-7).
 - Every new route gets an API test, including a cross workspace call that must answer 404 or 403.
 - Every new page gets an entry in the known pages list and is covered by the a11y spec.
