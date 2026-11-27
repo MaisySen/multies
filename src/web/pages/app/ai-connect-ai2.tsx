@@ -148,17 +148,20 @@ function ConnectForm({ cards, onConnected }: { cards: Ai2ProviderCard[]; onConne
   const [show, setShow] = useState(false);
   const [picked, setPicked] = useState<Ai2ProviderId | null>(null);
   const [baseUrl, setBaseUrl] = useState("");
+  const [model, setModel] = useState("");
   const [error, setError] = useState<string | null>(null);
   const detected = useMemo(() => detectProvider(apiKey), [apiKey]);
   const provider = picked ?? detected;
   const card = cards.find((c) => c.id === provider);
   const groupId = useId();
   const connect = useMutation({
-    mutationFn: () => api.post<{ live: boolean }>("/ai/connect", { apiKey: cleanPastedKey(apiKey), ...(provider ? { provider } : {}), ...(provider === "custom" ? { baseUrl: baseUrl.trim() } : {}) }),
+    mutationFn: () => api.post<{ live: boolean }>("/ai/connect", { apiKey: cleanPastedKey(apiKey), ...(provider ? { provider } : {}), ...(provider === "custom" ? { baseUrl: baseUrl.trim() } : {}), ...(model.trim() ? { model: model.trim() } : {}) }),
     onSuccess: (s) => { setApiKey(""); setError(null); toast.success(`Connected to ${card?.name ?? "your provider"}`); onConnected(s); },
     onError: (e) => setError(e instanceof Error ? e.message : "That didn't work. Try again."),
   });
-  const ready = cleanPastedKey(apiKey).length >= 16 && !!provider && (provider !== "custom" || /^https:\/\/\S+$/.test(baseUrl.trim()));
+  const keyShort = cleanPastedKey(apiKey).length > 0 && cleanPastedKey(apiKey).length < 16;
+  const addressBad = provider === "custom" && !/^https:\/\/\S+$/.test(baseUrl.trim());
+  const ready = cleanPastedKey(apiKey).length >= 16 && !!provider && !addressBad;
   return (
     <div className="space-y-4" data-testid="ai2-connect">
       <a href="/api/ai/oauth/openrouter/start" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line-strong bg-bg/40 p-4 transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="ai2-openrouter">
@@ -194,9 +197,14 @@ function ConnectForm({ cards, onConnected }: { cards: Ai2ProviderCard[]; onConne
             {(p) => <Input {...p} type="url" inputMode="url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.example.com/v1" autoComplete="off" spellCheck={false} data-testid="ai2-base-url" />}
           </Field>
         )}
+        <Field label="Model id" hint="Only if the provider's model list cannot be read. Leave empty to use the recommended model from the list.">
+          {(p) => <Input {...p} value={model} onChange={(e) => setModel(e.target.value)} placeholder="provider/model" autoComplete="off" spellCheck={false} maxLength={120} className="font-mono" data-testid="ai2-connect-model" />}
+        </Field>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" size="sm" loading={connect.isPending} disabled={!ready} data-testid="ai2-connect-submit">Connect</Button>
+          {keyShort && <span className="text-xs text-muted">The key needs at least 16 characters.</span>}
           {!provider && cleanPastedKey(apiKey).length >= 16 && <span className="text-xs text-muted">Pick your provider above.</span>}
+          {addressBad && baseUrl.trim().length > 0 && <span className="text-xs text-muted">The server address must start with https://.</span>}
         </div>
       </form>
     </div>

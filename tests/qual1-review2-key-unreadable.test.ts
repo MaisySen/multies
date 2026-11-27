@@ -11,8 +11,8 @@ import { askAi } from "@/server/services/tools/ai-meter";
 
 const ANT = "sk-ant-api03-" + "a".repeat(40) + "WXYZ";
 
-describe("QUAL1 second review: an unreadable saved key never sends the text to built-in AI with the stand-in off", () => {
-  it("askAi with AI_KEY_FALLBACK unset and a saved key that cannot be decrypted", async () => {
+describe("an unreadable saved key is marked, and the workspace agent answers", () => {
+  it("askAi with a saved key that cannot be decrypted answers from built-in AI and says so", async () => {
     const fetchImpl = (async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/v1/models")) return Response.json({ data: [{ id: "claude-haiku-5-5", display_name: "Claude Haiku 5.5" }] });
@@ -31,6 +31,8 @@ describe("QUAL1 second review: an unreadable saved key never sends the text to b
     ctx.deps.log = { ...(ctx.deps.log ?? {}), warn, info: () => {}, error: warn } as never;
 
     const r = await askAi(ctx.deps, orgId, { task: "chat", system: "s", user: "private workspace text" });
-    expect({ builtinCalls: builtin.mock.calls.length, source: r.ok ? r.source : null }, "with AI_KEY_FALLBACK off, a workspace with a saved key must not be answered by built-in AI").toEqual({ builtinCalls: 0, source: null });
+    expect(r.ok && r.source).toBe("free");
+    expect(r.ok && r.fallback?.reason).toBe("key_refused");
+    expect(builtin).toHaveBeenCalled();
   });
 });

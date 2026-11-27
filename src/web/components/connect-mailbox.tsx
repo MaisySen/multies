@@ -17,6 +17,12 @@ export function useConnections() {
   return useQuery({ queryKey: connectionsKey, queryFn: () => api.get<ConnectionsInfo>("/connections"), retry: false });
 }
 
+/** The provider's cleaned reason from a failed connection test, when it gave one. */
+export function providerSaid(e: unknown): string | undefined {
+  const d = e instanceof ApiError ? (e.details as { detail?: unknown } | undefined)?.detail : undefined;
+  return typeof d === "string" && d.trim() ? d.trim() : undefined;
+}
+
 interface ServerFields { host: string; port: string; security: ConnectSecurity }
 
 /**
@@ -40,14 +46,14 @@ export function ConnectMailboxForm({ onConnected, oauth = [], className }: { onC
   const showServers = preset === "custom" || advanced;
   const im = imap ?? { host: defaults.imap.host, port: String(defaults.imap.port), security: defaults.imap.security };
   const sm = smtp ?? { host: defaults.smtp.host, port: String(defaults.smtp.port), security: defaults.smtp.security };
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string; detail?: string } | null>(null);
 
   const body = () => ({
     email: email.trim(), password, preset,
     ...(username.trim() ? { username: username.trim() } : {}),
     ...(showServers ? { imap: { host: im.host.trim(), port: Number(im.port), security: im.security }, smtp: { host: sm.host.trim(), port: Number(sm.port), security: sm.security } } : {}),
   });
-  const explain = (e: unknown) => setResult({ ok: false, message: e instanceof ApiError ? e.message : "That didn't work. Check your connection and try again." });
+  const explain = (e: unknown) => setResult({ ok: false, message: e instanceof ApiError ? e.message : "That didn't work. Check your connection and try again.", detail: providerSaid(e) });
   const test = useMutation({
     mutationFn: () => api.post<{ ok: true }>("/connections/test", body()),
     onSuccess: () => setResult({ ok: true, message: "Both servers accepted the password. Connect to start syncing." }),
@@ -124,7 +130,10 @@ export function ConnectMailboxForm({ onConnected, oauth = [], className }: { onC
       {result && (
         <p role={result.ok ? "status" : "alert"} data-testid="connect-result" className={cn("flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm", result.ok ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad")}>
           {result.ok ? <IconCheckCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> : <IconAlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />}
-          <span>{result.message}</span>
+          <span className="min-w-0">
+            {result.message}
+            {result.detail && <span className="mt-1 block text-[12.5px] opacity-80" data-testid="connect-detail">{p.label === "Other server" ? "The server" : p.label} said: {result.detail}</span>}
+          </span>
         </p>
       )}
 

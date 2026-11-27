@@ -171,15 +171,19 @@ export async function confirmConnect(deps: Deps, auth: AuthContext, accountId: s
   const a = await ownAccount(cp, auth.orgId, accountId);
   let view = viewOf(a);
   if (view.status === "active") {
-    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "integration.connected", targetType: "integration", targetId: a.id, metadata: { app: view.app }, ip: ip ?? null });
-    // SA1: the same network account connected again refreshes the one row instead of adding a second.
-    if (canPostTo(view.app)) {
-      try {
-        const { settleAccount } = await import("./account-profiles");
-        const r = await settleAccount(deps, cp, auth.orgId, platformUserId(cp, auth.orgId), a, { userId: auth.userId, email: auth.email, ip: ip ?? null });
-        view = { ...withProfile(view, r.profile), refreshed: r.merged.length > 0 };
-      } catch (err) { deps.log?.warn("social.settle_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
+    // The same outside account connected again refreshes the one row, for every app, not only social ones.
+    // Never roll back by deleting `a` after settleAccount may have migrated pointers or removed an older
+    // account: that can erase the only usable connection. A failed settle leaves the new row; listing
+    // folds duplicates again, and the person can disconnect a leftover if needed.
+    try {
+      const { settleAccount } = await import("./account-profiles");
+      const r = await settleAccount(deps, cp, auth.orgId, platformUserId(cp, auth.orgId), a, { userId: auth.userId, email: auth.email, ip: ip ?? null });
+      view = { ...withProfile(view, r.profile), refreshed: r.merged.length > 0 };
+    } catch (err) {
+      deps.log?.warn("integration.settle_failed", { app: view.app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+      throw new HttpError(409, "connection_not_saved", "That account could not be saved as one connection. Disconnect any duplicate, then connect it again.");
     }
+    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "integration.connected", targetType: "integration", targetId: a.id, metadata: { app: view.app, refreshed: view.refreshed === true }, ip: ip ?? null });
   }
   return view;
 }

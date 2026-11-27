@@ -31,12 +31,11 @@ export interface AiKeyStatus {
 const hostOf = (u: string | null | undefined) => { try { return u ? new URL(u).host : null; } catch { return null; } };
 
 /**
- * QUAL1 (audit row 14): whether built-in AI answers in place of a workspace's own key while its provider refuses it.
- * Off unless the deployment sets AI_KEY_FALLBACK=on, with AI2 on and the built-in binding present: the workspace chose
- * its own provider, so its text goes to another processor only when the operator has turned this on. Settings, AI
- * trust names the stand-in whenever this is true, before any refusal. The one check every AI path uses.
+ * The in-app workspace agent answers when a saved key is missing or refused, whenever built-in AI is on this server.
+ * A refused key stays recorded and the answer says the key was skipped. This does not depend on AI_KEY_FALLBACK.
+ * The one check every AI path uses.
  */
-export const keyFallbackOn = (deps: Pick<Deps, "config" | "ai">): boolean => deps.config.aiKeyFallback === true && !!deps.config.aiConnectAi2 && !!deps.ai;
+export const keyFallbackOn = (deps: Pick<Deps, "config" | "ai">): boolean => !!deps.config.aiConnectAi2 && !!deps.ai;
 
 export async function aiKeyStatus(deps: Deps, orgId: string): Promise<AiKeyStatus> {
   const row = await deps.db.select().from(aiKeys).where(eq(aiKeys.orgId, orgId)).get();

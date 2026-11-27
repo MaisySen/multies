@@ -6,6 +6,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/cfworker-provider.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
+import { mcpPostReply } from "./mcp-accept";
 import { z } from "zod";
 import { BUSY_MESSAGE, isD1BusyError } from "../lib/d1-busy";
 import { hasIdempotencySeed } from "../lib/idempotency"; // R53 (MB-239)
@@ -508,8 +509,10 @@ async function mcpCallContext(req: Request): Promise<McpCallContext | undefined>
 
 /** Handles one MCP request (stateless: a fresh server and transport each time). */
 export async function handleMcp(c: Context<AppEnv>, actor: Scoped) {
+  const mode = c.req.method === "POST" ? mcpPostReply(c.req.header("accept")) : "json";
+  if (!mode) return c.json({ jsonrpc: "2.0", id: null, error: { code: -32000, message: "Not Acceptable: request JSON or an event stream." } }, 406);
   const server = buildMcpServer(c.var.deps, actor, new URL(c.req.url).origin, await mcpCallContext(c.req.raw));
-  const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined, enableJsonResponse: mode === "json" });
   await server.connect(transport);
   const res = await transport.handleRequest(c);
   return res ?? c.body(null, 202);

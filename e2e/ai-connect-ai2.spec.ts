@@ -84,12 +84,15 @@ test.describe("AI2 connect AI", () => {
     expect(JSON.stringify(await (await page.request.get("/api/ai/status")).json())).not.toContain(KEY());
   });
 
-  test("a refused key, a model the key cannot use, and the common list when the live list fails", async ({ browser }) => {
+  test("a refused key, a typed model when the live list fails, and a model the key cannot use", async ({ browser }) => {
     const page = await signUp(browser);
     await openAi(page);
     await connect(page, KEY("FAKEBAD"));
     await expect(page.getByRole("alert")).toHaveText("That key was refused. Check it and paste it again.");
-    await connect(page, KEY("FAKELISTFAIL"));
+    // Live list fails: Connect asks for a model id and proves it before saving.
+    await page.getByTestId("ai2-key").fill(KEY("FAKELISTFAIL"));
+    await page.getByTestId("ai2-connect-model").fill("claude-haiku-5-5");
+    await page.getByTestId("ai2-connect-submit").click();
     await expect(page.getByTestId("ai2-connected")).toBeVisible();
     await expect(page.getByTestId("ai2-fallback")).toHaveText("Could not load the live list, showing common models.");
     await page.getByText("Advanced: type a model id").click();

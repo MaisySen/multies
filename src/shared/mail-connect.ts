@@ -159,7 +159,24 @@ export function isFullConnection(c: ConnectionListItem): c is ConnectionView & {
 
 /** A failed connection test, in words a person can act on. */
 export interface ConnectProblem {
-  code: "auth_failed" | "app_password_needed" | "imap_disabled" | "smtp_disabled" | "unreachable" | "tls_failed" | "timeout" | "server_error" | "oauth_required";
+  code: "auth_failed" | "app_password_needed" | "imap_disabled" | "smtp_disabled" | "unreachable" | "tls_failed" | "timeout" | "server_error" | "oauth_required" | "web_login_required";
   step: "imap" | "smtp";
   message: string;
+  /** The provider's own reason, cleaned of addresses, links and network addresses. */
+  detail?: string;
+}
+
+/** Providers whose app passwords are 16 letters, shown in four groups of four. */
+const LETTER_CODE_PRESETS = new Set<ConnectPresetId>(["gmail", "google_workspace", "yahoo"]);
+
+/**
+ * Cleans a pasted app password. A value that is exactly one 16 letter code comes back as four groups.
+ * Anything else, including a normal password that happens to have 16 letters, is returned as typed.
+ */
+export function cleanAppPassword(preset: ConnectPresetId, password: string): string {
+  if (!LETTER_CODE_PRESETS.has(preset)) return password;
+  const groups = password.replace(/[\u200b-\u200d\u2060\ufeff]/g, "").split(/[\s\u00a0]+/).filter(Boolean);
+  const bare = groups.join("");
+  if (!/^[a-z]{16}$/i.test(bare) || !(groups.length === 1 || groups.every((g) => g.length === 4))) return password;
+  return bare.match(/.{4}/g)!.join(" ");
 }

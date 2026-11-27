@@ -368,7 +368,7 @@ function ConnectedApps() {
               <IconAgent className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
               <span className="truncate text-sm font-medium">{g.client}</span>
               {!g.mine && <span className="truncate text-xs text-muted">{g.user.name || g.user.email}</span>}
-              <ScopeChips chips={[g.scope === "read" ? "Read only" : "Full access"]} />
+              <ScopeChips chips={[g.scope === "read" ? "Read only" : g.scope === "full" ? "Read and write" : "Limited"]} />
             </div>
             <div className="flex items-center gap-3 text-xs text-subtle">
               <span>{g.lastUsedAt ? `used ${timeAgo(g.lastUsedAt)}` : `connected ${timeAgo(g.createdAt)}`}</span>

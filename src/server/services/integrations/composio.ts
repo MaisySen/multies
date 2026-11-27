@@ -32,6 +32,9 @@ export interface CpAccount {
   alias?: string | null;
   user_id?: string;
   created_at?: string;
+  /** Identity the platform already knows (email, id). Never a token. */
+  data?: Record<string, unknown> | null;
+  state?: { val?: Record<string, unknown> } | null;
 }
 
 export interface CpAuthConfig { id: string; toolkit?: { slug?: string }; is_composio_managed?: boolean; status?: string; auth_scheme?: string }

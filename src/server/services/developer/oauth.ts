@@ -7,14 +7,15 @@
  * - The authorisation code and the refresh token carry the grant id and are kept only as hashes.
  * - Access tokens are signed with a key derived from APP_SECRET and never stored (0 writes). Each use
  *   reads the grant, so a revoke in Settings takes effect on the next request.
- * - D1 writes: registration 1 row; sign in 2 (row + org index); code exchange 2; refresh 2; revoke 2;
- *   last used at most once an hour per grant (2). API keys keep working unchanged.
+ * - D1 writes: registration 1 row; sign in 1 (grant row); code exchange 2 plus any older grants replaced;
+ *   refresh 2; revoke 2; last used at most once an hour per grant (2). API keys keep working unchanged.
  */
-import { and, desc, eq, isNull, notInArray } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, notInArray } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { members, oauthClients, oauthGrants, organizations, users } from "../../db/schema";
 import { hmacSha256Hex, newId, randomToken, safeEqual, sha256Hex, tryFromB64 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
+import { inIds } from "../../lib/sql-chunks";
 import type { ApiKeyAuth, ApiKeyScope } from "./api-keys";
 import { deferrableWrite } from "../write-priority";
 import { ssoBlocks } from "../../auth/session";
@@ -25,6 +26,8 @@ export const CODE_TTL_MS = 60_000;
 /** last_used_at is written at most this often per grant (D1 daily write budget). */
 export const GRANT_LAST_USED_EVERY_MS = 60 * 60_000;
 export const OAUTH_SCOPES = ["mcp:read", "mcp:write"] as const;
+/** Words MCP clients add from OpenID that are not a Multies scope. They are ignored, not a failed sign-in. */
+const IGNORED_OAUTH_SCOPES = new Set(["openid", "profile", "email", "offline_access"]);
 const MAX_REDIRECT_URIS = 10;
 
 /** An OAuth error in the shape RFC 6749 section 5.2 asks for. */
@@ -111,12 +114,28 @@ export async function checkAuthorizeRequest(deps: Deps, q: AuthorizeRequest) {
   if (!redirectUri || !client.redirectUris.includes(redirectUri)) throw new OAuthError(400, "invalid_request", "The redirect address does not match what this app registered.");
   if (q.response_type !== "code") throw new OAuthError(400, "unsupported_response_type", "Only response_type=code is supported.");
   if (!q.code_challenge || q.code_challenge_method !== "S256" || !/^[A-Za-z0-9_-]{43,128}$/.test(q.code_challenge)) throw new OAuthError(400, "invalid_request", "PKCE is required: send code_challenge with code_challenge_method=S256.");
-  const asked = (q.scope ?? "").split(/\s+/).filter(Boolean);
-  const unknown = asked.filter((s) => !(OAUTH_SCOPES as readonly string[]).includes(s));
-  if (unknown.length) throw new OAuthError(400, "invalid_scope", `Unknown scope: ${unknown.join(" ")}. Use mcp:read or mcp:write.`);
-  // No scope or mcp:write asks for read and write; the person can still pick read only.
-  const requestedScope: ApiKeyScope = asked.length && !asked.includes("mcp:write") ? "read" : "full";
+  const requestedScope = requestedScopeOf(q.scope);
   return { client: { id: client.id, name: client.name, clientUri: client.clientUri }, redirectUri, requestedScope, state: q.state ?? null, codeChallenge: q.code_challenge };
+}
+
+/**
+ * Every scope word, including ones joined from a repeated `scope` query parameter.
+ * `mcp:read` alone stays read only. No scope, or any request that includes `mcp:write`, asks for read and write.
+ * `openid`, `profile`, `email` and `offline_access` are ignored. Any other word fails the sign-in.
+ * A request that names scopes but none of them are Multies scopes fails too.
+ */
+export function requestedScopeOf(scope: string | undefined): ApiKeyScope {
+  const asked = (scope ?? "").split(/\s+/).filter(Boolean);
+  const multies = asked.filter((s) => (OAUTH_SCOPES as readonly string[]).includes(s));
+  const unknown = asked.filter((s) => !(OAUTH_SCOPES as readonly string[]).includes(s) && !IGNORED_OAUTH_SCOPES.has(s));
+  if (unknown.length) throw new OAuthError(400, "invalid_scope", `Unknown scope: ${unknown.join(" ")}. Use mcp:read or mcp:write.`);
+  if (asked.length && !multies.length) throw new OAuthError(400, "invalid_scope", "No Multies scope was requested. Use mcp:read or mcp:write.");
+  return multies.length && !multies.includes("mcp:write") ? "read" : "full";
+}
+
+/** Host (or scheme, for app redirects) that identifies one connected app across client ids. */
+export function redirectHostOf(uri: string): string {
+  try { const u = new URL(uri); return (u.host || u.protocol).toLowerCase(); } catch { return ""; }
 }
 
 /** The workspaces a person can connect: every human membership, with its role. */
@@ -146,6 +165,8 @@ export async function approve(deps: Deps, user: Pick<AuthContext, "userId" | "lo
     id, clientId: req.client.id, orgId: ws.id, userId: user.userId, scope, redirectUri: req.redirectUri,
     codeHash: await sha256Hex(code), codeChallenge: req.codeChallenge, codeExpiresAt: new Date(now.getTime() + CODE_TTL_MS), createdAt: now,
   });
+  // Older live grants stay until this code is exchanged. An abandoned reconnect (closed browser, bad PKCE, expired code)
+  // must not revoke the tokens the person already has.
   const url = new URL(req.redirectUri);
   url.searchParams.set("code", code);
   if (req.state) url.searchParams.set("state", req.state);
@@ -211,6 +232,12 @@ export async function token(deps: Deps, r: TokenRequest) {
       await deps.db.update(oauthGrants).set({ revokedAt: now, refreshHash: null }).where(eq(oauthGrants.id, grant.id));
       throw new OAuthError(400, "invalid_grant", "That code was already used.");
     }
+    // Only once the new grant is usable: a retry, or a new client id for the same app, replaces older live grants.
+    const client = await getClient(deps, grant.clientId);
+    await replaceOlderGrants(deps, {
+      id: grant.id, userId: grant.userId, orgId: grant.orgId, clientId: grant.clientId,
+      clientName: client?.name ?? "", redirectUri: grant.redirectUri,
+    });
     return tokenBody(t, grant.scope);
   }
   if (r.grant_type === "refresh_token") {
@@ -297,7 +324,7 @@ export async function resolveOAuthToken(deps: Deps, header: string | undefined):
     .innerJoin(organizations, eq(organizations.id, oauthGrants.orgId))
     .innerJoin(users, eq(users.id, oauthGrants.userId))
     .innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
-    .leftJoin(members, and(eq(members.userId, oauthGrants.userId), eq(members.organizationId, oauthGrants.orgId)))
+    .leftJoin(members, and(eq(members.userId, oauthGrants.userId), eq(members.organizationId, oauthGrants.orgId), eq(members.kind, "human")))
     .where(eq(oauthGrants.id, p.g)).get();
   // Revoked, or the person left the workspace: the token stops working at once.
   if (!row || row.g.revokedAt || !row.role || row.kind !== "human") return null;
@@ -320,11 +347,20 @@ export async function listGrants(deps: Deps, auth: Pick<AuthContext, "orgId" | "
     .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId)).innerJoin(users, eq(users.id, oauthGrants.userId))
     .where(and(eq(oauthGrants.orgId, auth.orgId), admin ? undefined : eq(oauthGrants.userId, auth.userId), isNull(oauthGrants.revokedAt)))
     .orderBy(desc(oauthGrants.createdAt)).limit(200).all();
-  // A code nobody exchanged is not a connection.
-  return rows.filter((r) => r.g.codeUsedAt).map((r) => ({
-    id: r.g.id, client: r.clientName, scope: r.g.scope, user: { id: r.g.userId, name: r.userName, email: r.userEmail },
-    createdAt: r.g.createdAt, lastUsedAt: r.g.lastUsedAt, mine: r.g.userId === auth.userId,
-  }));
+  // A code nobody exchanged is not a connection. One row per person and app (name plus redirect host).
+  const seen = new Set<string>();
+  const out: { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: Date; lastUsedAt: Date | null; mine: boolean }[] = [];
+  for (const r of rows) {
+    if (!r.g.codeUsedAt) continue;
+    const key = `${r.g.userId}\n${r.clientName}\n${redirectHostOf(r.g.redirectUri)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id: r.g.id, client: r.clientName, scope: r.g.scope, user: { id: r.g.userId, name: r.userName, email: r.userEmail },
+      createdAt: r.g.createdAt, lastUsedAt: r.g.lastUsedAt, mine: r.g.userId === auth.userId,
+    });
+  }
+  return out;
 }
 
 export async function revokeGrant(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId" | "role">, id: string) {
@@ -333,7 +369,30 @@ export async function revokeGrant(deps: Deps, auth: Pick<AuthContext, "orgId" | 
   const admin = auth.role === "owner" || auth.role === "admin";
   if (!admin && g.userId !== auth.userId) throw new HttpError(403, "forbidden", "Only an admin can disconnect someone else's app.");
   await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(eq(oauthGrants.id, g.id));
+  await revokeSameApp(deps, g);
   return g;
+}
+
+/** Ends every other live grant for this person, workspace and app, so Disconnect removes the one row Settings shows. */
+async function revokeSameApp(deps: Deps, g: typeof oauthGrants.$inferSelect) {
+  const client = await getClient(deps, g.clientId);
+  if (!client) return;
+  const host = redirectHostOf(g.redirectUri);
+  const rows = await deps.db.select({ id: oauthGrants.id, redirectUri: oauthGrants.redirectUri, name: oauthClients.name })
+    .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
+    .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), isNull(oauthGrants.revokedAt), ne(oauthGrants.id, g.id))).all();
+  const ids = rows.filter((r) => r.name === client.name && redirectHostOf(r.redirectUri) === host).map((r) => r.id);
+  if (ids.length) await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(inIds(oauthGrants.id, ids));
+}
+
+/** A new sign-in replaces older live grants for the same client, or the same app name and redirect host. */
+async function replaceOlderGrants(deps: Deps, g: { id: string; userId: string; orgId: string; clientId: string; clientName: string; redirectUri: string }) {
+  const host = redirectHostOf(g.redirectUri);
+  const rows = await deps.db.select({ id: oauthGrants.id, clientId: oauthGrants.clientId, redirectUri: oauthGrants.redirectUri, name: oauthClients.name })
+    .from(oauthGrants).innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
+    .where(and(eq(oauthGrants.orgId, g.orgId), eq(oauthGrants.userId, g.userId), isNull(oauthGrants.revokedAt), ne(oauthGrants.id, g.id))).all();
+  const ids = rows.filter((r) => r.clientId === g.clientId || (r.name === g.clientName && redirectHostOf(r.redirectUri) === host)).map((r) => r.id);
+  if (ids.length) await deps.db.update(oauthGrants).set({ revokedAt: deps.now(), refreshHash: null }).where(inIds(oauthGrants.id, ids));
 }
 
 /** RFC 9728 and RFC 8414 metadata. */
