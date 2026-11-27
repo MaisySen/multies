@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
+import { createApp } from "@/server/app";
+import { applyMigrations, migrate, migrationDriver } from "@/server/db";
+import { MIGRATIONS } from "@/server/db/migrations.generated";
+import { openSqlite } from "@/server/db/node";
 import { hash, prepareMnet } from "@/server/services/mnet";
 import { members, mnetDevices, organizations, sessions, users } from "@/server/db/schema";
 
@@ -77,7 +81,8 @@ describe("isolated Mnet device bridge",()=>{
  });
  it("refuses native exchange cookies/origins, oversized and unknown-field requests",async()=>{
   const {code}=await approved();
-  for(const headers of [{origin:"http://localhost"},{cookie:c.cookie}]){const r=await ctx.app.request("/api/mnet/token",{method:"POST",headers:{host:"localhost","content-type":"application/json",...headers},body:JSON.stringify({...request,code,verifier})});expect(r.status).toBe(403);}
+  const browserHeaders: Record<string, string>[] = [{ origin: "http://localhost" }, { cookie: c.cookie }];
+  for(const headers of browserHeaders){const r=await ctx.app.request("/api/mnet/token",{method:"POST",headers:{host:"localhost","content-type":"application/json",...headers},body:JSON.stringify({...request,code,verifier})});expect(r.status).toBe(403);}
   expect((await c.post("/api/mnet/authorizations",{...request,oversize:"x".repeat(8200)})).status).toBe(400);
   expect((await exchange(code)).status).toBe(200);
  });
@@ -109,9 +114,67 @@ describe("isolated Mnet device bridge",()=>{
   const p=await c.post("/api/mnet/authorizations",request);expect((await c.post(`/api/mnet/authorizations/${p.body.id}/decision`,{decision:"decline"})).status).toBe(200);expect((await c.post(`/api/mnet/authorizations/${p.body.id}/decision`,{decision:"allow"})).status).toBe(403);
   const {code}=await approved();const real=ctx.deps.now;ctx.deps.now=()=>new Date(real().getTime()+121_000);expect((await exchange(code)).status).toBe(403);
  });
- it("rechecks live membership on every credential use",async()=>{
-  const {code}=await approved();const r=await exchange(code);expect(r.status).toBe(200);
-  await ctx.db.delete(members).where(eq(members.organizationId,request.workspaceId));expect((await devices(r.body.credential)).status).toBe(403);
+ it("requires fresh device approval after a workspace membership ends and is replaced", async () => {
+  const original = await ctx.db.select().from(members).where(eq(members.organizationId, request.workspaceId)).get();
+  const active = await approved();
+  const originalToken = await exchange(active.code);
+  expect(originalToken.status).toBe(200);
+  const issued = await approved();
+  const pending = await c.post("/api/mnet/authorizations", request);
+  expect(pending.status).toBe(201);
+
+  await ctx.db.delete(members).where(eq(members.id, original!.id));
+  expect((await devices(originalToken.body.credential)).status).toBe(403);
+  await ctx.db.insert(members).values({ ...original!, id: crypto.randomUUID() });
+
+  expect((await c.post(`/api/mnet/authorizations/${pending.body.id}/decision`, { decision: "allow" })).status).toBe(403);
+  expect((await exchange(issued.code)).status).toBe(403);
+  expect((await devices(originalToken.body.credential)).status).toBe(403);
+  const check = await ctx.app.request("/api/mnet/check", {
+   method: "POST",
+   headers: { host: "localhost", "content-type": "application/json", authorization: `Bearer ${originalToken.body.credential}` },
+   body: JSON.stringify({ workspaceId: request.workspaceId, capability: "list" }),
+  });
+  expect(check.status).toBe(403);
+  const oldApprovals = await c.get("/api/mnet/approved-devices");
+  expect(oldApprovals.status).toBe(200);
+  expect(oldApprovals.body.devices).toEqual([]);
+
+  const fresh = await approved();
+  const freshToken = await exchange(fresh.code);
+  expect(freshToken.status).toBe(200);
+  const list = await devices(freshToken.body.credential);
+  expect(list.status).toBe(200);
+  expect(await list.json()).toMatchObject({ devices: [{ id: fresh.id }] });
+  expect((await c.get("/api/mnet/approved-devices")).body.devices).toMatchObject([{ id: fresh.id }]);
+ });
+ it("requires a new approval after migrating a database with approvals from 0171", async () => {
+  const migration = "0172_mnet_membership_binding";
+  const db = openSqlite(":memory:");
+  const driver = migrationDriver((db as unknown as { $client: unknown }).$client);
+  const previous = MIGRATIONS.slice(0, MIGRATIONS.findIndex((entry) => entry.name === migration));
+  await applyMigrations(driver, previous);
+  const app = createApp({ ...ctx.deps, db });
+  const browser = new Client(app);
+  const email = await browser.signup("mnet-upgrade@example.test");
+  await db.update(users).set({ emailVerified: true }).where(eq(users.email, email));
+  const member = (await db.select().from(members).get())!;
+  const session = (await db.select().from(sessions).where(eq(sessions.userId, member.userId)).get())!;
+  const legacyToken = await hash("migration fixture credential");
+  const legacyHash = await hash(legacyToken);
+  const expires = Date.now() + 60_000;
+  await db.run(sql`INSERT INTO mnet_devices
+    (id, user_id, session_id, workspace_id, device_key, challenge, state, platform, redirect_uri, status, credential_hash, expires_at, credential_expires_at)
+    VALUES ('legacy-device', ${member.userId}, ${session.id}, ${member.organizationId}, ${request.deviceKey}, ${request.challenge}, ${request.state}, ${request.platform}, ${request.redirectUri}, 'active', ${legacyHash}, ${expires}, ${expires})`);
+
+  expect(await migrate(db)).toContain(`${migration}.sql`);
+  expect(await migrate(db)).toEqual([]);
+  const retired = await db.select().from(mnetDevices).where(eq(mnetDevices.id, "legacy-device")).get();
+  expect(retired?.membershipId).toBeNull();
+  const list = await app.request("/api/mnet/devices", { headers: { host: "localhost", authorization: `Bearer ${legacyToken}` } });
+  expect(list.status).toBe(403);
+  expect((await browser.get("/api/mnet/approved-devices")).body.devices).toEqual([]);
+  expect((await browser.post("/api/mnet/authorizations", { ...request, workspaceId: member.organizationId })).status).toBe(201);
  });
  it("refuses demo/suspended/banned/unverified/impersonated states",async()=>{
   const u=await ctx.db.select().from(users).where(eq(users.email,"mnet-owner@example.test")).get();
