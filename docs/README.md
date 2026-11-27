@@ -6,6 +6,8 @@
 | How it fits together | [architecture.md](architecture.md), [architecture/queues.md](architecture/queues.md) |
 | REST, MCP and webhooks | [api.md](api.md), [MCP.md](MCP.md), [suite.md](suite.md) |
 | How we build and release | [sdlc.md](sdlc.md) |
+| Release handover and status, 28 November 2026 | [handover-2026-11-28.md](handover-2026-11-28.md) |
+| Worker and browser release checks | [worker-release-safety.md](worker-release-safety.md) |
 | Tests and how to run them | [testing.md](testing.md) |
 | Runbooks | [deploy](runbooks/deploy.md), [rollback](runbooks/rollback.md), [incident response](runbooks/incident-response.md), [Sentry triage](runbooks/sentry-triage.md), [database backup and restore](runbooks/db-backup-restore.md), [domain and DNS](runbooks/domain-dns.md) |
 | Decisions and why | [adr/](adr/README.md) |

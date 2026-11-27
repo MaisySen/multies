@@ -78,3 +78,42 @@ There were two separate causes.
 - Opening a demo takes about 5 seconds from the US.
 - The rate limits are kept in memory per isolate, so they are loose on Workers. They held during testing.
 - GitHub Actions cannot run: the account's minutes or spending limit is used up. Deploys this round were run by hand with the same steps (build, migrate, deploy, smoke test, staging first).
+
+## Release Handover Verification (2026-11-28)
+
+Date: 28 November 2026 (AEDT). Production runs release `console-ui-fix-paired-20261123`. `main` is at
+`519cb2c2b623` and is behind production. The full status, the migration registry and the landing
+order are in [../handover-2026-11-28.md](../handover-2026-11-28.md). Tests used synthetic accounts and
+synthetic data only. No one signed in as the live Owner, and no real customer data was touched.
+
+| Check | How | Result |
+| --- | --- | --- |
+| Console rollout, 23 November | Fresh signed-out browser journeys on production after the paired Worker and asset release | 8 of 8 pass. 59 boot asset hashes present. Old `/admin` and `/app/admin` links redirect to `/console` |
+| Console, signed in | Synthetic Owner in an isolated environment with the exact live JavaScript and CSS, 15 sections and 2 detail pages, desktop and mobile | 34 of 34 pass. An ordinary account is refused with 403 |
+| Console suites on the live source | 21 suites that use `tests/console-kit.ts`, no-network shell | 132 of 132 pass with a one-line fixture fix. As it is, the wider 58-file run passes 394 of 411; the Console failures come from a stale proof key in the fixture |
+| Database migrations | Production | 162 applied, ending `0178_console_indexes_ops1`. `0171_operator_access_audit` preserved |
+| Hosted D1 rehearsal, Mail PR #32 as `0179_first_sender_d1load` | Disposable hosted Cloudflare D1 database, 162-migration baseline, 10,000 synthetic messages | Mailbox Important rows read 38,094 to 1,797 (95.3% fewer, 6.26 times faster). Org-wide 34,491 to 12,336 (64.2% fewer, 2.76 times faster). Exact ID parity. 6 of 6 write parity checks |
+| Hosted D1 rehearsal, scheduler lease `0180_cron_tick_lease` | Same disposable database | 10 concurrent claims: 1 winner, 9 blocked, 0 errors. Expired lease reclaimed by 1 of 5. Database deleted afterwards and confirmed gone (404) |
+| PR #33 Meetings | Applied alone to the live Console source, no-network shell | 34 of 34 pass |
+| PR #28 Boards | Same | 28 of 28 pass |
+| PR #27 Mail permissions | Same | 5 of 5 pass |
+| PR #26 Gmail connect | Same, reconciled to keep MPLAT-110 and the Console feature gate | 50 of 50 pass. Privacy-hardened variant 51 of 51, recommended |
+| PR #38 TikTok credentials | Same | 36 of 36 pass |
+| PR #44 DMARC test clock | Same | 11 of 11 pass. Equivalent fix already in the live source, still needed on `main` |
+| PR #31 Tools flags | Same | 41 of 41 pass. Exactly six approved tools, no `index` or `folders`. Held until the Mail database load fix is live |
+| Worker release guard | 8 verifier tests and 7 browser journeys against the compiled package | Pass. A stale Worker with new assets and a missing style are both rejected. Applies to `main` forward and reverse |
+| Auth0 native MFA and operator access | 116 checks across 14 suites, plus a private staging rehearsal with real Auth0 sign-ins | Pass. Owner recovery and revocation proven on staging. Stage closed afterwards |
+| Stripe | Six check groups in Stripe test mode, billing route suite locally | Six of six groups pass. 12 of 12 route checks pass. Sandbox cleaned up. No live charges |
+| iPhone Mail QA, run `45118482982` | Simulator build, install, launch and Inbox tap test | Build succeeded. Install and launch exit 0, no crash record, app stayed running. Tap test blocked: assertion driver timeout (`exit=-9`), then `BLOCKED: terminate fixture timed out after 10s` |
+
+Still open after this round:
+
+- Gate: clear the `main` CI and security gates before merging the dependency and CI pull requests.
+- Gate: verify a fresh encrypted off-peak backup and an isolated restore before the next production
+  migration.
+- One test fails the same way on `main` and on the live source: `tests/tools-index-p2.test.ts`,
+  "stops before the D1 read guard".
+- Native Inbox and Search checks on iPhone are incomplete, and the Build 20 startup crash has no
+  matching device crash report.
+- The hosted D1 rehearsal used synthetic data. Nothing from PR #32 or the scheduler lease has been
+  applied to production.
