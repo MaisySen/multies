@@ -14,7 +14,7 @@ workspace membership record, platform, device-key thumbprint, native PKCE
 challenge, state and literal IPv4 loopback callback. It does not bootstrap or
 join a workspace. If a membership is removed, pending approvals, issued codes
 and active credentials from that membership are unusable, including after
-rejoining. Approvals created before migration 0172 require fresh approval.
+rejoining. Approvals created before migration 0182 require fresh approval.
 
 **List only.** The handoff binds a supplied thumbprint to native PKCE possession,
 not to possession of a WireGuard private key. Never treat it as VPN enrollment,

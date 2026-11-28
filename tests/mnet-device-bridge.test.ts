@@ -148,8 +148,8 @@ describe("isolated Mnet device bridge",()=>{
   expect(await list.json()).toMatchObject({ devices: [{ id: fresh.id }] });
   expect((await c.get("/api/mnet/approved-devices")).body.devices).toMatchObject([{ id: fresh.id }]);
  });
- it("requires a new approval after migrating a database with approvals from 0171", async () => {
-  const migration = "0172_mnet_membership_binding";
+ it("requires a new approval after migrating a database with approvals from 0181", async () => {
+  const migration = "0182_mnet_membership_binding";
   const db = openSqlite(":memory:");
   const driver = migrationDriver((db as unknown as { $client: unknown }).$client);
   const previous = MIGRATIONS.slice(0, MIGRATIONS.findIndex((entry) => entry.name === migration));
