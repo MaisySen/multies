@@ -27,15 +27,19 @@ const REDIRECTS = new Set(["Moved", "MovedSocial"]);
 const sourceOf = (src: string, name = "router.tsx") => ts.createSourceFile(name, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const propOf = (o: ts.ObjectLiteralExpression, name: string) =>
   o.properties.find((p): p is ts.PropertyAssignment => ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === name);
-/** The first JSX tag in an expression: page(<X />) and <X /> read as X. */
-function tagOf(n: ts.Node): string | undefined {
-  let tag: string | undefined;
-  const visit = (c: ts.Node) => { if (tag) return; if (ts.isJsxSelfClosingElement(c) || ts.isJsxOpeningElement(c)) { tag = c.tagName.getText(); return; } ts.forEachChild(c, visit); };
-  visit(n);
-  return tag;
+/**
+ * The page of a route element: <X /> and page(<X />) read as X. Any other form (for example a condition) reads as "",
+ * so it is never taken for a redirect.
+ */
+function elementName(e: ts.Expression): string {
+  while (ts.isParenthesizedExpression(e)) e = e.expression;
+  if (ts.isJsxSelfClosingElement(e)) return e.tagName.getText();
+  if (ts.isJsxElement(e)) return e.openingElement.tagName.getText();
+  if (ts.isCallExpression(e) && e.arguments.length === 1) return elementName(e.arguments[0]);
+  return "";
 }
 const isAppPath = (p: string) => p === "/app" || p.startsWith("/app/");
-const isRouteObject = (o: ts.ObjectLiteralExpression) => !!propOf(o, "path") || !!propOf(o, "index") || (!!propOf(o, "children") && !!propOf(o, "element"));
+const isRouteObject = (o: ts.ObjectLiteralExpression) => !!propOf(o, "path") || !!propOf(o, "index") || (!!propOf(o, "children") && (!!propOf(o, "element") || !!propOf(o, "Component") || !!propOf(o, "lazy")));
 
 /**
  * Every route under /app, with the name of its element. unparsed lists what the reader could not read (a route with a
@@ -61,7 +65,12 @@ export function appRoutes(src: string): { routes: Route[]; unparsed: string[]; c
   const walk = (arr: ts.ArrayLiteralExpression, base: string) => {
     for (const el of arr.elements) {
       if (ts.isSpreadElement(el)) {
-        if (REDIRECTS.has(tagOf(el.expression) ?? "")) { skipped.add(el); continue; }
+        // A spread of a list is read like the list. Any other spread is skipped only when every route in it is a redirect.
+        if (ts.isArrayLiteralExpression(el.expression)) { walk(el.expression, base); continue; }
+        const inner: ts.ObjectLiteralExpression[] = [];
+        const find = (n: ts.Node) => { if (ts.isObjectLiteralExpression(n) && isRouteObject(n)) inner.push(n); ts.forEachChild(n, find); };
+        find(el.expression);
+        if (inner.length > 0 && inner.every((o) => { const el = propOf(o, "element"); return !!el && REDIRECTS.has(elementName(el.initializer)); })) { skipped.add(el); continue; }
         unparsed.push(`spread: ${el.getText(sf).slice(0, 80)}`);
         continue;
       }
@@ -74,6 +83,7 @@ export function appRoutes(src: string): { routes: Route[]; unparsed: string[]; c
     const p = propOf(o, "path");
     const index = propOf(o, "index");
     const element = propOf(o, "element");
+    const component = propOf(o, "Component") ?? propOf(o, "lazy");
     const children = propOf(o, "children");
     let path = base;
     if (p) {
@@ -84,7 +94,9 @@ export function appRoutes(src: string): { routes: Route[]; unparsed: string[]; c
       unparsed.push(`route with no path: ${o.getText(sf).slice(0, 80)}`);
       return;
     }
-    if (element) routes.push({ path, element: tagOf(element.initializer) ?? "" });
+    if (element) routes.push({ path, element: elementName(element.initializer) });
+    else if (component) routes.push({ path, element: component.initializer.getText(sf).slice(0, 80) }); // Component: X or lazy: () => import(...)
+    else if (!children) unparsed.push(`route with no element, Component or lazy: ${path}`);
     if (children) {
       if (ts.isArrayLiteralExpression(children.initializer)) walk(children.initializer, path);
       else unparsed.push(`children is not a list: ${path}`);
@@ -176,12 +188,18 @@ function importsOf(file: string): string[] {
   return out;
 }
 
-/** True when the code (not a comment) uses the route as a to, href or navigate() value, directly or through a const. */
+/**
+ * True when the code (not a comment) uses the route as a to, href or navigate() value, directly or through a const.
+ * A link inside breadcrumb code (a function or a const whose name has "crumb") does not count: a breadcrumb shows only
+ * on the page itself and its children, so it does not open the page from its parent.
+ */
 function linksTo(code: string, route: string): boolean {
   const sf = sourceOf(code, "file.tsx");
   const consts = new Map<string, string>();
   const values: ts.Expression[] = [];
+  const crumb = (n: ts.Node) => (ts.isFunctionDeclaration(n) || ts.isVariableDeclaration(n) || ts.isMethodDeclaration(n) || ts.isPropertyAssignment(n)) && !!n.name && /crumb/i.test(n.name.getText());
   const v = (n: ts.Node) => {
+    if (crumb(n)) return;
     if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && ts.isStringLiteralLike(n.initializer)) consts.set(n.name.text, n.initializer.text);
     if (ts.isJsxAttribute(n) && ["to", "href"].includes(n.name.getText()) && n.initializer) values.push(ts.isJsxExpression(n.initializer) ? n.initializer.expression! : n.initializer as ts.Expression);
     if (ts.isPropertyAssignment(n) && (ts.isIdentifier(n.name) || ts.isStringLiteral(n.name)) && ["to", "href"].includes(n.name.text)) values.push(n.initializer);
@@ -277,7 +295,7 @@ describe("every app page has a menu home (MPT-10, NAV1 slice 1)", () => {
   });
 });
 
-describe("the route reader and the checks catch bad input (MPT-10 review R2 to R4)", () => {
+describe("the route reader and the checks catch bad input (MPT-10 review R2 to R4, R8 and R9)", () => {
   const FIXTURE = `
 const routes = [
   { path: "/", element: <Home /> },
@@ -312,6 +330,23 @@ const routes = [
     expect(pagesOf(r.routes).sort()).toEqual(["/app", "/app/after-settings", "/app/element-first", "/app/multi-line", "/app/settings", "/app/settings/team", "/app/tight"]);
   });
 
+  it("reads Component and lazy routes, and a page in a spread with a redirect (review R8, verifier D5)", () => {
+    const more = FIXTURE.replace('{ path: "after-settings"', [
+      '{ path: "comp", Component: CompPage },',
+      '{ path: "lazy", lazy: () => import("./pages/app/lazy") },',
+      '...[{ path: "old", element: <Moved to="/app" /> }, { path: "sneaky", element: page(<Sneaky />) }],',
+      '{ path: "after-settings"',
+    ].join(" "));
+    const r = appRoutes(more);
+    expect(r.unparsed).toEqual([]);
+    expect(r.visited).toBe(r.checked);
+    for (const p of ["/app/comp", "/app/lazy", "/app/sneaky"]) expect(pagesOf(r.routes)).toContain(p);
+    expect(pagesOf(r.routes)).not.toContain("/app/old");
+    const mixed = appRoutes(FIXTURE.replace("<Moved to={m.to} />", "m.old ? <Moved to={m.to} /> : page(<Page />)"));
+    expect(mixed.unparsed.join(" ")).toContain("spread: ...APP_MOVES");
+    expect(appRoutes(FIXTURE.replace('{ path: "after-settings", element: page(<After />) }', '{ path: "after-settings" }')).unparsed).toEqual(["route with no element, Component or lazy: /app/after-settings"]);
+  });
+
   it("reports a route that it cannot read, so the test fails instead of skipping it", () => {
     const r = appRoutes(FIXTURE.replace('{ path: "after-settings"', 'flag ? { path: "hidden" } : null, { path: "after-settings"').replace('path:"tight"', "path:TIGHT"));
     expect(r.unparsed.length).toBe(2);
@@ -337,5 +372,6 @@ const routes = [
     expect(fileProblem("/app/analyses", d(mod), mod, 'const a = <Link to="/app/analyses?tab=x" />;')).toBe("");
     expect(fileProblem("/app/analyses", d(mod), mod, 'const a = <NavLink to={x ? "/app/analyses" : y} />;')).toBe("");
     expect(fileProblem("/app/analyses", d("src/web/layouts/shell-nav.ts"), mod, 'export const A = "/app/analyses";\nconst m = { to: A };')).toBe("");
+    expect(fileProblem("/app/analyses", d("src/web/layouts/shell-nav.ts"), mod, 'export function breadcrumbs() { return [{ label: "A", to: "/app/analyses" }]; }')).toContain("does not link to it");
   });
 });
