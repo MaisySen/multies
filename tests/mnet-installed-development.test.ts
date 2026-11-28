@@ -3,7 +3,7 @@ import { chromium } from "playwright";
 import {it,expect} from "vitest";
 import {createServer} from "node:https";
 import {spawn,execFileSync} from "node:child_process";
-import {mkdtemp,readFile,writeFile,rm,chmod,rename} from "node:fs/promises";
+import {mkdir,mkdtemp,readFile,writeFile,rm,chmod,rename} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {eq} from "drizzle-orm";
@@ -15,6 +15,7 @@ import {setupBookkeeping} from "./mnet-enrollment-bookkeeping-fixture";
 const repo=process.env.MNET_NATIVE_REPO;
 const installed=process.env.MNET_DEVELOPMENT_SETUP_BINARY;
 const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
+if (!/^[a-z0-9-]{1,48}$/.test(variant)) throw new Error("invalid development fixture case name");
 const networkCase=variant.startsWith("network-tcp");
 const networkStopped=variant==="network-tcp-cancel"||variant==="network-tcp-expiry";
 const displayUnavailable=["result-preexisting","result-write-failure","result-open-failure"].includes(variant);
@@ -22,6 +23,8 @@ const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
 (repo&&installed?it:it.skip).each(["success"])("explicit installed disposable setup with actual browser %s",async(mode)=>{
  const dir=await mkdtemp(join(tmpdir(),"mnet-workflow-cross-"));await chmod(dir,0o700);
+ const artifacts = process.env.MNET_DEVELOPMENT_SETUP_ARTIFACT_DIR ?? join(dir, "screenshots");
+ await mkdir(artifacts, { recursive: true, mode: 0o700 });
  const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let done=false;let output="";let exchangeCalls=0;let reserveCalls=0;let reserveStatus=0;
  const key=join(dir,"key.pem"),cert=join(dir,"cert.pem");
  execFileSync("openssl",["req","-x509","-newkey","rsa:2048","-nodes","-keyout",key,"-out",cert,"-days","1","-subj","/CN=127.0.0.1","-addext","subjectAltName=IP:127.0.0.1"],{stdio:"pipe"});await chmod(key,0o600);
@@ -86,16 +89,16 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    let page=context.pages().find(p=>p.url().includes("/mnet/enroll-v1")||p.url().includes("/login"));
    for(let i=0;i<100&&!page;i++){await sleep(100);page=context.pages().find(p=>p.url().includes("/mnet/enroll-v1")||p.url().includes("/login"));}
    if(!page)throw new Error("installed joining browser page missing");
-   page.on("response",response=>{if(response.url().includes("/api/")&&response.status()>=400)console.log("HTTP",response.status(),response.url());});
+   page.on("response",response=>{const { pathname } = new URL(response.url()); if(pathname.startsWith("/api/")&&response.status()>=400)console.log("HTTP",response.status(),pathname);});
    page.on("pageerror",error=>console.log("BROWSER",error.message));
    await page.locator('input[name="email"]').waitFor({timeout:60000});
-   await page.screenshot({path:"/downloads/mnet-development-installed-login.png",fullPage:true});
+   await page.screenshot({path:join(artifacts,"mnet-development-installed-login.png"),fullPage:true});
    await page.locator('input[name="email"]').fill(e.person.email!);await page.locator('input[name="password"]').fill("a-strong-password");
    await page.getByRole("button",{name:"Sign in",exact:true}).click();
-   await page.getByRole("heading",{name:"Approve this computer joining Mnet"}).waitFor({timeout:15000}).catch(async(error)=>{await page!.screenshot({path:"/downloads/mnet-development-installed-browser-failure.png",fullPage:true});console.log("FAILED PAGE",page!.url(),await page!.locator("body").innerText());throw error;});
+   await page.getByRole("heading",{name:"Approve this computer joining Mnet"}).waitFor({timeout:15000}).catch(async(error)=>{await page!.screenshot({path:join(artifacts,"mnet-development-installed-browser-failure.png"),fullPage:true});console.log("FAILED PAGE",new URL(page!.url()).pathname);throw error;});
    expect(await page.getByTestId("mnet-handoff-key").textContent()).toBe(nativeLaunch.devicePublicKey);
    await page.getByRole("combobox").selectOption(workspaceId);
-   await page.screenshot({path:"/downloads/mnet-development-installed-consent.png",fullPage:true});
+   await page.screenshot({path:join(artifacts,"mnet-development-installed-consent.png"),fullPage:true});
    if(networkCase){
     await writeFile(join(dir,"installed-consent-ready"),"actual owned browser login and workspace selection completed",{mode:0o600});
     await approveDisposableCounterpart();
@@ -107,20 +110,20 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
    if(variant!=="cancel"){
    await page.getByRole("button",{name:variant==="decline"?"Decline":"Approve handoff",exact:true}).click();
    await page.getByRole("button",{name:"Return to Mnet",exact:true}).waitFor();
-   await page.screenshot({path:"/downloads/mnet-development-installed-return.png",fullPage:true});
+   await page.screenshot({path:join(artifacts,"mnet-development-installed-return.png"),fullPage:true});
    await page.getByRole("button",{name:"Return to Mnet",exact:true}).click();
    if(variant==="success")await page.getByText("Approval returned to Mnet.",{exact:false}).waitFor();
    if(variant==="decline")await page.getByText("Computer not approved.",{exact:false}).waitFor();
    if(variant==="changed-policy"){await page.getByText("Mnet callback unavailable.",{exact:false}).waitFor();await writeFile(join(dir,"installed-cancel-request"),"retire refused callback attempt");}
    }
-   await page.screenshot({path:"/downloads/mnet-development-installed-callback.png",fullPage:true});
+   await page.screenshot({path:join(artifacts,"mnet-development-installed-callback.png"),fullPage:true});
    }
    if(!displayUnavailable){
    let resultPage;
    for(let i=0;i<100&&!resultPage;i++){resultPage=context.pages().find(p=>p.url().endsWith("/setup-result.html"));if(!resultPage)await sleep(50);}
    if(!resultPage)throw new Error("actual native result page did not open");
    await resultPage.getByRole("heading",{name:variant==="success"||networkCase?"Joining saved. Not connected.":variant==="decline"?"Computer not approved":"Setup did not finish",exact:true}).waitFor();
-   await resultPage.screenshot({path:`/downloads/mnet-development-installed-final-${variant}.png`,fullPage:true});
+   await resultPage.screenshot({path:join(artifacts,`mnet-development-installed-final-${variant}.png`),fullPage:true});
    }else await waitFile(join(dir,"installed-output-ended"),()=>done);
    if(networkCase&&(!networkStopped||variant==="network-tcp-expiry")){
     let networkResult;
@@ -128,7 +131,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     if(!networkResult)throw new Error("actual ended TCP result did not open");
     await networkResult.getByRole("heading",{name:"Encrypted TCP verified. Session ended.",exact:true}).waitFor();
     if(variant==="network-tcp-expiry")await networkResult.getByText("That peer's original approved lease ended.",{exact:false}).waitFor();
-    await networkResult.screenshot({path:variant==="network-tcp-expiry"?"/downloads/mnet-development-installed-network-tcp-expiry.png":"/downloads/mnet-development-installed-network-tcp.png",fullPage:true});
+    await networkResult.screenshot({path:join(artifacts,variant==="network-tcp-expiry"?"mnet-development-installed-network-tcp-expiry.png":"mnet-development-installed-network-tcp.png"),fullPage:true});
    }
    const late=new URL(nativeLaunch.redirectUri);late.searchParams.set("state",nativeLaunch.state);late.searchParams.set("attemptId",nativeLaunch.attemptId);late.searchParams.set("code","A".repeat(43));
    let callbackClosed=false;try{await context.request.get(late.href,{timeout:1000});}catch{callbackClosed=true;}

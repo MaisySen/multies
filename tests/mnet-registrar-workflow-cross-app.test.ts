@@ -33,7 +33,9 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
   await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address();if(!address||typeof address==="string")throw new Error("missing TLS address");
   const nativeBinary=join(dir,"native-fixture.test");
   if(mode!=="source-denied")execFileSync("go",["test","-race","-tags",process.env.MNET_DEVELOPMENT_NETWORK_SESSION==="1"?"multies_native_fixture,mnet_enrollment_development":"multies_native_fixture","-c","-o",nativeBinary,"./internal/daemon"],{cwd:repo,stdio:"pipe"});
-  child=spawn("go",["test","-race","-tags","multies_native_fixture","./internal/control","-run","^TestActualMultiesRegistrarWorkflowFixture$","-count=1","-timeout","60s"],{cwd:repo,env:{...process.env,MNET_WORKFLOW_FIXTURE_DIR:dir,MNET_NATIVE_WORKFLOW_BINARY:nativeBinary,SSL_CERT_FILE:cert,SSL_CERT_DIR:join(dir,"no-extra-roots")},stdio:["ignore","pipe","pipe"]});
+  const childEnv: NodeJS.ProcessEnv = {...process.env,MNET_WORKFLOW_FIXTURE_DIR:dir,MNET_NATIVE_WORKFLOW_BINARY:nativeBinary,SSL_CERT_FILE:cert,SSL_CERT_DIR:join(dir,"no-extra-roots")};
+  delete childEnv.MNET_DEVELOPMENT_SETUP_BINARY;
+  child=spawn("go",["test","-race","-tags","multies_native_fixture","./internal/control","-run","^TestActualMultiesRegistrarWorkflowFixture$","-count=1","-timeout","60s"],{cwd:repo,env:childEnv,stdio:["ignore","pipe","pipe"]});
   child.stdout!.on("data",b=>{output+=b.toString();});child.stderr!.on("data",b=>{output+=b.toString();});const completion=new Promise<number|null>((resolve,reject)=>{child!.on("error",reject);child!.on("close",code=>{done=true;resolve(code);});});
   const publicInput=JSON.parse(await waitFile(join(dir,"launch.json"),()=>done));
   const operator=e.deps.config.mnetEnrollmentOperator!;operator.bindings[0].networkId=publicInput.networkId;operator.registrarOrigin=publicInput.registrarOrigin;e.deps.config.mnetEnrollmentServiceFixture!.keys[0].registrarOrigin=publicInput.registrarOrigin;
