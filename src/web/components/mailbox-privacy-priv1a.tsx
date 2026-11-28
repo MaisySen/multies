@@ -102,7 +102,7 @@ function ShareCard({ id, address }: { id: string; address: string }) {
   return (
     <div className="rounded-xl border border-line p-3" data-testid="priv1a-share-card">
       <div className="text-sm font-medium">{address}</div>
-      {!v ? <div className="mt-2 h-8 animate-pulse rounded bg-surface-2" /> : (
+      {!v ? <div className="mt-2 h-8 animate-pulse rounded bg-fill" /> : (
         <>
           <p className="mt-1 text-[12.5px] text-muted" data-testid="priv1a-marks-read">{t("priv1a.marks_read")}</p>
           <ul className="mt-2 space-y-1.5">

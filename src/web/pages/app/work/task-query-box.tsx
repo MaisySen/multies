@@ -53,7 +53,7 @@ export function TaskQueryBox({ value, onApply, values }: { value: string; onAppl
         <input ref={ref} aria-label={tr("tasks.search_tasks")} role="combobox" aria-expanded={items.length > 0} aria-controls="task-query-suggestions" aria-autocomplete="list"
           aria-invalid={!!error} aria-describedby={error ? "task-query-error" : undefined}
           placeholder={tr("tasks.search_or_filter")} value={text} spellCheck={false}
-          className="min-w-0 flex-1 bg-transparent font-mono text-[12.5px] outline-none placeholder:font-sans placeholder:text-subtle max-sm:text-base"
+          className="h-full min-w-0 flex-1 bg-transparent font-mono text-[12.5px] outline-none placeholder:font-sans placeholder:text-subtle max-sm:text-base"
           onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)}
           onChange={(e) => { setText(e.target.value); setCursor(e.target.selectionStart ?? e.target.value.length); setOpen(true); setActive(0); setNavigated(false); }}
           onSelect={(e) => setCursor((e.target as HTMLInputElement).selectionStart ?? text.length)}

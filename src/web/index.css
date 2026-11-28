@@ -4,6 +4,16 @@
 @import "./fonts.css"; /* R30: font-display optional (see fonts.css) */
 @import "./design-des1.css"; /* DES1: the design pass, only under :root[data-design="des1"] (DESIGN_DES1) */
 
+/* UIX1: `dark:` utilities follow the app theme, by the same rule as the tokens below: an explicit choice
+   (data-theme) wins, otherwise the system setting. Without this they followed the system only, so a person
+   who picked Light on a dark system (or Dark on a light one) got mismatched status colours. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) { @slot; }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) { @slot; }
+  }
+}
+
 /*
  * Multies design tokens. Apple style: the system font, calm neutral greys, one blue accent, and red,
  * amber and green for status only. Light is the default and follows prefers-color-scheme; dark is set
@@ -43,6 +53,19 @@
   --color-warn-soft: rgb(255 159 10 / 0.16);
   --color-bad: #b00017;
   --color-bad-soft: rgb(215 0 21 / 0.1);
+  /* UIX1: the fourth status, for neutral notices. Fixed blue: it does not follow a workspace brand colour. */
+  --color-info: #0058b0;
+  --color-info-soft: rgb(0 102 204 / 0.1);
+  /* UIX1: second names for the same colours. Pages already used them (text-danger, text-good, bg-canvas and
+     others, 43 places) but no token stood behind them, so those utilities made no CSS: error text came out in the
+     body colour and the board's sticky lane header had no tint behind it. New code uses the first names (bad, warn, ok,
+     fg, bg); tests/design-tokens-uix1.test.ts fails on a colour utility that has no token at all. */
+  --color-danger: var(--color-bad);
+  --color-warning: var(--color-warn);
+  --color-good: var(--color-ok);
+  --color-success: var(--color-ok);
+  --color-ink: var(--color-fg);
+  --color-canvas: var(--color-bg);
 
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
@@ -117,6 +140,8 @@
     --color-warn-soft: rgb(255 179 64 / 0.14);
     --color-bad: #ff7a72;
     --color-bad-soft: rgb(255 105 97 / 0.14);
+    --color-info: #5ea4ff;
+    --color-info-soft: rgb(10 132 255 / 0.16);
     --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02);
     --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 48px -12px rgb(0 0 0 / 0.7);
     --shadow-e1: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
@@ -152,6 +177,8 @@
       --color-warn-soft: rgb(255 179 64 / 0.14);
       --color-bad: #ff7a72;
       --color-bad-soft: rgb(255 105 97 / 0.14);
+      --color-info: #5ea4ff;
+      --color-info-soft: rgb(10 132 255 / 0.16);
       --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02);
       --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 48px -12px rgb(0 0 0 / 0.7);
       --shadow-e1: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
@@ -159,25 +186,71 @@
       --shadow-e3: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 24px 48px -12px rgb(0 0 0 / 0.75);
       --color-glass: rgb(22 22 24 / 0.72);
       --color-glass-sidebar: rgb(18 18 20 / 0.78);
-    --shadow-e1: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-e2: 0 0 0 0.5px rgb(255 255 255 / 0.07), 0 8px 20px -6px rgb(0 0 0 / 0.6);
-    --shadow-e3: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 24px 48px -12px rgb(0 0 0 / 0.75);
-    --color-glass: rgb(22 22 24 / 0.72);
-    --color-glass-sidebar: rgb(18 18 20 / 0.78);
     }
   }
 }
 
 @layer base {
-  html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+  /* UIX1: governed scales that are not utilities (docs/design/design-system.md): the focus ring and the layer order. */
+  :root {
+    --ring-width: 2px;
+    --ring-offset: 2px;
+    --ring-color: var(--color-brand);
+    --z-raised: 10;
+    --z-sticky: 20;
+    --z-popover: 30;
+    --z-chrome: 40;
+    --z-overlay: 50;
+    --z-top: 60;
+    /* Native checkboxes, radios, ranges and progress bars take the brand colour (and a workspace's own). */
+    accent-color: var(--color-brand);
+  }
+  html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   body {
     @apply bg-bg text-fg font-sans antialiased;
     text-rendering: optimizeLegibility;
+    /* UIX1: a wide child can never give the page a sideways scroll bar. clip (not hidden) keeps sticky bars working. */
+    overflow-x: clip;
   }
   ::selection { background: color-mix(in srgb, var(--color-brand) 28%, transparent); }
-  :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 6px; }
+  :focus-visible { outline: var(--ring-width) solid var(--ring-color); outline-offset: var(--ring-offset); border-radius: 6px; }
   * { scrollbar-width: thin; scrollbar-color: var(--color-line-strong) transparent; }
   button, [role="button"], a, input, select, textarea, summary { touch-action: manipulation; }
+  /* UIX1: Tailwind 4 leaves buttons on the default arrow. Anything a person can press shows the hand; anything
+     switched off shows that it is. :where() keeps the weight at zero, so a cursor utility on the element still wins. */
+  :where(button, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"], summary, select, label[for], input[type="checkbox"], input[type="radio"], input[type="file"], input[type="submit"], input[type="button"], input[type="reset"]) { cursor: pointer; }
+  :where(button, input, select, textarea):disabled, :where([aria-disabled="true"]) { cursor: not-allowed; }
+  /* UIX1: headings break into even lines and body copy avoids a lone last word, where the browser can. */
+  :where(h1, h2, h3) { text-wrap: balance; }
+  :where(p) { text-wrap: pretty; }
+  /* UIX1: an in-page link lands below the fixed site header, not under it. */
+  :target { scroll-margin-top: 5rem; }
+  /* UIX1: a field the browser filled in keeps its own surface and ink instead of the browser's tinted box. The
+     long background transition is the standard way to hold the colour; the focus ring (a box shadow) is untouched. */
+  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, textarea:-webkit-autofill, select:-webkit-autofill {
+    -webkit-text-fill-color: var(--color-fg);
+    caret-color: var(--color-fg);
+    transition: background-color 9999s ease-out 0s, border-color 150ms ease-out, box-shadow 150ms ease-out;
+  }
+  /* UIX1: bars for browsers without scrollbar-color (Safari before 18.2). Browsers that read the line above ignore these. */
+  @supports not (scrollbar-color: auto) {
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--color-line-strong); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:hover { background-color: var(--color-subtle); }
+  }
+  /* UIX1: more contrast when the system asks for it: stronger lines, darker secondary ink, a thicker focus ring. */
+  @media (prefers-contrast: more) {
+    :root { --color-line: var(--color-line-strong); --color-muted: var(--color-fg); --color-subtle: var(--color-fg); --ring-width: 3px; }
+  }
+  /* UIX1: Windows high contrast (forced colours): shadows and tints are dropped by the system, so focus and
+     selection are drawn with real outlines and system colours. */
+  @media (forced-colors: active) {
+    :focus-visible { outline: 2px solid Highlight; }
+    [aria-current="page"], [aria-selected="true"], [aria-checked="true"], [aria-pressed="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
+    [role="switch"] { border: 1px solid ButtonText; }
+    .skeleton { border: 1px solid GrayText; }
+  }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
   }
@@ -289,7 +362,7 @@
 .mm-prose ul[data-type="taskList"] { list-style: none; padding-left: 0.2em; }
 .mm-prose ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5em; }
 .mm-prose ul[data-type="taskList"] li > label { flex: none; margin-top: 0.3em; user-select: none; }
-.mm-prose ul[data-type="taskList"] li > label input { accent-color: #0071E3; width: 0.95em; height: 0.95em; }
+.mm-prose ul[data-type="taskList"] li > label input { accent-color: var(--color-brand); width: 0.95em; height: 0.95em; }
 .mm-prose ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
 .mm-prose ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--color-subtle); text-decoration: line-through; }
 .mm-notes { font-size: 14px; }
@@ -308,7 +381,7 @@
 .mm-prose .mm-callout { display: flex; gap: 0.6em; align-items: flex-start; border-radius: 12px; padding: 0.75em 0.9em; background: rgb(0 113 227 / 0.08); border: 1px solid rgb(0 113 227 / 0.16); }
 .mm-prose .mm-callout-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.6em; height: 1.6em; margin-top: 0.05em; border-radius: 7px; color: #0071E3; transition: background-color 150ms; }
 .mm-prose .mm-callout-icon:hover:not(:disabled) { background: rgb(0 0 0 / 0.06); }
-.mm-prose .mm-callout-icon:focus-visible { outline: 2px solid #0071E3; outline-offset: 1px; }
+.mm-prose .mm-callout-icon:focus-visible { outline: var(--ring-width) solid var(--ring-color); outline-offset: 1px; }
 .mm-prose .mm-callout-body { flex: 1; min-width: 0; }
 .mm-prose .mm-callout-body > * + * { margin-top: 0.5em; }
 .mm-prose .mm-callout[data-callout="success"] { background: var(--color-ok-soft); border-color: rgb(36 138 61 / 0.2); }
@@ -322,7 +395,7 @@
 .mm-prose img.mm-doc-img[data-size="wide"] { width: 100%; }
 .mm-prose img.mm-doc-img[data-size="full"] { width: calc(100% + 4rem); max-width: calc(100% + 4rem); margin-left: -2rem; border-radius: 0; }
 @media (max-width: 640px) { .mm-prose img.mm-doc-img[data-size="full"] { width: 100%; max-width: 100%; margin-left: 0; } }
-.mm-prose img.mm-doc-img.ProseMirror-selectednode { outline: 2px solid #0071E3; outline-offset: 2px; }
+.mm-prose img.mm-doc-img.ProseMirror-selectednode { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 .mm-prose img.mm-doc-img:not([src]) { min-height: 4em; background: var(--color-fill); }
 :root[data-theme="dark"] .mm-prose .mm-callout:not([data-callout]), :root[data-theme="dark"] .mm-prose .mm-callout[data-callout="info"] { background: rgb(10 132 255 / 0.14); border-color: rgb(10 132 255 / 0.28); }
 :root[data-theme="dark"] .mm-prose .mm-callout[data-callout="info"] .mm-callout-icon { color: #5ea4ff; }
@@ -357,7 +430,7 @@
 }
 
 /* R31: the task or row that has keyboard focus (J/K). */
-[data-kb-focus] { outline: 2px solid #0071E3; outline-offset: -2px; border-radius: 8px; }
+[data-kb-focus] { outline: var(--ring-width) solid var(--ring-color); outline-offset: -2px; border-radius: 8px; }
 
 /* R38 timeline labels: no ellipsis inside a bar; the rest of the name sits to the right of the bar. */
 .mm-gantt .mm-bar-label { position: relative; z-index: 2; display: flex; align-items: center; height: 100%; width: 100%; overflow: visible; }

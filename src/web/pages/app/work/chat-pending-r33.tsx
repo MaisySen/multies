@@ -24,7 +24,7 @@ export function PendingBubbles({ outbox, channelId, parentId, authorName }: { ou
             {i.state === "failed" ? (
               <div className="mt-0.5 flex items-center gap-2 text-[12px]">
                 <button type="button" onClick={() => outbox.retry(i.clientMsgId)} data-testid="chat-pending-retry"
-                  className="inline-flex items-center gap-1 rounded text-red-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-red-400">
+                  className="inline-flex items-center gap-1 rounded text-bad hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
                   <IconAlertCircle className="h-3.5 w-3.5" aria-hidden />{tr("chat.not_sent_tap_to_retry")}
                 </button>
                 <button type="button" onClick={() => outbox.discard(i.clientMsgId)} className="rounded text-subtle hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">{tr("chat.delete")}</button>

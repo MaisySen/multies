@@ -235,7 +235,7 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
   const pct = progress ? (progress.move.total ? progress.move.done / progress.move.total : progress.move.status === "done" ? 1 : null) : null;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.06)] animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none" data-testid="move-wizard">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.06)] animate-route-in motion-reduce:animate-none" data-testid="move-wizard">
       <div className="space-y-3 border-b border-line bg-fill/40 px-4 py-3 md:px-6">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">

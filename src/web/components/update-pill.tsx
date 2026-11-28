@@ -53,7 +53,7 @@ export function UpdatePill() {
   const dismiss = () => { try { localStorage.setItem(DISMISS_KEY, latest.release); } catch { /* private mode */ } setState("none"); };
   return (
     <div role="status" aria-live="polite" data-testid="update-pill"
-      className="fixed inset-x-0 bottom-[calc(1.25rem+var(--tabbar-h,0px))] z-50 mx-auto flex w-max max-w-[calc(100vw-2rem)] items-center gap-1 rounded-full border border-line bg-surface/95 py-1 pl-4 pr-1 text-[13px] text-fg shadow-lg backdrop-blur motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200">
+      className="fixed inset-x-0 bottom-[calc(1.25rem+var(--tabbar-h,0px))] z-50 mx-auto flex w-max max-w-[calc(100vw-2rem)] items-center gap-1 rounded-full border border-line bg-surface/95 py-1 pl-4 pr-1 text-[13px] text-fg shadow-lg backdrop-blur motion-safe:animate-fade-in">
       <span>{tr("shell.a_new_version_of_multies_is_ready")}</span>
       <button type="button" onClick={reloadApp}
         className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1 font-medium text-white transition-colors duration-150 hover:bg-[#0077ED] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">

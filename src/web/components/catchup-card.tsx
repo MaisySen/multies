@@ -34,7 +34,7 @@ export function CatchupCard({ type, id, className }: { type: CatchupType; id: st
   };
   return (
     <section aria-label="Since your last visit" data-testid="catchup-card"
-      className={cn("mx-2 my-2 rounded-xl border border-line bg-elevated px-3.5 py-3 text-[13px] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200", className)}>
+      className={cn("mx-2 my-2 rounded-xl border border-line bg-elevated px-3.5 py-3 text-[13px] motion-safe:animate-fade-in", className)}>
       <div className="flex items-start gap-2">
         <IconHistory className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
         <div className="min-w-0 flex-1">

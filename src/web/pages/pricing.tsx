@@ -47,7 +47,7 @@ export function PricingPage() {
   return (
     <div className="mx-auto max-w-6xl px-5 pb-24 pt-32 sm:pt-40">
       <div className="mx-auto mb-14 max-w-2xl text-center">
-        <h1 className="text-fg text-4xl font-semibold tracking-tight sm:text-5xl">Free for your business. A few dollars for what you add.</h1>
+        <h1 className="text-fg text-4xl font-semibold tracking-tight sm:text-5xl lg:-mx-12">Free for your business. <span className="max-sm:block lg:block">A few dollars for what you add.</span></h1>
         <p className="mt-4 text-[17px] text-muted">Email on your own domain for your team and your AI agents, with tasks, boards, docs and contacts built in. No per person pricing, ever.</p>
         <p className="mt-3 text-sm text-muted">{/* R58 (MB-237) */}<Link to="/startups" className="font-medium text-brand-hover hover:underline">What Free includes for small teams</Link> <span aria-hidden>·</span> <Link to="/switch" className="font-medium text-brand-hover hover:underline">Move your work over</Link></p>
       </div>
@@ -86,7 +86,7 @@ function Calculator() {
           <label className="flex items-center justify-between gap-4 text-sm">
             <span className="text-muted">People on your team</span>
             <input type="number" min={1} max={500} value={people} onChange={(e) => setPeople(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
-              className="w-24 rounded-lg border border-line-strong bg-canvas px-3 py-1.5 text-right tabular-nums" />
+              className="w-24 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-right tabular-nums transition-[border-color,box-shadow] duration-150 ease-out focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 max-sm:min-h-11" />
           </label>
           <ul className="mt-4 divide-y divide-line border-y border-line">
             {ADDON_ORDER.map((id) => {

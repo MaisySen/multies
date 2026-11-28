@@ -145,7 +145,7 @@ export function RemindSelect({ value, onChange }: { value: number; onChange: (n:
   return (
     <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover max-sm:min-h-11 max-sm:min-w-0 max-sm:px-2", value ? "text-brand-hover" : "text-muted")} title="Bring this thread back if nobody replies">
       <IconBellRing className="h-3.5 w-3.5" aria-hidden />
-      <Select bare value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Remind me if no reply"
+      <Select bare value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer rounded bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-brand/50" aria-label="Remind me if no reply"
         phoneClassName="inline-flex min-h-11 min-w-0 max-w-[7.5rem] items-center truncate whitespace-nowrap bg-transparent text-left text-[13px]">
         {REMIND_CHOICES.map((n) => <option key={n} value={n}>{n === 0 ? tr("compose.no_reminder") : tr("compose.remind_in_days", { count: n })}</option>)}
       </Select>
@@ -154,7 +154,7 @@ export function RemindSelect({ value, onChange }: { value: number; onChange: (n:
 }
 
 function Chip({ tone, children }: { tone: "brand" | "warn"; children: React.ReactNode }) {
-  return <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", tone === "brand" ? "bg-brand/10 text-brand-hover" : "bg-amber-500/15 text-amber-700 dark:text-amber-400")}>{children}</span>;
+  return <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", tone === "brand" ? "bg-brand/10 text-brand-hover" : "bg-warn-soft text-warn")}>{children}</span>;
 }
 
 /** Snoozed threads and reminders that came back: on top of Inbox, marked, until opened. */
@@ -165,7 +165,7 @@ export function ReturnedStrip({ items, onOpen }: { items: ScheduleItem[]; onOpen
       {items.map((it) => it.message && (
         <li key={it.id}>
           <button type="button" onClick={() => onOpen(it)} data-testid="returned-row" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-hover">
-            {it.kind === "snooze" ? <IconSnooze className="h-4 w-4 shrink-0 text-brand-hover" aria-hidden /> : <IconBellRing className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />}
+            {it.kind === "snooze" ? <IconSnooze className="h-4 w-4 shrink-0 text-brand-hover" aria-hidden /> : <IconBellRing className="h-4 w-4 shrink-0 text-warn" aria-hidden />}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13.5px] font-medium">{it.message.subject || "(no subject)"}</span>
               <span className="block truncate text-[12.5px] text-muted">{it.message.from.name || it.message.from.address} · {it.message.snippet}</span>

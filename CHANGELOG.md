@@ -6,6 +6,16 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## UIX1 Design system guards and interface fixes (2026-11-27)
+
+- Colour names with no token (text-danger, text-good, text-success, text-ink, bg-canvas, border-warning; 43 places) made no CSS, so error text showed in the body colour, success ticks had no colour and the board's sticky lane header had no tint behind it. They are now second names for the bad, warn, ok, fg and bg tokens, plus a new info status colour; light, dark and workspace brand themes move them together.
+- `dark:` utilities follow the app theme (an explicit Light or Dark choice first, then the system), the same rule as the tokens. Before, a person who picked a theme that differs from their system got mismatched status colours.
+- Eight entrance animations written in a plugin style this build does not have (`animate-in fade-in`) now use the theme's own `animate-fade-in`, `animate-pop-in` and `animate-route-in`.
+- Base layer: the hand cursor on everything pressable and a not allowed cursor on disabled controls, one focus ring token set, brand coloured native checkboxes and radios, balanced headings, in page links that land below the fixed header, fields the browser filled keep their own surface, scroll bars for older Safari, `prefers-contrast: more` and Windows high contrast support, and the page can no longer scroll sideways.
+- Keyboard focus rings on three bare selects (inbox assignee, undo send window, remind me); 44 px targets on phones for the approvals and mailboxes tabs, the pricing calculator field, the mail star and the task search field; the public site menu shows the current page and its menu button is 44 px at every width under 768 px.
+- Status colours in the write budget page, mail reminders and failed chat messages use the status tokens instead of palette colours.
+- New: `docs/design/design-system.md` (tokens, type, spacing, radius, elevation, layers, motion, icons, accessibility, component standards and a review checklist) and `tests/design-tokens-uix1.test.ts`, which fails when a rule above is broken. No server, database, route or API change.
+
 ## VID2 Call videos: pause, speaker or gallery view, crash safe, chat and transcript files (2026-11-03)
 
 - Pause and resume while recording (flag VIDEO_REC_VID2, needs VIDEO_REC_VID1; no migration, no new binding, nothing uploaded): MediaRecorder pause keeps paused time out of the file, the banner, a dot on every tile and a pill in the call header switch to Paused for everyone, and the transcript mix goes silent while paused.

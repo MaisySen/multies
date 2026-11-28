@@ -301,7 +301,7 @@ function SnoozeMenu({ onPick, onClose }: { onPick: (b: SnoozeBody) => void; onCl
   }, [onClose]);
   const min = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   return (
-    <div ref={ref} role="menu" aria-label="Snooze until" data-testid="one-snooze-menu" className="absolute right-4 top-12 z-10 w-56 rounded-xl border border-line bg-bg p-1 shadow-lg motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
+    <div ref={ref} role="menu" aria-label="Snooze until" data-testid="one-snooze-menu" className="absolute right-4 top-12 z-10 w-56 rounded-xl border border-line bg-bg p-1 shadow-lg motion-safe:animate-pop-in">
       {(Object.keys(SNOOZE_LABELS) as SnoozePreset[]).map((p) => (
         <button key={p} role="menuitem" onClick={() => onPick({ preset: p })} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-fill focus-visible:bg-fill focus-visible:outline-none">
           <IconClock className="h-3.5 w-3.5 text-subtle" />{SNOOZE_LABELS[p]}

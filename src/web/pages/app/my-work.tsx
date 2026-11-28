@@ -154,11 +154,11 @@ export function MyWorkPage() {
       {/* R46 mobile: one row that scrolls sideways with snap, fading at the right edge so the cut off chip reads as "more". */}
       <div className="no-scrollbar -mx-4 mb-5 flex snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] max-sm:mb-4 sm:mx-0 sm:flex-wrap sm:px-0 sm:[mask-image:none]" role="group" aria-label={tr("mywork.quick_add")} data-testid="today-quick">
         <button type="button" onClick={() => setNewTask(true)} data-testid="mywork-new-task" className="pressable elev-1 inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-medium text-fg hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-sm:min-h-11 max-sm:px-4 max-sm:text-[14px]">
-          <IconPlus size={16} className="text-brand-hover dark:text-brand-hover" />{tr("mywork.new_task")}
+          <IconPlus size={16} className="text-brand-hover" />{tr("mywork.new_task")}
         </button>
         {QUICK.map((k) => (
           <Link key={k.label} to={k.to} className="pressable elev-1 inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-medium text-fg hover:bg-hover max-sm:min-h-11 max-sm:px-4 max-sm:text-[14px] last:mr-6 sm:last:mr-0">
-            <k.icon size={16} className="text-brand-hover dark:text-brand-hover" />{tl("mywork", k.label)}
+            <k.icon size={16} className="text-brand-hover" />{tl("mywork", k.label)}
           </Link>
         ))}
       </div>

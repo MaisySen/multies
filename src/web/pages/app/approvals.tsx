@@ -41,7 +41,7 @@ export function ApprovalsPage() {
       <FlowApprovalsSection />
       <div className="mb-4 flex gap-1 rounded-lg bg-fill p-0.5 text-sm sm:w-fit" role="tablist" aria-label="Approvals">
         {(["pending", "decided"] as const).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("flex-1 rounded-md px-3 py-1.5 sm:flex-none", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
+          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("flex-1 rounded-md px-3 py-1.5 transition-colors max-sm:min-h-11 sm:flex-none", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
             {t === "pending" ? `Waiting${pending.data?.length ? ` (${pending.data.length})` : ""}` : "Decided"}
           </button>
         ))}
@@ -102,7 +102,7 @@ export function ApprovalCard({ a, compact }: { a: Approval; compact?: boolean })
           <Button size="sm" loading={approve.isPending} onClick={() => approve.mutate()}><IconCheck className="h-4 w-4" />{editing ? "Approve edited" : "Approve and send"}</Button>
           <Button size="sm" variant="secondary" onClick={() => setEditing(!editing)}><IconEdit className="h-4 w-4" />{editing ? "Cancel edit" : "Edit"}</Button>
           <Button size="sm" variant="ghost" onClick={() => setRejecting(true)}><IconClose className="h-4 w-4" />Reject</Button>
-          {a.threadId && !compact && <Link to={`/app/inbox?thread=${a.threadId}`} className="ml-auto text-xs text-brand-hover hover:underline">See the thread</Link>}
+          {a.threadId && !compact && <Link to={`/app/inbox?thread=${a.threadId}`} className="ml-auto text-xs text-brand-hover hover:underline max-sm:-my-3.5 max-sm:py-3.5">See the thread</Link>}
         </div>
       )}
       <Dialog open={rejecting} onClose={() => setRejecting(false)} title="Reject this message?" description="The agent gets your note with the decision."
