@@ -8,9 +8,9 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## MPT-10 Every app page has a menu home (a check in CI) (2026-11-25)
 
-- Tests and test data only. No product behaviour changed. No file under `src/web/pages` changed.
-- `tests/nav-homes-nav1.test.ts` reads every `/app` route in `src/web/router.tsx`. It skips detail routes and redirects. It fails when a page has no rail entry, Settings pane, Tools tile or declared parent, and it names each such page.
-- `src/shared/nav-parents.ts` lists 11 pages that open from a parent page, each with the file that links to it. It lists 3 pages with no home yet (Analyses, Staff and Automation rules), each with the NAV1 slice that will give it a home.
+- Tests and test data only. No product behaviour changed. No file under `src/web/pages` changed. `src/web/components/tools/tool-directory.ts` exports the list of Tools tile features (`PAGE_FEATURES`) for the test.
+- `tests/nav-homes-nav1.test.ts` reads every `/app` route in `src/web/router.tsx` with the TypeScript syntax tree, in any layout. It skips detail routes and redirects. It fails when a page has no rail entry, Settings pane, Tools tile or declared parent, and it names each such page. It also fails when it cannot read a route.
+- `src/shared/nav-parents.ts` lists 12 pages that open from a parent page. Each parent must have a home, and the file must be the parent's page module, a module that it imports, or the app shell, with a real link to the page. It lists 2 pages with no home yet (Analyses and Automation rules), each with the NAV1 slice that will give it a home.
 - `docs/testing.md` has a new rule: every new app page gets a menu home or a declared parent.
 
 ## VID2 Call videos: pause, speaker or gallery view, crash safe, chat and transcript files (2026-11-03)

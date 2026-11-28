@@ -106,6 +106,8 @@ const PAGES: (Omit<Entry, "section" | "icon"> & { feature: string; section: Sect
   { key: "merge_mail", feature: "merge_mail", section: "Automate", icon: IconMails, name: "Mail merge", line: "A personal PDF and email for each person", words: "mail merge bulk csv contacts", to: "/app/tools/merge" },
   { key: "rules", feature: "rules", section: "Automate", icon: IconZap, name: "Before sending", line: "Compress and convert files as you attach them", words: "rules auto compress convert attach send", to: "/app/settings#send-rules" },
 ];
+/** MPT-10: every feature that a Tools page tile sits behind. tests/nav-homes-nav1.test.ts reads it. */
+export const PAGE_FEATURES: readonly string[] = [...new Set(PAGES.map((p) => p.feature).filter(Boolean))];
 
 /** A catalogue tool's look (section, icon, short name), for other Tools screens such as batch runs. */
 export const lookOf = (op: string): { section: Section; icon: Icon; name?: string } | undefined => LOOK[op];
