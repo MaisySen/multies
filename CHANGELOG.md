@@ -6,6 +6,13 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## MPT-11 Boards show "N waiting in Triage" with a link (2026-11-25)
+
+- On the board and the list of a project with Triage on, a line "N waiting in Triage" shows above the tasks when N is more than 0. The line links to the Triage page, filtered to the project.
+- The line is hidden when N is 0, when Triage is off, and when the count read fails (for example, without a workspace session).
+- `GET /api/triage/count` takes an optional `projectId`. With it, the count covers the pending items of that project only, without snoozed items. Without it, the answer is the same as before. The public API and MCP do not change.
+- The text is in English, Hindi and Nepali. The count refreshes when the Triage page accepts or declines an item.
+
 ## VID2 Call videos: pause, speaker or gallery view, crash safe, chat and transcript files (2026-11-03)
 
 - Pause and resume while recording (flag VIDEO_REC_VID2, needs VIDEO_REC_VID1; no migration, no new binding, nothing uploaded): MediaRecorder pause keeps paused time out of the file, the banner, a dot on every tile and a pill in the call header switch to Paused for everyone, and the transcript mix goes silent while paused.

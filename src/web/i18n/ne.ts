@@ -868,6 +868,7 @@ export const ne: Bundle = {
   "tasks.more_filters": "थप फिल्टरहरू",
   "tasks.move_down": "तल सार्नुहोस्",
   "tasks.move_up": "माथि सार्नुहोस्",
+  "tasks.n_waiting_in_triage": "{count} छनोटमा पर्खिरहेका छन्",
   "tasks.new_project": "नयाँ परियोजना",
   "tasks.new_task": "नयाँ काम",
   "tasks.no_projects_yet": "अहिलेसम्म कुनै परियोजना छैन",

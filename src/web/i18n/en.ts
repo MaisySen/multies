@@ -868,6 +868,7 @@ export const en: Bundle = {
   "tasks.more_filters": "More filters",
   "tasks.move_down": "Move down",
   "tasks.move_up": "Move up",
+  "tasks.n_waiting_in_triage": "{count} waiting in Triage",
   "tasks.new_project": "New project",
   "tasks.new_task": "New task",
   "tasks.no_projects_yet": "No projects yet",

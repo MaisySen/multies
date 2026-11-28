@@ -56,15 +56,20 @@ export async function listTriage(deps: Deps, actor: SuiteActor, q: { projectId?:
   return { items, count: await triageCount(deps, actor), ...(q.view === "snoozed" ? { view: "snoozed" as const } : {}) };
 }
 
-/** How many items wait in Triage (the nav badge). Reads the partial index only. */
-export async function triageCount(deps: Deps, actor: SuiteActor) {
-  const r = await triageCountQuery(deps, actor).get();
+/**
+ * How many items wait in Triage (the nav badge). Reads the partial index only.
+ * MPT-11 (NAV1 slice 2): with a projectId, only the items of that project count (the "N waiting in Triage" line on
+ * the project's board and list). Without it, the count covers the whole workspace, as before.
+ */
+export async function triageCount(deps: Deps, actor: SuiteActor, projectId?: string) {
+  const r = await triageCountQuery(deps, actor, projectId).get();
   return Number(r?.n ?? 0);
 }
 
 /** R41: the triage count as a query builder, also embedded as a subquery by the badge counts. */
-export function triageCountQuery(deps: Deps, actor: SuiteActor) {
+export function triageCountQuery(deps: Deps, actor: SuiteActor, projectId?: string) {
   return deps.db.select({ n: count() }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt),
+    projectId ? eq(tasks.projectId, projectId) : undefined,
     or(isNull(tasks.triageSnoozedUntil), lte(tasks.triageSnoozedUntil, deps.now()))));
 }
 

@@ -52,6 +52,7 @@ import { ClashScope } from "./schedule-r38"; // R38: clash badges on list rows a
 import { lazyPage } from "@/web/components/lazy-page";
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // POL2
 import { tr, tl } from "@/web/i18n"; // R104
+import { TriageWaiting } from "./triage-waiting-nav1"; // MPT-11 (NAV1 slice 2)
 
 const TaskCalendar = lazyPage(() => import("./calendar"), "TaskCalendar");
 const PlannedTimeline = lazyPage(() => import("./timeline-plan-r37"), "default"); // R37: timeline with dependency planning
@@ -318,6 +319,7 @@ export function TasksPage() {
         onAll={() => set({ v: null, ...Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null]), ["group", null], ["sort", null], ["dir", null], ["lanes", null]]) })}
         onEdit={(v, patch) => void editView(v, patch)} onDelete={(v) => void deleteView(v)} onRename={(v) => void renameView(v)} />
       {project && <ProjectRollups projectId={project.id} fields={allFields} />}
+      {project && <TriageWaiting projectId={project.id} triageOn={!!project.triage} view={view} />}
       <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label={tr("tasks.filters")}>
         <TaskQueryBox value={filters.q ?? ""} onApply={(q) => set({ q })} values={queryValues} />
         <PhoneFilters groups={[

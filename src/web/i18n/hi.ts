@@ -868,6 +868,7 @@ export const hi: Bundle = {
   "tasks.more_filters": "और फ़िल्टर",
   "tasks.move_down": "नीचे ले जाएँ",
   "tasks.move_up": "ऊपर ले जाएँ",
+  "tasks.n_waiting_in_triage": "{count} ट्रायाज में रुके हैं",
   "tasks.new_project": "नया प्रोजेक्ट",
   "tasks.new_task": "नया काम",
   "tasks.no_projects_yet": "अभी तक कोई प्रोजेक्ट नहीं",
