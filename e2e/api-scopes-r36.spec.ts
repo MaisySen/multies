@@ -45,7 +45,7 @@ test("create a scoped API key, get insufficient_scope, then edit its scopes", as
   const denied = await page.request.post("/api/v1/projects", { headers: h, data: { name: "Scoped" } });
   expect(denied.status()).toBe(403);
   expect((await denied.json()).error).toMatchObject({ code: "insufficient_scope", required: "tasks:write" });
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
 
   const row = page.getByTestId("api-key-row").filter({ hasText: "Standup bot" });
   await expect(row.getByTestId("scope-chip")).toHaveText(["Tasks and projects: read", "Chat: post and change"]);
