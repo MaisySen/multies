@@ -34,7 +34,11 @@ export function AutomationsHubPage() {
   return (
     <div>
       <PageHeader title="Automations" description="Flows, rules and their runs, in one place. They make tasks, notify your team and post in channels."
-        actions={isAdmin && tab === "flows" ? <Button onClick={() => void create("New flow", emptyGraph("manual")).then((id) => id && nav(`/app/automations/flows/${id}`))}><IconPlus className="h-4 w-4" />New flow</Button> : undefined} />
+        actions={isAdmin && tab === "flows"
+          ? <Button onClick={() => void create("New flow", emptyGraph("manual")).then((id) => id && nav(`/app/automations/flows/${id}`))}><IconPlus className="h-4 w-4" />New flow</Button>
+          : tab === "rules"
+            ? <Link to="/app/automations/rules" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-fg hover:bg-hover">Standalone rules<IconChevronRight className="h-3.5 w-3.5 text-subtle" /></Link>
+            : undefined} />
       <div role="tablist" aria-label="Automations" className="mb-5 inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-0.5 text-[13px]">
         {TABS.map((t) => (
           <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setParams(t.key === "flows" ? {} : { tab: t.key }, { replace: true })}

@@ -36,39 +36,39 @@ import { tr, tl } from "@/web/i18n"; // R104
  * are on, "Settings" sits above it as the eyebrow, and a search box filters panes by name and by what is inside them.
  * rea: files/teardowns/rea/linear/settings-nav-r38.md.
  */
-type Pane = { to: string; label: string; end?: boolean; icon: React.ComponentType<{ className?: string }>; tint: string; keywords: string };
+type Pane = { to: string; label: string; end?: boolean; icon: React.ComponentType<{ className?: string }>; tint: string; keywords: string; hint?: string };
 export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   { label: "Workspace", items: [
-    { to: "/app/settings", label: "General", end: true, icon: IconSliders, tint: "#8E8E93", keywords: "time zone language country workspace name logo share links agents keys tools documents export delete workspace" },
-    { to: "/app/settings/branding", label: "Branding", icon: IconSparkle, tint: "#FF2D55", keywords: "brand theme logo colours colors company font corners dark light preset accent sidebar" }, // R77
-    { to: "/app/settings/team", label: "Team", icon: IconTeam, tint: "#0071E3", keywords: "members invite roles admin agents guests remove" },
-    { to: "/app/settings/team-ai", label: "Team AI", icon: IconSparkle, tint: "#AF52DE", keywords: "ai assistant memory remember instructions prompts routines schedule automation chat answers key" }, // TD8
-    { to: "/app/settings/channels", label: "Chat channels", icon: IconChats, tint: "#25D366", keywords: "whatsapp messenger instagram facebook meta chat channels connect number customers" }, // C1
-    { to: "/app/settings/apps", label: "Connections", icon: IconPlugZap, tint: "#5E5CE6", keywords: "apps integrations social media post schedule facebook instagram linkedin pinterest reddit youtube slack notion hubspot connect connected accounts mailbox imap smtp gmail outlook webhooks zapier" }, // R80C; R82F (MB-279): mail accounts and webhooks live here too
-    { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax" },
-    { to: "/app/settings/tours", label: "Tours", icon: IconFlag, tint: "#FF9500", keywords: "tours onboarding get started checklist guide walk through new people help" }, // R130
+    { to: "/app/settings", label: "General", end: true, icon: IconSliders, tint: "#8E8E93", keywords: "time zone language country workspace name logo share links agents keys tools documents export delete workspace", hint: "Workspace defaults, time zone, AI toggle, share links and exports" },
+    { to: "/app/settings/branding", label: "Branding", icon: IconSparkle, tint: "#FF2D55", keywords: "brand theme logo colours colors company font corners dark light preset accent sidebar", hint: "Logo, colours, typography and workspace theme" }, // R77
+    { to: "/app/settings/team", label: "Team", icon: IconTeam, tint: "#0071E3", keywords: "members invite roles admin agents guests remove", hint: "Invite people, assign admin roles and manage seats" },
+    { to: "/app/settings/team-ai", label: "Team AI", icon: IconSparkle, tint: "#AF52DE", keywords: "ai assistant memory remember instructions prompts routines schedule automation chat answers key", hint: "Shared memory, instructions and Team AI routines" }, // TD8
+    { to: "/app/settings/channels", label: "Chat channels", icon: IconChats, tint: "#25D366", keywords: "whatsapp messenger instagram facebook meta chat channels connect number customers", hint: "Connect WhatsApp, Messenger and Instagram channels" }, // C1
+    { to: "/app/settings/apps", label: "Connections", icon: IconPlugZap, tint: "#5E5CE6", keywords: "apps integrations social media post schedule facebook instagram linkedin pinterest reddit youtube slack notion hubspot connect connected accounts mailbox imap smtp gmail outlook webhooks zapier", hint: "External mail accounts (Gmail, Outlook, IMAP), social and webhooks" }, // R80C; R82F (MB-279): mail accounts and webhooks live here too
+    { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax", hint: "Plan, add-ons, payment method and invoices" },
+    { to: "/app/settings/tours", label: "Tours", icon: IconFlag, tint: "#FF9500", keywords: "tours onboarding get started checklist guide walk through new people help", hint: "Onboarding checklists and walkthrough guides" }, // R130
   ] },
   { label: "You", items: [
-    { to: "/app/settings/account", label: "Account and security", icon: IconShieldCheck, tint: "#FF9500", keywords: "password two factor passkey sessions devices sign out delete account blocked people" },
-    { to: "/app/settings/appearance", label: "Appearance", icon: IconMoon, tint: "#5E5CE6", keywords: "theme dark light system accent colour color personal" }, // R77
-    { to: "/app/settings/notifications", label: "Notifications", icon: IconBell, tint: "#FF3B30", keywords: "push email digest quiet hours sounds badges" },
-    { to: "/app/settings/calendar", label: "Calendar", icon: IconCalendar, tint: "#FF2D55", keywords: "sync working hours booking events time zone" },
+    { to: "/app/settings/account", label: "Account and security", icon: IconShieldCheck, tint: "#FF9500", keywords: "password two factor passkey sessions devices sign out delete account blocked people", hint: "Profile, password, passkeys, 2FA and active sessions" },
+    { to: "/app/settings/appearance", label: "Appearance", icon: IconMoon, tint: "#5E5CE6", keywords: "theme dark light system accent colour color personal", hint: "Personal light/dark mode and accent preference" }, // R77
+    { to: "/app/settings/notifications", label: "Notifications", icon: IconBell, tint: "#FF3B30", keywords: "push email digest quiet hours sounds badges", hint: "Push, digest timing and quiet hours" },
+    { to: "/app/settings/calendar", label: "Calendar", icon: IconCalendar, tint: "#FF2D55", keywords: "sync working hours booking events time zone", hint: "Working hours, booking links and calendar sync" },
   ] },
   { label: "Mail", items: [
-    { to: "/app/settings/mail", label: "Mail routing", icon: IconMail, tint: "#0A84FF", keywords: "inbound outbound forwarding undo send saved replies read status dns" },
-    { to: "/app/settings/mail-apps", label: "Mail apps", icon: IconSmartphone, tint: "#32ADE6", keywords: "imap phone desktop app password apple mail" },
-    { to: "/app/settings/mail-archive", label: "Archive and retention", icon: IconArchive, tint: "#8E8E93", keywords: "retention keep delete years legal hold ediscovery search export case mbox compliance archive" }, // R111
-    { to: "/app/settings/sign-up-emails", label: "Sign-up emails", icon: IconMailCheck, tint: "#AF52DE", keywords: "auth emails branded confirm reset hook secret" },
-    { to: "/app/settings/import", label: "Import and export", icon: IconDownload, tint: "#636366", keywords: "import export move data backup download zip csv calendar contacts mail tasks from another app undo" },
+    { to: "/app/settings/mail", label: "Mail routing", icon: IconMail, tint: "#0A84FF", keywords: "inbound outbound forwarding undo send saved replies read status dns", hint: "Undo send, saved replies, forwarding and read receipts" },
+    { to: "/app/settings/mail-apps", label: "Mail apps", icon: IconSmartphone, tint: "#32ADE6", keywords: "imap phone desktop app password apple mail", hint: "App passwords and IMAP/SMTP details for desktop and mobile apps" },
+    { to: "/app/settings/mail-archive", label: "Archive and retention", icon: IconArchive, tint: "#8E8E93", keywords: "retention keep delete years legal hold ediscovery search export case mbox compliance archive", hint: "Retention policies, legal holds and eDiscovery exports" }, // R111
+    { to: "/app/settings/sign-up-emails", label: "Sign-up emails", icon: IconMailCheck, tint: "#AF52DE", keywords: "auth emails branded confirm reset hook secret", hint: "Branded auth emails and custom SMTP/webhook delivery" },
+    { to: "/app/settings/import", label: "Import and export", icon: IconDownload, tint: "#636366", keywords: "import export move data backup download zip csv calendar contacts mail tasks from another app undo", hint: "Move mail, contacts, tasks and calendars into or out of Multies" },
   ] },
   { label: "Build", items: [
-    { to: "/app/settings/developers", label: "Developers", icon: IconCode, tint: "#1C1C1E", keywords: "api keys scopes mcp webhooks oauth apps tokens" },
+    { to: "/app/settings/developers", label: "Developers", icon: IconCode, tint: "#1C1C1E", keywords: "api keys scopes mcp webhooks oauth apps tokens", hint: "API keys, MCP endpoints and OAuth apps" },
   ] },
   // P1 layout: one sidebar. The pages the old Workspace sidebar listed beside Settings are here now.
   { label: "Admin", items: [
-    { to: "/app/activity", label: "Activity", icon: IconActivity, tint: "#8E8E93", keywords: "log audit history changes messages who did what" },
-    { to: "/app/settings/data-requests", label: "Data requests", icon: IconShieldCheck, tint: "#30B0C7", keywords: "privacy export delete my data erasure access request personal information" }, // R112
-    { to: "/app/admin", label: "Operator", icon: IconShield, tint: "#1C1C1E", keywords: "operator platform admin moderation reports" },
+    { to: "/app/activity", label: "Activity", icon: IconActivity, tint: "#8E8E93", keywords: "log audit history changes messages who did what", hint: "Workspace audit log and recent changes" },
+    { to: "/app/settings/data-requests", label: "Data requests", icon: IconShieldCheck, tint: "#30B0C7", keywords: "privacy export delete my data erasure access request personal information", hint: "Privacy access and erasure requests" }, // R112
+    { to: "/app/admin", label: "Operator", icon: IconShield, tint: "#1C1C1E", keywords: "operator platform admin moderation reports", hint: "Platform operator console and moderation tools" },
   ] },
 ];
 const ALL_PANES = SETTINGS_GROUPS.flatMap((g) => g.items);
@@ -79,9 +79,9 @@ const ALL_PANES = SETTINGS_GROUPS.flatMap((g) => g.items);
  * covers more than mail, joins Workspace. Every other group is unchanged.
  */
 const MAIL_SETUP_PANES: Pane[] = [
-  { to: "/app/settings/mailboxes", label: "Mailboxes", icon: IconTeam, tint: "#0071E3", keywords: "mailbox inbox address alias forward role sales support catch all" },
-  { to: "/app/settings/domains", label: "Domains", icon: IconGlobe, tint: "#30B0C7", keywords: "domain dns records mx spf dkim dmarc verify own name" },
-  { to: "/app/settings/deliverability", label: "Deliverability", icon: IconShieldCheck, tint: "#34C759", keywords: "spam inbox placement health score bounces suppression dmarc reports" },
+  { to: "/app/settings/mailboxes", label: "Mailboxes", icon: IconTeam, tint: "#0071E3", keywords: "mailbox inbox address alias forward role sales support catch all", hint: "Step 2: create team mailboxes and aliases (add your domain first)" },
+  { to: "/app/settings/domains", label: "Domains", icon: IconGlobe, tint: "#30B0C7", keywords: "domain dns records mx spf dkim dmarc verify own name", hint: "Step 1: add your custom domain and verify MX, SPF and DKIM" },
+  { to: "/app/settings/deliverability", label: "Deliverability", icon: IconShieldCheck, tint: "#34C759", keywords: "spam inbox placement health score bounces suppression dmarc reports", hint: "Step 3: monitor DNS health, DMARC reports and bounce suppression" },
 ];
 export const SETTINGS_GROUPS_P2: { label: string; items: Pane[] }[] = SETTINGS_GROUPS.map((g) => {
   const importPane = SETTINGS_GROUPS.flatMap((x) => x.items).find((p) => p.to === "/app/settings/import");
@@ -190,8 +190,11 @@ export function SettingsLayout() {
                       <li key={t.to}>
                         <NavLink to={t.to === "/app/settings" ? "/app/settings/general" : t.to} data-tour={navTourId(t.to, "pane")} className="flex min-h-[48px] items-center gap-3 pl-4 pr-3 transition-colors duration-150 active:bg-hover">
                           <Tile pane={t} />
-                          <span className={cn("flex min-h-[48px] flex-1 items-center justify-between gap-2 text-[16px]", i > 0 && "border-t border-line")}>
-                            <span className="truncate">{tl("nav", t.label)}</span>
+                          <span className={cn("flex min-h-[48px] flex-1 items-center justify-between gap-2 py-2 text-[16px]", i > 0 && "border-t border-line")}>
+                            <span className="min-w-0">
+                              <span className="block truncate">{tl("nav", t.label)}</span>
+                              {t.hint && <span className="mt-0.5 block truncate text-[12px] text-subtle">{t.hint}</span>}
+                            </span>
                             <IconChevronRight className="h-4 w-4 shrink-0 text-subtle" />
                           </span>
                         </NavLink>
@@ -214,6 +217,7 @@ export function SettingsLayout() {
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-brand-hover max-md:hidden">{tr("common.settings")}</p>
               <h1 className="large-title" data-testid="settings-title">{tl("nav", pane.label)}</h1>
+              {pane.hint && <p className="mt-0.5 text-[13px] text-muted max-md:hidden">{pane.hint}</p>}
             </div>
           </div>
           <div className="settings-pane"><Outlet /></div>

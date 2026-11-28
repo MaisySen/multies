@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { IconCheckCircle, IconCircleDot, IconClock, IconHandshake, IconWarning } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
+import { useConfig } from "@/web/lib/queries";
 import { Card, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { Select } from "@/web/components/ui/input";
 import { useProjects } from "./data";
 import { hoursText } from "./time";
@@ -45,6 +47,7 @@ function Panel({ title, children, className }: { title: string; children: React.
 export function ReportsPage() {
   const [days, setDays] = useState("30");
   const [projectId, setProjectId] = useState("");
+  const config = useConfig();
   const projects = useProjects();
   const qs = new URLSearchParams({ days, ...(projectId ? { projectId } : {}) }).toString();
   const q = useQuery({ queryKey: ["report", qs], queryFn: () => api.get<Dashboard>(`/reports/dashboard?${qs}`) });
@@ -52,11 +55,12 @@ export function ReportsPage() {
   return (
     <div data-testid="reports">
       <PageHeader title="Reports" description="Where the work stands: tasks by status and person, what's overdue, time per project and the deals pipeline. Values in AUD, ex GST."
-        actions={<div className="flex gap-2">
+        actions={<div className="flex flex-wrap gap-2">
+          {config.data?.crmTd10 && <Link to="/app/analyses" className="inline-flex h-9 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-fg hover:bg-hover">Saved analyses</Link>}
           <Select aria-label="Project" value={projectId} onChange={(e) => setProjectId(e.target.value)} className="h-9 w-auto text-[13px]"><option value="">All projects</option>{projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>
           <Select aria-label="Range" value={days} onChange={(e) => setDays(e.target.value)} className="h-9 w-auto text-[13px]"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></Select>
         </div>} />
-      {!d ? <div className="grid gap-4 sm:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}</div> : (
+      {q.isError ? <Card className="p-6"><LoadError onRetry={() => q.refetch()} /></Card> : !d ? <div className="grid gap-4 sm:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}</div> : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Kpi icon={<IconCircleDot className="h-4 w-4" />} label="Open tasks" value={String(d.tasks.open)} sub={`${d.tasks.createdInRange} new in ${d.range.days} days`} />
