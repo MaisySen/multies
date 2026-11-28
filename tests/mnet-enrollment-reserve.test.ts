@@ -3,18 +3,21 @@ import { randomToken } from "@/server/lib/crypto";
 import { hash } from "@/server/services/mnet";
 import { loadConfig } from "@/server/config";
 import { makeTestApp,Client } from "./helpers";
+import { createApp } from "@/server/app";
+import type { DB } from "@/server/db";
 import { eq,sql } from "drizzle-orm";
 import { users,members,sessions,mnetEnrollmentHandoffs as journal } from "@/server/db/schema";
 import { sweepHandoffs } from "@/server/services/mnet-enrollment-handoff";
 const handoffPolicy={consentMs:600000,codeMs:60000,ticketMs:120000,fullRowRetentionMs:1000,capacity:10,maxRows:100,retention:"terminal-hash-tombstone"};
 const path="/api/mnet-enrollment-service-v1/reserve";
-async function setup(){
+async function setup(db?: DB){
  const secret=randomToken();
  const fixture={reserveMs:30000,eventCapacity:3,serviceBudgets:{reserve:100,status:100,ack:100},requestsPerMinute:100,keys:[{keyId:"fixture-key",serviceId:"fixture-registrar",active:true,digest:await hash(secret),registrarOrigin:"https://registrar.test",issuer:"https://issuer.test/path",audience:"fixture-enrollment"}]};
  const e=await makeTestApp({MNET_ENROLLMENT_HANDOFF:"on",MNET_ENROLLMENT_HANDOFF_FIXTURE:JSON.stringify(handoffPolicy),MNET_ENROLLMENT_SERVICE:"on",MNET_ENROLLMENT_SERVICE_FIXTURE:JSON.stringify(fixture)});
+ if (db) { e.db = db; e.deps.db = db; e.app = createApp(e.deps); }
  const person=new Client(e.app);await person.signup();const user=await e.db.select().from(users).where(eq(users.email,person.email!)).get();await e.db.update(users).set({emailVerified:true}).where(eq(users.id,user!.id));const member=await e.db.select().from(members).where(eq(members.userId,user!.id)).get();
  e.deps.config.mnetEnrollmentOperator={revision:"fixture-r1",issuer:fixture.keys[0].issuer,registrarOrigin:fixture.keys[0].registrarOrigin,audience:fixture.keys[0].audience,bindings:[{workspaceId:member!.organizationId,networkId:"fixture-net",principals:[user!.id]}]};
- const verifier=randomToken(),launch={version:1,purpose:"mnet-enrollment",attemptId:randomToken(),devicePublicKey:randomToken(),credentialDigest:randomToken(),challenge:await hash(verifier),state:randomToken(),platform:"linux",redirectUri:"http://127.0.0.1:34567/mnet/enrollment/callback"};
+ const verifier=randomToken(),launch={version:1,purpose:"mnet-enrollment",attemptId:randomToken(),devicePublicKey:randomToken(),credentialDigest:randomToken(),challenge:await hash(verifier),state:randomToken(),platform:"linux",redirectUri:"http://127.0.0.1:34567/mnet/enrollment/callback"} as const;
  const displayed={issuer:fixture.keys[0].issuer,registrarOrigin:fixture.keys[0].registrarOrigin,audience:fixture.keys[0].audience,mappingRevision:"fixture-r1",networkId:"fixture-net"};
  const prepared=await person.post("/api/mnet-enrollment-v1/authorizations",{...launch,workspaceId:member!.organizationId,displayed});expect(prepared.status).toBe(201);
  const choice=await person.post(`/api/mnet-enrollment-v1/authorizations/${prepared.body.id}/decision`,{decision:"allow"});expect(choice.status).toBe(200);
@@ -25,6 +28,15 @@ async function setup(){
  return {...e,person,user:user!,request,authorization,send};
 }
 describe("local service auth and immutable reserve, no node authority",()=>{
+ it.each(["issued", "reserved"] as const)("refuses a %s step after workspace membership replacement", async (status) => {
+  const e = await setup();
+  if (status === "reserved") expect((await e.send()).status).toBe(200);
+  const member = (await e.db.select().from(members).where(eq(members.userId, e.user.id)).get())!;
+  await e.db.delete(members).where(eq(members.id, member.id));
+  await e.db.insert(members).values({ ...member, id: crypto.randomUUID() });
+  expect((await e.send()).status).toBe(403);
+  expect(await e.db.select().from(journal).get()).toMatchObject({ status, membershipId: null, eventSeq: status === "reserved" ? 1 : 0 });
+ });
  it("is off by default and cannot enable in production",async()=>{
   const e=await makeTestApp();expect((await e.app.request(path,{method:"POST",headers:{"content-type":"application/json"},body:"{}"})).status).toBe(404);
   expect(()=>loadConfig({APP_SECRET:"t".repeat(40),MNET_ENROLLMENT_SERVICE:"on"})).toThrow();
@@ -101,23 +113,11 @@ it("executes migration rebuild, reserve and historical status/ack SQL on local M
  const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:"export default { fetch() { return new Response('fixture'); } }",compatibilityDate:"2026-10-26",d1Databases:["DB"]}));
  try{
   const raw=await mf.getD1Database("DB");
-  // Isolated SQL fixture, not the full app migration chain (which fails on a
-  // historical0073 entry in this emulator, cause unresolved and recorded separately).
-  const {MIGRATIONS}=await import("@/server/db/migrations.generated");
-  await applyMigrations(migrationDriver(raw),MIGRATIONS.filter(m=>/^017[3456]_/.test(m.name)));
+  await applyMigrations(migrationDriver(raw));
   const indexes=await raw.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='mnet_enrollment_handoffs'").all();
-  for(const name of ['mnet_handoff_attempt_uq','mnet_handoff_code_uq','mnet_handoff_ticket_uq','mnet_handoff_reserve_uq','mnet_handoff_owner_idx','mnet_handoff_retention_idx'])expect(indexes.results.map((r:{name:unknown})=>r.name)).toContain(name);
-  for(const ddl of ["CREATE TABLE users(id text PRIMARY KEY,banned integer,email_verified integer)","CREATE TABLE organizations(id text PRIMARY KEY,is_demo integer,suspended_at integer,require_sso integer)","CREATE TABLE members(user_id text,organization_id text,kind text,disabled_at integer,role text)","CREATE TABLE sessions(id text PRIMARY KEY,user_id text,expires_at integer,impersonated_by text,login_method text)"])await raw.prepare(ddl).run();
-  const e=await setup(),db=drizzle(raw,{schema});
-  // Minimal source-matching eligibility columns only. The actual reserve
-  // implementation and full new journal schema execute on the D1 emulator.
-  const person=(await e.db.select().from(users))[0],org=(await e.db.select().from(schema.organizations))[0],membership=(await e.db.select().from(members))[0],session=(await e.db.select().from(sessions))[0];
-  await raw.prepare("INSERT INTO users VALUES(?,?,?)").bind(person.id,person.banned?1:0,person.emailVerified?1:0).run();
-  await raw.prepare("INSERT INTO organizations VALUES(?,?,?,?)").bind(org.id,org.isDemo?1:0,org.suspendedAt?.getTime()??null,org.requireSso?1:0).run();
-  await raw.prepare("INSERT INTO members VALUES(?,?,?,?,?)").bind(membership.userId,membership.organizationId,membership.kind,membership.disabledAt?.getTime()??null,membership.role).run();
-  await raw.prepare("INSERT INTO sessions VALUES(?,?,?,?,?)").bind(session.id,session.userId,session.expiresAt.getTime(),session.impersonatedBy,session.loginMethod).run();
-  await db.insert(journal).values(await e.db.select().from(journal));
-  const deps={...e.deps,db:db as unknown as typeof e.db},service=await authenticateEnrollmentService(deps,new Headers({authorization:e.authorization}));
+  for(const name of ['mnet_handoff_attempt_uq','mnet_handoff_code_uq','mnet_handoff_ticket_uq','mnet_handoff_reserve_uq','mnet_handoff_owner_idx','mnet_handoff_retention_idx','mnet_handoff_membership_idx'])expect(indexes.results.map((r:{name:unknown})=>r.name)).toContain(name);
+  const db=drizzle(raw,{schema}),e=await setup(db);
+  const deps=e.deps,service=await authenticateEnrollmentService(deps,new Headers({authorization:e.authorization}));
   const first=await reserveEnrollment(deps,service,e.request);expect(first.status).toBe("reserved");
   expect(await reserveEnrollment(deps,service,e.request)).toEqual(first);
   const row=await db.select().from(journal).get();expect(row!.status).toBe("reserved");expect(JSON.parse(row!.events)).toHaveLength(1);
@@ -142,9 +142,9 @@ it("preserves existing rows/indexes across CHECK rebuild and rolls migration fai
   await db.run(sql`INSERT INTO mnet_enrollment_handoffs(id,attempt_hash,version,purpose,status,created_at,expires_at) VALUES('fixture-old','fixture-attempt',1,'mnet-enrollment','issued',1,2)`);
   expect(()=>db.run(sql`UPDATE mnet_enrollment_handoffs SET status='reserved'`)).toThrow();
   await expect(applyMigrations(driver,[{name:"fixture_rebuild_fault",statements:[...next[0].statements,"INSERT INTO deliberately_missing_table VALUES(1)"]}])).rejects.toThrow();
-  const afterFault=await db.all(sql`SELECT * FROM mnet_enrollment_handoffs`);expect(afterFault).toHaveLength(1);expect(afterFault[0].status).toBe("issued");expect(afterFault[0]).not.toHaveProperty("reserve_id");
+  const afterFault=await db.all<{ status: string }>(sql`SELECT * FROM mnet_enrollment_handoffs`);expect(afterFault).toHaveLength(1);expect(afterFault[0].status).toBe("issued");expect(afterFault[0]).not.toHaveProperty("reserve_id");
   await applyMigrations(driver,next);const row=(await db.all(sql`SELECT * FROM mnet_enrollment_handoffs`))[0];expect(row).toMatchObject({id:"fixture-old",attempt_hash:"fixture-attempt",status:"issued",reserve_id:null,events:"[]"});
-  const indexes=await db.all(sql`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='mnet_enrollment_handoffs'`);expect(indexes.map(r=>r.name)).toContain("mnet_handoff_reserve_uq");
+  const indexes=await db.all<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='mnet_enrollment_handoffs'`);expect(indexes.map(r=>r.name)).toContain("mnet_handoff_reserve_uq");
  }finally{client.close();}
 });
 it("reopens a file-backed reserved record and constructs new handlers without a second event",async()=>{

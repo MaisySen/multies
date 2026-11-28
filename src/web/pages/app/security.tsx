@@ -8,7 +8,7 @@ import { authClient, unwrap } from "@/web/lib/auth-client";
 import { describeUserAgent } from "@/shared/user-agent";
 import { qk, useConfig, useMe } from "@/web/lib/queries";
 import { Badge, CopyButton, Skeleton } from "@/web/components/ui/misc";
-import { Button } from "@/web/components/ui/button";
+import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
 import { QrCode } from "@/web/components/qr";
@@ -47,6 +47,9 @@ export function AccountSettings() {
       <TwoFactorSection />
       {config.data?.passkeyDes1 && <PasskeysSection />}
       <DevicesSection />
+      {config.data?.mnetDeviceBridge && <Section title="Mnet device approvals" description="Review or revoke access to your Mnet device list. Start a new approval from Mnet on the computer you want to connect.">
+        <ButtonLink variant="secondary" to="/mnet/devices"><IconLaptop className="h-4 w-4" aria-hidden />Manage Mnet approvals</ButtonLink>
+      </Section>}
       <YourDataSection />
       {/* R35 (Apple 1.2): Privacy, the people you blocked in chat, with Unblock. */}
       <Section title="Blocked people" description="People you block can't message you, and you won't see their messages in any workspace. They aren't told.">

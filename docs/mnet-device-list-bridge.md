@@ -10,8 +10,11 @@ Only a currently verified, unbanned human with an existing eligible workspace
 membership and non-impersonated live session can approve. Demo/suspended
 workspaces, disabled/agent membership and a missing required SSO method refuse.
 The existing owner SSO exception is preserved. Approval binds that exact session,
-workspace, platform, device-key thumbprint, native PKCE challenge, state and
-literal IPv4 loopback callback. It does not bootstrap or join a workspace.
+workspace membership record, platform, device-key thumbprint, native PKCE
+challenge, state and literal IPv4 loopback callback. It does not bootstrap or
+join a workspace. If a membership is removed, pending approvals, issued codes
+and active credentials from that membership are unusable, including after
+rejoining. Approvals created before migration 0177 require fresh approval.
 
 **List only.** The handoff binds a supplied thumbprint to native PKCE possession,
 not to possession of a WireGuard private key. Never treat it as VPN enrollment,
@@ -33,7 +36,8 @@ ephemeral unprivileged port, never a caller-chosen external origin or path.
 5. `/api/mnet/check` checks a single List operation live and returns evidence
    lasting at most 30 seconds. It refuses enrollment and remote-session actions.
    `/api/mnet/devices` returns the person's own currently eligible records.
-6. `/mnet/devices` lists current approvals and lets their owner revoke them.
+6. In Multies, open Settings, Account and security, then Manage Mnet approvals.
+   `/mnet/devices` lists current approvals and lets their owner revoke them.
    Live account/session/membership checks also remove eligibility after changes.
 
 ## Bounds and concurrency
@@ -47,8 +51,9 @@ ephemeral unprivileged port, never a caller-chosen external origin or path.
 - Current handoffs cap at 20 per person atomically, without evicting another
   unexpired attempt. A person's records expired over 24 hours ago prune when
   they start another handoff. The shared existing rate limiter also applies.
-- Lists cap at 100 with an explicit truncated flag. Reads recheck each listed
-  record's source session, not merely the caller's session.
+- Lists cap at 100 with an explicit truncated flag. The device read checks the
+  caller's eligibility and each listed record's source session and membership
+  in the same database statement.
 - Decision and revocation audit rows carry IDs/actions, never raw codes,
   credentials, native proofs or callback URLs.
 
@@ -71,6 +76,12 @@ normal installed GUI journey or a deployed production flow.
 
 No merge, release, production/staging migration, deployment, signing, TestFlight,
 account change or paid infrastructure is covered by these local checks.
+
+The local D1 rehearsal starts with migrations through 0176 and an existing
+approval, applies 0177, then checks fresh approval, exchange, listing and
+membership removal. The new column allows the previous schema's writes. Turn
+the bridge off before rolling back to a server version that does not check
+membership binding.
 
 The signed-out browser journey also goes through the real local Multies login
 form, then returns to the exact approval request. Only `/mnet/authorize?` and

@@ -42,15 +42,15 @@ export async function enrollmentInfo(d: Deps, headers: Headers, request: z.infer
 export async function prepareEnrollment(d: Deps, headers: Headers, request: z.infer<typeof enrollmentRequest>) {
  const person = await mnetPerson(d, headers), { config, b } = binding(d, request.workspaceId, person.userId);
  if (request.displayed.issuer !== config.issuer || request.displayed.registrarOrigin !== config.registrarOrigin || request.displayed.audience !== config.audience || request.displayed.mappingRevision !== config.revision || request.displayed.networkId !== b.networkId) throw refused();
- await eligible(d, person.userId, b.workspaceId, person.id);
+ const { member } = await eligible(d, person.userId, b.workspaceId, person.id);
  const id = randomToken(), at = d.now().getTime();
  // Never prune/reuse attempt IDs here. A timeout cannot resurrect uncertain authority.
  await d.db.run(sql`INSERT INTO mnet_enrollment_decisions
- (id,user_id,session_id,workspace_id,attempt_id,device_public_key,issuer,registrar_origin,audience,network_id,mapping_revision,status,expires_at)
- SELECT ${id},${person.userId},${person.id},${b.workspaceId},${request.attemptId},${request.devicePublicKey},${config.issuer},${config.registrarOrigin},${config.audience},${b.networkId},${config.revision},'pending',${at + 120000}
+ (id,user_id,session_id,workspace_id,membership_id,attempt_id,device_public_key,issuer,registrar_origin,audience,network_id,mapping_revision,status,expires_at)
+ SELECT ${id},${person.userId},${person.id},${b.workspaceId},${member.id},${request.attemptId},${request.devicePublicKey},${config.issuer},${config.registrarOrigin},${config.audience},${b.networkId},${config.revision},'pending',${at + 120000}
  WHERE NOT EXISTS (SELECT 1 FROM mnet_enrollment_decisions WHERE attempt_id=${request.attemptId})
- AND (SELECT COUNT(*) FROM mnet_enrollment_decisions WHERE user_id=${person.userId} AND expires_at>${at})<20
- AND ${liveEligibility(d, person.userId, b.workspaceId, person.id)}
+ AND (SELECT COUNT(*) FROM mnet_enrollment_decisions WHERE user_id=${person.userId} AND membership_id IS NOT NULL AND expires_at>${at})<20
+ AND ${liveEligibility(d, person.userId, b.workspaceId, person.id, member.id)}
  ON CONFLICT(attempt_id) DO NOTHING`);
  const won = await d.db.select({ id: mnetEnrollmentDecisions.id }).from(mnetEnrollmentDecisions).where(eq(mnetEnrollmentDecisions.id, id)).get();
  if (!won) throw refused();
@@ -62,7 +62,7 @@ export async function decideEnrollment(d: Deps, headers: Headers, id: string, al
  if (!row) throw refused();
  const { config, b } = binding(d, row.workspaceId, person.userId);
  if (row.issuer !== config.issuer || row.registrarOrigin !== config.registrarOrigin || row.audience !== config.audience || row.mappingRevision !== config.revision || row.networkId !== b.networkId) throw refused();
- const changed = await d.db.update(mnetEnrollmentDecisions).set({ status: allow ? "approved" : "declined" }).where(and(eq(mnetEnrollmentDecisions.id, id), eq(mnetEnrollmentDecisions.status, "pending"), eq(mnetEnrollmentDecisions.userId, person.userId), eq(mnetEnrollmentDecisions.sessionId, person.id), gt(mnetEnrollmentDecisions.expiresAt, d.now()), liveEligibility(d, person.userId, row.workspaceId, person.id))).returning({ id: mnetEnrollmentDecisions.id }).get();
+ const changed = await d.db.update(mnetEnrollmentDecisions).set({ status: allow ? "approved" : "declined" }).where(and(eq(mnetEnrollmentDecisions.id, id), eq(mnetEnrollmentDecisions.status, "pending"), eq(mnetEnrollmentDecisions.userId, person.userId), eq(mnetEnrollmentDecisions.sessionId, person.id), gt(mnetEnrollmentDecisions.expiresAt, d.now()), liveEligibility(d, person.userId, row.workspaceId, person.id, mnetEnrollmentDecisions.membershipId))).returning({ id: mnetEnrollmentDecisions.id }).get();
  if (!changed) throw refused();
  await audit(d.db, { orgId: row.workspaceId, actorUserId: person.userId, action: allow ? "mnet.enrollment_approved" : "mnet.enrollment_declined", targetType: "mnet_enrollment", targetId: id, at: d.now() });
  return { decision: allow ? "approved" : "declined", purpose: "mnet-enrollment", inputAuthorized: false, registrarConnected: false, enrolled: false };

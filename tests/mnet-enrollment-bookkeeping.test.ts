@@ -90,7 +90,7 @@ it.each(["valid-reserve","bad-sequence"])("migration0175 preserves or atomically
   await db.run(sql`INSERT INTO mnet_enrollment_handoffs(id,attempt_hash,version,purpose,status,created_at,expires_at,events) VALUES('fixture-row','fixture-attempt',1,'mnet-enrollment','reserved',1,2,${event})`);
   const next=MIGRATIONS.filter(m=>m.name.startsWith("0175_"));
   if(mode==="bad-sequence"){
-   await expect(applyMigrations(driver,next)).rejects.toThrow();const rows=await db.all(sql`SELECT * FROM mnet_enrollment_handoffs`);expect(rows).toHaveLength(1);expect(rows[0].events).toBe(event);expect(rows[0]).not.toHaveProperty("event_seq");
+   await expect(applyMigrations(driver,next)).rejects.toThrow();const rows=await db.all<{ events: string }>(sql`SELECT * FROM mnet_enrollment_handoffs`);expect(rows).toHaveLength(1);expect(rows[0].events).toBe(event);expect(rows[0]).not.toHaveProperty("event_seq");
   }else{
    await applyMigrations(driver,next);const row=(await db.all(sql`SELECT status,event_seq AS eventSeq,descriptor_encoding_version AS descriptorEncodingVersion,events,receipt_id AS receiptId,receipt_digest AS receiptDigest FROM mnet_enrollment_handoffs`))[0];expect(row).toMatchObject({status:"reserved",eventSeq:1,descriptorEncodingVersion:1,events:event,receiptId:null,receiptDigest:null});
    expect(()=>db.run(sql`UPDATE mnet_enrollment_handoffs SET event_seq=2`)).toThrow();

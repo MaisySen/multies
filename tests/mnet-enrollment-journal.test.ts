@@ -42,6 +42,16 @@ describe("isolated enrollment journal and one-shot PKCE, no registrar", () => {
   const e = await makeTestApp({ MNET_ENROLLMENT_CONSENT: "on" });
   expect((await e.app.request(path + "/authorize")).status).toBe(404);
  });
+ it("retires approved handoffs when a person leaves and rejoins before exchange", async () => {
+  const e = await setupHandoff();
+  const { id, proof } = await approved(e);
+  const member = (await e.db.select().from(members).where(eq(members.userId, e.user.id)).get())!;
+  await e.db.delete(members).where(eq(members.id, member.id));
+  await e.db.insert(members).values({ ...member, id: crypto.randomUUID() });
+  expect((await native(e, proof)).status).toBe(403);
+  expect(await e.db.select().from(journal).where(eq(journal.id, id)).get()).toMatchObject({ status: "withdrawn", membershipId: null, codeHash: null });
+  expect((await e.person.post(path + "/authorizations", { ...e.request, attemptId: token(10) })).status).toBe(201);
+ });
  it("issues one handoff ticket for the exact approved native tuple, never a node credential", async () => {
   const e = await setupHandoff();
   const p = await e.person.post(path + "/authorizations", e.request); expect(p.status).toBe(201);
@@ -75,7 +85,8 @@ it("checks strict launch, fixed callback and exact displayed mapping before writ
 it("rejects wrong PKCE, tuple, browser cookies and ambient auth without spending the owner's code", async () => {
  const e = await setupHandoff(), { proof } = await approved(e);
  for (const changed of [{...proof, verifier: "w".repeat(43)}, {...proof, credentialDigest: token(8)}, {...proof, attemptId: token(8)}, {...proof, state: token(8)}, {...proof, devicePublicKey: token(8)}, {...proof, redirectUri: "http://127.0.0.1:34568/mnet/enrollment/callback"}, {...proof, displayed: {...e.request.displayed, audience: "other"}}, {...proof, workspaceId: "other"}, {...proof, version: 2}]) expect((await native(e, changed)).status).not.toBe(200);
- for (const extra of [{cookie: e.person.cookie}, {origin: "http://localhost"}, {authorization: "Bearer " + token(8)}]) expect((await native(e, proof, extra)).status).toBe(403);
+ const ambientHeaders: Record<string, string>[] = [{cookie: e.person.cookie}, {origin: "http://localhost"}, {authorization: "Bearer " + token(8)}];
+ for (const extra of ambientHeaders) expect((await native(e, proof, extra)).status).toBe(403);
  expect((await e.db.select().from(journal).get())?.status).toBe("approved");
  expect((await native(e, proof)).status).toBe(200);
 });

@@ -49,7 +49,7 @@ export async function reserveEnrollment(d:Deps,service:Service,p:z.infer<typeof 
   // Receipt/status is not implemented. Exact live reserve retry returns its
   // original metadata only before deadline and while new authority is valid.
   if(r.serviceId!==service.serviceId||r.reserveId!==p.reserveId||r.descriptorDigest!==descriptorDigest||!r.reserveDeadline||r.reserveDeadline.getTime()<=at)throw denied();
-  const live=await d.db.select({id:journal.id}).from(journal).where(and(eq(journal.id,r.id),eq(journal.status,"reserved"),liveEligibility(d,r.userId!,r.workspaceId!,r.sessionId!))).get();
+  const live=await d.db.select({id:journal.id}).from(journal).where(and(eq(journal.id,r.id),eq(journal.status,"reserved"),liveEligibility(d,r.userId!,r.workspaceId!,r.sessionId!,journal.membershipId))).get();
   if(!live)throw denied();currentBinding(d,r,service);
   return {handoffId:r.id,reserveId:r.reserveId,descriptorDigest:r.descriptorDigest,deadline:r.reserveDeadline,status:"reserved",enrolled:false};
  }
@@ -57,14 +57,14 @@ export async function reserveEnrollment(d:Deps,service:Service,p:z.infer<typeof 
  const deadline=new Date(at+service.config.reserveMs),eventId=randomToken();
  const event=JSON.stringify({version:1,seq:1,id:eventId,kind:"reserve",serviceId:service.serviceId,handoffId:r.id,reserveId:p.reserveId,descriptorDigest,mappingRevision:r.mappingRevision,at});
  currentBinding(d,r,service);
- const won=await d.db.update(journal).set({status:"reserved",serviceId:service.serviceId,reserveId:p.reserveId,descriptorDigest,reserveDeadline:deadline,eventSeq:1,descriptorEncodingVersion:1,events:sql`json_insert(${journal.events},'$[#]',json(${event}))`}).where(and(eq(journal.id,r.id),eq(journal.status,"issued"),eq(journal.ticketHash,ticketHash),gt(journal.ticketExpiresAt,new Date(at)),sql`NOT EXISTS (SELECT 1 FROM mnet_enrollment_handoffs other WHERE other.reserve_id=${p.reserveId})`,sql`json_array_length(${journal.events})=0`,sql`json_array_length(${journal.events})<${service.config.eventCapacity}`,liveEligibility(d,r.userId!,r.workspaceId!,r.sessionId!))).returning({id:journal.id}).get();
+ const won=await d.db.update(journal).set({status:"reserved",serviceId:service.serviceId,reserveId:p.reserveId,descriptorDigest,reserveDeadline:deadline,eventSeq:1,descriptorEncodingVersion:1,events:sql`json_insert(${journal.events},'$[#]',json(${event}))`}).where(and(eq(journal.id,r.id),eq(journal.status,"issued"),eq(journal.ticketHash,ticketHash),gt(journal.ticketExpiresAt,new Date(at)),sql`NOT EXISTS (SELECT 1 FROM mnet_enrollment_handoffs other WHERE other.reserve_id=${p.reserveId})`,sql`json_array_length(${journal.events})=0`,sql`json_array_length(${journal.events})<${service.config.eventCapacity}`,liveEligibility(d,r.userId!,r.workspaceId!,r.sessionId!,journal.membershipId))).returning({id:journal.id}).get();
  if(!won){
   // A concurrent identical request can lose its UPDATE but observe the one
   // immutable winner. Conflicting IDs/digests never get a fresh reservation.
   const winner=await d.db.select().from(journal).where(eq(journal.id,r.id)).get();
   if(!winner||winner.status!=="reserved"||winner.reserveId!==p.reserveId||winner.serviceId!==service.serviceId||winner.descriptorDigest!==descriptorDigest||!winner.reserveDeadline||winner.reserveDeadline.getTime()<=d.now().getTime())throw denied();
   currentBinding(d,winner,service);
-  const live=await d.db.select({id:journal.id}).from(journal).where(and(eq(journal.id,r.id),liveEligibility(d,r.userId!,r.workspaceId!,r.sessionId!))).get();if(!live)throw denied();
+  const live=await d.db.select({id:journal.id}).from(journal).where(and(eq(journal.id,r.id),liveEligibility(d,r.userId!,r.workspaceId!,r.sessionId!,journal.membershipId))).get();if(!live)throw denied();
   return {handoffId:r.id,reserveId:winner.reserveId,descriptorDigest:winner.descriptorDigest,deadline:winner.reserveDeadline,status:"reserved",enrolled:false};
  }
  return {handoffId:r.id,reserveId:p.reserveId,descriptorDigest,deadline,status:"reserved",enrolled:false};
@@ -79,7 +79,7 @@ export async function reserveEnrollmentEvidence(d:Deps,service:Service,p:z.infer
  if(!original)throw denied();handoffProvenance(d,original);
  const reserved=await reserveEnrollment(d,service,p);
  const at=d.now();
- const row=await d.db.select().from(journal).where(and(eq(journal.id,p.handoffId),eq(journal.status,"reserved"),eq(journal.userId,original.userId!),eq(journal.sessionId,original.sessionId!),eq(journal.sessionBinding,original.sessionBinding!),eq(journal.principalAuthority,original.principalAuthority!),eq(journal.principalNamespace,original.principalNamespace!),eq(journal.serviceId,service.serviceId),eq(journal.reserveId,p.reserveId),eq(journal.descriptorDigest,reserved.descriptorDigest),gt(journal.reserveDeadline,at),liveEligibility(d,original.userId!,original.workspaceId!,original.sessionId!))).get();
+ const row=await d.db.select().from(journal).where(and(eq(journal.id,p.handoffId),eq(journal.status,"reserved"),eq(journal.userId,original.userId!),eq(journal.sessionId,original.sessionId!),eq(journal.sessionBinding,original.sessionBinding!),eq(journal.principalAuthority,original.principalAuthority!),eq(journal.principalNamespace,original.principalNamespace!),eq(journal.serviceId,service.serviceId),eq(journal.reserveId,p.reserveId),eq(journal.descriptorDigest,reserved.descriptorDigest),gt(journal.reserveDeadline,at),liveEligibility(d,original.userId!,original.workspaceId!,original.sessionId!,journal.membershipId))).get();
  if(!row)throw denied();currentBinding(d,row,service);
  const provenance=handoffProvenance(d,row);
  if(!row.reserveDeadline||row.reserveDeadline.getTime()<=d.now().getTime())throw denied();

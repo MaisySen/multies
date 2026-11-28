@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, sqliteView, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, sqliteView, text, integer, real, index, uniqueIndex, primaryKey, check } from "drizzle-orm/sqlite-core";
 
 const ts = (name: string) => integer(name, { mode: "timestamp_ms" });
 const createdAt = () => ts("created_at").notNull().$defaultFn(() => new Date());
@@ -4879,11 +4879,12 @@ export const mnetDevices = sqliteTable("mnet_devices", {
  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
  sessionId: text("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
  workspaceId: text("workspace_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+ membershipId: text("membership_id").references(() => members.id, { onDelete: "set null" }),
  deviceKey: text("device_key").notNull(), challenge: text("challenge").notNull(), state: text("state").notNull(), platform: text("platform").notNull(),
   redirectUri: text("redirect_uri").notNull(),
  status: text("status", { enum: ["pending", "approved", "declined", "active", "revoked"] }).notNull(),
  codeHash: text("code_hash"), credentialHash: text("credential_hash"), expiresAt: ts("expires_at").notNull(), credentialExpiresAt: ts("credential_expires_at"),
-}, (t) => [uniqueIndex("mnet_code_uq").on(t.codeHash), uniqueIndex("mnet_credential_uq").on(t.credentialHash), index("mnet_owner_idx").on(t.userId,t.workspaceId)]);
+}, (t) => [uniqueIndex("mnet_code_uq").on(t.codeHash), uniqueIndex("mnet_credential_uq").on(t.credentialHash), index("mnet_owner_idx").on(t.userId,t.workspaceId), index("mnet_device_membership_idx").on(t.membershipId)]);
 
 // Separate purpose: browser enrollment decisions only, not List or node credentials.
 export const mnetEnrollmentDecisions = sqliteTable("mnet_enrollment_decisions", {
@@ -4891,12 +4892,13 @@ export const mnetEnrollmentDecisions = sqliteTable("mnet_enrollment_decisions", 
  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
  sessionId: text("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
  workspaceId: text("workspace_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+ membershipId: text("membership_id").references(() => members.id, { onDelete: "set null" }),
  attemptId: text("attempt_id").notNull(), devicePublicKey: text("device_public_key").notNull(),
  issuer: text("issuer").notNull(), registrarOrigin: text("registrar_origin").notNull(), audience: text("audience").notNull(),
  networkId: text("network_id").notNull(), mappingRevision: text("mapping_revision").notNull(),
  status: text("status", { enum: ["pending", "approved", "declined"] }).notNull(),
  expiresAt: ts("expires_at").notNull(),
-}, (t) => [uniqueIndex("mnet_enrollment_attempt_uq").on(t.attemptId), index("mnet_enrollment_owner_idx").on(t.userId, t.expiresAt)]);
+}, (t) => [uniqueIndex("mnet_enrollment_attempt_uq").on(t.attemptId), index("mnet_enrollment_owner_idx").on(t.userId, t.expiresAt), index("mnet_enrollment_membership_idx").on(t.membershipId)]);
 
 // Versioned local enrollment journal. Provenance is not a cascading entitlement.
 // Retention strips pre-reservation tuples; attempt hash tombstones refuse reuse.
@@ -4905,6 +4907,7 @@ export const mnetEnrollmentHandoffs = sqliteTable("mnet_enrollment_handoffs", {
  id: text("id").primaryKey(), attemptHash: text("attempt_hash").notNull(),
  version: integer("version").notNull(), purpose: text("purpose").notNull(),
  principalAuthority:text("principal_authority"),principalNamespace:text("principal_namespace"),sessionBinding:text("session_binding"), userId: text("user_id"), sessionId: text("session_id"), workspaceId: text("workspace_id"),
+ membershipId: text("membership_id").references(() => members.id, { onDelete: "set null" }),
  attemptId: text("attempt_id"), devicePublicKey: text("device_public_key"), credentialDigest: text("credential_digest"),
  issuer: text("issuer"), registrarOrigin: text("registrar_origin"), audience: text("audience"), networkId: text("network_id"), mappingRevision: text("mapping_revision"),
  challenge: text("challenge"), state: text("state"), platform: text("platform"), redirectUri: text("redirect_uri"),
@@ -4913,4 +4916,15 @@ export const mnetEnrollmentHandoffs = sqliteTable("mnet_enrollment_handoffs", {
  codeHash: text("code_hash"), ticketHash: text("ticket_hash"),
  createdAt: ts("created_at").notNull(), expiresAt: ts("expires_at").notNull(), codeExpiresAt: ts("code_expires_at"), ticketExpiresAt: ts("ticket_expires_at"),
  terminalAt: ts("terminal_at"), scrubbedAt: ts("scrubbed_at"),
-}, (t) => [uniqueIndex("mnet_handoff_reserve_uq").on(t.reserveId), uniqueIndex("mnet_handoff_attempt_uq").on(t.attemptHash), uniqueIndex("mnet_handoff_code_uq").on(t.codeHash), uniqueIndex("mnet_handoff_ticket_uq").on(t.ticketHash), index("mnet_handoff_owner_idx").on(t.userId,t.status), index("mnet_handoff_retention_idx").on(t.terminalAt,t.scrubbedAt)]);
+}, (t) => [
+  uniqueIndex("mnet_handoff_reserve_uq").on(t.reserveId), uniqueIndex("mnet_handoff_attempt_uq").on(t.attemptHash),
+  uniqueIndex("mnet_handoff_code_uq").on(t.codeHash), uniqueIndex("mnet_handoff_ticket_uq").on(t.ticketHash),
+  index("mnet_handoff_owner_idx").on(t.userId, t.status), index("mnet_handoff_retention_idx").on(t.terminalAt, t.scrubbedAt),
+  index("mnet_handoff_membership_idx").on(t.membershipId),
+  // Keep the existing 0175 SQL constraints in the Drizzle schema for future rebuilds.
+  check("mnet_handoff_version_ck", sql`${t.version} = 1`),
+  check("mnet_handoff_purpose_ck", sql`${t.purpose} = 'mnet-enrollment'`),
+  check("mnet_handoff_status_ck", sql`${t.status} IN ('pending','approved','declined','issued','expired','withdrawn','reserved','uncertain','consumed')`),
+  check("mnet_handoff_event_seq_ck", sql`${t.eventSeq} >= 0 AND ${t.eventSeq} <= 8`),
+  check("mnet_handoff_events_ck", sql`json_valid(${t.events}) AND json_type(${t.events}) = 'array' AND json_array_length(${t.events}) <= 8 AND json_array_length(${t.events}) = ${t.eventSeq}`),
+]);

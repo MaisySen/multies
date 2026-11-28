@@ -24,11 +24,12 @@ async function waitFile(path:string,done:()=>boolean){const until=Date.now()+450
  execFileSync("openssl",["req","-x509","-newkey","rsa:2048","-nodes","-keyout",key,"-out",cert,"-days","1","-subj","/CN=127.0.0.1","-addext","subjectAltName=IP:127.0.0.1"],{stdio:"pipe"});await chmod(key,0o600);
  const server=createServer({key:await readFile(key),cert:await readFile(cert)},async(req,res)=>{
  try{
-  const service=req.url==="/api/mnet-enrollment-service-v1/reserve-evidence-v2";if(service)serviceCalls++;else sourceCalls++;
-  if(req.method!=="POST"||(!service&&req.url!=="/api/mnet-enrollment-v1/exchange-v2")){res.writeHead(404).end();return;}
+  const url = req.url;
+  const service=url==="/api/mnet-enrollment-service-v1/reserve-evidence-v2";if(service)serviceCalls++;else sourceCalls++;
+  if(req.method!=="POST"||(url!=="/api/mnet-enrollment-service-v1/reserve-evidence-v2"&&url!=="/api/mnet-enrollment-v1/exchange-v2")){res.writeHead(404).end();return;}
   const chunks:Buffer[]=[];let bytes=0;for await(const chunk of req){bytes+=chunk.length;if(bytes>16384){res.writeHead(413).end();return;}chunks.push(chunk);}
   const headers=new Headers();for(const [name,value]of Object.entries(req.headers)){if(value!==undefined)headers.set(name,Array.isArray(value)?value.join(","):value);}headers.set("host","localhost");
-  const response=await e.app.request(req.url,{method:"POST",headers,body:Buffer.concat(chunks).toString("utf8")});if(!service)sourceStatus=response.status;
+  const response=await e.app.request(url,{method:"POST",headers,body:Buffer.concat(chunks).toString("utf8")});if(!service)sourceStatus=response.status;
   // Lose the response only AFTER the real source handler consumed the code
   // and committed its issued ticket. Do not synthesize a source response.
   if(mode==="lost-response"){await response.arrayBuffer();res.destroy();return;}

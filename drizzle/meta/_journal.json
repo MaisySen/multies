@@ -1030,6 +1030,55 @@
       "when": 1794300170000,
       "tag": "0170_ai_key_problem_qual1",
       "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "6",
+      "when": 1794300171000,
+      "tag": "0171_mnet_device_bridge",
+      "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "6",
+      "when": 1794300172000,
+      "tag": "0172_mnet_enrollment_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "6",
+      "when": 1794300173000,
+      "tag": "0173_mnet_enrollment_handoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "6",
+      "when": 1794300174000,
+      "tag": "0174_mnet_enrollment_reserve",
+      "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "6",
+      "when": 1794300175000,
+      "tag": "0175_mnet_enrollment_bookkeeping",
+      "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "6",
+      "when": 1794300176000,
+      "tag": "0176_mnet_enrollment_session_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 177,
+      "version": "6",
+      "when": 1794300177000,
+      "tag": "0177_mnet_membership_binding",
+      "breakpoints": true
     }
   ]
 }

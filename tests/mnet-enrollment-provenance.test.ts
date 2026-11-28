@@ -70,7 +70,8 @@ it("migration0176 preserves old rows as NULL without claiming provenance",async(
  await applyMigrations(migrationDriver(client),MIGRATIONS.filter(m=>/^017[345]_/.test(m.name)));
  await db.run(sql`INSERT INTO mnet_enrollment_handoffs(id,attempt_hash,version,purpose,status,created_at,expires_at) VALUES('old','old-attempt',1,'mnet-enrollment','issued',1,2)`);
  await applyMigrations(migrationDriver(client),MIGRATIONS.filter(m=>m.name.startsWith("0176_")));
- expect(await db.select().from(journal).get()).toMatchObject({id:"old",status:"issued",sessionBinding:null,principalAuthority:null,principalNamespace:null});
+ const row = await db.select({ id: journal.id, status: journal.status, sessionBinding: journal.sessionBinding, principalAuthority: journal.principalAuthority, principalNamespace: journal.principalNamespace }).from(journal).get();
+ expect(row).toMatchObject({id:"old",status:"issued",sessionBinding:null,principalAuthority:null,principalNamespace:null});
  }finally{client.close();}
 });
 
@@ -100,27 +101,21 @@ it("keeps binding/current provenance after actual backup close/reopen, without r
  }finally{(db as unknown as {$client:{close():void}}).$client.close();await rm(dir,{recursive:true,force:true});}
 });
 
-it("executes new migration and actual live evidence SQL on isolated local D1, not full chain",async()=>{
- const {Miniflare,convertV4MiniflareOptions}=await import("miniflare"),{drizzle}=await import("drizzle-orm/d1"),{applyMigrations,migrationDriver}=await import("@/server/db"),{MIGRATIONS}=await import("@/server/db/migrations.generated"),schema=await import("@/server/db/schema"),{authenticateEnrollmentService,reserveEnrollmentEvidence}=await import("@/server/services/mnet-enrollment-reserve");
+it("checks live enrollment evidence after replaying all migrations on local D1",async()=>{
+ const {Miniflare,convertV4MiniflareOptions}=await import("miniflare"),{drizzle}=await import("drizzle-orm/d1"),{applyMigrations,migrationDriver}=await import("@/server/db"),schema=await import("@/server/db/schema"),{authenticateEnrollmentService,reserveEnrollmentEvidence}=await import("@/server/services/mnet-enrollment-reserve");
  const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:"export default { fetch(){return new Response('fixture')} }",compatibilityDate:"2026-10-26",d1Databases:["DB"]}));
  try{
-  const raw=await mf.getD1Database("DB");await applyMigrations(migrationDriver(raw),MIGRATIONS.filter(m=>/^017[3456]_/.test(m.name)));
-  for(const ddl of ["CREATE TABLE users(id text PRIMARY KEY,banned integer,email_verified integer)","CREATE TABLE organizations(id text PRIMARY KEY,is_demo integer,suspended_at integer,require_sso integer)","CREATE TABLE members(user_id text,organization_id text,kind text,disabled_at integer,role text)","CREATE TABLE sessions(id text PRIMARY KEY,user_id text,expires_at integer,impersonated_by text,login_method text)"])await raw.prepare(ddl).run();
-  const e=await setupBookkeeping(true),db=drizzle(raw,{schema});
-  const person=(await e.db.select().from(schema.users))[0],org=(await e.db.select().from(schema.organizations))[0],member=(await e.db.select().from(schema.members))[0],session=(await e.db.select().from(schema.sessions))[0];
-  await raw.prepare("INSERT INTO users VALUES(?,?,?)").bind(person.id,person.banned?1:0,person.emailVerified?1:0).run();
-  await raw.prepare("INSERT INTO organizations VALUES(?,?,?,?)").bind(org.id,org.isDemo?1:0,org.suspendedAt?.getTime()??null,org.requireSso?1:0).run();
-  await raw.prepare("INSERT INTO members VALUES(?,?,?,?,?)").bind(member.userId,member.organizationId,member.kind,member.disabledAt?.getTime()??null,member.role).run();
-  await raw.prepare("INSERT INTO sessions VALUES(?,?,?,?,?)").bind(session.id,session.userId,session.expiresAt.getTime(),session.impersonatedBy,session.loginMethod).run();
-  await db.insert(journal).values(await e.db.select().from(journal));
-  const deps={...e.deps,db:db as unknown as typeof e.db},service=await authenticateEnrollmentService(deps,new Headers({authorization:e.authorization}));
+  const raw=await mf.getD1Database("DB");await applyMigrations(migrationDriver(raw));
+  const db=drizzle(raw,{schema}),e=await setupBookkeeping(true,db);
+  const session=(await db.select().from(sessions).where(eq(sessions.userId,e.user.id)).get())!;
+  const deps=e.deps,service=await authenticateEnrollmentService(deps,new Headers({authorization:e.authorization}));
   const first=await reserveEnrollmentEvidence(deps,service,e.request),retry=await reserveEnrollmentEvidence(deps,service,e.request);
   expect(first.provenance).toEqual(e.issued.provenance);expect(retry.provenance).toEqual(first.provenance);expect(retry.deadline).toEqual(first.deadline);
   const saved=await db.select().from(journal).get();expect(JSON.parse(saved!.events)).toHaveLength(1);
   await raw.prepare("DELETE FROM sessions WHERE id=?").bind(session.id).run();
   await expect(reserveEnrollmentEvidence(deps,service,e.request)).rejects.toMatchObject({status:403});expect(await db.select().from(journal).get()).toEqual(saved);
  }finally{await mf.dispose();}
-});
+},30000);
 it("requires explicit exact namespaced provenance configuration, never inferred OIDC identity",async()=>{
  const {enrollmentOperatorConfig}=await import("@/server/services/mnet-enrollment-config");
  const e=await setupBookkeeping(true),operator=e.deps.config.mnetEnrollmentOperator!;

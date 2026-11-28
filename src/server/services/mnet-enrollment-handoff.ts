@@ -35,14 +35,14 @@ const rowTuple = (r: Row) => ({ issuer: r.issuer!, registrarOrigin: r.registrarO
 export async function sweepHandoffs(d: Deps) {
  const { policy } = handoffConfig(d), at = d.now();
  await d.db.update(journal).set({ status: "expired", terminalAt: at, codeHash: null, ticketHash: null }).where(sql`(${journal.status}='pending' AND ${journal.expiresAt}<=${at.getTime()}) OR (${journal.status}='approved' AND ${journal.codeExpiresAt}<=${at.getTime()}) OR (${journal.status}='issued' AND ${journal.ticketExpiresAt}<=${at.getTime()})`);
- await d.db.update(journal).set({ status: "withdrawn", terminalAt: at, codeHash: null, ticketHash: null }).where(and(sql`${journal.status} IN ('pending','approved','issued')`, sql`NOT ${liveEligibility(d, journal.userId, journal.workspaceId, journal.sessionId)}`));
- await d.db.update(journal).set({ principalAuthority:null,principalNamespace:null,sessionBinding:null, userId: null, sessionId: null, workspaceId: null, attemptId: null, devicePublicKey: null, credentialDigest: null, issuer: null, registrarOrigin: null, audience: null, networkId: null, mappingRevision: null, challenge: null, state: null, platform: null, redirectUri: null, codeHash: null, ticketHash: null, scrubbedAt: at }).where(and(isNull(journal.scrubbedAt), sql`${journal.status} IN ('declined','expired','withdrawn')`, sql`${journal.terminalAt}<=${at.getTime() - policy.fullRowRetentionMs}`));
+ await d.db.update(journal).set({ status: "withdrawn", terminalAt: at, codeHash: null, ticketHash: null }).where(and(sql`${journal.status} IN ('pending','approved','issued')`, sql`NOT ${liveEligibility(d, journal.userId, journal.workspaceId, journal.sessionId, journal.membershipId)}`));
+ await d.db.update(journal).set({ principalAuthority:null,principalNamespace:null,sessionBinding:null, userId: null, sessionId: null, workspaceId: null, membershipId: null, attemptId: null, devicePublicKey: null, credentialDigest: null, issuer: null, registrarOrigin: null, audience: null, networkId: null, mappingRevision: null, challenge: null, state: null, platform: null, redirectUri: null, codeHash: null, ticketHash: null, scrubbedAt: at }).where(and(isNull(journal.scrubbedAt), sql`${journal.status} IN ('declined','expired','withdrawn')`, sql`${journal.terminalAt}<=${at.getTime() - policy.fullRowRetentionMs}`));
 }
 async function validateCurrentRow(d: Deps, r: Row) {
  try {
   const selected = binding(d, r.workspaceId!, r.userId!);
   if (!tupleEqual(rowTuple(r), selected.displayed)) throw denied();
-  await eligible(d, r.userId!, r.workspaceId!, r.sessionId!);
+  await eligible(d, r.userId!, r.workspaceId!, r.sessionId!, r.membershipId);
   return selected;
  } catch (error) {
   // Infrastructure failure is not evidence of revoked eligibility. Fail closed
@@ -67,7 +67,7 @@ export async function handoffInfo(d: Deps, headers: Headers, request: z.infer<ty
 export async function prepareHandoff(d: Deps, headers: Headers, request: z.infer<typeof handoffRequest>) {
  const person = await mnetPerson(d, headers), selected = binding(d, request.workspaceId, person.userId);
  if (!tupleEqual(request.displayed, selected.displayed)) throw denied();
- await eligible(d, person.userId, request.workspaceId, person.id);
+ const { member } = await eligible(d, person.userId, request.workspaceId, person.id);
  await sweepHandoffs(d);
  const id = randomToken(), attemptHash = await hash(request.attemptId), at = d.now().getTime();
  const provenanceConfig=handoffConfig(d).operator.provenance;
@@ -75,11 +75,11 @@ export async function prepareHandoff(d: Deps, headers: Headers, request: z.infer
  // Compare current config again after async work. Config is server-owned input.
  if (!tupleEqual(selected.displayed, binding(d, request.workspaceId, person.userId).displayed)) throw denied();
  await d.db.run(sql`INSERT INTO mnet_enrollment_handoffs
- (id,attempt_hash,version,purpose,session_binding,principal_authority,principal_namespace,user_id,session_id,workspace_id,attempt_id,device_public_key,credential_digest,issuer,registrar_origin,audience,network_id,mapping_revision,challenge,state,platform,redirect_uri,status,created_at,expires_at)
- SELECT ${id},${attemptHash},1,'mnet-enrollment',${sessionBinding},${provenanceConfig?.principalAuthority??null},${provenanceConfig?.principalNamespace??null},${person.userId},${person.id},${request.workspaceId},${request.attemptId},${request.devicePublicKey},${request.credentialDigest},${selected.displayed.issuer},${selected.displayed.registrarOrigin},${selected.displayed.audience},${selected.displayed.networkId},${selected.displayed.mappingRevision},${request.challenge},${request.state},${request.platform},${request.redirectUri},'pending',${at},${at + selected.policy.consentMs}
+ (id,attempt_hash,version,purpose,session_binding,principal_authority,principal_namespace,user_id,session_id,workspace_id,membership_id,attempt_id,device_public_key,credential_digest,issuer,registrar_origin,audience,network_id,mapping_revision,challenge,state,platform,redirect_uri,status,created_at,expires_at)
+ SELECT ${id},${attemptHash},1,'mnet-enrollment',${sessionBinding},${provenanceConfig?.principalAuthority??null},${provenanceConfig?.principalNamespace??null},${person.userId},${person.id},${request.workspaceId},${member.id},${request.attemptId},${request.devicePublicKey},${request.credentialDigest},${selected.displayed.issuer},${selected.displayed.registrarOrigin},${selected.displayed.audience},${selected.displayed.networkId},${selected.displayed.mappingRevision},${request.challenge},${request.state},${request.platform},${request.redirectUri},'pending',${at},${at + selected.policy.consentMs}
  WHERE (SELECT COUNT(*) FROM mnet_enrollment_handoffs WHERE user_id=${person.userId} AND status IN ('pending','approved','issued'))<${selected.policy.capacity}
  AND (SELECT COUNT(*) FROM mnet_enrollment_handoffs)<${selected.policy.maxRows}
- AND ${liveEligibility(d, person.userId, request.workspaceId, person.id)}
+ AND ${liveEligibility(d, person.userId, request.workspaceId, person.id, member.id)}
  ON CONFLICT(attempt_hash) DO NOTHING`);
  if (!await d.db.select({ id: journal.id }).from(journal).where(eq(journal.id, id)).get()) throw denied();
  return { id, purpose: "mnet-enrollment", expiresAt: new Date(at + selected.policy.consentMs), registrarConnected: false, enrolled: false, inputAuthorized: false };
@@ -91,7 +91,7 @@ export async function decideHandoff(d: Deps, headers: Headers, id: string, allow
  const selected = await validateCurrentRow(d, r), code = allow ? randomToken() : null, codeHash = code ? await hash(code) : null, at = d.now();
  if (!tupleEqual(rowTuple(r), binding(d, r.workspaceId!, r.userId!).displayed)) throw denied();
  const expires = new Date(Math.min(r.expiresAt.getTime(), at.getTime() + selected.policy.codeMs));
- const won = await d.db.update(journal).set({ status: allow ? "approved" : "declined", codeHash, codeExpiresAt: allow ? expires : null, terminalAt: allow ? null : at }).where(and(eq(journal.id, id), eq(journal.status, "pending"), gt(journal.expiresAt, at), liveEligibility(d, r.userId!, r.workspaceId!, r.sessionId!))).returning({ id: journal.id }).get();
+ const won = await d.db.update(journal).set({ status: allow ? "approved" : "declined", codeHash, codeExpiresAt: allow ? expires : null, terminalAt: allow ? null : at }).where(and(eq(journal.id, id), eq(journal.status, "pending"), gt(journal.expiresAt, at), liveEligibility(d, r.userId!, r.workspaceId!, r.sessionId!, journal.membershipId))).returning({ id: journal.id }).get();
  if (!won) throw denied();
  const redirect = new URL(r.redirectUri!); redirect.searchParams.set("state", r.state!); redirect.searchParams.set("attemptId", r.attemptId!);
  if (code) redirect.searchParams.set("code", code); else redirect.searchParams.set("error", "access_denied");
@@ -107,7 +107,7 @@ export async function exchangeHandoff(d: Deps, proof: z.infer<typeof handoffExch
  if (!tupleEqual(rowTuple(r), binding(d, r.workspaceId!, r.userId!).displayed)) throw denied();
  if(responseVersion===2)handoffProvenance(d,r);
  const expires = new Date(at.getTime() + selected.policy.ticketMs);
- const won = await d.db.update(journal).set({ status: "issued", codeHash: null, ticketHash, ticketExpiresAt: expires }).where(and(eq(journal.id, r.id), eq(journal.status, "approved"), eq(journal.codeHash, codeHash), isNull(journal.ticketHash), gt(journal.expiresAt, at), gt(journal.codeExpiresAt, at), liveEligibility(d, r.userId!, r.workspaceId!, r.sessionId!))).returning({ id: journal.id }).get();
+ const won = await d.db.update(journal).set({ status: "issued", codeHash: null, ticketHash, ticketExpiresAt: expires }).where(and(eq(journal.id, r.id), eq(journal.status, "approved"), eq(journal.codeHash, codeHash), isNull(journal.ticketHash), gt(journal.expiresAt, at), gt(journal.codeExpiresAt, at), liveEligibility(d, r.userId!, r.workspaceId!, r.sessionId!, journal.membershipId))).returning({ id: journal.id }).get();
  if (!won) throw denied();
  if(responseVersion===2)handoffProvenance(d,r);
  return { ...(provenance?{responseVersion:2,provenance,launch:proofLaunch(proof)}:{}),ticket, id: r.id, expiresAt: expires, binding: { workspaceId: r.workspaceId!, ...rowTuple(r) }, purpose: "mnet-enrollment", registrarConnected: false, enrolled: false, inputAuthorized: false };

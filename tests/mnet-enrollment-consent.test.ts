@@ -34,10 +34,15 @@ describe("separate Mnet enrollment consent, no registrar authority", () => {
   const row = await e.db.select().from(mnetEnrollmentDecisions).get(); expect(row!.networkId).toBe("net-fixture"); expect(row!.mappingRevision).toBe("fixture-r1"); expect(row!.status).toBe("approved");
   for (const path of ["/api/mnet-enrollment/token", "/api/mnet-enrollment/consume", "/api/mnet-enrollment/recover"]) expect((await e.person.post(path, {})).status).toBe(404);
  });
- it.each(["mapping", "membership", "session", "expiry", "other-person"])("refuses decision after %s change", async (mode) => {
+ it.each(["mapping", "membership", "replacement membership", "session", "expiry", "other-person"])("refuses decision after %s change", async (mode) => {
   const e = await setup(); const p = await e.person.post("/api/mnet-enrollment/decisions", { ...launch, workspaceId: e.workspaceId, displayed: e.displayed }); expect(p.status).toBe(201);
   if (mode === "mapping") e.deps.config.mnetEnrollmentOperator!.revision = "changed";
   if (mode === "membership") await e.db.update(members).set({ disabledAt: new Date() }).where(eq(members.userId, e.user.id));
+  if (mode === "replacement membership") {
+   const member = (await e.db.select().from(members).where(eq(members.userId, e.user.id)).get())!;
+   await e.db.delete(members).where(eq(members.id, member.id));
+   await e.db.insert(members).values({ ...member, id: crypto.randomUUID() });
+  }
   if (mode === "session") await e.db.update(sessions).set({ expiresAt: new Date(0) }).where(eq(sessions.userId, e.user.id));
   if (mode === "expiry") await e.db.update(mnetEnrollmentDecisions).set({ expiresAt: new Date(0) });
   let client = e.person;

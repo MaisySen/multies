@@ -9,6 +9,7 @@ import { AREA_SLUGS } from "./marketing-areas";
 const EXACT = new Set([
   "/", "/pricing", "/agents", "/developers", "/developers/mcp", "/check", "/trust", "/security", "/status", "/changelog", "/privacy", "/support", "/delete-account", "/terms", "/acceptable-use", "/dpa",
   "/login", "/signup", "/forgot-password", "/reset-password", "/email-verified", "/guest", "/thanks", "/contact", "/thank-you", "/oauth/authorize",
+  "/mnet/authorize", "/mnet/devices", "/mnet/enroll", "/mnet/enroll-v1",
 ]);
 // R58 (MB-237): the free plan page, the switch list, and one switch page per tool the import reads (unknown tools are a 404).
 for (const p of ["/startups", "/switch", ...SWITCH_SLUGS.map((s) => `/switch/${s}`)]) EXACT.add(p);
@@ -21,6 +22,6 @@ export const KNOWN_PAGE_PATHS: readonly string[] = [...EXACT];
 
 export function isKnownPage(pathname: string) {
   const p = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  if (EXACT.has(p) || p === "/mnet/enroll" || p === "/mnet/enroll-v1") return true; // Private branch-only consent page, not a sitemap entry.
+  if (EXACT.has(p)) return true;
   return PREFIXES.some((x) => (x.endsWith("/") ? p.startsWith(x) && p.length > x.length : p === x || p.startsWith(`${x}/`)));
 }
