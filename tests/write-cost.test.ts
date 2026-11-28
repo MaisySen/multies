@@ -63,8 +63,11 @@ it("keeps sign in, an idle cron pass and a demo inside their write ceilings", as
   await d.post("/api/account/demo");
   await d.post("/api/account/demo/seed");
   await d.get("/api/tasks");
-  // Measured 967 for the workspace and both seed parts; the purge a day later deletes about as many.
-  expect(take()).toBeLessThanOrEqual(1_100);
+  // MPLAT-108 (12 Nov 2026): measured 1,333. The demo seeds its 28 received messages newest first, so each one is
+  // its sender's new first message and the 0179 triggers move first_of_sender (clear the old row, set the new one),
+  // which this meter counts once per index on messages. That flag is what lets every badge poll skip reading the
+  // workspace's mail (about 27k rows read a poll on mymail-au), so the trade is many times over in D1's favour.
+  expect(take()).toBeLessThanOrEqual(1_400);
 });
 
 it("MCP OAuth (round 20): registration, sign in, token exchange and refresh stay small; MCP reads write nothing", async () => {

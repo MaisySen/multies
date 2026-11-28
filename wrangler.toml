@@ -522,4 +522,7 @@ invocation_logs = false
 # Hourly on staging: nobody depends on its queue, and each pass writes.
 [env.staging.triggers]
 # R43: every 15 minutes like production, so staging proves the same background import timing.
-crons = ["*/15 * * * *"]
+# MPLAT-96: 7 minutes after production's ticks (:07, :22, :37, :52), so the two Workers on the one Cloudflare
+# account never start their database passes in the same second. Each tick still falls in the same quarter hour, so
+# the rotated hourly housekeeping (minute / 15) runs exactly as on production.
+crons = ["7-59/15 * * * *"]

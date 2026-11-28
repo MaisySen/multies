@@ -21,7 +21,8 @@ import { DohResolver } from "../server/services/dns/resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
 import { ResilientOutbound } from "../server/services/resilience";
 import { getOrCreateStoredSecret, runMaintenanceIfMigrated } from "../server/services/maintenance";
-import { toolsCronPasses } from "../server/services/tools/p2-cron"; // Tools P2
+import { toolsCronSteps } from "../server/services/tools/p2-cron"; // Tools P2
+import { claimCronLease, CRON_LEASE_TTL_MS, releaseCronLease, runCronSteps, type CronStep } from "../server/services/cron-steps"; // MPLAT-96
 import type { Deps, RateLimitBinding } from "../server/context";
 import { API_CSP, EMBED_FORM_PATH, PRIVATE_PAGE_PATH, appCsp, frameableCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
@@ -593,33 +594,58 @@ const handler = {
 
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
     const { deps } = await getReady(env);
-    // R43: what the maintenance run reports is sent before the run ends.
-    // R50 (CPU limit): the cron pass rotates its hourly housekeeping across the four passes of each hour.
-    ctx.waitUntil(runMaintenanceIfMigrated(deps, { rotate: true }).finally(() => flushReporting()));
-    // Tools P2: share and signing, mail merge, AI usage housekeeping and the attachment index, each on its own.
-    for (const p of toolsCronPasses(deps)) ctx.waitUntil(p);
-    // R111: mail retention (MAIL_ARCHIVE_R111): only workspaces whose admin turned a policy on, past its 7 day grace.
-    if (deps.config.mailArchive) {
-      ctx.waitUntil(import("../server/services/mail/archive-r111").then((m) => m.runRetentionPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "mail.retention_pass" })));
-    }
-    // R105: repeating invoices and payment reminders (INVOICES_ENABLED), bounded per pass.
-    if (deps.config.invoicesEnabled) {
-      ctx.waitUntil(import("../server/services/invoices/deliver").then((m) => m.runInvoiceCron(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "invoices.cron" })));
-    }
-    // R129: course due soon and overdue reminders (COURSES_R129), 100 a pass.
-    if (deps.config.coursesR129) {
-      ctx.waitUntil(import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "courses.reminders" })));
-    }
-    // TD8: Team AI routines due now and runs left waiting (TEAMAI_TD8), 10 runs a pass on the workspace's own key.
-    if (deps.config.teamaiTd8) {
-      ctx.waitUntil(import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "teamai.pass" })));
-    }
-    // R97: due notification digests (50 a run, only rows whose digest time has come).
-    if (deps.config.notificationCentre !== false) {
-      ctx.waitUntil(import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "notify.digest_pass" })));
-    }
+    ctx.waitUntil(runScheduledSteps(deps));
   },
 };
+
+/**
+ * The cron tick's passes, in this order, one after another (MPLAT-96: never all in the same second). Each pass is
+ * guarded, so one that fails is reported and the next still runs.
+ */
+export function scheduledSteps(deps: Deps): CronStep[] {
+  const lazy = (name: string, where: string, run: () => Promise<unknown>): CronStep => ({
+    name,
+    run: () => run().catch((err: unknown) => deps.reportError?.(err, { where })),
+  });
+  const steps: CronStep[] = [
+    // R50 (CPU limit): the cron pass rotates its hourly housekeeping across the four passes of each hour.
+    { name: "maintenance", run: () => runMaintenanceIfMigrated(deps, { rotate: true }) },
+    // Tools P2: share and signing, mail merge, AI usage housekeeping and the attachment index, each on its own.
+    ...toolsCronSteps(deps),
+  ];
+  // R111: mail retention (MAIL_ARCHIVE_R111): only workspaces whose admin turned a policy on, past its 7 day grace.
+  if (deps.config.mailArchive) steps.push(lazy("mail.retention_pass", "mail.retention_pass", () => import("../server/services/mail/archive-r111").then((m) => m.runRetentionPass(deps))));
+  // R105: repeating invoices and payment reminders (INVOICES_ENABLED), bounded per pass.
+  if (deps.config.invoicesEnabled) steps.push(lazy("invoices.cron", "invoices.cron", () => import("../server/services/invoices/deliver").then((m) => m.runInvoiceCron(deps))));
+  // R129: course due soon and overdue reminders (COURSES_R129), 100 a pass.
+  if (deps.config.coursesR129) steps.push(lazy("courses.reminders", "courses.reminders", () => import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps))));
+  // TD8: Team AI routines due now and runs left waiting (TEAMAI_TD8), 10 runs a pass on the workspace's own key.
+  if (deps.config.teamaiTd8) steps.push(lazy("teamai.pass", "teamai.pass", () => import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps))));
+  // R97: due notification digests (50 a run, only rows whose digest time has come).
+  if (deps.config.notificationCentre !== false) steps.push(lazy("notify.digest_pass", "notify.digest_pass", () => import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps))));
+  return steps;
+}
+
+/** R43 + MPLAT-96: claims the cross-tick lease, runs passes sequentially, then releases lease & flushes reporting. */
+async function runScheduledSteps(deps: Deps) {
+  const holder = crypto.randomUUID();
+  let claimed = false;
+  try {
+    claimed = await claimCronLease(deps, "scheduled_tick", holder, CRON_LEASE_TTL_MS);
+    if (!claimed) {
+      deps.log?.info("cron.lease_skipped", { lease: "scheduled_tick" });
+      return;
+    }
+    await runCronSteps(deps, scheduledSteps(deps));
+  } finally {
+    if (claimed) {
+      await releaseCronLease(deps, "scheduled_tick", holder).catch((err: unknown) => {
+        deps.log?.warn("cron.lease_release_failed", { error: err instanceof Error ? err.message : String(err) });
+      });
+    }
+    await flushReporting();
+  }
+}
 
 const buildEnv = (typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) as Record<string, string | undefined>;
 
