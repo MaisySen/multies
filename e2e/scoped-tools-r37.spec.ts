@@ -75,7 +75,7 @@ test("a key made with picked areas shows only its tools, and the docs preview fi
   await expect(sheet.getByTestId("tool-list-toggle")).toContainText(/Agents see \d+ of \d+ tools/);
   await sheet.getByRole("button", { name: "Create" }).click();
   const secret = (await page.getByRole("dialog", { name: "Copy your API key" }).locator("code").first().textContent())!.trim();
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   const row = page.getByTestId("api-key-row").filter({ hasText: "Standup bot" });
   await expect(row.getByTestId("tool-list-chip")).toHaveText("Shows only its tools");
   // The key's own view: only tasks and chat tools.
