@@ -57,6 +57,15 @@ describe("triage count for one project (MPT-11)", () => {
     expect((await c.get(`/api/triage/count?projectId=${a.id}`)).body.count).toBe(0);
   });
 
+  it("goes down when an item is declined", async () => {
+    const a = await triageProject("Support");
+    const id = await waiting(a.id, "Decline me");
+    await waiting(a.id, "Keep me");
+    expect((await c.get(`/api/triage/count?projectId=${a.id}`)).body.count).toBe(2);
+    expect((await c.post(`/api/triage/${id}/decline`, {})).status).toBe(200);
+    expect((await c.get(`/api/triage/count?projectId=${a.id}`)).body.count).toBe(1);
+  });
+
   it("gives 0 for a project of another workspace, and 422 for a projectId that is too long (like every query check)", async () => {
     const a = await triageProject("Support");
     await waiting(a.id, "Private to acme");

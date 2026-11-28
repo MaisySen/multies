@@ -319,7 +319,7 @@ export function TasksPage() {
         onAll={() => set({ v: null, ...Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null]), ["group", null], ["sort", null], ["dir", null], ["lanes", null]]) })}
         onEdit={(v, patch) => void editView(v, patch)} onDelete={(v) => void deleteView(v)} onRename={(v) => void renameView(v)} />
       {project && <ProjectRollups projectId={project.id} fields={allFields} />}
-      {project && <TriageWaiting projectId={project.id} triageOn={!!(project as Project & { triage?: boolean }).triage} view={view} />}
+      {project && <TriageWaiting projectId={project.id} triageOn={!!project.triage} view={view} />}
       <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label={tr("tasks.filters")}>
         <TaskQueryBox value={filters.q ?? ""} onApply={(q) => set({ q })} values={queryValues} />
         <PhoneFilters groups={[

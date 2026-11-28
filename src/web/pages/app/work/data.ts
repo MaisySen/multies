@@ -11,7 +11,7 @@ import { tl, uiLocale } from "@/web/i18n"; // POL4 (HQ MB-356)
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
 export interface Status { id: string; name: string; category: Category; color: string; position: number }
-export interface Project { id: string; name: string; description: string; key: string; color: string; archived: boolean; statuses: Status[]; counts: Record<Category, number>; version: number }
+export interface Project { id: string; name: string; description: string; key: string; color: string; archived: boolean; statuses: Status[]; counts: Record<Category, number>; version: number; /** MPT-11: Triage is on for the project. The server sends it. */ triage?: boolean }
 export interface Assignee { type: "member" | "agent"; id: string; name: string; email: string | null; /** R26: an AI agent member. */ isAgent?: boolean }
 export interface Task {
   id: string; ref: string; projectId: string; number: number; title: string; notes: string;
