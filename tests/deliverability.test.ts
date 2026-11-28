@@ -11,16 +11,21 @@ import { mailauthAuthenticator } from "@/server/services/mail/mailauth";
 
 const RESEND_SECRET = `whsec_${Buffer.from("resend-test-secret-0123456789ab").toString("base64")}`;
 
-const dmarcXml = (domain: string, id = "rep-1") => `<?xml version="1.0" encoding="UTF-8" ?>
+const dmarcXml = (domain: string, id = "rep-1") => {
+  const today = ctx.deps.now();
+  const end = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()) / 1000 - 1;
+  const begin = end - 86_399;
+  return `<?xml version="1.0" encoding="UTF-8" ?>
 <feedback>
   <report_metadata><org_name>google.com</org_name><email>noreply-dmarc-support@google.com</email><report_id>${id}</report_id>
-    <date_range><begin>1792627200</begin><end>1792713599</end></date_range></report_metadata>
+    <date_range><begin>${begin}</begin><end>${end}</end></date_range></report_metadata>
   <policy_published><domain>${domain}</domain><adkim>r</adkim><aspf>r</aspf><p>none</p><sp>none</sp><pct>100</pct></policy_published>
   <record><row><source_ip>209.85.220.41</source_ip><count>40</count><policy_evaluated><disposition>none</disposition><dkim>pass</dkim><spf>pass</spf></policy_evaluated></row>
     <identifiers><header_from>${domain}</header_from></identifiers><auth_results><dkim><domain>${domain}</domain><result>pass</result></dkim><spf><domain>${domain}</domain><result>pass</result></spf></auth_results></record>
   <record><row><source_ip>45.83.12.9</source_ip><count>10</count><policy_evaluated><disposition>none</disposition><dkim>fail</dkim><spf>fail</spf></policy_evaluated></row>
     <identifiers><header_from>${domain}</header_from></identifiers><auth_results><spf><domain>spoof.example</domain><result>fail</result></spf></auth_results></record>
 </feedback>`;
+};
 
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
 let c: Client;

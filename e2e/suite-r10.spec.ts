@@ -116,7 +116,9 @@ test("a task set to repeat weekly makes the next one when done", async () => {
   await page.goto(`/app/tasks?task=${t.id}`);
   const panel = page.getByRole("dialog", { name: "Task" });
   await panel.getByRole("combobox", { name: "Repeat" }).selectOption("weekly");
-  await expect(panel.getByText(/Every week/)).toBeVisible();
+  const preview = panel.getByTestId("repeat-preview");
+  await expect(preview).toBeVisible();
+  await expect(preview).toHaveText(/^Every week on /);
   const before = ((await (await page.request.get(`/api/tasks?projectId=${t.projectId}`)).json()).tasks as { title: string }[]).filter((x) => x.title === t.title).length;
   await panel.getByRole("button", { name: "Mark as done" }).click();
   await expect.poll(async () => ((await (await page.request.get(`/api/tasks?projectId=${t.projectId}`)).json()).tasks as { title: string }[]).filter((x) => x.title === t.title).length).toBe(before + 1);

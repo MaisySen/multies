@@ -46,7 +46,7 @@ test("watch a task and duplicate it with its subtask and checklist", async ({ br
   expect(api).toMatchObject({ watching: true, count: 1 });
 
   // Duplicate from the More menu: the copy opens with its subtask and unticked checklist.
-  await page.getByRole("button", { name: "More" }).click();
+  await page.getByTestId("task-inspector").getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("menuitem", { name: "Duplicate task" }).click();
   await expect(page.getByText(/Duplicated as WEB-3 with 1 subtask and 2 checklist items/)).toBeVisible();
   await expect(page).toHaveURL(/task=tsk_/);

@@ -100,7 +100,7 @@ test("doc comments, shared link comments with review, and spell check", async ({
   await shot(page, "spell-dialog-1280-light");
   expect(await axe(page, "spell dialog", "[data-testid=spell-dialog]")).toEqual([]);
   await page.getByTestId("spell-fix-all").click();
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Doc body" })).toContainText("We will receive the files on Monday.");
   await expect(page.getByRole("textbox", { name: "Doc body" })).toHaveAttribute("spellcheck", "true");
   // Team comment with the keyboard.

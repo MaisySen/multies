@@ -167,8 +167,8 @@ for (const width of [390, 360] as const) {
     expect((await header.boundingBox())!.height).toBeLessThanOrEqual(110);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
     await page.getByRole("button", { name: "Project actions" }).click();
-    for (const name of ["Project settings", "Fields", "Guests", "Epics", "New project"]) await expect(page.getByRole("menuitem", { name })).toBeVisible();
-    await page.getByRole("menuitem", { name: "Fields" }).click();
+    for (const name of ["Project settings", "Fields", "Guests", "Epics", "New project"]) await expect(page.getByRole("menuitem", { name, exact: true })).toBeVisible();
+    await page.getByRole("menuitem", { name: "Fields", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
   });
 }

@@ -18,7 +18,9 @@ const variant=process.env.MNET_DEVELOPMENT_SETUP_CASE??"success";
 if (!/^[a-z0-9-]{1,48}$/.test(variant)) throw new Error("invalid development fixture case name");
 const dashboard=process.env.MNET_DEVELOPMENT_DASHBOARD==="1";
 const networkCase=variant.startsWith("network-tcp");
-const networkStopped=variant==="network-tcp-cancel"||variant==="network-tcp-expiry";
+const accessCheckFailure=variant==="network-tcp-registrar-unavailable";
+if (accessCheckFailure && !dashboard) throw new Error("registrar unavailability scenario requires the installed dashboard fixture");
+const networkStopped=variant==="network-tcp-cancel"||variant==="network-tcp-expiry"||accessCheckFailure;
 const displayUnavailable=["result-preexisting","result-write-failure","result-open-failure"].includes(variant);
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+60000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for atomic fixture IPC publication. */}if(done()||Date.now()>deadline)throw new Error("workflow fixture IPC timeout");await sleep(10);}}
@@ -117,6 +119,13 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     expect(timing.accessExpiresAtMS-timing.committedAtMS).toBeGreaterThan(0);
     expect(timing.accessExpiresAtMS-timing.committedAtMS).toBeLessThanOrEqual(15000);
     originalPeerExpiryMS=timing.accessExpiresAtMS;
+    if(variant==="network-tcp-expiry"){
+     // Keep the selected peer's original deadline distinguishable from the
+     // installed owner's later deadline. Leave both issued leases untouched.
+     const earliestReturn=timing.committedAtMS+2000;
+     if(earliestReturn>=originalPeerExpiryMS)throw new Error("peer lease is too short for an isolated expiry check");
+     await sleep(Math.max(0,earliestReturn-Date.now()));
+    }
     console.log("ORIGINAL PEER CLOCK",{...timing,observedAtMS:Date.now(),remainingMS:originalPeerExpiryMS-Date.now()});
     if(Date.now()>=originalPeerExpiryMS)throw new Error("original peer interval ended before native Return; no retry or renewal");
    }
@@ -152,6 +161,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     expect(await live.locator("#peers li").count()).toBeGreaterThan(0);
     await live.screenshot({path:join(artifacts,`mnet-live-dashboard-active-${variant}.png`),fullPage:true});
     if(variant==="network-tcp-cancel")await live.getByRole("button",{name:"Stop network",exact:true}).click();
+    if(accessCheckFailure)await writeFile(join(dir,"installed-fail-access-check"),"refuse the next authenticated map check",{mode:0o600});
     // This changes only the test observation deadline, never receipt lifetime.
     const observationTimeout=variant==="network-tcp-expiry"?Math.max(1000,Math.min(25000,originalPeerExpiryMS-Date.now()+10000)):10000;
     await live.getByRole("heading",{name:"Network ended",exact:true}).waitFor({timeout:observationTimeout}).catch(async error=>{
@@ -159,11 +169,16 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
      await live.screenshot({path:join(artifacts,"mnet-dashboard-timing-timeout.png"),fullPage:true});
      throw error;
     });
-    console.log("DASHBOARD ENDED CLOCK",{observedAtMS:Date.now(),originalPeerExpiryMS,afterOriginalExpiryMS:Date.now()-originalPeerExpiryMS});
+    const observedEndedAtMS=Date.now();
+    console.log("DASHBOARD ENDED CLOCK",{observedAtMS:observedEndedAtMS,originalPeerExpiryMS,afterOriginalExpiryMS:observedEndedAtMS-originalPeerExpiryMS});
     expect(await live.locator("#peers li").count()).toBe(0);
     expect(await live.getByRole("button",{name:"Stop network",exact:true}).isDisabled()).toBe(true);
-    if(variant==="network-tcp-expiry")await live.getByText("The original approved peer lease ended.",{exact:false}).waitFor();
     await live.screenshot({path:join(artifacts,`mnet-live-dashboard-ended-${variant}.png`),fullPage:true});
+    if(variant==="network-tcp-expiry"){
+     expect(await live.locator("#status").textContent()).toContain("The original approved peer lease ended.");
+     expect(observedEndedAtMS).toBeGreaterThanOrEqual(originalPeerExpiryMS);
+    }
+    if(accessCheckFailure)expect(await live.locator("#status").textContent()).toContain("Mnet could not confirm current access with the registrar");
    }
    if(!dashboard&&networkCase&&(!networkStopped||variant==="network-tcp-expiry")){
     let networkResult;
@@ -190,7 +205,7 @@ async function waitFile(path:string,done:()=>boolean){const deadline=Date.now()+
     if(variant==="map-failure")expect(outcome.nativeSavedBeforeFailure).toBe(true);
     console.log("PASS stopped actual installed browser",variant);return;
   }
-  if(networkStopped){expect(outcome).toMatchObject({developmentInstalled:true,networkTCPVerified:true,networkStopped:true,nativeSavedBeforeFailure:true,inputAuthorized:false});expect(exchangeCalls).toBe(3);expect(reserveCalls).toBe(3);console.log("PASS installed network active stop",variant);return;}
+  if(networkStopped){expect(outcome).toMatchObject({developmentInstalled:true,networkTCPVerified:true,networkStopped:true,nativeSavedBeforeFailure:true,inputAuthorized:false,accessCheckFailed:accessCheckFailure});expect(exchangeCalls).toBe(3);expect(reserveCalls).toBe(3);console.log("PASS installed network active stop",variant);return;}
   expect(outcome).toMatchObject({developmentInstalled:true,nativeOwnedKeyConfirmed:true,nativeProofStateUnchanged:true,nativeStateFinalized:true,nodeDeleted:true,inputAuthorized:false});
   expect(outcome.nativeCurrentPeers).toBeGreaterThanOrEqual(0);
   expect(exchangeCalls).toBe(3);expect(reserveCalls).toBe(3);expect(reserveStatus).toBe(200);

@@ -47,7 +47,7 @@ test.describe("Archive older mail (MB-137)", () => {
     await demo(page);
     const mailboxId = await seedOld(page, "r45old", 6);
     await page.goto(`/app/mail?mailbox=${mailboxId}`);
-    const open = page.getByRole("button", { name: "Archive older" });
+    const open = page.getByTestId("archive-older");
     await expect(open).toBeVisible({ timeout: 20_000 });
     await open.focus();
     await page.keyboard.press("Enter");
@@ -82,7 +82,7 @@ test.describe("Archive older mail at phone width (MB-137)", () => {
       await demo(page);
       const mailboxId = await seedOld(page, `r45ph${theme}`, 3);
       await page.goto(`/app/mail?mailbox=${mailboxId}`);
-      await page.getByRole("button", { name: "Archive older" }).click({ timeout: 20_000 });
+      await page.getByTestId("archive-older").click({ timeout: 20_000 });
       const sheet = page.getByRole("dialog", { name: "Archive older mail" });
       await expect(sheet).toBeVisible();
       await sheet.getByText("1 year").click();
