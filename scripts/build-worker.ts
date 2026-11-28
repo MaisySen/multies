@@ -18,9 +18,11 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { appCsp, securityHeaders } from "../src/server/lib/security-headers";
+import { sealWorkerRelease } from "./verify-worker-release.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const out = path.join(root, "dist/worker");
+const sealPath = path.join(root, "dist/worker-release.json");
 const profile = process.argv.includes("--profile") ? process.argv[process.argv.indexOf("--profile") + 1] : "default";
 
 const release = process.env.RELEASE ?? process.env.GITHUB_SHA?.slice(0, 12) ?? gitSha();
@@ -64,6 +66,7 @@ for (const file of secretFiles) {
 if (secretFiles.length) console.log(`secrets: ${Object.keys(secrets).join(", ") || "none found"}`);
 
 if (!existsSync(path.join(root, "dist/web/index.html"))) throw new Error("Run `npm run build:web` first.");
+rmSync(sealPath, { force: true });
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 cpSync(path.join(root, "dist/web"), out, { recursive: true });
@@ -204,4 +207,11 @@ writeFileSync(path.join(out, "tab-site.json"), JSON.stringify({
     assets_binding: "ASSETS",
   },
 }, null, 2));
-console.log(`worker built (${profile}) at ${path.relative(root, out)}`);
+const seal = sealWorkerRelease({
+  workerDir: out,
+  sealPath,
+  release,
+  profile,
+  htmlShells: [shellHtml, landingHtml, authHtml],
+});
+console.log(`worker built (${profile}) at ${path.relative(root, out)} (sealed ${Object.keys(seal.files).length} files, ${seal.bootReferences.length} boot refs -> ${path.relative(root, sealPath)})`);

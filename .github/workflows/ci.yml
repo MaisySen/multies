@@ -134,22 +134,23 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Build (release = commit)
+      - name: Build and seal release (release = commit)
         run: |
           echo "RELEASE=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
-          RELEASE=${GITHUB_SHA::12} npm run build:web
-          RELEASE=${GITHUB_SHA::12} npm run build:worker
+          RELEASE=${GITHUB_SHA::12} npm run build:release
       - name: Sentry release and source maps
         if: env.SENTRY_AUTH_TOKEN != ''
         run: |
           npx --yes @sentry/cli@2 releases new "$RELEASE" -p mymail-api -p mymail-web
           npx --yes @sentry/cli@2 sourcemaps upload --release "$RELEASE" -p mymail-web dist/web/assets
           npx --yes @sentry/cli@2 sourcemaps upload --release "$RELEASE" -p mymail-api dist/worker/_worker.js dist/worker/_worker.js.map
-      - name: Apply database migrations (staging)
-        run: npx wrangler d1 migrations apply mymail-staging --remote --env staging
       # R58: keep the live release's /assets files beside the new ones, so a tab opened before the deploy still loads.
       - name: Carry the previous release's assets (staging)
         run: node scripts/carry-assets.mjs https://mymail-staging.mymail-app.workers.dev dist/worker/assets
+      - name: Verify sealed Worker release (staging)
+        run: npm run verify:worker -- --release "$RELEASE"
+      - name: Apply database migrations (staging)
+        run: npx wrangler d1 migrations apply mymail-staging --remote --env staging
       - name: Deploy to staging
         run: npx wrangler deploy --env staging --var RELEASE:$RELEASE
       - name: Smoke test staging
@@ -188,10 +189,12 @@ jobs:
           name: worker-build
           path: dist/
       - run: echo "RELEASE=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
-      - name: Apply database migrations (idempotent, before the new code goes live)
-        run: npx wrangler d1 migrations apply mymail-au --remote
       - name: Carry the previous release's assets (production)
         run: node scripts/carry-assets.mjs https://multies.si dist/worker/assets
+      - name: Verify promoted Worker release seal (production)
+        run: npm run verify:worker -- --release "$RELEASE"
+      - name: Apply database migrations (idempotent, before the new code goes live)
+        run: npx wrangler d1 migrations apply mymail-au --remote
       - name: Deploy the app (Workers + D1)
         run: |
           test -f dist/worker/.assetsignore || { echo "dist/worker/.assetsignore is missing from the promoted build"; exit 1; }
