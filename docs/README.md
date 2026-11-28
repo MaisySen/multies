@@ -4,6 +4,7 @@
 | --- | --- |
 | What changed per release | [../CHANGELOG.md](../CHANGELOG.md) |
 | How it fits together | [architecture.md](architecture.md), [architecture/queues.md](architecture/queues.md) |
+| How the interface is styled: tokens, type, spacing, motion, accessibility | [design/design-system.md](design/design-system.md), [design/premium-pass-2.md](design/premium-pass-2.md) |
 | REST, MCP and webhooks | [api.md](api.md), [MCP.md](MCP.md), [suite.md](suite.md) |
 | How we build and release | [sdlc.md](sdlc.md) |
 | Tests and how to run them | [testing.md](testing.md) |

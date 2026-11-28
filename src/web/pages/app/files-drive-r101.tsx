@@ -573,7 +573,7 @@ function PreviewPanel({ id, trashed, onClose, onShare, isAdmin, onChanged }: { i
   const restoreV = useMutation({ mutationFn: (vid: string) => api.post(`/drive/items/${encodeURIComponent(id)}/versions/${encodeURIComponent(vid)}/restore`), onSuccess: () => { toast.success(tr("files.version_restored")); reload(); }, onError: (e) => showError(e) });
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={it ? it.name : tr("nav.file")} data-testid="drive-preview">
-      <button type="button" aria-label={tr("files.close")} className="absolute inset-0 bg-black/30 motion-safe:animate-in motion-safe:fade-in" onClick={onClose} tabIndex={-1} />
+      <button type="button" aria-label={tr("files.close")} className="absolute inset-0 bg-black/30 motion-safe:animate-fade-in" onClick={onClose} tabIndex={-1} />
       <div ref={panel} tabIndex={-1} className="relative flex h-full w-full flex-col bg-surface shadow-xl outline-none sm:w-[min(640px,92vw)] sm:border-l sm:border-line">
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           {it && <span className="text-muted">{iconFor(it)}</span>}

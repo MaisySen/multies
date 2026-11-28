@@ -20,7 +20,7 @@ export function TriageCommentBar({ mode, busy, onSubmit, onCancel, onMore }: {
   const accept = mode === "accept";
   return (
     <form data-testid="triage-comment" data-mode={mode}
-      className="flex flex-wrap items-center gap-2 border-t border-line bg-hover/40 px-5 py-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
+      className="flex flex-wrap items-center gap-2 border-t border-line bg-hover/40 px-5 py-3 motion-safe:animate-fade-in"
       onSubmit={(e) => { e.preventDefault(); if (!busy) onSubmit(text.trim()); }}>
       <span className={cn("inline-flex items-center gap-1 text-[13px] font-medium", accept ? "text-brand-hover" : "text-bad")}>
         {accept ? <IconCheck className="h-4 w-4" aria-hidden /> : <IconClose className="h-4 w-4" aria-hidden />}{accept ? "Accept" : "Decline"}
