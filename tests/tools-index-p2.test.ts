@@ -37,6 +37,9 @@ function fakeWorld() {
     if (url.hostname === "api.cloudflare.com") {
       return Response.json({ data: { viewer: { accounts: [{ d1AnalyticsAdaptiveGroups: [{ sum: { rowsWritten: reading.rowsWritten, rowsRead: reading.rowsRead }, dimensions: { databaseId: "db1", datetimeHour: "x" } }] }] } } });
     }
+    if (url.hostname === "api.pwnedpasswords.com") {
+      return new Response("", { status: 200 });
+    }
     const h = new Headers(init?.headers);
     const method = init?.method ?? "GET";
     const pathQs = url.pathname + url.search;
