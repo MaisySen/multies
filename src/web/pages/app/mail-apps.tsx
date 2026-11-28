@@ -24,6 +24,9 @@ const securityLabel = (s: Endpoint["security"]) => (s === "ssl" ? "SSL/TLS" : "S
 export function MailAppsSettings() {
   const access = useQuery({ queryKey: ["mail-access"], queryFn: () => api.get<MailAccess>("/mail-access") });
   if (access.isPending) return <Skeleton className="h-48" />;
+  if (access.isError && !access.data) {
+    return <Section title="Mail apps" description="Outlook, Apple Mail, Thunderbird and phone apps."><LoadError compact onRetry={() => access.refetch()} /></Section>;
+  }
   if (!access.data?.enabled) return <NotConnected missing={access.data?.missing ?? []} />;
   return <Connected access={access.data} />;
 }

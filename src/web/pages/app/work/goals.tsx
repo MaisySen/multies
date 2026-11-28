@@ -11,6 +11,7 @@ import { useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { HEALTH, type Health } from "./portfolio";
 
 interface KeyResult { id: string; name: string; kind: "number" | "currency" | "percent" | "tasks"; unit: string; start: number; target: number; current: number; projectId: string | null; tasks: { total: number; done: number } | null; progress: number }
@@ -94,7 +95,9 @@ export function GoalsPage() {
       {dialogs}
       <PageHeader title="Goals" description="Set goals with key results. Progress moves on its own as linked tasks are done, and rolls up into bigger goals."
         actions={<Button size="sm" onClick={() => setCreating({})}><IconPlus className="h-4 w-4" />New goal</Button>} />
-      {q.isPending ? <Skeleton className="h-64" /> : !q.data?.goals.length ? (
+      {q.isPending ? <Skeleton className="h-64" /> : q.isError && !q.data ? (
+        <Card><LoadError onRetry={() => q.refetch()} /></Card>
+      ) : !q.data?.goals.length ? (
         <EmptyState icon={<IconTarget />} title="No goals yet" body="Try one goal for this quarter with two or three key results, for example monthly revenue in AUD and a project's tasks." action={<Button size="sm" onClick={() => setCreating({})}>New goal</Button>} />
       ) : (
         <>

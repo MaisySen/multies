@@ -188,6 +188,7 @@ export function WebmailPage() {
   const [sel, setSel] = useState<Selection>(emptySelection);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<BulkCall | null>(null);
+  const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const rowIds = useMemo(() => items.map((m) => m.id), [items]);
   // R43 (MB-210): with Load more a folder can reach thousands of rows; only the rows on screen are rendered.
   const mailListRef = useRef<HTMLUListElement>(null);
@@ -517,7 +518,7 @@ export function WebmailPage() {
           {label ? <span className="inline-flex min-w-0 items-center gap-1.5" data-testid="label-view"><IconTag className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="truncate">{label}</span>
             <button type="button" onClick={() => setParam({ label: null, m: null })} className="grid h-6 w-6 place-items-center rounded hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label={tr("mail.clear_label")}><IconClose className="h-3 w-3" /></button></span>
           : <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>}
-          {canChange && folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>{tr("mail.empty_trash")}</button>}
+          {canChange && folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => setConfirmEmptyTrash(true)}>{tr("mail.empty_trash")}</button>}
           {canChange && archiveOlderOffered({ folder, q, loaded: items.length, inboxTotal: mb.folders.inbox?.total ?? 0 }) && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
             className="-my-1.5 -mr-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11">
             <IconArchive className="h-3.5 w-3.5" />{tr("mail.archive_older")}</button>}
@@ -646,14 +647,23 @@ export function WebmailPage() {
         footer={<><Button variant="secondary" onClick={() => setConfirmDelete(null)}>{tr("common.cancel")}</Button><Button variant="danger" data-testid="bulk-delete-confirm" onClick={() => { const c = confirmDelete; setConfirmDelete(null); if (c) runBulk({ action: "delete" }, undefined, true); }}>{tr("mail.delete_forever")}</Button></>}>
         <span className="sr-only">{tr("mail.confirm")}</span>
       </Dialog>
+      <Dialog open={confirmEmptyTrash} onClose={() => setConfirmEmptyTrash(false)} title="Empty trash forever?"
+        description="This permanently deletes the loaded messages in Trash and cannot be undone."
+        footer={<><Button variant="secondary" onClick={() => setConfirmEmptyTrash(false)}>{tr("common.cancel")}</Button><Button variant="danger" data-testid="empty-trash-confirm" onClick={() => { setConfirmEmptyTrash(false); act.mutate({ ids: items.map((i) => i.id), action: "delete" }); }}>{tr("mail.delete_forever")}</Button></>}>
+        <span className="sr-only">{tr("mail.confirm")}</span>
+      </Dialog>
       {splitsOn && <EditSplitsDialog open={editSplits} onClose={() => setEditSplits(false)} mailboxId={mailboxId} splits={splits.data?.splits ?? []} tabs={splitTabs} style={splits.data?.style} />}
       {compose && <Compose key={JSON.stringify(compose).length + compose.subject} initial={compose} mailboxes={mailboxes} onClose={closeCompose} />}
     </div>
   );
 
   async function openDraft(id: string) {
-    const { message } = await api.get<{ message: Message }>(`/mail/messages/${id}`);
-    setCompose({ mailboxId: message.mailboxId, to: message.to.map((a) => a.address).join(", "), cc: message.cc.map((a) => a.address).join(", "), subject: message.subject, text: message.text, draftId: message.id, threadId: message.threadId });
+    try {
+      const { message } = await api.get<{ message: Message }>(`/mail/messages/${id}`);
+      setCompose({ mailboxId: message.mailboxId, to: message.to.map((a) => a.address).join(", "), cc: message.cc.map((a) => a.address).join(", "), subject: message.subject, text: message.text, draftId: message.id, threadId: message.threadId });
+    } catch (e) {
+      showError(e instanceof Error ? e : new Error("Could not open draft"));
+    }
   }
 }
 

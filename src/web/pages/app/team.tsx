@@ -337,15 +337,23 @@ function RemoveDialog({ open, onClose, member, self }: { open: boolean; onClose:
 
 function TransferDialog({ open, onClose, member }: { open: boolean; onClose: () => void; member: TeamMember }) {
   const qc = useQueryClient();
+  const hasPassword = useMe().data?.hasPassword !== false;
   const [password, setPassword] = useState("");
   const transfer = useMutation({
-    mutationFn: () => api.post("/team/transfer", { userId: member.userId, password }),
+    mutationFn: () => api.post("/team/transfer", { userId: member.userId, password: hasPassword ? password : "" }),
     onSuccess: () => { qc.invalidateQueries(); toast.success(`${member.name} now owns this workspace`); onClose(); },
   });
   return (
     <Dialog open={open} onClose={onClose} title={`Make ${member.name} the owner?`} description="You'll become an admin. Only the new owner can change billing or transfer ownership again."
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={transfer.isPending} disabled={!password} onClick={() => transfer.mutate()}>Transfer ownership</Button></>}>
-      <Field label="Confirm with your password" error={transfer.error?.message}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={transfer.isPending} disabled={hasPassword && !password} onClick={() => transfer.mutate()}>Transfer ownership</Button></>}>
+      {hasPassword ? (
+        <Field label="Confirm with your password" error={transfer.error?.message}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
+      ) : (
+        <div className="space-y-2 text-sm">
+          <p className="text-muted">You signed in with your identity provider, so no password is needed.</p>
+          {transfer.error && <p role="alert" className="text-bad">{transfer.error.message}</p>}
+        </div>
+      )}
     </Dialog>
   );
 }

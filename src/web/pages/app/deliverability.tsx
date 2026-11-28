@@ -8,6 +8,7 @@ import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
@@ -47,6 +48,7 @@ export function DeliverabilityPage() {
 function HealthSection() {
   const q = useQuery({ queryKey: ["deliverability", "health"], queryFn: async () => (await api.get<{ domains: Health[] }>("/deliverability/health")).domains });
   if (q.isPending) return <Skeleton className="h-56" />;
+  if (q.isError && !q.data) return <Card><LoadError onRetry={() => q.refetch()} /></Card>;
   if (!q.data?.length) {
     return <Card><EmptyState icon={<IconShieldCheck className="h-5 w-5" />} title="No domains yet" body="Add a domain and its health score shows up here." action={<ButtonLink to={appHref("/app/domains")} size="sm">Add a domain</ButtonLink>} /></Card>;
   }

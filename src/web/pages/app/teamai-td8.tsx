@@ -115,7 +115,7 @@ export function AiStatus({ s }: { s: TeamAiState }) { // exported for tests (QUA
           <Badge tone={left === 0 ? "warn" : "neutral"}>{left} of {s.ai.freeLimit} free runs left {when}</Badge>
         </div>
         <p className="mt-1 text-[13px] text-muted">Your workspace has no AI key of its own, so Team AI uses free built in AI with a {s.ai.freePeriod === "week" ? "weekly" : "daily"} limit. It is never charged. Ask in any channel: type <span className="font-mono text-fg">@assistant</span> and your question.{left === 0 ? (s.ai.freePeriod === "week" ? " This week's free runs are used up; they come back on Monday." : " Today's free runs are used up; they come back tomorrow.") : ""}</p>
-        {s.isAdmin && <Link to="/app/settings" className="mt-2 inline-flex min-h-9 items-center text-[13px] font-medium text-brand-hover hover:underline">Add your own key for unlimited use</Link>}
+        {s.isAdmin && <Link to={AI_KEY_FIX_PATH} className="mt-2 inline-flex min-h-9 items-center text-[13px] font-medium text-brand-hover hover:underline">Add your own key for unlimited use</Link>}
       </Card>
     );
   }
@@ -124,7 +124,7 @@ export function AiStatus({ s }: { s: TeamAiState }) { // exported for tests (QUA
       <Card className="mb-4 p-4" data-testid="teamai-no-key" role="status">
         <p className="text-[14px] font-semibold text-fg">Connect your own AI key</p>
         <p className="mt-1 text-[13px] text-muted">Team AI runs only on your workspace's own key (OpenAI, Anthropic, OpenRouter or Groq). Until one is connected, nothing runs and nothing is charged.</p>
-        {s.isAdmin && <Link to="/app/settings" className="mt-2 inline-flex min-h-9 items-center text-[13px] font-medium text-brand-hover hover:underline">Add a key in Settings</Link>}
+        {s.isAdmin && <Link to={AI_KEY_FIX_PATH} className="mt-2 inline-flex min-h-9 items-center text-[13px] font-medium text-brand-hover hover:underline">Add a key in Settings</Link>}
       </Card>
     );
   }

@@ -19,6 +19,7 @@ import { AvatarTile, PlainStatusPill } from "@/web/components/premium5-r39";
 import { connectionStatus } from "@/web/lib/premium5-r39";
 import { MailboxSyncProgress } from "@/web/components/mail-sync-progress";
 import { MailboxPrivacyPanel } from "@/web/components/mailbox-privacy-priv1a"; // PRIV1a
+import { LoadError } from "@/web/components/load-error-t1g";
 import { t } from "@/web/i18n";
 
 const STATUS: Record<ConnectionView["status"], { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
@@ -43,6 +44,7 @@ export function ConnectionsSettings() {
   }, [params, setParams]);
 
   if (info.isPending) return <Skeleton className="h-48" />;
+  if (info.isError && !info.data) return <Card><LoadError onRetry={() => info.refetch()} /></Card>;
   if (!info.data?.enabled) {
     return <Section title="Mail accounts" description="Use a mailbox you already have inside Multies."><p className="text-sm text-muted">Connecting an existing mailbox isn't switched on for this server.</p></Section>;
   }
@@ -128,6 +130,9 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
   });
   const s = c.status === "active" && !c.initialDone ? { label: "Copying recent mail", tone: "brand" as const } : STATUS[c.status];
   const plain = connectionStatus(c.status);
+  const oauthProvider = c.authKind === "oauth"
+    ? (c.provider === "gmail" || c.provider === "google_workspace" ? "google" : c.provider === "outlook" || c.provider === "microsoft365" ? "microsoft" : null)
+    : null;
   return (
     <Card className="p-4 transition-shadow duration-200 hover:shadow-[var(--shadow-e2)] motion-reduce:transition-none" data-testid="connection-row">
       <div className="flex items-start gap-3">
@@ -149,7 +154,9 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
           <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync now ${c.email}`}><IconRefresh className="h-4 w-4" />Sync now</Button>
           {c.sample
             ? <Button size="sm" variant={c.status === "active" ? "secondary" : "primary"} loading={resetSample.isPending} onClick={() => resetSample.mutate()} data-testid="sample-reconnect"><IconRefresh className="h-4 w-4" />Reconnect</Button>
-            : <Button size="sm" variant={c.status === "auth_failed" ? "primary" : "secondary"} onClick={() => { setError(null); setReconnecting(true); }}><IconKey className="h-4 w-4" />Reconnect</Button>}
+            : oauthProvider
+              ? <a href={`/api/connections/oauth/${oauthProvider}/start`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium hover:bg-hover"><IconRefresh className="h-4 w-4" />Reconnect</a>
+              : <Button size="sm" variant={c.status === "auth_failed" ? "primary" : "secondary"} onClick={() => { setError(null); setReconnecting(true); }}><IconKey className="h-4 w-4" />Reconnect</Button>}
           <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} aria-label={`Remove ${c.email}`}><IconTrash className="h-4 w-4" />Remove</Button>
           </div>
         </div>

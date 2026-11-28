@@ -62,7 +62,7 @@ function FeedSection() {
   const url = fresh?.url;
   return (
     <Section id="calendar-feed" title={tr("calendar.subscribe_in_google_calendar_apple_calendar_or_o")} description={tr("calendar.your_meetings_and_the_due_dates_of_your_tasks_in")}>
-      {!f ? null : !f.enabled ? (
+      {feed.isPending ? <SkeletonRows rows={2} /> : feed.isError && !f ? <LoadErrorInline onRetry={() => feed.refetch()} /> : !f ? null : !f.enabled ? (
         <div className="flex flex-col items-start gap-3">
           <p className="text-sm text-muted">{tr("calendar.turn_on_a_private_calendar_address_just_for_you")}</p>
           <Button onClick={() => make.mutate()} loading={make.isPending}><IconCalendarDays className="size-4" />{tr("calendar.turn_on_calendar_feed")}</Button>

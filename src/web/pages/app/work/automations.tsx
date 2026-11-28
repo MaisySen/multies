@@ -7,6 +7,7 @@ import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Card, EmptyState, Meter, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { timeAgo } from "@/web/lib/format";
 import { useAssignees, useProjects, isAgentLike } from "./data";
 import { AssignThreadFields, describeAssign, MailboxField, usePeopleNames } from "./automation-assign";
@@ -47,6 +48,7 @@ export function AutomationsPage({ embedded }: { embedded?: boolean } = {}) {
   const names = usePeopleNames();
   const q = useQuery({ queryKey: ["automations"], queryFn: () => api.get<{ automations: Rule[]; recipes: Recipe[]; usage: { used: number; limit: number } }>("/automations") });
   const [editing, setEditing] = useState<Partial<Rule> | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Rule | null>(null);
   const [tab, setTab] = useState<"rules" | "recipes">("rules");
   const refresh = () => qc.invalidateQueries({ queryKey: ["automations"] });
   const toggle = async (r: Rule) => { try { await api.patch(`/automations/${r.id}`, { enabled: !r.enabled }); await refresh(); } catch (e) { showError(e as Error); } };
@@ -62,7 +64,7 @@ export function AutomationsPage({ embedded }: { embedded?: boolean } = {}) {
       </div>
         {embedded && <Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><IconPlus className="h-4 w-4" />New rule</Button>}
       </div>
-      {tab === "recipes" ? <RecipesTab rules={q.data?.automations ?? []} onEditRule={(r) => setEditing(r as Rule)} /> : q.isPending ? <Skeleton className="h-40" /> : (
+      {tab === "recipes" ? <RecipesTab rules={q.data?.automations ?? []} onEditRule={(r) => setEditing(r as Rule)} /> : q.isPending ? <Skeleton className="h-40" /> : q.isError && !q.data ? <Card><LoadError onRetry={() => q.refetch()} /></Card> : (
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div>
             {!q.data!.automations.length ? <Card><EmptyState icon={<IconZap />} title="No rules yet" body="Start from a recipe on the right, or write your own." /></Card> : (
@@ -75,7 +77,7 @@ export function AutomationsPage({ embedded }: { embedded?: boolean } = {}) {
                       <p className="mt-0.5 text-[13px] text-muted">{describe(r, names)}</p>
                       <p className="mt-1 text-[12px] text-subtle">Ran {r.runCount} {r.runCount === 1 ? "time" : "times"}{r.lastRunAt && `, last ${timeAgo(r.lastRunAt)}`}{r.lastError && <span className="text-bad"> · {r.lastError}</span>}</p>
                     </button>
-                    <button onClick={() => void remove(r)} className="rounded p-1 text-subtle hover:text-bad" aria-label={`Delete ${r.name}`}><IconTrash className="h-4 w-4" /></button>
+                    <button onClick={() => setConfirmDelete(r)} className="rounded p-1 text-subtle hover:text-bad" aria-label={`Delete ${r.name}`}><IconTrash className="h-4 w-4" /></button>
                   </div>
                 ))}
               </Card>
@@ -100,6 +102,11 @@ export function AutomationsPage({ embedded }: { embedded?: boolean } = {}) {
         </div>
       )}
       {editing && <RuleDialog rule={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />}
+      <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title={`Delete ${confirmDelete?.name ?? "rule"}?`}
+        description="This stops the automation rule immediately and cannot be undone."
+        footer={<><Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button><Button variant="danger" onClick={() => { const r = confirmDelete; setConfirmDelete(null); if (r) void remove(r); }}>Delete</Button></>}>
+        <span />
+      </Dialog>
     </div>
   );
 }

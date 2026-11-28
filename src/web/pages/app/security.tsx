@@ -125,6 +125,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
 
 function TwoFactorSection() {
   const sec = useSecurity();
+  const hasPassword = useMe().data?.hasPassword !== false;
   const qc = useQueryClient();
   const [setup, setSetup] = useState<{ uri: string; secret: string; backupCodes: string[] } | null>(null);
   const [code, setCode] = useState("");
@@ -166,6 +167,10 @@ function TwoFactorSection() {
             <Button variant="secondary" onClick={() => setPwFor("regenerate")}><IconKey className="h-4 w-4" />New backup codes</Button>
             <Button variant="ghost" onClick={() => setPwFor("disable")}>Turn off</Button>
           </div>
+        </div>
+      ) : !hasPassword ? (
+        <div className="max-w-md">
+          <p className="text-sm text-muted">Your account signs in through your identity provider. Manage two-factor authentication there, or add a passkey below.</p>
         </div>
       ) : (
         <div className="max-w-md">

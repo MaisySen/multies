@@ -181,7 +181,9 @@ export function BillingSettings() {
             <IconWarning className="h-4 w-4 shrink-0" />
             {b.dunning.sendingPaused
               ? "Sending is paused because the last payment didn't go through. Receiving still works. Update your card to resume sending."
-              : `Your last payment didn't go through. Everything keeps working until ${new Date(b.dunning.graceEndsAt!).toLocaleDateString(LOCALE, { dateStyle: "long", timeZone: tz() })}; update your card before then.`}
+              : b.dunning.graceEndsAt
+                ? `Your last payment didn't go through. Everything keeps working until ${new Date(b.dunning.graceEndsAt).toLocaleDateString(LOCALE, { dateStyle: "long", timeZone: tz() })}; update your card before then.`
+                : "Your last payment didn't go through. Update your card to keep everything working."}
           </p>
         )}
         {sub?.status === "past_due" && !b.dunning && (

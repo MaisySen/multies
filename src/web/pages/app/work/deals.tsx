@@ -11,7 +11,8 @@ import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
-import { EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { cn } from "@/web/lib/cn";
 import { aud } from "./contacts";
 import type { Contact } from "./data";
@@ -96,7 +97,9 @@ export function DealsPage() {
       <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-fg max-sm:mb-1 max-sm:min-h-11"><IconArrowLeft className="h-3.5 w-3.5" />{tr("nav.contacts")}</Link>
       <PageHeader title={tr("nav.deals")} description={q.data ? tr("contacts.open_in_pipeline", { amount: aud(open) }) : tr("contacts.your_sales_pipeline")} actions={<>{invoicesOn && <Link to="/app/contacts/invoices" className="inline-flex h-9 max-sm:h-11 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconReceipt className="h-4 w-4" />{tr("contacts.invoices")}</Link>}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />{tr("contacts.new_deal")}</Button></>} />
       {crm.on && !!q.data?.deals.length && <ForecastStrip />}
-      {q.isPending ? <Skeleton className="h-64" /> : !q.data?.deals.length ? (
+      {q.isPending ? <Skeleton className="h-64" /> : q.isError && !q.data ? (
+        <Card><LoadError onRetry={() => q.refetch()} /></Card>
+      ) : !q.data?.deals.length ? (
         <EmptyState icon={<IconHandshake />} title={tr("contacts.no_deals_yet_2")} body="Add a deal from a contact, or here. Drag deals across stages as they move." action={<Button onClick={() => setAdding(true)}>{tr("contacts.new_deal")}</Button>} />
       ) : (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>

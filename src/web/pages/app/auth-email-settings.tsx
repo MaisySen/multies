@@ -11,6 +11,7 @@ import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { showError } from "@/web/lib/show-error";
 import { CopyButton, Skeleton, Switch } from "@/web/components/ui/misc";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
@@ -113,6 +114,7 @@ function AuthEmailSettingsForm() {
     onError: showError,
   });
 
+  if (q.isError && !draft) return <Section id="sign-up-emails" title="Sign-up emails" description="Your app's sign-up confirmation, password reset and magic link emails."><LoadError compact onRetry={() => q.refetch()} /></Section>;
   if (q.isPending || !draft) return <Skeleton className="h-64" />;
   const s = q.data?.settings ?? null;
   const senders = q.data?.senders ?? [];

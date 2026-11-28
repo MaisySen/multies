@@ -319,19 +319,36 @@ function DangerZone() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
+  const [confirmWord, setConfirmWord] = useState("");
+  const hasPassword = me.data?.hasPassword !== false;
   const del = useMutation({
-    mutationFn: () => api.del<{ remaining: boolean }>("/account/workspace", { password }),
+    mutationFn: () => api.del<{ remaining: boolean }>("/account/workspace", hasPassword ? { password } : {}),
     onSuccess: () => { qc.clear(); toast.success(tr("settings.workspace_deleted")); navigate("/app"); },
   });
+  const needsReauth = del.error instanceof ApiError && del.error.code === "reauth_required";
   if (me.data?.organization?.role !== "owner") return null;
   return (
     <Section title={tr("settings.danger_zone")} description={tr("settings.deleting_a_workspace_removes_its_domains_mailbox")}>
       <Button variant="danger" onClick={() => setOpen(true)}><IconTrash className="h-4 w-4" />{tr("settings.delete_workspace")}</Button>
-      <Dialog open={open} onClose={() => setOpen(false)} title={`Delete ${me.data.organization.name}?`} description={tr("settings.everything_in_this_workspace_is_permanently_dele")}
-        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>{tr("common.cancel")}</Button><Button variant="danger" loading={del.isPending} disabled={!password} onClick={() => del.mutate()}>{tr("settings.delete_workspace")}</Button></>}>
-        <Field label={tr("settings.confirm_with_your_password")} error={del.error instanceof ApiError ? del.error.message : undefined}>
-          {(p) => <Input {...p} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}
-        </Field>
+      <Dialog open={open} onClose={() => { setOpen(false); del.reset(); }} title={`Delete ${me.data.organization.name}?`} description={tr("settings.everything_in_this_workspace_is_permanently_dele")}
+        footer={<><Button variant="secondary" onClick={() => { setOpen(false); del.reset(); }}>{tr("common.cancel")}</Button><Button variant="danger" loading={del.isPending} disabled={hasPassword ? !password : confirmWord !== "DELETE"} onClick={() => del.mutate()}>{tr("settings.delete_workspace")}</Button></>}>
+        <div className="space-y-3">
+          {del.error instanceof ApiError && (
+            <div role="alert" className="rounded-lg border border-bad/25 bg-bad-soft px-3 py-2.5 text-sm text-bad">
+              {del.error.message}
+              {needsReauth && <> <a href="/login?next=/app/settings" className="font-medium underline underline-offset-2">{tr("settings.sign_in_again")}</a></>}
+            </div>
+          )}
+          {hasPassword ? (
+            <Field label={tr("settings.confirm_with_your_password")}>
+              {(p) => <Input {...p} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}
+            </Field>
+          ) : (
+            <Field label={tr("settings.type_delete_to_confirm")} hint={tr("settings.you_signed_in_with_multies_sign_in_so_there_s_no")}>
+              {(p) => <Input {...p} autoComplete="off" autoCapitalize="characters" value={confirmWord} onChange={(e) => setConfirmWord(e.target.value)} />}
+            </Field>
+          )}
+        </div>
       </Dialog>
     </Section>
   );
@@ -482,11 +499,15 @@ function InboundSection() {
           </div>
         </Step>
         <Step n={3} title={tr("settings.deploy_the_email_worker")}>
-          From the repository's <code className="font-mono text-[12.5px]">email-worker/</code> folder, set the webhook URL and key, then route your catch-all to the worker.
-          <pre tabIndex={0} aria-label={tr("settings.email_worker_settings")} className="mt-2 overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/85">{`MULTIES_WEBHOOK_URL = "${webhook}"
+          <p>Route your domain catch-all to the Multies inbound email handler so incoming messages arrive in your mailboxes.</p>
+          <details className="mt-2 rounded-lg border border-line bg-elevated/40 px-3 py-2 text-xs">
+            <summary className="cursor-pointer font-medium text-fg">Self-hosted and operator worker setup</summary>
+            <p className="mt-2 text-muted">From the <code className="font-mono text-[12px]">email-worker/</code> folder, set the webhook URL and key, then route your catch-all to the worker.</p>
+            <pre tabIndex={0} aria-label={tr("settings.email_worker_settings")} className="mt-2 overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/85">{`MULTIES_WEBHOOK_URL = "${webhook}"
 MULTIES_KEY_ID      = "${keys.data?.[0]?.id ?? "ink_…"}"
 npx wrangler deploy
 npx wrangler secret put MULTIES_KEY_SECRET`}</pre>
+          </details>
         </Step>
       </ol>
       <Dialog open={!!created} onClose={() => setCreated(null)} title={tr("settings.your_new_signing_key")} description={tr("settings.copy_the_secret_now_it_won_t_be_shown_again")}
@@ -563,14 +584,18 @@ export function AccountSection() {
   const delError = del.error instanceof Error ? del.error : null;
   const needsReauth = del.error instanceof ApiError && del.error.code === "reauth_required";
   return (
-    <Section title={tr("common.password")} description={tr("settings.changing_it_signs_you_out_on_every_other_device")}>
-      <form className="max-w-md space-y-3" onSubmit={(e) => { e.preventDefault(); setFields({}); change.mutate(); }}>
-        <Field label={tr("settings.current_password")} error={fields.currentPassword}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}</Field>
-        <Field label={tr("settings.new_password")} hint={tr("settings.at_least_10_characters")} error={fields.newPassword}>{(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" variant="secondary" loading={change.isPending} disabled={!current || next.length < 10}>{tr("settings.update_password")}</Button>
-        </div>
-      </form>
+    <Section title={hasPassword ? tr("common.password") : "Sign-in and account"} description={hasPassword ? tr("settings.changing_it_signs_you_out_on_every_other_device") : "You signed in through your identity provider, so your password is managed there."}>
+      {hasPassword ? (
+        <form className="max-w-md space-y-3" onSubmit={(e) => { e.preventDefault(); setFields({}); change.mutate(); }}>
+          <Field label={tr("settings.current_password")} error={fields.currentPassword}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}</Field>
+          <Field label={tr("settings.new_password")} hint={tr("settings.at_least_10_characters")} error={fields.newPassword}>{(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" variant="secondary" loading={change.isPending} disabled={!current || next.length < 10}>{tr("settings.update_password")}</Button>
+          </div>
+        </form>
+      ) : (
+        <p className="max-w-md text-sm text-muted">Your account uses single sign-on. Passkeys and active devices are managed below.</p>
+      )}
       <div className="mt-6 flex max-w-md flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
         <div><h3 className="text-sm font-medium">{tr("settings.delete_account")}</h3><p className="text-xs text-subtle">{tr("settings.removes_you_and_any_workspace_where_you_re_the_o")}</p></div>
         <Button variant="danger" size="sm" onClick={() => setDeleting(true)}>{tr("settings.delete_account")}</Button>

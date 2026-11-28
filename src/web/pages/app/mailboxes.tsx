@@ -110,7 +110,7 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
                   {locked && <Badge tone="neutral">{t("priv1a.private")}</Badge>}
                   {m.status === "suspended" && <Badge tone="warn">Suspended</Badge>}
                   {freeDomain && m.address.endsWith(`@${freeDomain}`) ? <Badge tone="neutral">Free address</Badge>
-                    : !locked && domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
+                    : !locked && domainStatus.has(m.domainId) && domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
                 </div>
                 <div className="mt-0.5 truncate text-[13px] text-muted">{m.displayName}{m.replyTo ? ` · replies to ${m.replyTo}` : ""}</div>
               </div>
