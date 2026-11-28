@@ -14,7 +14,7 @@ import {members,mnetEnrollmentHandoffs as journal} from "@/server/db/schema";
 // expected mapping/principal/service before any native exchange response.
 const repo=process.env.MNET_NATIVE_REPO;
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
-async function waitFile(path:string,done:()=>boolean){const until=Date.now()+45000;for(;;){try{return await readFile(path,"utf8");}catch{}if(done()||Date.now()>until)throw new Error("native fixture IPC deadline");await sleep(10);}}
+async function waitFile(path:string,done:()=>boolean){const until=Date.now()+45000;for(;;){try{return await readFile(path,"utf8");}catch{/* Wait for the native fixture to publish its result. */}if(done()||Date.now()>until)throw new Error("native fixture IPC deadline");await sleep(10);}}
 (repo?it:it.skip).each(["success","decline","revoked","lost-response"])("actual Multies handler/DB to owned native %s",async(mode)=>{
  const dir=await mkdtemp(join(tmpdir(),"mnet-native-cross-"));await chmod(dir,0o700);
  const e=await setupBookkeeping(true);let child:ReturnType<typeof spawn>|undefined;let sourceCalls=0;let sourceStatus=0;let serviceCalls=0;let done=false;let output="";
