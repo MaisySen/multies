@@ -26,7 +26,7 @@ test("admin adds an agent member, assigns it a task and sees the Agent badge", a
   await dialog.getByLabel("Bio").fill("Writes the code, opens the pull requests and ships the builds.");
   await dialog.getByRole("button", { name: "Add agent" }).click();
   const key = (await page.getByTestId("agent-key").textContent())!.trim();
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
 
   // Two more teammates through the app's own route, with colours.
   for (const a of [{ name: "QA", title: "Quality lead", bio: "Runs every test suite before a release.", avatarColor: "#30B158" }, { name: "Scout", title: "Research", bio: "Reads the competitors and writes the notes.", avatarColor: "#BF5AF2" }]) {

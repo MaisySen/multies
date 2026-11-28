@@ -29,7 +29,7 @@ test("adds an AI agent member in People and its key posts to chat under its name
   await dialog.getByRole("button", { name: "Add agent" }).click();
   const key = (await page.getByTestId("agent-key").textContent())!.trim();
   expect(key).toMatch(/^mm_live_/);
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   const row = page.getByTestId("agent-member").filter({ hasText: "QA bot" });
   await expect(row.getByText("AI agent", { exact: true })).toBeVisible();
   await expect(row.getByText("Quality lead")).toBeVisible();
