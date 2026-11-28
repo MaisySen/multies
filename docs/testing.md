@@ -59,3 +59,5 @@ Run the whole suite locally, and only the smoke, store pages, launch checklist a
 - Every bug fix gets a regression test that fails before the fix.
 - Every new route gets an API test, including a cross workspace call that must answer 404 or 403.
 - Every new page gets an entry in the known pages list and is covered by the a11y spec.
+- Every new app page gets a home: a menu entry, a Settings pane, a Tools tile, or a declared parent in
+  `src/shared/nav-parents.ts`. `tests/nav-homes-nav1.test.ts` fails when a page has none (MPT-10).
