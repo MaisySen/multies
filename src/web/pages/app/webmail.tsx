@@ -576,7 +576,7 @@ export function WebmailPage() {
         </div>
         <div className="px-3">
           <label htmlFor="mailbox-switch" className="sr-only">{tr("mail.mailbox")}</label>
-          <Select bare id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none focus:border-brand/60"
+          <Select bare id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none transition-[border-color,box-shadow] duration-150 ease-out focus:border-brand focus:ring-4 focus:ring-brand/15"
             phoneClassName={`${PHONE_PICK} h-11 w-full px-3`}>
             {(mailboxes.length ? mailboxes : [mb]).map((m) => <option key={m.id} value={m.id}>{m.address || tr("mail.mailbox")}{m.kind === "agent" ? " (agent)" : ""}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
           </Select>
